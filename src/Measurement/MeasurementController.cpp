@@ -3759,6 +3759,8 @@ MeasurementController::DimensionHit MeasurementController::hitTestDimensionLine(
 			// scaled so a click at that distance ranks like one at pixelRadius from a line.
 			float d = (clickPt - labelScreen).length() * (static_cast<float>(pixelRadius) / kLabelGrabPixels);
 			d = std::min(d, distPointToSegment(clickPt, toScreen(labelHandle->attach), labelScreen));
+			for (const auto& segment : labelHandle->grabSegments)
+				d = std::min(d, distPointToSegment(clickPt, toScreen(segment.first), toScreen(segment.second)));
 			// A diameter's own line through the circle is part of what can be grabbed, not just the value on it.
 			if (m.type == MeasurementType::CylindricalDiameter && !m.anchors.isEmpty())
 			{
@@ -4357,6 +4359,13 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		const QVector3D landing = angled ? right * side : up;
 		const QVector3D shoulderEnd = end + landing * (markerSize * 5.0f);
 		addSegment(end, shoulderEnd, color);
+		if (draggable && !explicitEnd)
+		{
+			// The whole leader grabs the label, not only its outer end.
+			const auto handle = _labelHandles.find(draggable->id);
+			if (handle != _labelHandles.end())
+				handle->grabSegments = { { center, rimUsed }, { rimUsed, end }, { end, shoulderEnd } };
+		}
 		if (inPlane)
 		{
 			// The value starts at the end of the shoulder and runs away from the leader along it.
@@ -4570,13 +4579,25 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 	// between just the two ends. Static offset magnitude for now (not yet
 	// draggable, matching Chain Length/Pitch Circle/Concentricity's own
 	// "static report" precedent). Returns an on-arc label position.
+	// `draggable`, when given, lets the offset radius be dragged: the part of its offsetVector along the radial direction at
+	// the arc's middle adds to the default stand-off (a label drag in the arc's plane, see _labelHandles).
 	auto addOffsetArcDimension = [&](const QVector<QVector3D>& polyline, const QVector3D& center,
-		const QVector3D& axis, const QVector3D& color) -> QVector3D {
+		const QVector3D& axis, const QVector3D& color, const Measurement* draggable = nullptr) -> QVector3D {
 		if (polyline.size() < 2)
 			return polyline.isEmpty() ? QVector3D() : polyline.first();
 
 		const QVector3D n = axis.normalized();
-		const float offsetMag = defaultDimensionOffsetMagnitude(camera);
+		const float defaultMag = defaultDimensionOffsetMagnitude(camera);
+		float offsetMag = defaultMag;
+		QVector3D midRadial;
+		{
+			const QVector3D toMid = polyline[polyline.size() / 2] - center;
+			midRadial = toMid - n * QVector3D::dotProduct(toMid, n);
+			if (midRadial.lengthSquared() > 1.0e-12f)
+				midRadial.normalize();
+		}
+		if (draggable && midRadial.lengthSquared() > 0.5f)
+			offsetMag = std::max(defaultMag * 0.1f, defaultMag + QVector3D::dotProduct(draggable->offsetVector, midRadial));
 
 		auto radialOffset = [&](const QVector3D& p) -> QVector3D {
 			const QVector3D toP = p - center;
@@ -4622,6 +4643,17 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		dimLineDir = offsetPts[std::max<size_t>(middle, 1)] - offsetPts[std::max<size_t>(middle, 1) - 1];  // tangent of the arc
 		dimOffsetDir = offsetPts[middle] - polyline[middle];                                                  // radially outward
 		dimPlaneValid = true;
+		if (draggable && midRadial.lengthSquared() > 0.5f)
+		{
+			// The label stands on the arc, so only the radial part of the saved offset is where it is held.
+			const QVector3D defaultLabel = polyline[middle] + midRadial * defaultMag;
+			LabelHandle handle{ defaultLabel, n, offsetPts[middle] - defaultLabel };
+			handle.grabSegments.push_back({ polyline.first(), offsetPts.first() });
+			handle.grabSegments.push_back({ polyline.last(), offsetPts.last() });
+			for (int i = 0; i + 1 < offsetPts.size(); ++i)
+				handle.grabSegments.push_back({ offsetPts[i], offsetPts[i + 1] });
+			_labelHandles.insert(draggable->id, handle);
+		}
 		return offsetPts[middle];
 	};
 
@@ -4727,8 +4759,12 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 			if (SceneMesh* strokeOwner = getMeshByUuid(m.recordedDrawing->meshUuid))
 			{
 				const size_t strokeStart = lineVertices.size();
+				// The author's colour, unless the item is selected (selection must read); hover lightens it as it does any colour.
+				QVector3D strokeColor = dimensionColor;
+				if (m.recordedDrawing->hasColor && !isSelected)
+					strokeColor = (isHovered || isDimensionHovered) ? m.recordedDrawing->color * 0.4f + QVector3D(1.0f, 1.0f, 1.0f) * 0.6f : m.recordedDrawing->color;
 				RecordedPmi::appendStrokes(*m.recordedDrawing, strokeOwner->combinedRenderTransform(), camera->getRenderPosition(),
-					dimensionColor, lineVertices, &triangleVertices);
+					strokeColor, lineVertices, &triangleVertices);
 				_recordedStrokes.insert(m.id, RecordedPmi::strokeSegments(lineVertices, strokeStart));
 				drewRecordedStrokes = true;
 			}
@@ -4921,7 +4957,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 					QVector3D circCenter, circAxis;
 					float circRadius = 0.0f;
 					labelPos = resolveMeasurementEdgeCircle(m.anchors[0], circCenter, circAxis, circRadius)
-						? addOffsetArcDimension(polyline, circCenter, circAxis, dimensionColor)
+						? addOffsetArcDimension(polyline, circCenter, circAxis, dimensionColor, &m)
 						: (start + end) * 0.5f;
 				}
 				else

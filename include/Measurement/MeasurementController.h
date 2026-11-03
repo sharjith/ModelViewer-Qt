@@ -367,7 +367,13 @@ private:
 
 	// What the last overlay draw recorded, so hit-testing and dragging use exactly what was drawn without redoing the geometry.
 	// A report-style measurement's label: the point its leader starts from and the normal of the plane the label lies in.
-	struct LabelHandle { QVector3D attach; QVector3D planeNormal; QVector3D shownOffset; };  // shownOffset: where the label stands now (its saved offset, else the default)
+	struct LabelHandle
+	{
+		QVector3D attach;
+		QVector3D planeNormal;
+		QVector3D shownOffset;  // where the label stands now (its saved offset, else the default)
+		std::vector<std::pair<QVector3D, QVector3D>> grabSegments;  // further drawn lines that also grab the label (a radius leader's whole length)
+	};
 	QHash<QUuid, LabelHandle> _labelHandles;
 	// The segments of each recorded (authored) drawing as last drawn, which is what hover and click test against.
 	QHash<QUuid, std::vector<QVector3D>> _recordedStrokes;
