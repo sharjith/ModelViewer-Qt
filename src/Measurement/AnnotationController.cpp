@@ -1,5 +1,6 @@
 #include "AnnotationController.h"
 #include "InPlaneText.h"
+#include "OverlayLineWeights.h"
 
 #include "AnnotationOffsetCommand.h"
 #include "Camera.h"
@@ -785,7 +786,7 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         _renderCtrl.axisShader()->setUniformValue("modelViewMatrix", camera->getViewMatrix());
         _renderCtrl.axisShader()->setUniformValue("projectionMatrix", camera->getProjectionMatrix());
         _renderCtrl.axisShader()->setUniformValue("renderCone", false);
-        glLineWidth(2.0f);
+        glLineWidth(OverlayLineWeights::thinLine);
         glDrawArrays(GL_LINES, 0, lineCount);
         if (fillCount > 0)
             glDrawArrays(GL_TRIANGLES, lineCount, fillCount);

@@ -2,6 +2,7 @@
 
 #include "Camera.h"
 #include "InPlaneText.h"
+#include "OverlayLineWeights.h"
 #include "MainWindow.h"
 #include "MeasurementGeometry.h"
 #include "MeasurementOffsetCommand.h"
@@ -5536,7 +5537,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		_renderCtrl.axisShader()->setUniformValue("modelViewMatrix", camera->getViewMatrix());
 		_renderCtrl.axisShader()->setUniformValue("projectionMatrix", camera->getProjectionMatrix());
 		_renderCtrl.axisShader()->setUniformValue("renderCone", false);
-		glLineWidth(2.0f);
+		glLineWidth(OverlayLineWeights::thinLine);
 		glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(lineVertices.size() / 6));
 		glLineWidth(1.0f);
 		_renderCtrl.axisShader()->release();

@@ -11,6 +11,7 @@
 #include "ExplodedViewManager.h"
 #include "SceneGraph.h"
 #include "ConeRenderable.h"
+#include "OverlayLineWeights.h"
 #include "CubeRenderable.h"
 #include "CoordinateSystemHelper.h"
 #include "FloorPlane.h"
@@ -8476,7 +8477,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 
 		// Wire pass — draw edges at true depth; no line offset needed.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(1.5f);
+		glLineWidth(OverlayLineWeights::objectLine);
 		if (useWireShader)
 		{			
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
@@ -8521,7 +8522,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		// True feature-edge wireframe — draw only pre-computed crease/boundary edges via GL_LINES.
 		// No glPolygonMode needed; the feature-edge VAO draws GL_LINES primitives directly.
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(1.75f);
+		glLineWidth(OverlayLineWeights::objectLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -8577,7 +8578,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		}
 		// Feature-edge overlay — no offset needed; solid was already pushed back.
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(1.5f);
+		glLineWidth(OverlayLineWeights::objectLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -8898,7 +8899,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 
 		// Wire pass — draw edges at true depth; no line offset needed.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(1.5f);
+		glLineWidth(OverlayLineWeights::objectLine);
 		if (useWireShaderT)
 		{
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
@@ -8942,7 +8943,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 	else if (_displayMode == DisplayMode::WIREFRAME && useWireShaderT)
 	{
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(1.75f);
+		glLineWidth(OverlayLineWeights::objectLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -8996,7 +8997,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 			}
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(1.5f);
+		glLineWidth(OverlayLineWeights::objectLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -9937,6 +9938,7 @@ void ViewportWidget::drawSectionCapping()
 				_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
 				// procedural hatch params (tweak to taste)
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchWidthPx", OverlayLineWeights::thinLine);
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
@@ -10078,6 +10080,7 @@ void ViewportWidget::drawBoxSectionCapping(float localCappingSceneDiag)
 		const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
 		capShader->setUniformValue("worldUnitsPerTile", localCappingSceneDiag / tilesAcross);
 		capShader->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
+		capShader->setUniformValue("hatchWidthPx", OverlayLineWeights::thinLine);
 		capShader->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
 		capShader->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
 		capShader->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());

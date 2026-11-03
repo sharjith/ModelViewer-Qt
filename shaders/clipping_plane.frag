@@ -17,6 +17,7 @@ uniform float worldUnitsPerTile; // spacing: world units per repeat
 // Procedural hatch controls (set from C++)
 uniform float hatchThickness;    // fraction of tile (0..0.5). e.g. 0.012
 uniform float hatchIntensity;    // 0..1
+uniform float hatchWidthPx;       // when > 0, hatch line width in device pixels (overrides hatchThickness)
 uniform int   hatchPattern;      // 0 = 45° only; 1 = 135°; 2 = vertical; 3 = horizontal; 3 = vert+hor; 4 = 45+135
 uniform vec3  hatchLineColor;    // color of hatch lines (e.g. black)
 
@@ -63,9 +64,10 @@ float aaStripe(float coordWU, float spacingWU, float halfThicknessWU)
 {
     float t = coordWU / spacingWU;
     float frac = fract(t + 0.5) - 0.5;
-    float fw = fwidth(frac);
-    return 1.0 - smoothstep(halfThicknessWU/spacingWU - fw*0.5,
-                            halfThicknessWU/spacingWU + fw*0.5,
+    float fw = fwidth(t); // one pixel in tile units; fwidth(frac) spikes where fract() wraps
+    float halfTile = hatchWidthPx > 0.0 ? 0.5 * hatchWidthPx * fw : halfThicknessWU / spacingWU;
+    return 1.0 - smoothstep(halfTile - fw*0.5,
+                            halfTile + fw*0.5,
                             abs(frac));
 }
 
