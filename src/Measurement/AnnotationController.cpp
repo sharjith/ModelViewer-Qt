@@ -215,7 +215,7 @@ AnnotationController::InPlaneNote AnnotationController::layoutInPlaneNote(const 
         const LabelPlane::Basis reading = LabelPlane::readable(plane, camera->getRenderPosition(), labelPos, camera->getRightVector());
         note.x = reading.x;
         note.y = reading.y;
-        note.capHeight = std::max(camera->getViewRange(), 0.0001f) * 0.01f * 1.8f;
+        note.capHeight = std::max(camera->getViewRange(), 0.0001f) * 0.01f * LabelPlane::InPlaneCapScale;
     }
     else
     {

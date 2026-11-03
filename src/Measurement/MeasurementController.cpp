@@ -4402,7 +4402,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		const bool reversed = QVector3D::dotProduct(along, right) < 0.0f;
 		const QVector3D xDir = reversed ? -along : along;
 		const QVector3D yDir = QVector3D::crossProduct(normal, xDir).normalized();
-		const float capHeight = markerSize * 1.8f;
+		const float capHeight = markerSize * LabelPlane::InPlaneCapScale;
 		const QStringList lines = text.split(QChar('\n'));
 		for (int i = 0; i < lines.size(); ++i)
 		{
@@ -5316,7 +5316,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 					const QVector3D end = center + offsetInPlane;
 					// The line runs on under the whole value, which stands on it: measure the text to know how far.
 					const bool inPlaneText = m.orientation != LabelOrientation::FaceCamera;
-					const float textCap = inPlaneText ? markerSize * 1.8f
+					const float textCap = inPlaneText ? markerSize * LabelPlane::InPlaneCapScale
 						: LabelPlane::BillboardCapPixels * LabelPlane::worldPerPixel(end, camera->getViewMatrix(), camera->getProjectionMatrix(),
 							QRect(0, 0, viewportSize.width(), viewportSize.height()));
 					const InPlaneText::Outline& textShape = InPlaneText::outline(summary);
