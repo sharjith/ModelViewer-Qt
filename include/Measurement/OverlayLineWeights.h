@@ -6,5 +6,6 @@
 namespace OverlayLineWeights
 {
 inline constexpr float objectLine = 1.5f; // feature edges, mesh edges
+inline constexpr float wireframeOverlayLine = 1.75f; // feature-edge wireframe, heavier so it stays visible over solid rendering
 inline constexpr float thinLine = 1.25f;  // dimensions, leaders, annotation strokes, section hatching
 }

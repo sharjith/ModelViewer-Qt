@@ -8522,7 +8522,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		// True feature-edge wireframe — draw only pre-computed crease/boundary edges via GL_LINES.
 		// No glPolygonMode needed; the feature-edge VAO draws GL_LINES primitives directly.
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(OverlayLineWeights::objectLine);
+		glLineWidth(OverlayLineWeights::wireframeOverlayLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -8943,7 +8943,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 	else if (_displayMode == DisplayMode::WIREFRAME && useWireShaderT)
 	{
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(OverlayLineWeights::objectLine);
+		glLineWidth(OverlayLineWeights::wireframeOverlayLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());

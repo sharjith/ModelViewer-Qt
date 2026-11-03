@@ -15,7 +15,7 @@ Status: implemented, awaiting owner build and visual test. Nothing here is verif
 
 ## Owner decision, implemented
 
-Object lines 1.5 px and thin lines 1.25 px, to begin with (`include/Measurement/OverlayLineWeights.h`). Thin: measurement and annotation overlay lines and strokes, and section hatching (new `hatchWidthPx` uniform, which overrides the fractional thickness). Object: mesh-edge and feature-edge passes (1.75 px feature edges lowered to 1.5). Hollow-mesh wireframe (1.25 px) and selection/gizmo outlines are unchanged.
+Object lines 1.5 px and thin lines 1.25 px, to begin with (`include/Measurement/OverlayLineWeights.h`). Thin: measurement and annotation overlay lines and strokes, and section hatching (new `hatchWidthPx` uniform, which overrides the fractional thickness). Object: mesh-edge and feature-edge passes at 1.5 px. The feature-edge wireframe passes keep their original 1.75 px (`wireframeOverlayLine`) so they stay visible over solid rendering. Hollow-mesh wireframe (1.25 px) and selection/gizmo outlines are unchanged.
 
 ## Not done
 
