@@ -19,5 +19,5 @@ Object lines 1.5 px and thin lines 1.25 px, to begin with (`include/Measurement/
 
 ## Not done
 
-- Hatch spacing stays the existing tiling-based world-space value; the Settings "hatch thickness" value is now overridden by the pixel width.
+- Hatch spacing (owner chose option 1, 3 November 2026, awaiting build and test): procedural hatch now keeps a constant on-screen line spacing of `hatchSpacingPx` (11 px, about 3 mm at 96 dpi, times the device pixel ratio), computed per cap from the projection at the cap centre (`ViewportWidget::hatchWorldUnitsPerTile`). CAD practice differs by context: AutoCAD model-space hatch scales with zoom (HPSCALE; annotative hatch is constant on the sheet), SolidWorks and Solid Edge drawing hatch is fixed in sheet units and follows view scale. The Settings tiling and thickness values no longer affect procedural hatch; texture hatch is unchanged.
 - No device-pixel-ratio scaling; widths are device pixels.

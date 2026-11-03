@@ -8263,6 +8263,21 @@ std::vector<std::vector<int>> ViewportWidget::collectCappingGroups(int planeInde
 	return groups;
 }
 
+float ViewportWidget::hatchWorldUnitsPerTile(const QVector3D& refPoint, float fallback, bool textured) const
+{
+	if (textured)
+		return fallback;
+	const QMatrix4x4 proj = _viewCtrl.projectionMatrix();
+	const QVector4D clip = proj * _viewCtrl.viewMatrix() * QVector4D(refPoint, 1.0f);
+	const float heightPx = static_cast<float>(height() * devicePixelRatioF());
+	const float scale = proj(1, 1) * heightPx;
+	if (!(scale > 1.0e-6f) || !(clip.w() > 1.0e-6f))
+		return fallback;
+	// One device pixel spans 2 * w / (P11 * height) eye units at the reference depth (w = 1 for orthographic).
+	const float worldPerPixel = 2.0f * clip.w() / scale;
+	return worldPerPixel * OverlayLineWeights::hatchSpacingPx * static_cast<float>(devicePixelRatioF());
+}
+
 float ViewportWidget::computeLocalCappingSceneDiag() const
 {
 	bool haveExtent = false;
@@ -9933,7 +9948,7 @@ void ViewportWidget::drawSectionCapping()
 				// assembly gets hatch tiles sized to that part, not lost in
 				// tiles sized for the entire loaded scene.
 				const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
-				const float worldUnitsPerTile = localCappingSceneDiag / tilesAcross;
+				const float worldUnitsPerTile = hatchWorldUnitsPerTile(QVector3D(P.getX(), P.getY(), P.getZ()), localCappingSceneDiag / tilesAcross, wantTexture);
 
 				_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
 				// procedural hatch params (tweak to taste)
@@ -10078,7 +10093,9 @@ void ViewportWidget::drawBoxSectionCapping(float localCappingSceneDiag)
 
 		const bool wantTexture = _renderCtrl.hatchMode() == ClippingPlaneHatchMode::TEXTURE;
 		const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
-		capShader->setUniformValue("worldUnitsPerTile", localCappingSceneDiag / tilesAcross);
+		QVector3D hatchRef(0.5f * (lo[0] + hi[0]), 0.5f * (lo[1] + hi[1]), 0.5f * (lo[2] + hi[2]));
+		hatchRef[axis] = planePos;
+		capShader->setUniformValue("worldUnitsPerTile", hatchWorldUnitsPerTile(hatchRef, localCappingSceneDiag / tilesAcross, wantTexture));
 		capShader->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
 		capShader->setUniformValue("hatchWidthPx", OverlayLineWeights::thinLine);
 		capShader->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());

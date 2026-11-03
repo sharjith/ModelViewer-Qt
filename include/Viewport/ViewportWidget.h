@@ -1866,6 +1866,9 @@ private:
 	// to the whole-scene bounding radius if nothing currently straddles any
 	// active plane.
 	float computeLocalCappingSceneDiag() const;
+	// World units per hatch tile so the section hatch keeps a constant on-screen line spacing (OverlayLineWeights::hatchSpacingPx)
+	// at refPoint, for perspective and orthographic projections. Returns `fallback` for texture hatch.
+	float hatchWorldUnitsPerTile(const QVector3D& refPoint, float fallback, bool textured) const;
 	void drawFloor(const bool& drawReflection = true);
 	void drawGrid();
 	void drawSkyBox(const QMatrix4x4* overrideViewMatrix = nullptr);
