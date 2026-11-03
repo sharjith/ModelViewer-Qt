@@ -1524,16 +1524,103 @@ on)</string>
            </widget>
           </item>
           <item row="2" column="0">
-           <widget class="QLabel" name="labelSectionCappingHatchTiling">
+           <widget class="QLabel" name="labelSectionCappingHatchSpacingMode">
             <property name="text">
-             <string>Hatch Tiling</string>
+             <string>Hatch Spacing</string>
             </property>
            </widget>
           </item>
           <item row="2" column="1">
+           <widget class="QComboBox" name="comboBoxSectionCappingHatchSpacingMode">
+            <property name="toolTip">
+             <string>How the procedural hatch line spacing is chosen: constant on screen (drafting-style), a fixed distance in model units, or relative to the cap size</string>
+            </property>
+            <item>
+             <property name="text">
+              <string>Screen-constant</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Model units</string>
+             </property>
+            </item>
+            <item>
+             <property name="text">
+              <string>Part-relative</string>
+             </property>
+            </item>
+           </widget>
+          </item>
+          <item row="3" column="0">
+           <widget class="QLabel" name="labelSectionCappingHatchSpacingPx">
+            <property name="text">
+             <string>Spacing (px)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="3" column="1">
+           <widget class="QDoubleSpinBox" name="doubleSpinBoxSectionCappingHatchSpacingPx">
+            <property name="toolTip">
+             <string>Hatch line spacing in screen pixels for the Screen-constant mode (about 11 px is 3 mm on a 96 dpi screen)</string>
+            </property>
+            <property name="decimals">
+             <number>1</number>
+            </property>
+            <property name="minimum">
+             <double>2</double>
+            </property>
+            <property name="maximum">
+             <double>200</double>
+            </property>
+            <property name="singleStep">
+             <double>0.5</double>
+            </property>
+            <property name="value">
+             <double>11</double>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="0">
+           <widget class="QLabel" name="labelSectionCappingHatchSpacingModel">
+            <property name="text">
+             <string>Spacing (model units)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="4" column="1">
+           <widget class="QDoubleSpinBox" name="doubleSpinBoxSectionCappingHatchSpacingModel">
+            <property name="toolTip">
+             <string>Hatch line spacing in model units for the Model units mode; it zooms with the part</string>
+            </property>
+            <property name="decimals">
+             <number>3</number>
+            </property>
+            <property name="minimum">
+             <double>0.001</double>
+            </property>
+            <property name="maximum">
+             <double>100000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.1</double>
+            </property>
+            <property name="value">
+             <double>2</double>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="0">
+           <widget class="QLabel" name="labelSectionCappingHatchTiling">
+            <property name="text">
+             <string>Hatch Tiling (part-relative)</string>
+            </property>
+           </widget>
+          </item>
+          <item row="5" column="1">
            <widget class="QSpinBox" name="spinBoxSectionCappingHatchTiling">
             <property name="toolTip">
-             <string>Default number of times the hatch pattern repeats across a cap</string>
+             <string>Default number of times the hatch pattern repeats across a cap. Used by the Part-relative spacing mode</string>
             </property>
             <property name="minimum">
              <number>1</number>
@@ -1546,43 +1633,43 @@ on)</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="0">
-           <widget class="QLabel" name="labelSectionCappingHatchThickness">
+          <item row="6" column="0">
+           <widget class="QLabel" name="labelSectionCappingHatchWidth">
             <property name="text">
-             <string>Hatch Thickness</string>
+             <string>Hatch Line Width (px)</string>
             </property>
            </widget>
           </item>
-          <item row="3" column="1">
-           <widget class="QDoubleSpinBox" name="doubleSpinBoxSectionCappingHatchThickness">
+          <item row="6" column="1">
+           <widget class="QDoubleSpinBox" name="doubleSpinBoxSectionCappingHatchWidth">
             <property name="toolTip">
-             <string>Default width of the hatch lines</string>
+             <string>Hatch line width in screen pixels</string>
             </property>
             <property name="decimals">
-             <number>3</number>
+             <number>2</number>
             </property>
             <property name="minimum">
-             <double>0.008000000000000</double>
+             <double>0.25</double>
             </property>
             <property name="maximum">
-             <double>0.100000000000000</double>
+             <double>6</double>
             </property>
             <property name="singleStep">
-             <double>0.001000000000000</double>
+             <double>0.25</double>
             </property>
             <property name="value">
-             <double>0.050000000000000</double>
+             <double>1</double>
             </property>
            </widget>
           </item>
-          <item row="4" column="0">
+          <item row="7" column="0">
            <widget class="QLabel" name="labelSectionCappingHatchIntensity">
             <property name="text">
              <string>Hatch Intensity</string>
             </property>
            </widget>
           </item>
-          <item row="4" column="1">
+          <item row="7" column="1">
            <widget class="QDoubleSpinBox" name="doubleSpinBoxSectionCappingHatchIntensity">
             <property name="toolTip">
              <string>Default opacity of the hatch pattern over a cap</string>
@@ -1601,14 +1688,14 @@ on)</string>
             </property>
            </widget>
           </item>
-          <item row="5" column="0">
+          <item row="8" column="0">
            <widget class="QLabel" name="labelSectionCappingHatchColor">
             <property name="text">
              <string>Hatch Line Color</string>
             </property>
            </widget>
           </item>
-          <item row="5" column="1">
+          <item row="8" column="1">
            <widget class="QPushButton" name="pushButtonSectionCappingHatchColor">
             <property name="toolTip">
              <string>Pick the default hatch line color</string>
@@ -1621,6 +1708,61 @@ on)</string>
             </property>
             <property name="text">
              <string>Choose...</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="0">
+           <widget class="QLabel" name="labelSectionCappingTextureTiling">
+            <property name="text">
+             <string>Texture Tiling</string>
+            </property>
+           </widget>
+          </item>
+          <item row="9" column="1">
+           <widget class="QSpinBox" name="spinBoxSectionCappingTextureTiling">
+            <property name="toolTip">
+             <string>Default number of times the texture repeats across a cap (Textured mode)</string>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+            <property name="singleStep">
+             <number>1</number>
+            </property>
+            <property name="value">
+             <number>3</number>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="0">
+           <widget class="QLabel" name="labelSectionCappingTextureBlend">
+            <property name="text">
+             <string>Texture Strength</string>
+            </property>
+           </widget>
+          </item>
+          <item row="10" column="1">
+           <widget class="QDoubleSpinBox" name="doubleSpinBoxSectionCappingTextureBlend">
+            <property name="toolTip">
+             <string>Default strength of the texture over the cap colour (Textured mode)</string>
+            </property>
+            <property name="decimals">
+             <number>2</number>
+            </property>
+            <property name="minimum">
+             <double>0</double>
+            </property>
+            <property name="maximum">
+             <double>1</double>
+            </property>
+            <property name="singleStep">
+             <double>0.05</double>
+            </property>
+            <property name="value">
+             <double>0.25</double>
             </property>
            </widget>
           </item>

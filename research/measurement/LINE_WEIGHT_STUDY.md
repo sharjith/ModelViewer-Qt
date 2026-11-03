@@ -23,3 +23,7 @@ Object lines 1.5 px and thin lines 1.25 px, to begin with (`include/Measurement/
 - No device-pixel-ratio scaling; widths are device pixels.
 
 - Hatch line weight (owner-tested 3 November 2026): section hatching uses its own `hatchLine` = 1.0 px, lighter than the 1.25 px thin weight, because 1.25 px at the 11 px spacing looked cluttered.
+
+- Hatch spacing modes (3 November 2026, awaiting build and test): Settings > Section Capping now has "Hatch Spacing" = Screen-constant (default, `sectionCappingHatchSpacingPx`, 11 px), Model units (`sectionCappingHatchSpacingModelUnits`, 2.0, zooms with the part) or Part-relative (the old cap size / tiling rule). "Hatch Line Width (px)" (`sectionCappingHatchWidthPx`, 1.0) replaces the old fractional thickness, which is no longer saved. Settings are read when a document viewport is created, like the other cap defaults.
+
+- Textured cap parameters (3 November 2026, awaiting build and test): "Texture Tiling" (`sectionCappingTextureTiling`, 3, was hardcoded) and "Texture Strength" (`sectionCappingTextureBlend`, 0.25, was a hardcoded mix factor in the shader). Rows that do not apply are hidden: the hatch rows (and, within them, only the spacing value of the chosen mode) for Procedural, these two for Textured.

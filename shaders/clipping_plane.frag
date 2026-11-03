@@ -23,6 +23,7 @@ uniform vec3  hatchLineColor;    // color of hatch lines (e.g. black)
 
 // Toggle between procedural and texture-based hatch
 uniform bool useTexture;         // when true, sample hatchMap instead of procedural
+uniform float textureBlend = 0.25; // how strongly the texture shows over the plane colour (0..1)
 uniform vec2 textureFlip;        // (1,1) normal; (-1,1) flip U; (1,-1) flip V
 
 // Multi-plane corner-cut trim (set from C++, see drawSectionCapping()'s doc
@@ -125,7 +126,7 @@ void main()
 
         // Mix texture with plane color controlled by hatchIntensity
         vec4 base = vec4(planeColor, 1.0);
-        fragColor = mix(base, vec4(hatch, 1.0), 0.25);
+        fragColor = mix(base, vec4(hatch, 1.0), clamp(textureBlend, 0.0, 1.0));
 
         if (selected) {
             fragColor = mix(fragColor, vec4(1.0, 0.65, 0.0, 1.0), 0.5);

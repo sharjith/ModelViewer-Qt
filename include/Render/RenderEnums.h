@@ -17,6 +17,8 @@
 enum class RenderingMode          { ADS_BLINN_PHONG, PHYSICALLY_BASED_RENDERING, RAY_TRACED };
 enum class ShadingNormalMode      { SMOOTH, FLAT };
 enum class ClippingPlaneHatchMode { PROCEDURAL, TEXTURE };
+// How section-hatch line spacing is chosen: constant on screen, a fixed distance in model units, or relative to the cap size (tiling).
+enum class HatchSpacingMode { ScreenConstant = 0, ModelUnits = 1, PartRelative = 2 };
 enum class HatchPattern           { DIAGONAL_45 = 0, DIAGONAL_135 = 1, HORIZONTAL = 2, VERTICAL = 3, GRID = 4, DIAGONAL_CROSS = 5 };
 
 enum class DebugOverlayMode  { BoundingBox, VertexNormals, FaceNormals };

@@ -382,8 +382,13 @@ void SettingsDialog::applySettings()
     settings.setValue("sectionCappingMode", sectionCapping_modeIndex);
     settings.setValue("sectionCappingHatchPattern", sectionCapping_hatchPatternIndex);
     settings.setValue("sectionCappingHatchTiling", sectionCapping_hatchTiling);
-    settings.setValue("sectionCappingHatchThickness", sectionCapping_hatchThickness);
+    settings.setValue("sectionCappingHatchSpacingMode", sectionCapping_hatchSpacingModeIndex);
+    settings.setValue("sectionCappingHatchSpacingPx", sectionCapping_hatchSpacingPx);
+    settings.setValue("sectionCappingHatchSpacingModelUnits", sectionCapping_hatchSpacingModel);
+    settings.setValue("sectionCappingHatchWidthPx", sectionCapping_hatchWidth);
     settings.setValue("sectionCappingHatchIntensity", sectionCapping_hatchIntensity);
+    settings.setValue("sectionCappingTextureTiling", sectionCapping_textureTiling);
+    settings.setValue("sectionCappingTextureBlend", sectionCapping_textureBlend);
     settings.setValue("sectionCappingHatchLineColor", sectionCapping_hatchLineColor);
 
     // Lighting
@@ -565,8 +570,14 @@ void SettingsDialog::setDefaultValues()
     ui->comboBoxSectionCappingMode->setCurrentIndex(0);          // "Procedural"
     ui->comboBoxSectionCappingHatchPattern->setCurrentIndex(0);  // "Diagonal 45"
     ui->spinBoxSectionCappingHatchTiling->setValue(100);
-    ui->doubleSpinBoxSectionCappingHatchThickness->setValue(0.05);
+    ui->comboBoxSectionCappingHatchSpacingMode->setCurrentIndex(0);  // "Screen-constant"
+    ui->doubleSpinBoxSectionCappingHatchSpacingPx->setValue(11.0);
+    ui->doubleSpinBoxSectionCappingHatchSpacingModel->setValue(2.0);
+    ui->doubleSpinBoxSectionCappingHatchWidth->setValue(1.0);
+    on_comboBoxSectionCappingHatchSpacingMode_currentIndexChanged(); // refresh which spacing value is editable
     ui->doubleSpinBoxSectionCappingHatchIntensity->setValue(1.0);
+    ui->spinBoxSectionCappingTextureTiling->setValue(3);
+    ui->doubleSpinBoxSectionCappingTextureBlend->setValue(0.25);
     {
         const QColor hatchColorDefault(0, 0, 0);
         ui->pushButtonSectionCappingHatchColor->setProperty("color", hatchColorDefault);
@@ -745,8 +756,13 @@ void SettingsDialog::syncStateFromUi()
     sectionCapping_modeIndex = ui->comboBoxSectionCappingMode->currentIndex();
     sectionCapping_hatchPatternIndex = ui->comboBoxSectionCappingHatchPattern->currentIndex();
     sectionCapping_hatchTiling = ui->spinBoxSectionCappingHatchTiling->value();
-    sectionCapping_hatchThickness = ui->doubleSpinBoxSectionCappingHatchThickness->value();
+    sectionCapping_hatchSpacingModeIndex = ui->comboBoxSectionCappingHatchSpacingMode->currentIndex();
+    sectionCapping_hatchSpacingPx = ui->doubleSpinBoxSectionCappingHatchSpacingPx->value();
+    sectionCapping_hatchSpacingModel = ui->doubleSpinBoxSectionCappingHatchSpacingModel->value();
+    sectionCapping_hatchWidth = ui->doubleSpinBoxSectionCappingHatchWidth->value();
     sectionCapping_hatchIntensity = ui->doubleSpinBoxSectionCappingHatchIntensity->value();
+    sectionCapping_textureTiling = ui->spinBoxSectionCappingTextureTiling->value();
+    sectionCapping_textureBlend = ui->doubleSpinBoxSectionCappingTextureBlend->value();
     sectionCapping_hatchLineColor = ui->pushButtonSectionCappingHatchColor->property("color").value<QColor>();
 
     // Lighting
@@ -918,10 +934,21 @@ void SettingsDialog::loadSettings()
     iVal = settings.value("sectionCappingHatchTiling", ui->spinBoxSectionCappingHatchTiling->value()).toInt();
     ui->spinBoxSectionCappingHatchTiling->setValue(iVal);
     {
-        const double hatchThickness = settings.value("sectionCappingHatchThickness", ui->doubleSpinBoxSectionCappingHatchThickness->value()).toDouble();
-        ui->doubleSpinBoxSectionCappingHatchThickness->setValue(hatchThickness);
+        ui->comboBoxSectionCappingHatchSpacingMode->setCurrentIndex(
+            settings.value("sectionCappingHatchSpacingMode", ui->comboBoxSectionCappingHatchSpacingMode->currentIndex()).toInt());
+        ui->doubleSpinBoxSectionCappingHatchSpacingPx->setValue(
+            settings.value("sectionCappingHatchSpacingPx", ui->doubleSpinBoxSectionCappingHatchSpacingPx->value()).toDouble());
+        ui->doubleSpinBoxSectionCappingHatchSpacingModel->setValue(
+            settings.value("sectionCappingHatchSpacingModelUnits", ui->doubleSpinBoxSectionCappingHatchSpacingModel->value()).toDouble());
+        ui->doubleSpinBoxSectionCappingHatchWidth->setValue(
+            settings.value("sectionCappingHatchWidthPx", ui->doubleSpinBoxSectionCappingHatchWidth->value()).toDouble());
+        on_comboBoxSectionCappingHatchSpacingMode_currentIndexChanged();
         const double hatchIntensity = settings.value("sectionCappingHatchIntensity", ui->doubleSpinBoxSectionCappingHatchIntensity->value()).toDouble();
         ui->doubleSpinBoxSectionCappingHatchIntensity->setValue(hatchIntensity);
+        ui->spinBoxSectionCappingTextureTiling->setValue(
+            settings.value("sectionCappingTextureTiling", ui->spinBoxSectionCappingTextureTiling->value()).toInt());
+        ui->doubleSpinBoxSectionCappingTextureBlend->setValue(
+            settings.value("sectionCappingTextureBlend", ui->doubleSpinBoxSectionCappingTextureBlend->value()).toDouble());
         const QColor hatchColor = settings.value("sectionCappingHatchLineColor", QColor(0, 0, 0)).value<QColor>();
         ui->pushButtonSectionCappingHatchColor->setProperty("color", hatchColor);
         ui->pushButtonSectionCappingHatchColor->setStyleSheet(QString("background-color: %1").arg(hatchColor.name()));
@@ -1324,6 +1351,7 @@ void SettingsDialog::on_anisotropyComboBox_currentIndexChanged()
 void SettingsDialog::on_comboBoxSectionCappingMode_currentIndexChanged()
 {
     sectionCapping_modeIndex = ui->comboBoxSectionCappingMode->currentIndex();
+    on_comboBoxSectionCappingHatchSpacingMode_currentIndexChanged(); // refresh which hatch controls apply
 }
 
 void SettingsDialog::on_comboBoxSectionCappingHatchPattern_currentIndexChanged()
@@ -1336,9 +1364,55 @@ void SettingsDialog::on_spinBoxSectionCappingHatchTiling_valueChanged()
     sectionCapping_hatchTiling = ui->spinBoxSectionCappingHatchTiling->value();
 }
 
-void SettingsDialog::on_doubleSpinBoxSectionCappingHatchThickness_valueChanged()
+void SettingsDialog::on_comboBoxSectionCappingHatchSpacingMode_currentIndexChanged()
 {
-    sectionCapping_hatchThickness = ui->doubleSpinBoxSectionCappingHatchThickness->value();
+    sectionCapping_hatchSpacingModeIndex = ui->comboBoxSectionCappingHatchSpacingMode->currentIndex();
+    // The hatch controls only apply to the Procedural cap fill and the texture controls to the Textured one; within the
+    // procedural fill only the spacing value that the chosen spacing mode uses is shown. Inapplicable rows are hidden.
+    const bool procedural = ui->comboBoxSectionCappingMode->currentIndex() == 0;
+    const auto show = [](QWidget* label, QWidget* field, bool visible)
+    {
+        label->setVisible(visible);
+        field->setVisible(visible);
+    };
+    show(ui->labelSectionCappingHatchPattern, ui->comboBoxSectionCappingHatchPattern, procedural);
+    show(ui->labelSectionCappingHatchSpacingMode, ui->comboBoxSectionCappingHatchSpacingMode, procedural);
+    show(ui->labelSectionCappingHatchSpacingPx, ui->doubleSpinBoxSectionCappingHatchSpacingPx,
+        procedural && sectionCapping_hatchSpacingModeIndex == 0);
+    show(ui->labelSectionCappingHatchSpacingModel, ui->doubleSpinBoxSectionCappingHatchSpacingModel,
+        procedural && sectionCapping_hatchSpacingModeIndex == 1);
+    show(ui->labelSectionCappingHatchTiling, ui->spinBoxSectionCappingHatchTiling,
+        procedural && sectionCapping_hatchSpacingModeIndex == 2);
+    show(ui->labelSectionCappingHatchWidth, ui->doubleSpinBoxSectionCappingHatchWidth, procedural);
+    show(ui->labelSectionCappingHatchIntensity, ui->doubleSpinBoxSectionCappingHatchIntensity, procedural);
+    show(ui->labelSectionCappingHatchColor, ui->pushButtonSectionCappingHatchColor, procedural);
+    show(ui->labelSectionCappingTextureTiling, ui->spinBoxSectionCappingTextureTiling, !procedural);
+    show(ui->labelSectionCappingTextureBlend, ui->doubleSpinBoxSectionCappingTextureBlend, !procedural);
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingHatchSpacingPx_valueChanged()
+{
+    sectionCapping_hatchSpacingPx = ui->doubleSpinBoxSectionCappingHatchSpacingPx->value();
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingHatchSpacingModel_valueChanged()
+{
+    sectionCapping_hatchSpacingModel = ui->doubleSpinBoxSectionCappingHatchSpacingModel->value();
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingHatchWidth_valueChanged()
+{
+    sectionCapping_hatchWidth = ui->doubleSpinBoxSectionCappingHatchWidth->value();
+}
+
+void SettingsDialog::on_spinBoxSectionCappingTextureTiling_valueChanged()
+{
+    sectionCapping_textureTiling = ui->spinBoxSectionCappingTextureTiling->value();
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingTextureBlend_valueChanged()
+{
+    sectionCapping_textureBlend = ui->doubleSpinBoxSectionCappingTextureBlend->value();
 }
 
 void SettingsDialog::on_doubleSpinBoxSectionCappingHatchIntensity_valueChanged()

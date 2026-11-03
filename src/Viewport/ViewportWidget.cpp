@@ -6504,6 +6504,16 @@ void ViewportWidget::createCappingPlanes()
 		_renderCtrl.setHatchTiling(settings.value("sectionCappingHatchTiling", 100).toInt());
 		_renderCtrl.setHatchThickness(static_cast<float>(
 			settings.value("sectionCappingHatchThickness", 0.05).toDouble()));
+		_renderCtrl.setHatchSpacingMode(static_cast<HatchSpacingMode>(
+			settings.value("sectionCappingHatchSpacingMode", 0).toInt()));
+		_renderCtrl.setHatchSpacingPx(static_cast<float>(
+			settings.value("sectionCappingHatchSpacingPx", double(OverlayLineWeights::hatchSpacingPx)).toDouble()));
+		_renderCtrl.setHatchSpacingModelUnits(static_cast<float>(
+			settings.value("sectionCappingHatchSpacingModelUnits", 2.0).toDouble()));
+		_renderCtrl.setHatchWidthPx(static_cast<float>(
+			settings.value("sectionCappingHatchWidthPx", double(OverlayLineWeights::hatchLine)).toDouble()));
+		_renderCtrl.setTextureTiling(settings.value("sectionCappingTextureTiling", 3).toInt());
+		_renderCtrl.setTextureBlend(static_cast<float>(settings.value("sectionCappingTextureBlend", 0.25).toDouble()));
 		_renderCtrl.setHatchIntensity(static_cast<float>(
 			settings.value("sectionCappingHatchIntensity", 1.0).toDouble()));
 		const QColor hatchColor = settings.value("sectionCappingHatchLineColor", QColor(0, 0, 0)).value<QColor>();
@@ -8263,19 +8273,22 @@ std::vector<std::vector<int>> ViewportWidget::collectCappingGroups(int planeInde
 	return groups;
 }
 
-float ViewportWidget::hatchWorldUnitsPerTile(const QVector3D& refPoint, float fallback, bool textured) const
+float ViewportWidget::hatchWorldUnitsPerTile(const QVector3D& refPoint, float partRelativeTile, bool textured) const
 {
-	if (textured)
-		return fallback;
+	const HatchSpacingMode mode = _renderCtrl.hatchSpacingMode();
+	if (textured || mode == HatchSpacingMode::PartRelative)
+		return partRelativeTile;
+	if (mode == HatchSpacingMode::ModelUnits)
+		return std::max(_renderCtrl.hatchSpacingModelUnits(), 1.0e-6f);
 	const QMatrix4x4 proj = _viewCtrl.projectionMatrix();
 	const QVector4D clip = proj * _viewCtrl.viewMatrix() * QVector4D(refPoint, 1.0f);
 	const float heightPx = static_cast<float>(height() * devicePixelRatioF());
 	const float scale = proj(1, 1) * heightPx;
 	if (!(scale > 1.0e-6f) || !(clip.w() > 1.0e-6f))
-		return fallback;
+		return partRelativeTile;
 	// One device pixel spans 2 * w / (P11 * height) eye units at the reference depth (w = 1 for orthographic).
 	const float worldPerPixel = 2.0f * clip.w() / scale;
-	return worldPerPixel * OverlayLineWeights::hatchSpacingPx * static_cast<float>(devicePixelRatioF());
+	return worldPerPixel * _renderCtrl.hatchSpacingPx() * static_cast<float>(devicePixelRatioF());
 }
 
 float ViewportWidget::computeLocalCappingSceneDiag() const
@@ -9947,19 +9960,20 @@ void ViewportWidget::drawSectionCapping()
 				// than the whole scene - a small part cut out of a large
 				// assembly gets hatch tiles sized to that part, not lost in
 				// tiles sized for the entire loaded scene.
-				const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
+				const float tilesAcross = static_cast<float>(wantTexture ? std::max(_renderCtrl.textureTiling(), 1) : _renderCtrl.hatchTiling());
 				const float worldUnitsPerTile = hatchWorldUnitsPerTile(QVector3D(P.getX(), P.getY(), P.getZ()), localCappingSceneDiag / tilesAcross, wantTexture);
 
 				_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
 				// procedural hatch params (tweak to taste)
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
-				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchWidthPx", OverlayLineWeights::hatchLine);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchWidthPx", _renderCtrl.hatchWidthPx());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchPattern", static_cast<int>(_renderCtrl.hatchPattern()));
 
 				_renderCtrl.clippingPlaneShader()->setUniformValue("useTexture", wantTexture);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("textureBlend", _renderCtrl.textureBlend());
 
 				// texture flip control: (1,1) normal; (-1,1) flip U; (1,-1) flip V
 				QVector2D texFlip = QVector2D(wantFlipU ? -1.0f : 1.0f, wantFlipV ? -1.0f : 1.0f);
@@ -10092,17 +10106,18 @@ void ViewportWidget::drawBoxSectionCapping(float localCappingSceneDiag)
 		capShader->setUniformValue("boxTrimAxis", axis);
 
 		const bool wantTexture = _renderCtrl.hatchMode() == ClippingPlaneHatchMode::TEXTURE;
-		const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
+		const float tilesAcross = static_cast<float>(wantTexture ? std::max(_renderCtrl.textureTiling(), 1) : _renderCtrl.hatchTiling());
 		QVector3D hatchRef(0.5f * (lo[0] + hi[0]), 0.5f * (lo[1] + hi[1]), 0.5f * (lo[2] + hi[2]));
 		hatchRef[axis] = planePos;
 		capShader->setUniformValue("worldUnitsPerTile", hatchWorldUnitsPerTile(hatchRef, localCappingSceneDiag / tilesAcross, wantTexture));
 		capShader->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
-		capShader->setUniformValue("hatchWidthPx", OverlayLineWeights::hatchLine);
+		capShader->setUniformValue("hatchWidthPx", _renderCtrl.hatchWidthPx());
 		capShader->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
 		capShader->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
 		capShader->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
 		capShader->setUniformValue("hatchPattern", static_cast<int>(_renderCtrl.hatchPattern()));
 		capShader->setUniformValue("useTexture", wantTexture);
+		capShader->setUniformValue("textureBlend", _renderCtrl.textureBlend());
 		capShader->setUniformValue("textureFlip", QVector2D(1.0f, 1.0f));
 
 		// Pose the shared unit quad (local XY plane, normal +Z) onto the face:
