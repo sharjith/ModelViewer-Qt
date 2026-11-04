@@ -570,6 +570,7 @@ struct Builder {
     unsigned nodes=0;
     // Where the read spends its time (reported in the import notes): opening part files, decoding shape payloads, converting them.
     double openMs=0,decodeMs=0,convertMs=0,copyMs=0,addMs=0,metaMs=0,sourceCtxMs=0,attrMs=0;unsigned filesOpened=0,shapesDecoded=0,prefetched=0;
+    unsigned lodNodes=0,lodReduced=0,lodIndistinct=0; // LOD nodes seen by visit(); those that loaded a reduced level; those with no distinct levels
     std::unique_ptr<Prefetcher> prefetch;
     struct Timed {
         double& total;std::chrono::steady_clock::time_point begin=std::chrono::steady_clock::now();
@@ -1533,6 +1534,45 @@ struct Builder {
         meshStyles.push_back({style,!colored&&mergeableStyle(style)&&Detail::isTriangleMesh(*mesh)});
         meshes.push_back(std::move(mesh)); return unsigned(meshes.size()-1);
     }
+    // Shape LOD segment type (7 = most detailed, up to 16) of the most detailed shape at or below `object`, from the table of
+    // contents only (nothing is decoded and no part file is opened); 0 when no shape below it names a level (generic type 6, none).
+    static unsigned shapeLevel(const Handle(JtData_Object)& object,unsigned depth=0) {
+        if(object.IsNull()||depth>16)return 0;
+        const auto shape=Handle(JtNode_Shape_Base)::DownCast(object);
+        if(!shape.IsNull()) {
+            unsigned best=0;
+            for(size_t i=0;i<shape->LateLoads().Count();++i) {
+                const unsigned type=unsigned(shape->LateLoads()[i]->SegmentType());
+                if(type>=7&&type<=16&&(!best||type<best))best=type;
+            }
+            return best;
+        }
+        const auto instance=Handle(JtNode_Instance)::DownCast(object);
+        if(!instance.IsNull())return shapeLevel(instance->Object(),depth+1);
+        const auto group=Handle(JtNode_Group)::DownCast(object);
+        if(group.IsNull())return 0;
+        unsigned best=0;
+        const size_t examined=std::min<size_t>(group->Children().Count(),64);
+        for(size_t i=0;i<examined;++i) {
+            const unsigned level=shapeLevel(group->Children()[i],depth+1);
+            if(level&&(!best||level<best))best=level;
+        }
+        return best;
+    }
+    // The alternative of a LOD node that options.detailLevel asks for. False when the level is Finest or the alternatives do not
+    // name at least two distinct levels, so the established choice stands.
+    bool chooseByDetail(const Handle(JtNode_Group)& group,size_t& index) const {
+        if(options.detailLevel==Options::DetailLevel::Finest)return false;
+        const size_t childCount=group->Children().Count();
+        std::vector<unsigned> levels(childCount,0);
+        std::set<unsigned> distinct;
+        for(size_t i=0;i<childCount;++i) {levels[i]=shapeLevel(group->Children()[i]);if(levels[i])distinct.insert(levels[i]);}
+        if(distinct.size()<2)return false;
+        const std::vector<unsigned> ordered(distinct.begin(),distinct.end());
+        const unsigned target=options.detailLevel==Options::DetailLevel::Coarsest ? ordered.back() : ordered[ordered.size()/2];
+        for(size_t i=0;i<childCount;++i)if(levels[i]==target) {index=i;return true;}
+        return false;
+    }
     // Walks the product structure the way visit() will (without building anything) and lists, in visit order, the shape payloads it
     // will decode, opening part files on the way (visit() reuses them). It only has to be a good guess: a payload it lists that the
     // build does not use is skipped, one it misses is decoded by the build itself.
@@ -1579,7 +1619,9 @@ struct Builder {
             if(selected!=0xffffffffu&&selected<childCount)scout(group->Children()[selected],seen,out);
         } else if(lod) {
             if(options.lodEyePoint||!childCount)return; // the preferred child depends on a distance: leave it to the build
-            scout(group->Children()[0],seen,out);
+            size_t chosen=0;
+            chooseByDetail(group,chosen);
+            scout(group->Children()[chosen],seen,out);
         } else for(size_t i=0;i<childCount;++i)scout(group->Children()[i],seen,out);
     }
     std::unique_ptr<aiNode> visit(const Handle(JtData_Object)& object,Appearance style={},bool parentHidden=false,bool transformLocked=false,const aiMatrix4x4& parentWorld=aiMatrix4x4(),PaletteContext palette={},MaterialSourceContext materialSource={}) {
@@ -1861,6 +1903,14 @@ struct Builder {
                                 preferred=preferred==limits.Count() ? childCount-1 : std::min(preferred,childCount-1);
                             }
                         }
+                    }
+                    if(lod&&childCount&&switchNode.IsNull()) {
+                        ++lodNodes;
+                        size_t byDetail=0;
+                        if(chooseByDetail(group,byDetail)) {
+                            if(byDetail!=preferred)++lodReduced;
+                            preferred=byDetail;
+                        } else if(options.detailLevel!=Options::DetailLevel::Finest)++lodIndistinct;
                     }
                     if(!switchNode.IsNull()) {
                         const auto selected=switchNode->SelectedChild();
@@ -2164,7 +2214,7 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         const unsigned cores=std::max(1u,std::thread::hardware_concurrency());
         const unsigned threads=options.decodeThreads?options.decodeThreads:(cores>1?cores-1:1u);
         bool minimumSet=false;const int minimumEnv=qEnvironmentVariableIntValue("MODELVIEWER_JT_PREFETCH_MIN",&minimumSet);
-        const int minimumSetting=QSettings().value(QStringLiteral("jtPrefetchMin"),16).toInt(); // Settings dialog, Debug tab
+        const int minimumSetting=QSettings().value(QStringLiteral("jtPrefetchMin"),16).toInt(); // Settings dialog, Import Export tab
         const size_t minimum=minimumSet&&minimumEnv>=1?size_t(minimumEnv):size_t(minimumSetting>=1?minimumSetting:16);
         if(threads>1) {
             std::unordered_set<const void*> seen;std::vector<Handle(JtProperty_LateLoaded)> properties;
@@ -2220,6 +2270,10 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         .arg(qint64(scoutMs)).arg(qint64(visitMs)).arg(qint64(b.decodeMs)).arg(qint64(b.convertMs)).arg(qint64(mergeMs)).arg(qint64(nameMs)).arg(qint64(b.copyMs)).arg(qint64(b.addMs)).arg(qint64(b.metaMs)).arg(qint64(b.sourceCtxMs)));
     b.result.notes.append(QStringLiteral("JT read timing: %1 part files opened in %2 ms, %3 shape payloads decoded in %4 ms, converted to meshes in %5 ms; %6 payloads were queued for parallel decoding (decode time is the build's wait for them).")
         .arg(b.filesOpened).arg(qint64(b.openMs)).arg(b.shapesDecoded).arg(qint64(b.decodeMs)).arg(qint64(b.convertMs)).arg(b.prefetched));
+    if(options.detailLevel!=Options::DetailLevel::Finest)
+        b.result.notes.append(QStringLiteral("JT detail level %1: %2 of %3 LOD nodes loaded a coarser alternative than the first; %4 offered no distinct levels and kept the established choice. "
+            "Measurements and recorded PMI of this session belong to this level.")
+            .arg(options.detailLevel==Options::DetailLevel::Coarsest ? QStringLiteral("coarsest") : QStringLiteral("medium")).arg(b.lodReduced).arg(b.lodNodes).arg(b.lodIndistinct));
     b.result.scene=std::make_unique<aiScene>();auto& scene=*b.result.scene;
     scene.mRootNode=tree.release();scene.mNumMeshes=unsigned(b.meshes.size());scene.mMeshes=new aiMesh*[scene.mNumMeshes]{};
     for(unsigned i=0;i<scene.mNumMeshes;++i) scene.mMeshes[i]=b.meshes[i].release();

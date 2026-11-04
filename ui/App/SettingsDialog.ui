@@ -2290,6 +2290,44 @@ axis</string>
               </property>
              </widget>
             </item>
+            <item row="4" column="0">
+             <widget class="QLabel" name="jtDetailLevelLabel">
+              <property name="text">
+               <string>Detail Level:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="1">
+             <widget class="QComboBox" name="jtDetailLevelComboBox">
+              <property name="toolTip">
+               <string>Which level of detail a JT file's LOD alternatives are
+  loaded at. Finest is the normal choice. Medium and
+  Coarsest read much less geometry from files that
+  store several levels, so large assemblies load faster
+  and use less memory, but measurements, section caps
+  and exports then use the coarser geometry, and a saved
+  session belongs to the level it was made at. Files
+  with a single level are unaffected. Applies to files
+  opened afterwards.
+  Override: MODELVIEWER_JT_DETAIL_LEVEL.</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>Finest</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Medium</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Coarsest</string>
+               </property>
+              </item>
+             </widget>
+            </item>
            </layout>
           </widget>
          </item>
@@ -2829,6 +2867,7 @@ loaded after restarting the application.</string>
   <tabstop>jtDecodeThreadsSpinBox</tabstop>
   <tabstop>jtBudgetGibSpinBox</tabstop>
   <tabstop>jtPrefetchMinSpinBox</tabstop>
+  <tabstop>jtDetailLevelComboBox</tabstop>
   <tabstop>threeDxmlStrictCheckBox</tabstop>
   <tabstop>threeDxmlThreadsSpinBox</tabstop>
   <tabstop>threeDxmlParallelMinSpinBox</tabstop>

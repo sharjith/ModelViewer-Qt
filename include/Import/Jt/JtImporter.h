@@ -47,18 +47,31 @@ struct Options {
     // The decoder keeps its limits per thread and opens its own file stream for every segment, so payloads decode independently.
     // MODELVIEWER_JT_DECODE_THREADS overrides it in fromEnvironment().
     unsigned decodeThreads=0;
+    // Which of a LOD node's alternatives is loaded, by the Shape LOD segment type of its shapes (JT 10.6 reference, 4.1.3
+    // Data Segment, NOTE 1: type 7 is the most detailed, higher types are coarser). Finest keeps the established policy (first
+    // child, or the RangeLOD distance choice with lodEyePoint). Medium takes the middle of the distinct levels present (the
+    // coarser of two), Coarsest the lowest detail. A LOD node whose alternatives do not name distinct levels (generic type 6, a
+    // single level) keeps the established choice. Only one alternative is ever loaded; this is not runtime switching.
+    // Measurements and recorded PMI are placed on the loaded triangles, so a session belongs to the level it was made at.
+    enum class DetailLevel { Finest=0, Medium=1, Coarsest=2 };
+    DetailLevel detailLevel=DetailLevel::Finest;
     void check() const { if(cancelled && cancelled()) throw Cancelled(); }
     // Opt-in desktop runtime override. Plain Options and explicit caller budgets
     // remain deterministic; the viewer calls this when starting a JT import.
     static Options fromEnvironment() {
         Options result;
-        // Settings dialog (Debug tab) values first; an environment variable, when set, overrides them.
+        // Settings dialog (Import Export tab, JT Importer group) values first; an environment variable, when set, overrides them.
         QSettings settings;
         if(!settings.value(QStringLiteral("jtMergePartMeshes"),true).toBool())result.mergePartMeshes=false;
         {const int threads=settings.value(QStringLiteral("jtDecodeThreads"),0).toInt();if(threads>=0)result.decodeThreads=unsigned(threads);}
         {const int gib=settings.value(QStringLiteral("jtBudgetGiB"),16).toInt();
          if(gib>=1&&gib<=256)result.decodedAllocationBudget=size_t(gib)*size_t(1024)*1024*1024;}
+        {const int level=settings.value(QStringLiteral("jtDetailLevel"),0).toInt();if(level>=0&&level<=2)result.detailLevel=DetailLevel(level);}
         if(qgetenv("MODELVIEWER_JT_MERGE_PART_MESHES")=="0")result.mergePartMeshes=false;
+        {const QByteArray level=qgetenv("MODELVIEWER_JT_DETAIL_LEVEL").trimmed().toLower();
+         if(level=="finest")result.detailLevel=DetailLevel::Finest;
+         else if(level=="medium")result.detailLevel=DetailLevel::Medium;
+         else if(level=="coarsest")result.detailLevel=DetailLevel::Coarsest;}
         {bool ok=false;const int threads=qEnvironmentVariableIntValue("MODELVIEWER_JT_DECODE_THREADS",&ok);if(ok&&threads>=0)result.decodeThreads=unsigned(threads);}
         const auto value=qgetenv("MODELVIEWER_JT_BUDGET_GIB");
         if(value.isNull())return result;

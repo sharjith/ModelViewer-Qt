@@ -389,6 +389,38 @@ void selectionTests() {
     check(chosen->mChildren[0]->mName==aiString("first") && result.scene->mNumMeshes==1 && !result.warnings.isEmpty(),"RangeLOD fallback failed");
     selection->children({broken,first});selection->select(0);root->children({selection});
     rejected([&]{build(root);},"no supported JT display tessellation"); // Switches must not substitute an unauthored child.
+
+    // Detail level: the alternative is chosen by the Shape LOD segment type of its shapes (7 finest, higher coarser), not by child order.
+    {
+        auto levelRoot=node<JtNode_Partition>("root");auto levelRange=node<JtNode_RangeLOD>("range");levelRoot->children({levelRange});
+        auto fine=leaf("fine");auto mid=leaf("mid");auto coarse=leaf("coarse");
+        const auto reset=[&](int fineType,int midType,int coarseType) {fine->late({new Property(true,fineType)});mid->late({new Property(true,midType)});coarse->late({new Property(true,coarseType)});};
+        const auto choice=[&](Jt::Options::DetailLevel level,int* index=nullptr) {
+            Jt::Options options;options.detailLevel=level;auto r=build(levelRoot,options);auto n=r.scene->mRootNode->mChildren[0];
+            check(n->mNumChildren==1 && references(*r.scene->mRootNode)==1,"Detail level emitted several representations");
+            int32_t child=-1;check(n->mMetaData->Get("JTSelectedChild",child),"Detail level lost the selected-child metadata");if(index)*index=child;
+            if(level!=Jt::Options::DetailLevel::Finest) {
+                bool noted=false;for(const QString& note:r.notes)noted=noted||note.startsWith(QStringLiteral("JT detail level"));
+                check(noted,"Detail level note missing");
+            }
+            return std::string(n->mChildren[0]->mName.C_Str());
+        };
+        using Level=Jt::Options::DetailLevel;int index=-1;
+        levelRange->children({fine,mid,coarse});
+        reset(7,8,9);check(choice(Level::Finest)=="fine","Finest changed the established first-child choice");
+        reset(7,8,9);check(choice(Level::Medium,&index)=="mid" && index==1,"Medium did not pick the middle level");
+        reset(7,8,9);check(choice(Level::Coarsest,&index)=="coarse" && index==2,"Coarsest did not pick the lowest detail");
+        levelRange->children({coarse,fine,mid}); // Child order carries no detail meaning.
+        reset(7,8,9);check(choice(Level::Finest)=="coarse","Finest must keep the first child whatever its level");
+        reset(7,8,9);check(choice(Level::Medium)=="mid","Medium depends on child order");
+        reset(7,8,9);check(choice(Level::Coarsest)=="coarse","Coarsest depends on child order");
+        levelRange->children({fine,coarse}); // Two levels: Medium is the coarser of them.
+        reset(7,8,9);check(choice(Level::Medium)=="coarse","Medium with two levels");
+        levelRange->children({fine,mid,coarse});
+        reset(6,6,6);check(choice(Level::Coarsest)=="fine","Generic-type alternatives must keep the established choice");
+        reset(7,7,7);check(choice(Level::Medium)=="fine","A single level must keep the established choice");
+        reset(7,8,12);check(choice(Level::Coarsest)=="coarse","Level numbers above 9 are coarser still");
+    }
 }
 void metadataTests() {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create metadata fixture directory");const auto path=temp.filePath("metadata.jt");

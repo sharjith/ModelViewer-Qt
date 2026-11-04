@@ -4,6 +4,8 @@
 
 Current owner priority (24 October 2026): [C2 paused at C2ag; core viewing essentials first](JT_VIEWING_PRIORITY.md). The remaining appearance work is retained for later; immediate direction is C3 line/wire and point coverage.
 
+Runtime detail (C5): [LOD evidence and design](JT_C5_RUNTIME_LOD_DESIGN.md) (3 November 2026, design only).
+
 Suggested reading order:
 
 1. [Feasibility and legal scope](JT_IMPORT_FEASIBILITY.md), [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [pass-specific provenance](JT_PROVENANCE.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).

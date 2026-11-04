@@ -47,7 +47,8 @@ int main(int argc,char** argv) {
     const QCommandLineOption validate("validate","Check geometry, stored-normal lengths and node transforms; print local mesh bounds");
     const QCommandLineOption budget("allocation-budget-mib","Override cumulative charged-allocation budget for native diagnostics","MiB");
     const QCommandLineOption decodeThreads("decode-threads","Threads decoding shape payloads ahead of the build (0 = automatic, 1 = off)","N");
-    parser.addOption(decodeThreads);
+    const QCommandLineOption detail("detail-level","Which LOD alternative to load by Shape LOD segment type: finest (default), medium or coarsest","level");
+    parser.addOption(decodeThreads);parser.addOption(detail);
     parser.addOption(budget);parser.addOption(sourceAttributes);parser.addOption(publishedMaterials);
     parser.addOption(eye);parser.addOption(properties);parser.addOption(materials);parser.addOption(validate);parser.process(app);
     const auto arguments=parser.positionalArguments();
@@ -56,6 +57,13 @@ int main(int argc,char** argv) {
         Jt::Options options;options.duplicateFallbackMaterialCompatibility=!parser.isSet(publishedMaterials);
         if(parser.isSet(budget)){bool ok=false;const auto mib=parser.value(budget).toULongLong(&ok);if(!ok||!mib||mib>std::numeric_limits<size_t>::max()/(1024*1024))throw std::runtime_error("Invalid allocation budget");options.decodedAllocationBudget=size_t(mib)*1024*1024;}
         if(parser.isSet(decodeThreads)){bool ok=false;const auto n=parser.value(decodeThreads).toUInt(&ok);if(!ok)throw std::runtime_error("Invalid --decode-threads");options.decodeThreads=n;}
+        if(parser.isSet(detail)) {
+            const QString level=parser.value(detail).toLower();
+            if(level=="finest")options.detailLevel=Jt::Options::DetailLevel::Finest;
+            else if(level=="medium")options.detailLevel=Jt::Options::DetailLevel::Medium;
+            else if(level=="coarsest")options.detailLevel=Jt::Options::DetailLevel::Coarsest;
+            else throw std::runtime_error("--detail-level requires finest, medium or coarsest");
+        }
         size_t charged=0;options.progress=[&](const QString&,int,int){charged=JtData_Limits::allocated;};
         if(parser.isSet(eye)) {
             const auto coordinates=parser.value(eye).split(',');

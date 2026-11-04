@@ -17800,13 +17800,13 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Compatibilidad de la Fuerza Legado OpenGL Modo</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2394"/>
-        <location filename="../ui/App/SettingsDialog.ui" line="2446"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2432"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2484"/>
         <source>Debug</source>
         <translation>Depurar</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2418"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2456"/>
         <source>Debug Information</source>
         <translation>Información de Depuración</translation>
     </message>
@@ -17823,22 +17823,22 @@ Esto ejecutará un nuevo renderizado sin conexión a la resolución solicitada, 
         <translation type="vanished">Mostrar Información de OpenGL</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2424"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2462"/>
         <source>Enable Debug Logging</source>
         <translation>Habilitar el Registro de Depuración</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2438"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2476"/>
         <source>Log Level:</source>
         <translation>Nivel de Registro:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2461"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2499"/>
         <source>Error</source>
         <translation>Error</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2431"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2469"/>
         <source>Enable Console Output</source>
         <translation>Activación de consolas</translation>
     </message>
@@ -18122,7 +18122,49 @@ activado)</translation>
         <translation>Rayado Cruzado</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2504"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2296"/>
+        <source>Detail Level:</source>
+        <translation>Nivel de detalle:</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2303"/>
+        <source>Which level of detail a JT file&apos;s LOD alternatives are
+  loaded at. Finest is the normal choice. Medium and
+  Coarsest read much less geometry from files that
+  store several levels, so large assemblies load faster
+  and use less memory, but measurements, section caps
+  and exports then use the coarser geometry, and a saved
+  session belongs to the level it was made at. Files
+  with a single level are unaffected. Applies to files
+  opened afterwards.
+  Override: MODELVIEWER_JT_DETAIL_LEVEL.</source>
+        <translation>Nivel de detalle con el que se cargan las alternativas LOD de un
+  archivo JT. Más fino es la opción normal. Medio y Más grueso
+  leen mucha menos geometría de los archivos que guardan varios
+  niveles, de modo que los ensamblajes grandes cargan más rápido
+  y usan menos memoria, pero las mediciones, las tapas de sección
+  y las exportaciones usan entonces la geometría más gruesa.
+  Los archivos con un solo nivel no se ven afectados. Se aplica a
+  los archivos abiertos después.
+  Anulación: MODELVIEWER_JT_DETAIL_LEVEL.</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2316"/>
+        <source>Finest</source>
+        <translation>Más fino</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2321"/>
+        <source>Medium</source>
+        <translation>Medio</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2326"/>
+        <source>Coarsest</source>
+        <translation>Más grueso</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2542"/>
         <source>Logs [RenderDiagnostics] frame timings and
 [BatchDiagnostics] draw-batching statistics to the
 log (enable Debug Logging and set the level to Info
@@ -18138,12 +18180,12 @@ desactivado en el uso normal. Surte efecto en un
 segundo, sin reiniciar.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2543"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2581"/>
         <source>Performance and Import Diagnostics</source>
         <translation>Diagnóstico de rendimiento e importación</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2549"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2587"/>
         <source>Writes a timing and memory checkpoint trace while
 a model is imported (for diagnosing slow or failing
 imports of very large assemblies). Environment variable
@@ -18155,17 +18197,17 @@ La variable de entorno MODELVIEWER_IMPORT_DIAGNOSTICS=1
 también lo activa.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2555"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2593"/>
         <source>Import Diagnostics Trace</source>
         <translation>Seguimiento de diagnóstico de importación</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2562"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2600"/>
         <source>Trace File Limit:</source>
         <translation>Límite del archivo de seguimiento:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2569"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2607"/>
         <source>Size at which the import trace file is truncated and
 restarted. Raise it for 30000-part imports.
 Applies after restarting the application.
@@ -18176,18 +18218,18 @@ trunca y se reinicia. Auméntelo para importaciones de
 Anulación: MODELVIEWER_IMPORT_DIAGNOSTICS_MAX_MB.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2575"/>
-        <location filename="../ui/App/SettingsDialog.ui" line="2604"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2613"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2642"/>
         <source> MB</source>
         <translation> MB</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2591"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2629"/>
         <source>Interaction Fast-Path Size:</source>
         <translation>Tamaño de la vía rápida de interacción:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2598"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2636"/>
         <source>Models whose displayed geometry is larger than this use
 the low-resolution interaction path while the camera
 moves (and small-part culling). Takes effect within
@@ -18198,12 +18240,12 @@ la vía de baja resolución mientras la cámara se mueve
 un segundo.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2620"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2658"/>
         <source>Small-Part Cull Threshold:</source>
         <translation>Umbral de descarte de piezas pequeñas:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2627"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2665"/>
         <source>While the camera moves on a large model, parts
 smaller than this many pixels on screen are skipped.
 0 turns it off. Only applies to models above the
@@ -18215,17 +18257,17 @@ encima del tamaño de la vía rápida de interacción.
 Surte efecto en un segundo.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2633"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2671"/>
         <source>Off</source>
         <translation>Desactivado</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2636"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2674"/>
         <source> px</source>
         <translation> px</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2655"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2693"/>
         <source>Draw large models with far fewer GPU draw calls by
 merging static parts of the same material into shared
 buffers. Parts that are selected, hovered, moved or
@@ -18238,17 +18280,17 @@ movidas o especiales se siguen dibujando individualmente.
 Surte efecto en un segundo.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2662"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2700"/>
         <source>Batched Drawing (large models)</source>
         <translation>Dibujo por lotes (modelos grandes)</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2672"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2710"/>
         <source>Batching Minimum Model Size:</source>
         <translation>Tamaño mínimo del modelo para el dibujo por lotes:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2679"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2717"/>
         <source>Batched drawing is only used when at least this many
 parts are displayed, so ordinary models are never
 affected. Takes effect within a second.</source>
@@ -18257,17 +18299,17 @@ tantas piezas, de modo que los modelos corrientes nunca se
 ven afectados. Surte efecto en un segundo.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2684"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2722"/>
         <source> parts</source>
         <translation> piezas</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2703"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2741"/>
         <source>Coarse Copy Minimum Part Size:</source>
         <translation>Tamaño mínimo de pieza para la copia gruesa:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2710"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2748"/>
         <source>Parts with at least this many triangles get a
 coarser copy, drawn while the camera moves on a
 large model (above the Interaction Fast-Path Size).
@@ -18284,7 +18326,7 @@ en modelos enormes, pero alargan la carga y usan más memoria.
 Se aplica a los modelos cargados tras reiniciar la aplicación.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2719"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2757"/>
         <source> triangles</source>
         <translation> triángulos</translation>
     </message>
@@ -18461,7 +18503,7 @@ de esta app</translation>
     </message>
     <message>
         <location filename="../ui/App/SettingsDialog.ui" line="2213"/>
-        <location filename="../ui/App/SettingsDialog.ui" line="2319"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2357"/>
         <source>Decode Threads:</source>
         <translation>Hilos de decodificación:</translation>
     </message>
@@ -18478,7 +18520,7 @@ de esta app</translation>
     </message>
     <message>
         <location filename="../ui/App/SettingsDialog.ui" line="2226"/>
-        <location filename="../ui/App/SettingsDialog.ui" line="2332"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2370"/>
         <source>Automatic</source>
         <translation>Automático</translation>
     </message>
@@ -18518,12 +18560,12 @@ de esta app</translation>
   Anulación: MODELVIEWER_JT_PREFETCH_MIN.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2299"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2337"/>
         <source>3DXML Importer</source>
         <translation>Importador 3DXML</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2305"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2343"/>
         <source>Off: an unreadable representation is skipped with a
   warning and the rest of the assembly loads. On: any
   unreadable representation fails the whole import.
@@ -18536,12 +18578,12 @@ de esta app</translation>
   también lo activa.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2312"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2350"/>
         <source>Strict (fail on unreadable representation)</source>
         <translation>Estricto (fallar con una representación ilegible)</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2326"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2364"/>
         <source>Threads that read 3DXML representations in parallel.
   Automatic uses all cores but one; 1 turns parallel
   reading off.
@@ -18552,12 +18594,12 @@ de esta app</translation>
   Anulación: MODELVIEWER_3DXML_THREADS.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2348"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2386"/>
         <source>Parallel Minimum:</source>
         <translation>Mínimo para la lectura en paralelo:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2355"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2393"/>
         <source>Parallel reading is used only when the file has at least
   this many representations.
   Override: MODELVIEWER_3DXML_PARALLEL_MIN.</source>
@@ -18566,17 +18608,17 @@ de esta app</translation>
   Anulación: MODELVIEWER_3DXML_PARALLEL_MIN.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2456"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2494"/>
         <source>Warning</source>
         <translation>Advertencia</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2469"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2507"/>
         <source>Console Buffer Lines:</source>
         <translation>Líneas de búfer de consola:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2476"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2514"/>
         <source>Maximum number of lines kept in the console window&apos;s scrollback</source>
         <translation>Número máximo de líneas mantenidas en el desplazamiento hacia atrás de la ventana de consola</translation>
     </message>
@@ -18585,14 +18627,14 @@ de esta app</translation>
         <translation type="vanished">Registrar los tiempos de renderizado por fotograma para el perfilado de rendimiento</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2519"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2557"/>
         <source>Adds a Texture Debugger entry to the Tools menu.
 The panel shows GPU-side texture bindings for the selected mesh.</source>
         <translation>Añade una entrada Depurador de texturas al menú Herramientas.
 El panel muestra las vinculaciones de textura del lado de la GPU para la malla seleccionada.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2451"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2489"/>
         <source>Info</source>
         <translation>Info</translation>
     </message>
@@ -18601,7 +18643,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Verboso</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2498"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2536"/>
         <source>Diagnostics</source>
         <translation>Diagnóstico</translation>
     </message>
@@ -18614,7 +18656,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Validar Shaders</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2512"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2550"/>
         <source>Profile Rendering</source>
         <translation>Renderizado de Perfiles</translation>
     </message>
@@ -18623,17 +18665,17 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Añade una entrada de Depurador de texturas al menú Herramientas. El panel muestra las vinculaciones de texturas del lado de la GPU para la malla seleccionada.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2523"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2561"/>
         <source>Enable Texture Debugger in Tools menu</source>
         <translation>Activar el Depurador de texturas en el menú Herramientas</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2530"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2568"/>
         <source>Free GPU texture memory cached across all open documents</source>
         <translation>Liberar memoria de textura de GPU almacenada en caché en todos los documentos abiertos</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2533"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2571"/>
         <source>Clear All Caches</source>
         <translation>Borrar Todos los Cachés</translation>
     </message>
@@ -18689,42 +18731,42 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation>Los valores predeterminados están cargados en el diálogo. Haga clic en Aplicar o Aceptar para guardarlos.</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="663"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="665"/>
         <source>Some settings apply immediately. Others take effect only for newly opened documents or after restarting the application.</source>
         <translation>Algunos ajustes se aplican de inmediato. Otros surten efecto solo en documentos recién abiertos o después de reiniciar la aplicación.</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="669"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="671"/>
         <source>Most settings on this tab apply immediately. MSAA and some graphics options may still require restarting the application.</source>
         <translation>La mayoría de los ajustes de esta pestaña se aplican de inmediato. MSAA y algunas opciones gráficas pueden requerir reiniciar la aplicación.</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="674"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="676"/>
         <source>These settings are primarily used for newly opened documents and future imports/exports. They may not affect models that are already loaded.</source>
         <translation>Estos ajustes se usan principalmente para documentos recién abiertos y futuras importaciones/exportaciones. Es posible que no afecten a los modelos ya cargados.</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="679"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="681"/>
         <source>These settings are mainly used as defaults for future actions and newly opened documents.</source>
         <translation>Estos ajustes se usan principalmente como valores predeterminados para futuras acciones y documentos recién abiertos.</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="1218"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="1221"/>
         <source>Select Top Color</source>
         <translation>Seleccionar color superior</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="1230"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="1233"/>
         <source>Select Bottom Color</source>
         <translation>Seleccionar color inferior</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="1426"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="1429"/>
         <source>Select Hatch Line Color</source>
         <translation>Seleccionar color de línea de rayado</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="1510"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="1513"/>
         <source>Settings Reset</source>
         <translation>Ajustes Reset</translation>
     </message>
@@ -18741,12 +18783,12 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Por favor reinicie la solicitud para que el cambio de idioma surta efecto.</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="1342"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="1345"/>
         <source>MSAA Change</source>
         <translation>MSAA Cambio</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="1342"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="1345"/>
         <source>Please restart the application for the MSAA change to take effect.</source>
         <translation>Por favor reinicie la solicitud para que el cambio MSAA surta efecto.</translation>
     </message>
@@ -18759,7 +18801,7 @@ El panel muestra las vinculaciones de textura del lado de la GPU para la malla s
         <translation type="vanished">Por favor reinicie la aplicación para que el cambio de anisotropía surta efecto.</translation>
     </message>
     <message>
-        <location filename="../src/App/SettingsDialog.cpp" line="1510"/>
+        <location filename="../src/App/SettingsDialog.cpp" line="1513"/>
         <source>UV Prompt settings have been cleared.</source>
         <translation>Los ajustes UV Prompt han sido despejados.</translation>
     </message>

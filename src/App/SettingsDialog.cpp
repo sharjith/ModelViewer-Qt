@@ -452,6 +452,7 @@ void SettingsDialog::applySettings()
     settings.setValue("jtDecodeThreads", ui->jtDecodeThreadsSpinBox->value());
     settings.setValue("jtBudgetGiB", ui->jtBudgetGibSpinBox->value());
     settings.setValue("jtPrefetchMin", ui->jtPrefetchMinSpinBox->value());
+    settings.setValue("jtDetailLevel", ui->jtDetailLevelComboBox->currentIndex());
     settings.setValue("threeDxmlStrict", ui->threeDxmlStrictCheckBox->isChecked());
     settings.setValue("threeDxmlThreads", ui->threeDxmlThreadsSpinBox->value());
     settings.setValue("threeDxmlParallelMin", ui->threeDxmlParallelMinSpinBox->value());
@@ -640,6 +641,7 @@ void SettingsDialog::setDefaultValues()
     ui->jtDecodeThreadsSpinBox->setValue(0);
     ui->jtBudgetGibSpinBox->setValue(16);
     ui->jtPrefetchMinSpinBox->setValue(16);
+    ui->jtDetailLevelComboBox->setCurrentIndex(0);
     ui->threeDxmlStrictCheckBox->setChecked(false);
     ui->threeDxmlThreadsSpinBox->setValue(0);
     ui->threeDxmlParallelMinSpinBox->setValue(8);
@@ -1029,6 +1031,7 @@ void SettingsDialog::loadSettings()
     ui->jtDecodeThreadsSpinBox->setValue(settings.value("jtDecodeThreads", 0).toInt());
     ui->jtBudgetGibSpinBox->setValue(settings.value("jtBudgetGiB", 16).toInt());
     ui->jtPrefetchMinSpinBox->setValue(settings.value("jtPrefetchMin", 16).toInt());
+    ui->jtDetailLevelComboBox->setCurrentIndex(qBound(0, settings.value("jtDetailLevel", 0).toInt(), 2));
     ui->threeDxmlStrictCheckBox->setChecked(settings.value("threeDxmlStrict", false).toBool());
     ui->threeDxmlThreadsSpinBox->setValue(settings.value("threeDxmlThreads", 0).toInt());
     ui->threeDxmlParallelMinSpinBox->setValue(settings.value("threeDxmlParallelMin", 8).toInt());
@@ -1127,7 +1130,7 @@ void SettingsDialog::restoreDefaults()
         ui->showTextureDebugPanelCheckBox,
         ui->importDiagnosticsCheckBox, ui->importDiagnosticsMaxMbSpinBox, ui->interactionFastPathMbSpinBox,
         ui->smallPartCullSpinBox, ui->batchedDrawingCheckBox, ui->batchMinMeshesSpinBox, ui->lodMinTrianglesSpinBox, ui->jtMergePartMeshesCheckBox, ui->jtDecodeThreadsSpinBox,
-        ui->jtBudgetGibSpinBox, ui->jtPrefetchMinSpinBox, ui->threeDxmlStrictCheckBox,
+        ui->jtBudgetGibSpinBox, ui->jtPrefetchMinSpinBox, ui->jtDetailLevelComboBox, ui->threeDxmlStrictCheckBox,
         ui->threeDxmlThreadsSpinBox, ui->threeDxmlParallelMinSpinBox,
         ui->clearCacheButton
     };
