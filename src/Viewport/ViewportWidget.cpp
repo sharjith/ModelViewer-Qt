@@ -2,6 +2,7 @@
 
 #include "AssImpMeshBuilder.h"
 #include "ImportDiagnostics.h"
+#include "ScopedSelectionDepthBias.h"
 #include <Standard_Failure.hxx>
 #include <new>
 #include <QScopeGuard>
@@ -8584,7 +8585,11 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 				if (sssObjectIdLocation >= 0)
 					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
-				mesh->render();
+				{
+					// The hovered mesh is pulled toward the camera so coincident copies cannot hide the highlight (ScopedSelectionDepthBias).
+					ScopedSelectionDepthBias hoverDepthBias(*this, hoverHighlightingEnabled && id == _selectionManager->getHoveredId() && !mesh->isSelected() && mesh->getPrimitiveMode() == GL_TRIANGLES);
+					mesh->render();
+				}
 			}
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
@@ -8695,7 +8700,11 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 				if (sssObjectIdLocation >= 0)
 					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
-				mesh->render();
+				{
+					// The hovered mesh is pulled toward the camera so coincident copies cannot hide the highlight (ScopedSelectionDepthBias).
+					ScopedSelectionDepthBias hoverDepthBias(*this, hoverHighlightingEnabled && id == _selectionManager->getHoveredId() && !mesh->isSelected() && mesh->getPrimitiveMode() == GL_TRIANGLES);
+					mesh->render();
+				}
 			}
 		}
 		// Feature-edge overlay — no offset needed; solid was already pushed back.
@@ -8834,10 +8843,14 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 				setHovered(activeProg, hoveredIdNow >= 0 && id == hoveredIdNow);
 				if (activeSssObjectIdLocation >= 0)
 					activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
-				if (directShaded)
-					mesh->render();
-				else
-					renderMeshExploded(mesh, _displayMode);
+				{
+					// The hovered mesh is pulled toward the camera so coincident copies cannot hide the highlight (ScopedSelectionDepthBias).
+					ScopedSelectionDepthBias hoverDepthBias(*this, hoveredIdNow >= 0 && id == hoveredIdNow && !mesh->isSelected() && mesh->getPrimitiveMode() == GL_TRIANGLES);
+					if (directShaded)
+						mesh->render();
+					else
+						renderMeshExploded(mesh, _displayMode);
+				}
 			}
 		}
 	}

@@ -3,6 +3,7 @@
 #include "MeshMemoryUsage.h"
 #include "ImportDiagnostics.h"
 #include "ScopedMaterialWireframe.h"
+#include "ScopedSelectionDepthBias.h"
 #include "TextureLocationManager.h"
 #include "IGpuContextResource.h"
 #include "MeasurementGeometry.h"
@@ -1402,6 +1403,11 @@ void SceneMesh::render()
 	// Transparent draws must NOT write depth, but should still depth-test.	
 	constexpr GLboolean prevDepthMask = GL_TRUE;
 	if (isTransparent() && needsDepthMaskOff()) glDepthMask(GL_FALSE);
+
+	// A selected opaque mesh is pulled slightly toward the camera so its selection colour is not hidden by meshes that occupy
+	// the same place (see ScopedSelectionDepthBias). Transparent meshes are blended and do not write depth, so they are left alone.
+	ScopedSelectionDepthBias selectionDepthBias(*this,
+		isSelected() && _primitiveMode == GL_TRIANGLES && !isTransparent());
 
 	// Imported/material-authored wireframe applies to triangle color draws.
 	// Analysis overlays retain the viewport mode; points/lines and shadow/pick

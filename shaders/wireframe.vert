@@ -18,6 +18,17 @@ uniform bool hasSkinning;
 uniform int  jointCount;
 uniform mat4 jointMatrices[128];
 
+// Same uniforms as wireframe.frag (one program, one value). Used only to pull a highlighted mesh's lines in front of
+// coincident ones: see the depth bias at the end of main().
+uniform bool isWireframePass;
+uniform bool hovered;
+uniform bool selected;
+
+// About two to three steps of a 24-bit depth buffer in NDC. Relative to the buffer's own resolution, so it stays below any real
+// gap between surfaces, yet is enough for the selected or hovered mesh to win against copies of itself at the same position.
+// Kept small on purpose: a step spans more real distance the farther away the surface is.
+const float kHighlightDepthBias = 3.0e-7;
+
 out vec2 v_texCoord;
 out vec3 v_worldNormal;
 out vec4 v_vertexColor;
@@ -52,4 +63,10 @@ void main()
     v_worldNormal = normalize(mat3(modelMatrix) * skinnedNorm);
     v_vertexColor = hasVertexColors ? vertexColor : vec4(1.0);
     gl_Position   = projectionMatrix * viewMatrix * modelMatrix * skinnedPos;
+
+    // Hover and selection colour the lines only when isWireframePass is false (Wireframe and Hollow Mesh modes). Meshes that sit
+    // at exactly the same place would otherwise decide by draw order which one's lines are visible, and the highlight could be
+    // hidden by an unhighlighted twin. Clip-space shift, so it works for GL_LINES too, where a polygon offset does not apply.
+    if (!isWireframePass && (hovered || selected))
+        gl_Position.z -= kHighlightDepthBias * gl_Position.w;
 }

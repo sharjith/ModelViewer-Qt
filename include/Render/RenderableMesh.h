@@ -170,6 +170,10 @@ public:
 	float getStableTransformRadius() const;
 
 	virtual FastGlVertexArray& getVAO();
+	// Binds the full-resolution index buffer to the mesh's VAO, which must be bound. The VAO's element-buffer binding is whatever the
+	// last draw left: the interaction fast path draws the coarse LOD index buffer, and meshes drawn from merged batches are never
+	// drawn through their own VAO again, so a pass that draws the full index count without this reads past the end of the coarse buffer.
+	void bindFullIndexBuffer();
 	virtual QString getName() const
 	{
 		return _name;

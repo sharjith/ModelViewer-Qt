@@ -2105,6 +2105,9 @@ void RenderableMesh::renderShadow()
 
 	ensureResident();
 	_vertexArrayObject.bind();
+	// Full resolution: the VAO may still point at the coarse LOD index buffer from an interaction frame, or never have been
+	// drawn individually since it joined a merged batch (see bindFullIndexBuffer()).
+	bindFullIndexBuffer();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
 	_vertexArrayObject.release();
 }
@@ -2600,6 +2603,12 @@ FastGlVertexArray& RenderableMesh::getVAO()
 {
 	ensureResident(); // callers bind it to draw
 	return _vertexArrayObject;
+}
+
+void RenderableMesh::bindFullIndexBuffer()
+{
+	if (_indexBuffer.isCreated())
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
 }
 
 unsigned long long RenderableMesh::memorySize() const

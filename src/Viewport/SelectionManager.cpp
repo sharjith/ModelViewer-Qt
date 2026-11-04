@@ -1228,7 +1228,12 @@ int SelectionManager::processSelection(const QPoint& pixel)
                 if (mesh->getIndices().empty())
                     f->glDrawArrays(mesh->getPrimitiveMode(), 0, static_cast<int>(mesh->getPoints().size() / 3));
                 else
+                {
+                    // The colour pick draws every index of the mesh. The VAO's element buffer may still be the coarse LOD one from an
+                    // interaction frame (or the mesh may only be drawn from a merged batch), which would make the mesh unpickable.
+                    mesh->bindFullIndexBuffer();
                     f->glDrawElements(mesh->getPrimitiveMode(), static_cast<int>(mesh->getIndices().size()), GL_UNSIGNED_INT, nullptr);
+                }
                 mesh->getVAO().release();
                 // Not a glFinish() per mesh: that made one click a CPU/GPU round trip per mesh (40,000 of them on a big
                 // assembly, seconds per click). glReadPixels below waits for the pass; a periodic flush just keeps the

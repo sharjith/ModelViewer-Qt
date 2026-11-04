@@ -3,6 +3,7 @@
 #include "Logger.h"
 #include "RenderableMesh.h"
 #include "SceneMesh.h"
+#include "ScopedSelectionDepthBias.h"
 
 #include <QMatrix4x4>
 #include <QOpenGLContext>
@@ -791,6 +792,8 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 		}
 
 		glBindVertexArray(g.vao);
+		// The selected pass is drawn after the unselected one, so against coincident meshes it would lose every depth tie.
+		const ScopedSelectionDepthBias selectionDepthBias(*this, selectedSet && !wire);
 		if (!counts.empty())
 		{
 			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.indexBuffer);
@@ -840,12 +843,21 @@ void DrawBatcher::drawTransparentSequence(QOpenGLShaderProgram* prog, const std:
 			if (wire)
 			{
 				runRep->prepareWireBatchDraw(prog, false);
+					// Same as below: prepareWireBatchDraw() sets "selected" but not "hovered", and the hovered mesh drawn in between
+					// leaves it true, which paints every later wire run gold in Hollow Mesh mode.
+					if (hoveredId >= 0)
+						prog->setUniformValue("hovered", false);
 				if (!g.configuredProgram)
 					configureVao(g, prog);
 			}
 			else
 			{
 				runRep->prepareBatchDraw(prog);
+				// "hovered" is a program uniform, not part of the batch. The hovered mesh is kept out of every run and drawn on its
+				// own, which leaves it true; without this reset every later run, and the transparent pass that follows an opaque
+				// pass ending on the hovered mesh, would be painted in the hover colour.
+				if (hoveredId >= 0)
+					prog->setUniformValue("hovered", false);
 				if (g.configuredProgram != prog)
 					configureVao(g, prog);
 			}
