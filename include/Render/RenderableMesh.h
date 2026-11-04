@@ -96,6 +96,12 @@ public:
 	static void recordCullResult(qint64 passedMeshes);
 	// GPU time of the frame's raster work (timer query), and the number of meshes in the display list.
 	static void recordGpuMs(double ms);
+	// GPU time of one draw pass of the frame (0 = opaque meshes, 1 = transparent meshes), and the display mode name, for the
+	// [RenderDiagnostics] line: the frame's gpuMs covers everything, these say how much of it the two mesh passes take.
+	static void recordGpuPassMs(int pass, double ms);
+	static void recordDisplayModeName(const QString& name);
+	// Called once per rendered view: whether the interaction fast path (coarse copies, single-sample) was active for it.
+	static void recordInteractionFastPath(bool active);
 	static void recordDisplayedMeshes(qint64 meshes);
 	static void recordTextureCacheCpuMs(double ms);
 	static void recordTransformUniformCpuMs(double ms);

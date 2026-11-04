@@ -815,7 +815,7 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 }
 
 void DrawBatcher::drawTransparentSequence(QOpenGLShaderProgram* prog, const std::vector<int>& orderedIds, int hoveredId,
-                                          const MeshLookup& meshAt, const DrawOne& drawIndividual)
+                                          const MeshLookup& meshAt, const DrawOne& drawIndividual, const WireDraw* wire)
 {
 	if (_groups.empty() || !_glReady)
 	{
@@ -837,11 +837,21 @@ void DrawBatcher::drawTransparentSequence(QOpenGLShaderProgram* prog, const std:
 		if (runGroup >= 0 && runRep && !_runCounts.empty())
 		{
 			Group& g = _groups[static_cast<size_t>(runGroup)];
-			runRep->prepareBatchDraw(prog);
-			if (g.configuredProgram != prog)
-				configureVao(g, prog);
+			if (wire)
+			{
+				runRep->prepareWireBatchDraw(prog, false);
+				if (!g.configuredProgram)
+					configureVao(g, prog);
+			}
+			else
+			{
+				runRep->prepareBatchDraw(prog);
+				if (g.configuredProgram != prog)
+					configureVao(g, prog);
+			}
 			// Same depth-write rule SceneMesh::render() applies to a transparent mesh; the meshes of a run share a material.
-			const bool depthWritesOff = runRep->isTransparent() && runRep->needsDepthMaskOff();
+			// The wire passes never changed the depth mask per mesh, so they leave it alone.
+			const bool depthWritesOff = !wire && runRep->isTransparent() && runRep->needsDepthMaskOff();
 			if (depthWritesOff)
 				glDepthMask(GL_FALSE);
 			glBindVertexArray(g.vao);
@@ -853,6 +863,8 @@ void DrawBatcher::drawTransparentSequence(QOpenGLShaderProgram* prog, const std:
 				glDepthMask(GL_TRUE);
 			RenderableMesh::recordDrawCall(true, true, runTriangles);
 			RenderableMesh::recordBatchedDraw(static_cast<qint64>(_runCounts.size()));
+			if (wire)
+				runRep->finishWireBatchDraw(prog); // the meshes drawn one by one in between expect the pass defaults
 		}
 		runGroup = -1;
 		runRep = nullptr;
@@ -870,6 +882,7 @@ void DrawBatcher::drawTransparentSequence(QOpenGLShaderProgram* prog, const std:
 		const Entry* entry = (static_cast<size_t>(id) < _entries.size()) ? &_entries[static_cast<size_t>(id)] : nullptr;
 		const bool valid = entry && entry->group >= 0 && entry->transparent && entry->mesh == mesh && id != hoveredId
 			&& mesh->isBatchCandidate(true)
+			&& (!wire || mesh->isWireBatchable())
 			&& mesh->geometryRevision() == entry->geometryRevision
 			&& mesh->drawGroupKey() == entry->key
 			&& sameTransform(entry->transform, mesh->combinedRenderTransformRef());

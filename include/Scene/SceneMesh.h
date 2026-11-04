@@ -532,6 +532,10 @@ public:
 	// per-mesh uniforms renderWireframeFast() would upload, for the whole batch. `selected` is the batch's selection pass.
 	// Sets hasVertexColors, hasAlbedoMap and selected; the caller restores them to false after the batch pass.
 	void prepareWireBatchDraw(QOpenGLShaderProgram* wireProg, bool selected);
+	// Puts hasVertexColors / hasAlbedoMap back to false after a wire batch (see prepareWireBatchDraw).
+	void finishWireBatchDraw(QOpenGLShaderProgram* wireProg);
+	// False for a mesh whose wire drawing needs the per-mesh BLEND vertex-alpha handling of renderWireframeFast().
+	bool isWireBatchable() const { return !(_hasVertexColors && _material.blendMode() == Material::BlendMode::Alpha); }
 
 	// ---- Animation state (moved from RenderableMesh) ------------------------
 	MeshAnimationState&        animationState()       { return _animState; }

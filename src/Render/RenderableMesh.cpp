@@ -69,6 +69,10 @@ struct RenderDiagnostics
 	double gpuMs = 0.0;
 	double probeCpuMs[RenderableMesh::kRenderProbeCount] = {};
 	int gpuSamples = 0;
+	double gpuPassMs[2] = {};
+	int fastPathViews = 0;
+	int views = 0;
+	int gpuPassSamples[2] = {};
 	qint64 triangles = 0;
 	qint64 cullPassedMeshes = 0;
 	qint64 displayedMeshes = 0;
@@ -355,6 +359,31 @@ void RenderableMesh::recordCullResult(qint64 passedMeshes)
 		s_renderDiagnostics.cullPassedMeshes += passedMeshes;
 }
 
+static QString s_diagnosticsDisplayMode;
+
+void RenderableMesh::recordInteractionFastPath(bool active)
+{
+	if (!s_renderDiagnostics.enabled)
+		return;
+	++s_renderDiagnostics.views;
+	if (active)
+		++s_renderDiagnostics.fastPathViews;
+}
+
+void RenderableMesh::recordDisplayModeName(const QString& name)
+{
+	if (s_renderDiagnostics.enabled)
+		s_diagnosticsDisplayMode = name;
+}
+
+void RenderableMesh::recordGpuPassMs(int pass, double ms)
+{
+	if (!s_renderDiagnostics.enabled || pass < 0 || pass > 1)
+		return;
+	s_renderDiagnostics.gpuPassMs[pass] += ms;
+	++s_renderDiagnostics.gpuPassSamples[pass];
+}
+
 void RenderableMesh::recordGpuMs(double ms)
 {
 	if (!s_renderDiagnostics.enabled)
@@ -481,7 +510,7 @@ void RenderableMesh::flushRenderDiagnostics()
 		probeParts << QString::number(ms / frames, 'f', 2);
 	const QString probeText = probeParts.join(QLatin1Char('/'));
 	Logger::instance().info(
-		QStringLiteral("[RenderDiagnostics] windowMs=%1 frames=%2 frameCpuMs/frame=%3 opaqueMs/frame=%4 transparentMs/frame=%5 floorMs/frame=%6 meshModeMs/frame=%7 assImpMs/frame=%8 textureCacheMs/frame=%9 transformUniformMs/frame=%10 materialUniformMs/frame=%11 textureBindMs/frame=%12 renderStateMs/frame=%13 drawMs/frame=%14 draws/frame=%15 indexed/frame=%16 arrays/frame=%17 transparentDraws/frame=%18 rawProgBinds/frame=%19 progBindObservations/frame=%20 progCacheHits/frame=%21 rawTexBinds/frame=%22 texBindObservations/frame=%23 texCacheHits/frame=%24 vaoReconfig/frame=%25 materialRefresh/frame=%26 materialDirtyRefresh/frame=%27 materialShaderSwitchRefresh/frame=%28 materialSignatureRefresh/frame=%29 materialDebugBlockedRefresh/frame=%30 materialDirtyBySetProg/frame=%31 materialReuse/frame=%32 transformUniforms/frame=%33 jointUniforms/frame=%34 cullMs/frame=%35 meshesAfterCull/frame=%36 meshesDisplayed/frame=%37 triangles/frame=%38 gpuMs/frame=%39 gpuSamples=%40 probesMs/frame=%41 batchedMeshes/frame=%42 batchDraws/frame=%43 batchMs/frame=%44")
+		QStringLiteral("[RenderDiagnostics] windowMs=%1 frames=%2 frameCpuMs/frame=%3 opaqueMs/frame=%4 transparentMs/frame=%5 floorMs/frame=%6 meshModeMs/frame=%7 assImpMs/frame=%8 textureCacheMs/frame=%9 transformUniformMs/frame=%10 materialUniformMs/frame=%11 textureBindMs/frame=%12 renderStateMs/frame=%13 drawMs/frame=%14 draws/frame=%15 indexed/frame=%16 arrays/frame=%17 transparentDraws/frame=%18 rawProgBinds/frame=%19 progBindObservations/frame=%20 progCacheHits/frame=%21 rawTexBinds/frame=%22 texBindObservations/frame=%23 texCacheHits/frame=%24 vaoReconfig/frame=%25 materialRefresh/frame=%26 materialDirtyRefresh/frame=%27 materialShaderSwitchRefresh/frame=%28 materialSignatureRefresh/frame=%29 materialDebugBlockedRefresh/frame=%30 materialDirtyBySetProg/frame=%31 materialReuse/frame=%32 transformUniforms/frame=%33 jointUniforms/frame=%34 cullMs/frame=%35 meshesAfterCull/frame=%36 meshesDisplayed/frame=%37 triangles/frame=%38 gpuMs/frame=%39 gpuSamples=%40 probesMs/frame=%41 batchedMeshes/frame=%42 batchDraws/frame=%43 batchMs/frame=%44 displayMode=%45 gpuOpaqueMs/frame=%46 gpuTransparentMs/frame=%47 fastPathViews=%48 views=%49")
 			.arg(windowMs)
 			.arg(s_renderDiagnostics.frames)
 			.arg(s_renderDiagnostics.frameCpuMs / frames, 0, 'f', 3)
@@ -525,7 +554,12 @@ void RenderableMesh::flushRenderDiagnostics()
 			.arg(probeText)
 			.arg(s_renderDiagnostics.batchedMeshes / frames, 0, 'f', 1)
 			.arg(s_renderDiagnostics.batchDraws / frames, 0, 'f', 1)
-			.arg(s_renderDiagnostics.batchCpuMs / frames, 0, 'f', 3),
+			.arg(s_renderDiagnostics.batchCpuMs / frames, 0, 'f', 3)
+			.arg(s_diagnosticsDisplayMode)
+			.arg(s_renderDiagnostics.gpuPassSamples[0] > 0 ? s_renderDiagnostics.gpuPassMs[0] / s_renderDiagnostics.gpuPassSamples[0] : 0.0, 0, 'f', 3)
+			.arg(s_renderDiagnostics.gpuPassSamples[1] > 0 ? s_renderDiagnostics.gpuPassMs[1] / s_renderDiagnostics.gpuPassSamples[1] : 0.0, 0, 'f', 3)
+			.arg(s_renderDiagnostics.fastPathViews)
+			.arg(s_renderDiagnostics.views),
 		QStringLiteral("Performance"));
 
 	s_renderDiagnostics = RenderDiagnostics{};

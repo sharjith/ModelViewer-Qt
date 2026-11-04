@@ -7324,7 +7324,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	// the full-resolution shadow depth pass itself still running for nothing
 	// - skip generating it too, matching the same condition.
 	if (_renderCtrl.shadowsEnabled()
-		&& !(_renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
+		&& !(interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
@@ -7414,7 +7414,7 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 	glViewport(0, 0, width(), height());
 	// The view-independent passes are done once for the whole scene, exactly as the single view does.
 	if (_renderCtrl.shadowsEnabled()
-		&& !(_renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
+		&& !(interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
@@ -7777,7 +7777,7 @@ void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	// (not just the shadow-map SAMPLING that showShadows already gates) during
 	// interaction on oversized models.
 	if (_renderCtrl.shadowsEnabled()
-		&& !(_renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
+		&& !(interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
@@ -7948,7 +7948,7 @@ void ViewportWidget::drawFloor(const bool& drawReflection)
 	RenderableMesh::setCurrentRenderContext(model, _viewCtrl.viewMatrix());
 	// The reflection redraws the whole scene a second time; on a large model it is skipped while the camera is moving
 	// (same gate as the shadow passes) and comes back when the interaction ends.
-	const bool skipReflectionForInteraction = _renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
+	const bool skipReflectionForInteraction = interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
 	if (_renderCtrl.reflectionsEnabled() && drawReflection && !skipReflectionForInteraction)
 	{
 		_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderCtrl.renderingMode()));
@@ -8317,6 +8317,18 @@ float ViewportWidget::computeLocalCappingSceneDiag() const
 }
 
 namespace {
+// Antialiased-line mode off for the duration of a wire pass. SceneMesh turns GL_LINE_SMOOTH on together with blending for a
+// transparent mesh and only turns it off again at the next opaque one, so a wire pass inherited whatever the previous frame
+// or display mode left behind: smoothed, blended lines (slow, and the multisampling no longer does the antialiasing). The
+// previous state is restored afterwards for the mesh code that tracks it.
+struct ScopedLineSmoothOff
+{
+	QOpenGLFunctions* gl = QOpenGLContext::currentContext() ? QOpenGLContext::currentContext()->functions() : nullptr;
+	bool was = false;
+	ScopedLineSmoothOff() { if (gl && gl->glIsEnabled(GL_LINE_SMOOTH)) { was = true; gl->glDisable(GL_LINE_SMOOTH); } }
+	~ScopedLineSmoothOff() { if (gl && was) gl->glEnable(GL_LINE_SMOOTH); }
+};
+
 // A bool uniform of the wire shader that is uploaded only when it changes. In a large assembly nearly every mesh is unselected and
 // unhovered, and uploading by name for each mesh is a glGetUniformLocation round trip per mesh per frame.
 struct WireFlagUniform
@@ -8419,6 +8431,9 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 	// The fast path supports both static and skinned meshes; wireframe rendering
 	// uses a geometry-first contract with authored BLEND vertex alpha; material-only
 	// opacity/transmission do not change wire coverage.
+	// While the interaction fast path rasterizes single-sample (see GL_MULTISAMPLE in the render setup), a line of 1.25-1.5 px
+	// is rounded to whole pixels and looks heavier than the antialiased one at rest, so the width follows the sampling.
+	const bool wireSingleSample = interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
 	const bool useWireShader = _renderCtrl.wireframeShader() && _renderCtrl.wireframeShader()->isLinked()
 	    && activeClipPlaneIndex < 0;
 	// The wire passes of a large model take the merged-buffer path of Shaded mode too: one multi-draw per material group with the
@@ -8458,7 +8473,8 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 	if (_displayMode == DisplayMode::HOLLOW_MESH)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(1.25f);
+		glLineWidth(wireSingleSample ? 1.0f : 1.25f);
+		ScopedLineSmoothOff noLineSmooth;
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShader)
 		{
@@ -8575,7 +8591,8 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 
 		// Wire pass — draw edges at true depth; no line offset needed.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(OverlayLineWeights::objectLine);
+		glLineWidth(wireSingleSample ? 1.0f : OverlayLineWeights::objectLine);
+		ScopedLineSmoothOff noLineSmooth;
 		if (useWireShader)
 		{			
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
@@ -8683,7 +8700,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		}
 		// Feature-edge overlay — no offset needed; solid was already pushed back.
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(OverlayLineWeights::objectLine);
+		glLineWidth(wireSingleSample ? 1.0f : OverlayLineWeights::objectLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -8921,12 +8938,36 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 		flatProg->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 		flatSssObjectIdLocation = flatProg->uniformLocation("sssObjectId");
 	}
+	// While the interaction fast path rasterizes single-sample (see GL_MULTISAMPLE in the render setup), a line of 1.25-1.5 px
+	// is rounded to whole pixels and looks heavier than the antialiased one at rest, so the width follows the sampling.
+	const bool wireSingleSampleT = interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
 	const bool useWireShaderT = _renderCtrl.wireframeShader() && _renderCtrl.wireframeShader()->isLinked()
 	    && activeClipPlaneIndex < 0;
+	// The transparent wire passes of a large model draw runs of meshes that share a batch with one multi-draw each, in the same
+	// back-to-front order (see DrawBatcher::drawTransparentSequence); `individual` draws the rest at their place in the order.
+	// False = not batched, the caller draws every mesh itself.
+	const auto drawWireSequence = [&](int hoveredForBatch, const std::function<void(int)>& individual) -> bool
+	{
+		if (!useWireShaderT || !_drawBatcher || !_drawBatcher->hasBatches())
+			return false;
+		const DrawBatcher::Settings batchSettingsW = DrawBatcher::readSettings();
+		if (!batchSettingsW.enabled
+			|| static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) < batchSettingsW.minDisplayedMeshes)
+			return false;
+		std::vector<int> orderedIds;
+		orderedIds.reserve(transparent.size());
+		for (const auto& it : transparent)
+			orderedIds.push_back(it.second);
+		const auto meshLookupW = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+		const DrawBatcher::WireDraw wireDraw{ false };
+		_drawBatcher->drawTransparentSequence(_renderCtrl.wireframeShader(), orderedIds, hoveredForBatch, meshLookupW, individual, &wireDraw);
+		return true;
+	};
 	if (_displayMode == DisplayMode::HOLLOW_MESH)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(1.25f);
+		glLineWidth(wireSingleSampleT ? 1.0f : 1.25f);
+		ScopedLineSmoothOff noLineSmooth;
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShaderT)
 		{
@@ -8944,20 +8985,26 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
 			_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.0f, 0.5f, 1.0f));
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
-			WireFlagUniform selectedFlag, hoveredFlag;
-			selectedFlag.bind(_renderCtrl.wireframeShader(), "selected");
-			hoveredFlag.bind(_renderCtrl.wireframeShader(), "hovered");
+			const int selectedLocation = _renderCtrl.wireframeShader()->uniformLocation("selected");
+			const int hoveredLocation = _renderCtrl.wireframeShader()->uniformLocation("hovered");
 			const int hoveredIdNow = _selectionManager->getHoveredId();
-			for (auto& it : transparent)
+			// Batched runs set and clear these themselves, so the flags are uploaded here without a remembered state.
+			const std::function<void(int)> drawOne = [&](int id)
 			{
-				if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 				{
-					const bool isSel = selIds.contains(it.second);
-					selectedFlag.set(_renderCtrl.wireframeShader(), isSel);
-					hoveredFlag.set(_renderCtrl.wireframeShader(), !isSel && hoverHighlightingEnabledT && it.second == hoveredIdNow);
+					const bool isSel = selIds.contains(id);
+					const bool isHov = !isSel && hoverHighlightingEnabledT && id == hoveredIdNow;
+					if (selectedLocation >= 0)
+						_renderCtrl.wireframeShader()->setUniformValue(selectedLocation, static_cast<GLint>(isSel));
+					if (hoveredLocation >= 0)
+						_renderCtrl.wireframeShader()->setUniformValue(hoveredLocation, static_cast<GLint>(isHov));
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 				}
-			}
+			};
+			if (!drawWireSequence(hoverHighlightingEnabledT ? hoveredIdNow : -1, drawOne))
+				for (auto& it : transparent)
+					drawOne(it.second);
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		}
@@ -8989,11 +9036,10 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(1.25f, 1.25f);
 		prog->setUniformValue("isWireframePass", false);
-		for (auto& it : transparent)
+		const std::function<void(int)> drawFillOne = [&](int id)
 		{
-			if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+			if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 			{
-				const int id = it.second;
 				mesh->setProg(prog);
 				RenderableMesh::bindProgramCached(prog);
 				prog->setUniformValue("hovered",
@@ -9002,12 +9048,36 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
 				mesh->render();
 			}
+		};
+		// The fill pass is the shaded transparent pass with a depth bias: the same batched sequence as Shaded mode.
+		bool fillBatched = false;
+		if (!flatProg && _drawBatcher && _drawBatcher->hasBatches())
+		{
+			const bool anyClippingFillT = activeClipPlaneIndex >= 0 || _renderCtrl.yzClippingEnabled()
+				|| _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+			const DrawBatcher::Settings batchSettingsF = DrawBatcher::readSettings();
+			if (!anyClippingFillT && batchSettingsF.enabled
+				&& static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) >= batchSettingsF.minDisplayedMeshes)
+			{
+				std::vector<int> orderedIds;
+				orderedIds.reserve(transparent.size());
+				for (const auto& it : transparent)
+					orderedIds.push_back(it.second);
+				const auto meshLookupF = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+				_drawBatcher->drawTransparentSequence(prog, orderedIds,
+					hoverHighlightingEnabledT ? _selectionManager->getHoveredId() : -1, meshLookupF, drawFillOne);
+				fillBatched = true;
+			}
 		}
+		if (!fillBatched)
+			for (auto& it : transparent)
+				drawFillOne(it.second);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 
 		// Wire pass — draw edges at true depth; no line offset needed.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(OverlayLineWeights::objectLine);
+		glLineWidth(wireSingleSampleT ? 1.0f : OverlayLineWeights::objectLine);
+		ScopedLineSmoothOff noLineSmooth;
 		if (useWireShaderT)
 		{
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
@@ -9019,11 +9089,17 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
 			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
-			for (auto& it : transparent)
+			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
+			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+			const std::function<void(int)> drawLineOne = [&](int id)
 			{
-				if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
-			}
+			};
+			// The line pass does not signal hover, so the hovered mesh stays in its batch.
+			if (!drawWireSequence(-1, drawLineOne))
+				for (auto& it : transparent)
+					drawLineOne(it.second);
 		}
 		else
 		{
@@ -9105,7 +9181,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 			}
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(OverlayLineWeights::objectLine);
+		glLineWidth(wireSingleSampleT ? 1.0f : OverlayLineWeights::objectLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -9282,7 +9358,7 @@ void ViewportWidget::extractFrustumPlanes()
 		cullSettingClock.restart();
 	}
 	VisibilityComputationHelper::ScreenSizeContext& screen = _screenSizeCtx;
-	screen.enabled = cullPixels > 0.0f && _renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
+	screen.enabled = cullPixels > 0.0f && interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
 	if (screen.enabled)
 	{
 		const QMatrix4x4& view = _viewCtrl.viewMatrix();
@@ -9558,8 +9634,10 @@ void ViewportWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 				glEnable(GL_CLIP_DISTANCE0 + bit);
 		setBoxDiscardEnabled(pass.boxDiscard);
 
+		const int passGpuSlot = beginPassGpuTimer(transparentPass ? 1 : 0);
 		if (transparentPass) drawTransparentMeshes(prog, pass.cullIndex);
 		else                 drawOpaqueMeshes(prog, pass.cullIndex);
+		endPassGpuTimer(passGpuSlot);
 
 		setBoxDiscardEnabled(false);
 		for (int bit = 0; bit < 6; ++bit)
@@ -9637,8 +9715,8 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	const QVector3D worldUp = CoordinateSystemHelper::currentWorldUpVector(_viewCtrl.cameraUpAxisZUp());
 	QVector3D viewDir = _primaryCamera->getViewDir();
 	bool floorVisible = QVector3D::dotProduct(viewDir, worldUp) < 0.0f;
-	bool showShadows = (_renderCtrl.shadowsEnabled() && floorVisible && !_renderCtrl.lowResEnabled() && camera == _primaryCamera);
-	const bool interactionFastPath = _renderCtrl.lowResEnabled() && (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES);
+	bool showShadows = (_renderCtrl.shadowsEnabled() && floorVisible && !interactionLowRes() && camera == _primaryCamera);
+	const bool interactionFastPath = interactionLowRes() && (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES);
 
 	prog->setUniformValue("shadowsEnabled", showShadows);
 	prog->setUniformValue("selfShadowsEnabled", _renderCtrl.selfShadowsEnabled());
@@ -9654,6 +9732,7 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	// interaction+oversized-model window, snapping back to full resolution
 	// the instant lowResEnabled() clears. See RenderableMesh::setLodPolicy().
 	RenderableMesh::setLodPolicy(interactionFastPath);
+	RenderableMesh::recordInteractionFastPath(interactionFastPath);
 	// Same window: rasterize single-sample while interacting with an oversized model. Multisampled coverage multiplies the
 	// fragments shaded along every triangle edge, which dominates on dense models; the full-quality image returns at rest.
 	if (interactionFastPath)
@@ -13342,8 +13421,76 @@ void ViewportWidget::logBatchDiagnostics()
 		QStringLiteral("Performance"));
 }
 
+int ViewportWidget::beginPassGpuTimer(int pass)
+{
+	if (!RenderableMesh::renderDiagnosticsEnabled())
+		return -1;
+	int slot = -1;
+	for (size_t i = 0; i < _passGpuQueries.size(); ++i)
+		if (!_passGpuQueries[i].issued)
+		{
+			slot = static_cast<int>(i);
+			break;
+		}
+	if (slot < 0)
+	{
+		if (_passGpuQueries.size() >= 32)
+			return -1; // results are not being collected fast enough; skip rather than grow
+		_passGpuQueries.emplace_back();
+		glGenQueries(2, _passGpuQueries.back().ids);
+		slot = static_cast<int>(_passGpuQueries.size()) - 1;
+	}
+	PassGpuQuery& q = _passGpuQueries[static_cast<size_t>(slot)];
+	q.pass = pass;
+	glQueryCounter(q.ids[0], GL_TIMESTAMP);
+	return slot;
+}
+
+void ViewportWidget::endPassGpuTimer(int slot)
+{
+	if (slot < 0 || static_cast<size_t>(slot) >= _passGpuQueries.size())
+		return;
+	PassGpuQuery& q = _passGpuQueries[static_cast<size_t>(slot)];
+	glQueryCounter(q.ids[1], GL_TIMESTAMP);
+	q.issued = true;
+}
+
+void ViewportWidget::collectPassGpuTimers()
+{
+	for (PassGpuQuery& q : _passGpuQueries)
+	{
+		if (!q.issued)
+			continue;
+		GLint available = 0;
+		glGetQueryObjectiv(q.ids[1], GL_QUERY_RESULT_AVAILABLE, &available);
+		if (!available)
+			continue;
+		GLuint64 begin = 0, end = 0;
+		glGetQueryObjectui64v(q.ids[0], GL_QUERY_RESULT, &begin);
+		glGetQueryObjectui64v(q.ids[1], GL_QUERY_RESULT, &end);
+		RenderableMesh::recordGpuPassMs(q.pass, end >= begin ? static_cast<double>(end - begin) / 1000000.0 : 0.0);
+		q.issued = false;
+	}
+}
+
 void ViewportWidget::beginFrameGpuTimer()
 {
+	collectPassGpuTimers();
+	if (RenderableMesh::renderDiagnosticsEnabled())
+	{
+		const char* name = "other";
+		switch (_displayMode)
+		{
+		case DisplayMode::SHADED:            name = "Shaded"; break;
+		case DisplayMode::HOLLOW_MESH:       name = "HollowMesh"; break;
+		case DisplayMode::MESH_EDGES:        name = "MeshEdges"; break;
+		case DisplayMode::WIREFRAME:         name = "Wireframe"; break;
+		case DisplayMode::SHADED_WITH_EDGES: name = "ShadedWithEdges"; break;
+		default: break;
+		}
+		RenderableMesh::recordDisplayModeName(QString::fromLatin1(name));
+	}
+
 	if (_frameGpuQueryActive)
 		return; // render() re-entered (multi-view / compare): one timer covers the outermost call
 	if (_frameGpuQueries[0] == 0)
@@ -17960,6 +18107,8 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 void ViewportWidget::keyReleaseEvent(QKeyEvent* event)
 {
 	_keys.remove(event->key());
+	if (_keys.empty())
+		update(); // the held-key movement rendered in the fast path; draw the settled frame
 	QWidget::keyReleaseEvent(event);
 }
 
@@ -18272,6 +18421,7 @@ void ViewportWidget::setTurntableEnabled(bool enabled)
 	else
 	{
 		_turntableTimer->stop();
+		update(); // the spin rendered in the fast path; draw the settled frame
 	}
 
 	emit turntableStateChanged(enabled);
@@ -18298,6 +18448,17 @@ void ViewportWidget::onTurntableTimer()
 	_rtInteractionCtrl->notifyCameraInteracting();
 
 	update();
+}
+
+bool ViewportWidget::interactionLowRes() const
+{
+	// Camera motion from any source: a drag (the flag), the coast after a drag, the turntable, the animated view / fit /
+	// zoom transitions and held navigation keys. Each of those used to depend on setting and clearing the flag by hand, and the
+	// turntable, the centre-on-selection animation and the keyboard navigation did not set it at all.
+	const auto running = [](const QTimer* timer) { return timer && timer->isActive(); };
+	return _renderCtrl.lowResEnabled() || running(_inertiaTimer) || running(_turntableTimer)
+		|| running(_animateViewTimer) || running(_animateFitAllTimer) || running(_animateWindowZoomTimer)
+		|| running(_animateCenterScreenTimer) || !_keys.empty();
 }
 
 void ViewportWidget::onInertiaTimer()

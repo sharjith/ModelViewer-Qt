@@ -80,8 +80,10 @@ public:
 	// Transparent pass. `orderedIds` is the back-to-front draw order. Consecutive meshes of one batch group are drawn
 	// with a single multi-draw in exactly that order, so the picture is identical to drawing them one by one; any mesh
 	// the batches do not cover is passed to `drawIndividual` at its place in the order.
+	// With `wire` set, the same for the lightweight wireframe shader (see drawBatches()); a mesh whose wire drawing needs the
+	// per-mesh vertex alpha path is passed to `drawIndividual`.
 	void drawTransparentSequence(QOpenGLShaderProgram* prog, const std::vector<int>& orderedIds, int hoveredId,
-	                             const MeshLookup& meshAt, const DrawOne& drawIndividual);
+	                             const MeshLookup& meshAt, const DrawOne& drawIndividual, const WireDraw* wire = nullptr);
 
 	bool hasBatches() const { return !_groups.empty(); }
 	// Video memory taken by the merged buffers of all groups (diagnostics).

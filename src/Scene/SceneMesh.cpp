@@ -1690,6 +1690,16 @@ void SceneMesh::prepareWireBatchDraw(QOpenGLShaderProgram* wireProg, bool select
 		bindTextureUnitCached(GL_TEXTURE0, static_cast<GLuint>(_material.albedoTextureId()));
 }
 
+void SceneMesh::finishWireBatchDraw(QOpenGLShaderProgram* wireProg)
+{
+	if (!wireProg)
+		return;
+	if (_hasVertexColors)
+		wireProg->setUniformValue("hasVertexColors", false);
+	if (_material.hasAlbedoMap() && _material.albedoTextureId() != 0)
+		wireProg->setUniformValue("hasAlbedoMap", false);
+}
+
 quint64 SceneMesh::drawGroupKey() const
 {
 	// The program is deliberately not part of the key: a batch is drawn with whichever program the pass uses, and

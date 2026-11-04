@@ -1386,6 +1386,10 @@ public slots:
 	void animateWindowZoom();
 	void animateCenterScreen();
 	void onInertiaTimer();
+	// True while the camera is being moved or is coasting after the mouse was released (the inertia timer runs), which is
+	// when the interaction fast path (coarse copies, single-sample rendering, no reflections or shadows) applies. The mouse
+	// release clears the low-resolution flag itself, so the coast would otherwise render at full quality.
+	bool interactionLowRes() const;
 	void onTurntableTimer();
 	void setTurntableEnabled(bool enabled);
 	bool turntableEnabled() const { return _turntableTimer && _turntableTimer->isActive(); }
@@ -1674,6 +1678,12 @@ protected:
 	bool   _frameGpuQueryIssued[2] = { false, false };
 	int    _frameGpuQueryIndex = 0;
 	bool   _frameGpuQueryActive = false;
+	// GPU time of the opaque and transparent mesh passes (timestamp pairs, read a frame or more later; diagnostics only).
+	struct PassGpuQuery { GLuint ids[2] = { 0, 0 }; int pass = 0; bool issued = false; };
+	std::vector<PassGpuQuery> _passGpuQueries;
+	int  beginPassGpuTimer(int pass);
+	void endPassGpuTimer(int slot);
+	void collectPassGpuTimers();
 
 	void renderMultiView(QColor& topColor, QColor& botColor);
 	void renderComparePanes(QColor& topColor, QColor& botColor);
