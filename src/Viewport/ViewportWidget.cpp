@@ -8316,6 +8316,26 @@ float ViewportWidget::computeLocalCappingSceneDiag() const
 	return (localMax - localMin).length();
 }
 
+namespace {
+// A bool uniform of the wire shader that is uploaded only when it changes. In a large assembly nearly every mesh is unselected and
+// unhovered, and uploading by name for each mesh is a glGetUniformLocation round trip per mesh per frame.
+struct WireFlagUniform
+{
+	int location = -1;
+	int last = -1;
+	void bind(QOpenGLShaderProgram* program, const char* name) { location = program->uniformLocation(name); last = -1; }
+	void set(QOpenGLShaderProgram* program, bool value)
+	{
+		const int next = value ? 1 : 0;
+		if (location >= 0 && last != next)
+		{
+			program->setUniformValue(location, static_cast<GLint>(next));
+			last = next;
+		}
+	}
+};
+}
+
 void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	RenderableMesh::resetTextureBindingCacheForCurrentContext();
@@ -8422,14 +8442,17 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);			
 			_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.0f, 0.5f, 1.0f));	
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+			WireFlagUniform selectedFlag, hoveredFlag;
+			selectedFlag.bind(_renderCtrl.wireframeShader(), "selected");
+			hoveredFlag.bind(_renderCtrl.wireframeShader(), "hovered");
+			const int hoveredIdNow = _selectionManager->getHoveredId();
 			for (auto& [key, id] : opaque)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 				{
 					const bool isSel = selIds.contains(id);
-					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
-					_renderCtrl.wireframeShader()->setUniformValue("hovered",
-						!isSel && hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+					selectedFlag.set(_renderCtrl.wireframeShader(), isSel);
+					hoveredFlag.set(_renderCtrl.wireframeShader(), !isSel && hoverHighlightingEnabled && id == hoveredIdNow);
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 				}
 			}
@@ -8463,7 +8486,40 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(1.25f, 1.25f);
 		prog->setUniformValue("isWireframePass", false);
-		for (auto& [key, id] : opaque)
+		// The fill pass is the shaded pass with a depth bias, so a large model takes the same merged-buffer path as Shaded
+		// mode (see DrawBatcher): one multi-draw per material group, and only what the batches do not cover is drawn mesh by
+		// mesh below. The depth bias set above is left alone by the batch draw.
+		std::vector<int> fillIds;
+		bool fillBatched = false;
+		const bool anyClippingFill = activeClipPlaneIndex >= 0 || _renderCtrl.yzClippingEnabled()
+			|| _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+		if (!flatProg && !anyClippingFill)
+		{
+			DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+			batchSettings.immediateInitialBuild = _sceneRuntime.pendingSceneUuids().isEmpty();
+			if (!_drawBatcher)
+				_drawBatcher = std::make_unique<DrawBatcher>();
+			const auto meshLookup = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+			_drawBatcher->update(_sceneRuntime.currentVisibleObjectIds(), meshLookup, batchSettings);
+			if (batchSettings.enabled && _drawBatcher->hasBatches()
+				&& static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) >= batchSettings.minDisplayedMeshes)
+			{
+				std::vector<int> culledIds;
+				culledIds.reserve(opaque.size());
+				for (const auto& entry : opaque)
+					culledIds.push_back(entry.second);
+				prog->setUniformValue("hovered", false);
+				_drawBatcher->drawBatches(prog, culledIds,
+					hoverHighlightingEnabled ? _selectionManager->getHoveredId() : -1, meshLookup, fillIds);
+				fillBatched = true;
+			}
+			else if (!batchSettings.enabled && _drawBatcher->hasBatches())
+				_drawBatcher->releaseGl();
+		}
+		if (!fillBatched)
+			for (const auto& entry : opaque)
+				fillIds.push_back(entry.second);
+		for (int id : fillIds)
 		{
 			if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 			{
@@ -8842,14 +8898,17 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
 			_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.0f, 0.5f, 1.0f));
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+			WireFlagUniform selectedFlag, hoveredFlag;
+			selectedFlag.bind(_renderCtrl.wireframeShader(), "selected");
+			hoveredFlag.bind(_renderCtrl.wireframeShader(), "hovered");
+			const int hoveredIdNow = _selectionManager->getHoveredId();
 			for (auto& it : transparent)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
 				{
 					const bool isSel = selIds.contains(it.second);
-					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
-					_renderCtrl.wireframeShader()->setUniformValue("hovered",
-						!isSel && hoverHighlightingEnabledT && it.second == _selectionManager->getHoveredId());
+					selectedFlag.set(_renderCtrl.wireframeShader(), isSel);
+					hoveredFlag.set(_renderCtrl.wireframeShader(), !isSel && hoverHighlightingEnabledT && it.second == hoveredIdNow);
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 				}
 			}

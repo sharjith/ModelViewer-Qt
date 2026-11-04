@@ -1601,9 +1601,23 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 	// uniform when it differs from that default, and restore it immediately after the draw.
 	// For a pure CAD assembly this reduces to 2 GL calls per mesh: modelMatrix + baseColor.
 
+	// The two per-mesh uniforms are looked up once per program, not by name for every mesh of every frame.
+	static const QOpenGLShaderProgram* cachedProgram = nullptr;
+	static GLuint cachedProgramId = 0;
+	static int modelMatrixLocation = -1;
+	static int baseColorLocation = -1;
+	if (cachedProgram != wireProg || cachedProgramId != wireProg->programId())
+	{
+		cachedProgram = wireProg;
+		cachedProgramId = wireProg->programId();
+		modelMatrixLocation = wireProg->uniformLocation("modelMatrix");
+		baseColorLocation = wireProg->uniformLocation("baseColor");
+	}
 	const QMatrix4x4 modelMatrix = currentGlobalModelMatrix() * combinedRenderTransform();
-	wireProg->setUniformValue("modelMatrix", modelMatrix);
-	wireProg->setUniformValue("baseColor",   _material.albedoColor());
+	if (modelMatrixLocation >= 0)
+		wireProg->setUniformValue(modelMatrixLocation, modelMatrix);
+	if (baseColorLocation >= 0)
+		wireProg->setUniformValue(baseColorLocation, _material.albedoColor());
 	ScopedWireVertexAlpha vertexAlpha(wireProg,
 		_hasVertexColors && _material.blendMode() == Material::BlendMode::Alpha);
 
@@ -1639,7 +1653,14 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 	if (_indices.empty())
 		glDrawArrays(_primitiveMode, 0, _nVerts);
 	else
-		glDrawElements(_primitiveMode, _nVerts, GL_UNSIGNED_INT, nullptr);
+	{
+		// Same interaction-time tier as render(), with the same explicit element-buffer rebind: the VAO is shared by both
+		// tiers and by render(), so its element-buffer binding may be left on either one by an earlier draw. Hollow Mesh
+		// and the wire pass of Mesh Edges otherwise drew every triangle of a large model while the camera moved.
+		const bool drawLod1 = _hasLod1 && RenderableMesh::lodPolicyActive();
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawLod1 ? _lodIndexBuffer.bufferId() : _indexBuffer.bufferId());
+		glDrawElements(_primitiveMode, drawLod1 ? static_cast<GLsizei>(_nVertsLod1) : static_cast<GLsizei>(_nVerts), GL_UNSIGNED_INT, nullptr);
+	}
 	_vertexArrayObject.release();
 
 	// Restore any non-default uniforms so the next mesh starts clean.
