@@ -55,6 +55,12 @@ struct Options {
     // Measurements and recorded PMI are placed on the loaded triangles, so a session belongs to the level it was made at.
     enum class DetailLevel { Finest=0, Medium=1, Coarsest=2 };
     DetailLevel detailLevel=DetailLevel::Finest;
+    // LOD alternatives that differ in the materials of their shapes (one alternative gives a shape its own material, another lets it
+    // inherit one from an assembly node): the shape takes the explicit material by default (the more specific attribute wins,
+    // reference 11.10) and the loaded alternative's own material is variant 0, "As authored in this level". Nothing is added for
+    // files whose alternatives agree. Meshes of a part that differ in a variant no longer merge into one. See
+    // research/jt/JT_C5_LOD_MATERIAL_VARIANTS.md. Setting jtLodMaterialVariants; MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=0 turns it off.
+    bool lodMaterialVariants=true;
     void check() const { if(cancelled && cancelled()) throw Cancelled(); }
     // Opt-in desktop runtime override. Plain Options and explicit caller budgets
     // remain deterministic; the viewer calls this when starting a JT import.
@@ -68,6 +74,7 @@ struct Options {
          if(gib>=1&&gib<=256)result.decodedAllocationBudget=size_t(gib)*size_t(1024)*1024*1024;}
         {const int level=settings.value(QStringLiteral("jtDetailLevel"),0).toInt();if(level>=0&&level<=2)result.detailLevel=DetailLevel(level);}
         if(qgetenv("MODELVIEWER_JT_MERGE_PART_MESHES")=="0")result.mergePartMeshes=false;
+        if(!settings.value(QStringLiteral("jtLodMaterialVariants"),true).toBool()||qgetenv("MODELVIEWER_JT_LOD_MATERIAL_VARIANTS")=="0")result.lodMaterialVariants=false;
         {const QByteArray level=qgetenv("MODELVIEWER_JT_DETAIL_LEVEL").trimmed().toLower();
          if(level=="finest")result.detailLevel=DetailLevel::Finest;
          else if(level=="medium")result.detailLevel=DetailLevel::Medium;
@@ -98,6 +105,10 @@ struct ImportResult {
     // returned scene; used while that scene is being turned into meshes.
     std::unordered_map<const aiNode*, std::shared_ptr<const PmiGeometry>> pmiGeometry;
     std::vector<TopoDS_Shape> exactShapes;
+    // LOD material variants (Options::lodMaterialVariants): the variant names, and for each scene mesh that has one the index of the
+    // scene material it uses (variant 0). Empty when no LOD alternatives differ in material.
+    QStringList variantNames;
+    std::unordered_map<unsigned,unsigned> variantMaterialByMesh;
     unsigned storedMeshes=0, exactParts=0, fallbackParts=0;
 };
 class Importer {

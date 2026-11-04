@@ -559,7 +559,7 @@ struct Builder {
     std::set<const void*> active;
     std::set<QString> activeFiles;
     std::map<QString,Handle(JtNode_Partition)> partitions;
-    std::map<std::pair<const void*,unsigned>,unsigned> meshCache;
+    std::map<std::tuple<const void*,unsigned,unsigned>,unsigned> meshCache; // shape payload, default material, variant material
     std::map<std::vector<float>,unsigned> materialCache;
     std::map<const void*,unsigned> geometryCache;
     std::vector<const aiNode*> hiddenJournal;
@@ -567,6 +567,17 @@ struct Builder {
     // The style each mesh was added with, parallel to meshes. Meshes that differ only in diffuse colour can later be one mesh.
     struct MeshStyle {Appearance style;bool unifiable;};
     std::vector<MeshStyle> meshStyles;
+    // LOD material variants. meshVariantMat is parallel to meshes: the scene material of variant 0 ("As authored in this level"), or
+    // NoVariant. A style-only pass (styleSink set) walks the other alternatives of a LOD node and records each shape's resolved style;
+    // lodPlan then gives the shapes of the alternative that is loaded their default (explicit over inherited) and variant styles.
+    static constexpr unsigned NoVariant=std::numeric_limits<unsigned>::max();
+    std::vector<unsigned> meshVariantMat;
+    struct ShapeRecord {Appearance style;bool ownMaterial=false;std::array<float,7> box{};}; // box: min xyz, max xyz, stored area
+    struct StyleSink {std::vector<ShapeRecord> shapes;bool unsupported=false;};
+    StyleSink* styleSink=nullptr;
+    struct LodPlan {std::vector<Appearance> def,variant;std::vector<char> hasVariant;size_t next=0;};
+    LodPlan* lodPlan=nullptr;
+    unsigned variantNodes=0,variantShapes=0,variantAmbiguousNodes=0,variantContradictedNodes=0;
     unsigned nodes=0;
     // Where the read spends its time (reported in the import notes): opening part files, decoding shape payloads, converting them.
     double openMs=0,decodeMs=0,convertMs=0,copyMs=0,addMs=0,metaMs=0,sourceCtxMs=0,attrMs=0;unsigned filesOpened=0,shapesDecoded=0,prefetched=0;
@@ -1210,7 +1221,7 @@ struct Builder {
     Checkpoint checkpoint() const {return {meshes.size(),materials.size(),result.exactShapes.size(),hiddenJournal.size(),geometries.size(),result.warnings.size(),result.storedMeshes,result.exactParts,result.fallbackParts,partNodes.size()};}
     void rollback(const Checkpoint& c) {
         partNodes.resize(c.parts);
-        meshStyles.resize(c.meshes);
+        meshStyles.resize(c.meshes);meshVariantMat.resize(c.meshes);
         meshes.resize(c.meshes);materials.resize(c.materials);result.exactShapes.resize(c.shapes);
         geometries.resize(c.geometries);geometryGroups.resize(c.geometries);
         for(auto it=groupMeshCache.begin();it!=groupMeshCache.end();) {if(it->second>=c.meshes)it=groupMeshCache.erase(it);else ++it;}
@@ -1531,7 +1542,7 @@ struct Builder {
             }
         }
         mesh->mMaterialIndex=mat;mesh->mName=aiString(name.toUtf8().constData());
-        meshStyles.push_back({style,!colored&&mergeableStyle(style)&&Detail::isTriangleMesh(*mesh)});
+        meshStyles.push_back({style,!colored&&mergeableStyle(style)&&Detail::isTriangleMesh(*mesh)});meshVariantMat.push_back(NoVariant);
         meshes.push_back(std::move(mesh)); return unsigned(meshes.size()-1);
     }
     // Shape LOD segment type (7 = most detailed, up to 16) of the most detailed shape at or below `object`, from the table of
@@ -1624,10 +1635,64 @@ struct Builder {
             scout(group->Children()[chosen],seen,out);
         } else for(size_t i=0;i<childCount;++i)scout(group->Children()[i],seen,out);
     }
+    // Whether two shape records could be the same body at two levels of detail: box corners within 5% of the larger box diagonal and
+    // stored areas within 35% (measured on three production files, research/jt/JT_C5_LOD_MATERIAL_VARIANTS.md section 7.1).
+    static bool sameBody(const std::array<float,7>& a,const std::array<float,7>& b) {
+        const auto diagonal=[](const std::array<float,7>& v){return std::sqrt(double(v[3]-v[0])*(v[3]-v[0])+double(v[4]-v[1])*(v[4]-v[1])+double(v[5]-v[2])*(v[5]-v[2]));};
+        const double scale=std::max({diagonal(a),diagonal(b),1e-9});
+        for(unsigned i=0;i<6;++i)if(std::abs(double(a[i])-double(b[i]))>0.05*scale)return false;
+        return std::abs(double(a[6])-double(b[6]))<=0.35*std::max({double(a[6]),double(b[6]),1e-12});
+    }
+    // The shapes of the alternative `loaded` of a LOD node take, by position, the explicit material of another alternative when they
+    // would only inherit one; the alternative's own material is then the variant. Null when nothing differs or the alternatives cannot
+    // be matched safely (different shape counts, palette maps, nested LOD or Switch nodes, partitions, bodies that do not agree).
+    std::unique_ptr<LodPlan> buildPlan(const Handle(JtNode_Group)& group,size_t loaded,const Appearance& style,bool hidden,bool transformLocked,
+        const aiMatrix4x4& world,const PaletteContext& palette,const MaterialSourceContext& materialSource) {
+        if(styleSink||!options.lodMaterialVariants||group->Children().Count()<2||!palette.mapping.IsNull()||!palette.entries->empty())return nullptr;
+        const size_t count=group->Children().Count();
+        std::vector<StyleSink> sinks(count);
+        for(size_t j=0;j<count;++j) {
+            StyleSink* const previous=styleSink;styleSink=&sinks[j];
+            try {visit(group->Children()[j],style,hidden,transformLocked,world,palette,materialSource);}
+            catch(const Cancelled&) {styleSink=previous;throw;}
+            catch(const std::bad_alloc&) {styleSink=previous;throw;}
+            catch(...) {styleSink=previous;return nullptr;} // the build visits the alternative again and reports the problem
+            styleSink=previous;
+            if(sinks[j].unsupported)return nullptr;
+        }
+        const size_t n=sinks[loaded].shapes.size();
+        if(!n)return nullptr;
+        for(const auto& sink:sinks)if(sink.shapes.size()!=n)return nullptr;
+        bool ambiguous=false;
+        if(n>1) {
+            for(size_t j=0;j<count;++j) {
+                if(j==loaded)continue;
+                for(size_t k=0;k<n;++k) {
+                    if(!sameBody(sinks[loaded].shapes[k].box,sinks[j].shapes[k].box)){++variantContradictedNodes;return nullptr;}
+                    for(size_t m=0;m<n;++m)if(m!=k&&sameBody(sinks[loaded].shapes[m].box,sinks[j].shapes[k].box))ambiguous=true;
+                }
+            }
+        }
+        const auto sameStyle=[](const Appearance& a,const Appearance& b){return styleSignature(a)==styleSignature(b)&&a.diffuse==b.diffuse;};
+        auto plan=std::make_unique<LodPlan>();
+        plan->def.reserve(n);plan->variant.reserve(n);plan->hasVariant.assign(n,0);
+        unsigned differing=0;
+        for(size_t k=0;k<n;++k) {
+            const ShapeRecord& own=sinks[loaded].shapes[k];
+            const ShapeRecord* donor=nullptr;
+            if(!own.ownMaterial)for(size_t j=0;j<count&&!donor;++j)if(j!=loaded&&sinks[j].shapes[k].ownMaterial)donor=&sinks[j].shapes[k];
+            const bool differs=donor&&mergeableStyle(own.style)&&mergeableStyle(donor->style)&&!sameStyle(own.style,donor->style);
+            plan->def.push_back(differs?donor->style:own.style);plan->variant.push_back(own.style);plan->hasVariant[k]=differs?1:0;
+            differing+=differs?1u:0u;
+        }
+        if(!differing)return nullptr;
+        ++variantNodes;variantShapes+=differing;if(ambiguous)++variantAmbiguousNodes;
+        return plan;
+    }
     std::unique_ptr<aiNode> visit(const Handle(JtData_Object)& object,Appearance style={},bool parentHidden=false,bool transformLocked=false,const aiMatrix4x4& parentWorld=aiMatrix4x4(),PaletteContext palette={},MaterialSourceContext materialSource={}) {
         options.check();if(object.IsNull()) throw std::runtime_error("JT has an unresolved graph reference");
         JtData_Limits::allocation(style.textureUnits.size()*(sizeof(TextureState)+64));
-        if(active.size()>=512 || ++nodes>1000000 || !active.insert(object.get()).second) throw std::runtime_error("JT graph cycle/depth limit exceeded");
+        if(active.size()>=512 || (!styleSink&&++nodes>1000000) || !active.insert(object.get()).second) throw std::runtime_error("JT graph cycle/depth limit exceeded");
         struct Pop {std::set<const void*>& s;const void* p;~Pop(){s.erase(p);}} pop{active,object.get()};
         auto source=Handle(JtNode_Base)::DownCast(object);
         if(source.IsNull()) throw std::runtime_error("Unsupported required JT graph node");
@@ -1648,9 +1713,10 @@ struct Builder {
             }
             if(ordinary&&materialCount==2) {
                 skipMaterial=secondMaterial;
-                result.warnings.append(label+": duplicate fallback materials: using first material (writer compatibility profile)");
+                if(!styleSink)result.warnings.append(label+": duplicate fallback materials: using first material (writer compatibility profile)");
             }
         }
+        bool ownMaterial=false; // this node carries a material of its own that applies (shapes: used by the LOD material variants)
         for(size_t i=0;i<source->Attributes().Count();++i) {
             const auto a=source->Attributes()[i];
             const auto attribute=Handle(JtAttribute_Base)::DownCast(a);
@@ -1664,6 +1730,7 @@ struct Builder {
             }
             const auto transform=Handle(JtAttribute_GeometricTransform)::DownCast(a);
             const auto appearance=Handle(JtAttribute_Material)::DownCast(a);
+            if(!appearance.IsNull())ownMaterial=true;
             const auto drawStyle=Handle(JtAttribute_DrawStyle)::DownCast(a);
             const auto textureImage=Handle(JtAttribute_TextureImage)::DownCast(a);
             bool mappedChannel=!textureImage.IsNull()&&textureImage->Parsed();
@@ -1712,7 +1779,7 @@ struct Builder {
         const auto switchNode=Handle(JtNode_Switch)::DownCast(object);
         const auto rangeNode=Handle(JtNode_RangeLOD)::DownCast(object);
         const auto part=Handle(JtNode_Part)::DownCast(object);bool exact=false,hasBrep=false;
-        if(!part.IsNull()) for(size_t i=0;i<part->LateLoads().Count();++i) {
+        if(!part.IsNull()&&!styleSink) for(size_t i=0;i<part->LateLoads().Count();++i) {
             const auto prop=part->LateLoads()[i];if(prop->SegmentType()!=17 && prop->SegmentType()!=30) continue;
             hasBrep=true;
             if(!options.exactDecoder || !palette.mapping.IsNull()) continue;
@@ -1727,11 +1794,17 @@ struct Builder {
               catch(const std::exception& e) {result.warnings.append(label+": exact geometry rejected: "+QString::fromUtf8(e.what()));}
             prop->Unload();
         }
+        if(styleSink&&!Handle(JtNode_Shape_Base)::DownCast(object).IsNull()) { // style-only pass: record the resolved style, decode nothing
+            const auto shape=Handle(JtNode_Shape_Base)::DownCast(object);const auto& bounds=shape->Bounds();
+            styleSink->shapes.push_back({style,ownMaterial,{bounds.MinCorner.X,bounds.MinCorner.Y,bounds.MinCorner.Z,bounds.MaxCorner.X,bounds.MaxCorner.Y,bounds.MaxCorner.Z,shape->Area()}});
+            return node;
+        }
         if(hasBrep && !exact) {++result.fallbackParts;result.warnings.append(label+": using stored JT tessellation (exact geometry unavailable or rejected)");}
         if(!exact) {
             const auto shape=Handle(JtNode_Shape_Base)::DownCast(object);
             if(!shape.IsNull()) {
                 bool loaded=false;
+                const size_t planIndex=lodPlan ? lodPlan->next++ : size_t(-1); // position of this shape in its LOD alternative
                 for(size_t i=0;i<shape->LateLoads().Count();++i) {
                     const auto prop=shape->LateLoads()[i];if(prop->SegmentType()<6 || prop->SegmentType()>16) continue;
                     try {
@@ -1846,9 +1919,14 @@ struct Builder {
                         } else {
                             // Assembly-only nodes need accumulated state, not
                             // decoded/composed images with provisional colours.
-                            const unsigned mat=material(style);
-                            const auto key=std::make_pair(static_cast<const void*>(prop.get()),mat);const auto cached=meshCache.find(key);
-                            const unsigned id=cached!=meshCache.end()?cached->second:add(copyGeometry(geometryIndex),style,name);
+                            // LOD material variants: this shape's default is another alternative's explicit material and its own is variant 0.
+                            const bool planned=lodPlan&&planIndex<lodPlan->def.size()&&lodPlan->hasVariant[planIndex]&&!geometries.at(geometryIndex)->HasVertexColors(0);
+                            const Appearance& meshStyle=planned?lodPlan->def[planIndex]:style;
+                            const unsigned mat=material(meshStyle);
+                            const unsigned variantMat=planned?material(lodPlan->variant[planIndex]):NoVariant;
+                            const auto key=std::make_tuple(static_cast<const void*>(prop.get()),mat,variantMat);const auto cached=meshCache.find(key);
+                            const unsigned id=cached!=meshCache.end()?cached->second:add(copyGeometry(geometryIndex),meshStyle,name);
+                            if(cached==meshCache.end()&&planned){meshVariantMat[id]=variantMat;meshStyles[id].unifiable=false;}
                             meshCache[key]=id;attached.push_back(id);
                         }
                         ++result.storedMeshes;loaded=true;break;
@@ -1867,7 +1945,8 @@ struct Builder {
                 const auto partition=Handle(JtNode_Partition)::DownCast(object);
                 if(!partition.IsNull() && group->Children().IsEmpty()) {
                     const QString reference=QString::fromUtf16(reinterpret_cast<const char16_t*>(partition->FileName().ToExtString()));
-                    if(!reference.isEmpty()) {
+                    if(styleSink)styleSink->unsupported=true; // the style-only pass does not open part files
+                    else if(!reference.isEmpty()) {
                         const QString origin=QString::fromUtf16(reinterpret_cast<const char16_t*>(partition->OriginFileName().ToExtString()));
                         const QString file=QFileInfo(QFileInfo(origin).dir().filePath(reference)).canonicalFilePath();
                         if(file.isEmpty() || !insideDirectory(file,rootDirectory) || activeFiles.count(fileKey(file))) throw std::runtime_error("Missing, cyclic or external JT partition");
@@ -1878,6 +1957,8 @@ struct Builder {
                         MaterialSourceContext partContext;{Timed timed(sourceCtxMs);partContext=materialSourceContext(file,options);}
                         children.push_back(visit(root,style,hidden,transformLocked,world,palette,std::move(partContext)));
                     }
+                } else if(styleSink&&(!Handle(JtNode_LOD)::DownCast(object).IsNull()||!switchNode.IsNull())) {
+                    styleSink->unsupported=true; // a nested LOD or Switch below an alternative is not matched by position
                 } else {
                     const bool lod=!Handle(JtNode_LOD)::DownCast(object).IsNull();
                     const size_t childCount=group->Children().Count();
@@ -1927,6 +2008,9 @@ struct Builder {
                             if(!lod) {children.push_back(visit(group->Children()[i],style,hidden,transformLocked,world,palette,materialSource));continue;}
                             const auto saved=checkpoint();
                             try {
+                                struct PlanScope {LodPlan*& slot;LodPlan* previous;~PlanScope(){slot=previous;}} planScope{lodPlan,lodPlan};
+                                const auto planHolder=buildPlan(group,i,style,hidden,transformLocked,world,palette,materialSource);
+                                lodPlan=planHolder.get();
                                 auto child=visit(group->Children()[i],style,hidden,transformLocked,world,palette,materialSource);
                                 if(!containsMesh(*child)) throw std::runtime_error("LOD alternative contains no render geometry");
                                 children.push_back(std::move(child));selected=true;selectedChild=int(i);
@@ -1946,10 +2030,11 @@ struct Builder {
         }
         if(hasBrep && !exact && attached.empty() && std::none_of(children.begin(),children.end(),[](const auto& child){return containsMesh(*child);}))
             throw std::runtime_error("JT part has B-Rep but no usable tessellation fallback");
-        if(hidden) {result.hiddenNodes.insert(node.get());hiddenJournal.push_back(node.get());}
-        if(!part.IsNull()&&!exact)partNodes.push_back(node.get());
+        if(hidden&&!styleSink) {result.hiddenNodes.insert(node.get());hiddenJournal.push_back(node.get());}
+        if(!part.IsNull()&&!exact&&!styleSink)partNodes.push_back(node.get());
         node->mNumMeshes=unsigned(attached.size());if(!attached.empty()) {node->mMeshes=new unsigned[attached.size()];std::copy(attached.begin(),attached.end(),node->mMeshes);}
         node->mNumChildren=unsigned(children.size());if(!children.empty()) {node->mChildren=new aiNode*[children.size()]{};for(size_t i=0;i<children.size();++i) {children[i]->mParent=node.get();node->mChildren[i]=children[i].release();}}
+        if(styleSink)return node; // style-only pass: no metadata, PMI or properties
         const bool selectionNode=!switchNode.IsNull() || !Handle(JtNode_LOD)::DownCast(object).IsNull();
         std::unique_ptr<aiMetadata> sourceProperties,sourceTextures,sourcePmi;
         if(!part.IsNull()) for(size_t i=0;i<part->LateLoads().Count();++i) {
@@ -2096,7 +2181,7 @@ struct PartMerger {
             // One part is one body: face colours differ, but a part's other material fields (specular, shininess) are not worth a
             // separate mesh. Draw mode and blending still split, since they change how the whole mesh is rendered.
             if(info.unifiable)groups[Key{true,0,{float(info.style.drawFlags),float(info.style.drawPresent),float(info.style.blendFlags),float(info.style.diffuse.a<1)},false,uv}].push_back(i);
-            else groups[Key{false,m.mMaterialIndex,{},m.HasVertexColors(0),uv}].push_back(i);
+            else groups[Key{false,m.mMaterialIndex,{float(builder.meshVariantMat.at(entries[i].mesh))},m.HasVertexColors(0),uv}].push_back(i); // meshes with different LOD material variants never merge
         }
         std::map<aiNode*,std::set<unsigned>> taken;std::vector<unsigned> attach;
         if(!entries.empty())++leafPartsWithMeshes;
@@ -2143,7 +2228,7 @@ struct PartMerger {
                 unsigned id;
                 const Builder::MeshStyle firstStyle=builder.meshStyles.at(firstId); // copied: add() grows the vector
                 if(differ)id=builder.add(std::move(mesh),firstStyle.style,QString::fromUtf8(meshes[firstId]->mName.C_Str()));
-                else {id=unsigned(meshes.size());builder.meshStyles.push_back({firstStyle.style,false});meshes.push_back(std::move(mesh));}
+                else {const unsigned firstVariant=builder.meshVariantMat.at(firstId);id=unsigned(meshes.size());builder.meshStyles.push_back({firstStyle.style,false});builder.meshVariantMat.push_back(firstVariant);meshes.push_back(std::move(mesh));}
                 found=merged.emplace(std::move(key),id).first;
             }
             attach.push_back(found->second);pieceCount+=unsigned(group.second.size());++mergedCount;
@@ -2188,8 +2273,9 @@ struct PartMerger {
             for(unsigned i=0;i<node->mNumChildren;++i)mark(node->mChildren[i]);
         };
         mark(root);
-        std::vector<unsigned> remap(meshes.size(),0);std::vector<std::unique_ptr<aiMesh>> next;
-        for(size_t i=0;i<meshes.size();++i)if(used[i]){remap[i]=unsigned(next.size());next.push_back(std::move(meshes[i]));}
+        std::vector<unsigned> remap(meshes.size(),0);std::vector<std::unique_ptr<aiMesh>> next;std::vector<unsigned> nextVariant;
+        for(size_t i=0;i<meshes.size();++i)if(used[i]){remap[i]=unsigned(next.size());next.push_back(std::move(meshes[i]));nextVariant.push_back(builder.meshVariantMat.at(i));}
+        builder.meshVariantMat=std::move(nextVariant);
         const std::function<void(aiNode*)> apply=[&](aiNode* node){
             for(unsigned i=0;i<node->mNumMeshes;++i)node->mMeshes[i]=remap[node->mMeshes[i]];
             for(unsigned i=0;i<node->mNumChildren;++i)apply(node->mChildren[i]);
@@ -2274,6 +2360,14 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         b.result.notes.append(QStringLiteral("JT detail level %1: %2 of %3 LOD nodes loaded a coarser alternative than the first; %4 offered no distinct levels and kept the established choice. "
             "Measurements and recorded PMI of this session belong to this level.")
             .arg(options.detailLevel==Options::DetailLevel::Coarsest ? QStringLiteral("coarsest") : QStringLiteral("medium")).arg(b.lodReduced).arg(b.lodNodes).arg(b.lodIndistinct));
+    if(b.variantNodes) {
+        b.result.variantNames.append(QStringLiteral("As authored in this level"));
+        for(unsigned i=0;i<unsigned(b.meshVariantMat.size());++i)if(b.meshVariantMat[i]!=Builder::NoVariant)b.result.variantMaterialByMesh[i]=b.meshVariantMat[i];
+    }
+    if(options.lodMaterialVariants&&(b.variantNodes||b.variantContradictedNodes))
+        b.result.notes.append(QStringLiteral("JT LOD materials: %1 shapes in %2 LOD nodes take an explicit material from another alternative by default (the more specific attribute wins); the loaded level's own materials are the variant \"As authored in this level\". "
+            "%3 of those nodes hold shapes that the stored box and area cannot tell apart (the position match is not confirmed for them); %4 nodes were left alone because their alternatives' bodies do not agree.")
+            .arg(b.variantShapes).arg(b.variantNodes).arg(b.variantAmbiguousNodes).arg(b.variantContradictedNodes));
     b.result.scene=std::make_unique<aiScene>();auto& scene=*b.result.scene;
     scene.mRootNode=tree.release();scene.mNumMeshes=unsigned(b.meshes.size());scene.mMeshes=new aiMesh*[scene.mNumMeshes]{};
     for(unsigned i=0;i<scene.mNumMeshes;++i) scene.mMeshes[i]=b.meshes[i].release();

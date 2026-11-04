@@ -422,6 +422,52 @@ void selectionTests() {
         reset(7,8,12);check(choice(Level::Coarsest)=="coarse","Level numbers above 9 are coarser still");
     }
 }
+// LOD material variants: a shape that only inherits a material in the loaded alternative takes the explicit material of the same
+// position in another alternative by default; the loaded alternative's own material is variant 0.
+void lodMaterialVariantTests() {
+    using Level=Jt::Options::DetailLevel;
+    auto root=node<JtNode_Partition>("root");auto parent=node<JtNode_Group>("parent");auto range=node<JtNode_RangeLOD>("range");
+    auto fineAlt=node<JtNode_Group>("fineAlt");auto coarseAlt=node<JtNode_Group>("coarseAlt");
+    auto f1=leaf("f1");auto f2=leaf("f2");auto c1=leaf("c1");auto c2=leaf("c2");
+    // A build unloads the payloads it used, so every build gets fresh ones.
+    const auto reload=[&]{f1->late({new Property(true,7)});f2->late({new Property(true,7)});c1->late({new Property(true,9)});c2->late({new Property(true,9)});};
+    reload();
+    parent->attributes({new Material({0.5f,0.5f,0.5f,1})});
+    c1->attributes({new Material({1,0,0,1})});c2->attributes({new Material({0,0,1,1})});
+    fineAlt->children({f1,f2});coarseAlt->children({c1,c2});range->children({fineAlt,coarseAlt});parent->children({range});root->children({parent});
+    const auto diffuse=[](const Jt::ImportResult& r,unsigned mesh) {
+        aiColor4D value(-1,-1,-1,-1);r.scene->mMaterials[r.scene->mMeshes[mesh]->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,value);return value;
+    };
+    const auto isColour=[](const aiColor4D& c,float r,float g,float b){return c.r==r&&c.g==g&&c.b==b;};
+    const auto variantColour=[&](const Jt::ImportResult& r,unsigned mesh) {
+        const auto found=r.variantMaterialByMesh.find(mesh);check(found!=r.variantMaterialByMesh.end(),"LOD variant: mesh without a variant material");
+        aiColor4D value(-1,-1,-1,-1);r.scene->mMaterials[found->second]->Get(AI_MATKEY_COLOR_DIFFUSE,value);return value;
+    };
+    // Finest loaded: the shapes inherit grey, the coarsest alternative has explicit red and blue.
+    reload();auto result=build(root);
+    check(result.variantNames==QStringList{QStringLiteral("As authored in this level")},"LOD variant: name missing");
+    check(result.scene->mNumMeshes==2&&result.variantMaterialByMesh.size()==2,"LOD variant: expected two meshes with a variant each");
+    int red=0,blue=0;
+    for(unsigned i=0;i<2;++i) {
+        const auto d=diffuse(result,i);red+=isColour(d,1,0,0);blue+=isColour(d,0,0,1);
+        check(isColour(variantColour(result,i),0.5f,0.5f,0.5f),"LOD variant: the loaded alternative's own (inherited) material is not variant 0");
+    }
+    check(red==1&&blue==1,"LOD variant: the default is not the explicit material of the matching shape");
+    bool noted=false;for(const QString& note:result.notes)noted=noted||note.startsWith(QStringLiteral("JT LOD materials"));
+    check(noted,"LOD variant: import note missing");
+    // Switched off: the loaded alternative shows only its own materials.
+    {Jt::Options options;options.lodMaterialVariants=false;reload();auto off=build(root,options);
+     check(off.variantNames.isEmpty()&&off.variantMaterialByMesh.empty()&&isColour(diffuse(off,0),0.5f,0.5f,0.5f),"LOD variant: the switch did not restore the authored materials");}
+    // Coarsest loaded: its own explicit materials are the default, nothing differs.
+    {Jt::Options options;options.detailLevel=Level::Coarsest;reload();auto coarse=build(root,options);
+     check(coarse.variantNames.isEmpty()&&coarse.variantMaterialByMesh.empty(),"LOD variant: the explicit alternative must not get a variant");}
+    // Alternatives that agree: nothing to add.
+    f1->attributes({new Material({1,0,0,1})});f2->attributes({new Material({0,0,1,1})});
+    reload();{auto same=build(root);check(same.variantNames.isEmpty()&&same.variantMaterialByMesh.empty(),"LOD variant: identical materials produced a variant");}
+    // Different shape counts: not matched by position.
+    f1->attributes({});f2->attributes({});fineAlt->children({f1});
+    reload();{auto uneven=build(root);check(uneven.variantNames.isEmpty(),"LOD variant: alternatives with different shape counts were matched");}
+}
 void metadataTests() {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create metadata fixture directory");const auto path=temp.filePath("metadata.jt");
     const auto read=[&] {
@@ -529,7 +575,7 @@ void drawStyleTests() {
     shape->late({new ZeroProperty(new ZeroTriangle)});shape->attributes({new DrawStyle(0x1a)});
     result=build(root);check(result.scene->mMeshes[0]->mNumFaces==1 && result.scene->mMeshes[0]->mNormals[0].z==1,"Degenerate flat triangle lost finite normals");
 }
-void sceneTests() {inheritance();shininessTests();vertexColorTests();vertexAlphaTests();instances();transforms();emptyShapeTests();lodAndFailures();selectionTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, vertex colours, transforms, selection, metadata and draw styles passed\n";}
+void sceneTests() {inheritance();shininessTests();vertexColorTests();vertexAlphaTests();instances();transforms();emptyShapeTests();lodAndFailures();selectionTests();lodMaterialVariantTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, vertex colours, transforms, selection, metadata and draw styles passed\n";}
 
 void vertexAlphaFixtureFiles(const QString& folder){
     check(QDir().mkpath(folder),"Cannot create alpha fixture directory");QDir dir(folder);

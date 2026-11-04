@@ -4,6 +4,8 @@
 #include <JtNode_Group.hxx>
 #include <JtNode_Partition.hxx>
 #include <JtNode_Instance.hxx>
+#include <JtNode_LOD.hxx>
+#include <JtNode_Shape_Base.hxx>
 #include <JtAttribute_Material.hxx>
 #include <set>
 #include <QCoreApplication>
@@ -44,11 +46,12 @@ int main(int argc,char** argv) {
     const QCommandLineOption materials("materials","Print resolved JT material/style fields as JSON");
     const QCommandLineOption publishedMaterials("published-material-order","Disable the narrow duplicate-material writer compatibility profile");
     const QCommandLineOption sourceAttributes("source-attributes","Print unaccumulated attributes in the input file graph; external partitions are not followed");
+    const QCommandLineOption lodShapes("lod-shapes","Print, for every LOD node of the input file graph, the shapes of each alternative (Shape LOD segment types and untransformed bounding box); no model names; external partitions are not followed");
     const QCommandLineOption validate("validate","Check geometry, stored-normal lengths and node transforms; print local mesh bounds");
     const QCommandLineOption budget("allocation-budget-mib","Override cumulative charged-allocation budget for native diagnostics","MiB");
     const QCommandLineOption decodeThreads("decode-threads","Threads decoding shape payloads ahead of the build (0 = automatic, 1 = off)","N");
     const QCommandLineOption detail("detail-level","Which LOD alternative to load by Shape LOD segment type: finest (default), medium or coarsest","level");
-    parser.addOption(decodeThreads);parser.addOption(detail);
+    parser.addOption(decodeThreads);parser.addOption(detail);parser.addOption(lodShapes);
     parser.addOption(budget);parser.addOption(sourceAttributes);parser.addOption(publishedMaterials);
     parser.addOption(eye);parser.addOption(properties);parser.addOption(materials);parser.addOption(validate);parser.process(app);
     const auto arguments=parser.positionalArguments();
@@ -71,6 +74,43 @@ int main(int argc,char** argv) {
             std::array<double,3> point{};
             for(int i=0;i<3;++i) {bool ok=false;point[i]=coordinates[i].toDouble(&ok);if(!ok) throw std::runtime_error("Invalid --eye coordinate");}
             options.lodEyePoint=point;
+        }
+        if(parser.isSet(lodShapes)) {
+            // Evidence for matching the shapes of one LOD node's alternatives by position: per alternative, each shape's Shape LOD
+            // segment types and untransformed bounding box, read from the scene graph only (nothing is decoded).
+            if(arguments.size()!=1) throw std::runtime_error("--lod-shapes does not export geometry");
+            JtData_Limits::Scope limits([&]{options.check();},options.decodedAllocationBudget);
+            const auto path=arguments[0].toStdU16String();
+            Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(path.c_str())));
+            const auto root=model->Init();if(root.IsNull())throw std::runtime_error("Cannot read JT source graph");
+            QJsonArray lodNodes;unsigned visited=0;
+            const std::function<void(const Handle(JtData_Object)&,QJsonArray&,unsigned)> shapesOf=[&](const Handle(JtData_Object)& object,QJsonArray& out,unsigned depth) {
+                if(object.IsNull()||depth>64)return;
+                const auto shape=Handle(JtNode_Shape_Base)::DownCast(object);
+                if(!shape.IsNull()) {
+                    QJsonArray types;for(size_t i=0;i<shape->LateLoads().Count();++i)types.append(int(shape->LateLoads()[i]->SegmentType()));
+                    const auto& b=shape->Bounds();
+                    out.append(QJsonObject{{"segmentTypes",types},{"area",double(shape->Area())},{"hasCountRanges",shape->HasCountRanges()},
+                        {"vertexRange",QJsonArray{shape->VertexRangeMin(),shape->VertexRangeMax()}},{"polyRange",QJsonArray{shape->PolyRangeMin(),shape->PolyRangeMax()}},{"bounds",QJsonArray{b.MinCorner.X,b.MinCorner.Y,b.MinCorner.Z,b.MaxCorner.X,b.MaxCorner.Y,b.MaxCorner.Z}}});
+                    return;
+                }
+                const auto instance=Handle(JtNode_Instance)::DownCast(object);if(!instance.IsNull()){shapesOf(instance->Object(),out,depth+1);return;}
+                const auto group=Handle(JtNode_Group)::DownCast(object);
+                if(!group.IsNull())for(size_t i=0;i<group->Children().Count();++i)shapesOf(group->Children()[i],out,depth+1);
+            };
+            const std::function<void(const Handle(JtData_Object)&,unsigned)> walk=[&](const Handle(JtData_Object)& object,unsigned depth) {
+                if(object.IsNull()||depth>512||++visited>2000000)throw std::runtime_error("Invalid JT source graph reference/depth/size");
+                const auto instance=Handle(JtNode_Instance)::DownCast(object);if(!instance.IsNull()){walk(instance->Object(),depth+1);return;}
+                const auto group=Handle(JtNode_Group)::DownCast(object);if(group.IsNull())return;
+                if(!Handle(JtNode_LOD)::DownCast(object).IsNull()) {
+                    QJsonArray alternatives;
+                    for(size_t i=0;i<group->Children().Count();++i){QJsonArray shapes;shapesOf(group->Children()[i],shapes,0);alternatives.append(QJsonObject{{"shapes",shapes}});}
+                    lodNodes.append(QJsonObject{{"alternatives",alternatives}});
+                    return;
+                }
+                for(size_t i=0;i<group->Children().Count();++i)walk(group->Children()[i],depth+1);
+            };walk(root,0);
+            std::cout<<QJsonDocument(QJsonObject{{"lodNodes",lodNodes},{"externalPartitionsFollowed",false}}).toJson(QJsonDocument::Compact).constData()<<'\n';return 0;
         }
         if(parser.isSet(sourceAttributes)) {
             if(arguments.size()!=1) throw std::runtime_error("--source-attributes does not export geometry");

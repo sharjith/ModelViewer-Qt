@@ -15269,6 +15269,23 @@ on)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2344"/>
+        <source>LOD Material Variants</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2334"/>
+        <source>Some JT files give a shape its own material in one
+  LOD alternative and let it inherit one in another.
+  On: the explicit material is the default and the loaded
+  level&apos;s own material is the variant &quot;As authored in this
+  level&quot; in the Variants panel. Parts that differ no longer
+  merge into one mesh. Off: each level shows only its own
+  materials. Applies to files opened afterwards.
+  Override: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=0.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../ui/App/SettingsDialog.ui" line="2316"/>
         <source>Finest</source>
         <translation type="unfinished"></translation>

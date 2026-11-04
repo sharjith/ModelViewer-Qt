@@ -2328,6 +2328,26 @@ axis</string>
               </item>
              </widget>
             </item>
+            <item row="5" column="0" colspan="2">
+             <widget class="QCheckBox" name="jtLodMaterialVariantsCheckBox">
+              <property name="toolTip">
+               <string>Some JT files give a shape its own material in one
+  LOD alternative and let it inherit one in another.
+  On: the explicit material is the default and the loaded
+  level's own material is the variant "As authored in this
+  level" in the Variants panel. Parts that differ no longer
+  merge into one mesh. Off: each level shows only its own
+  materials. Applies to files opened afterwards.
+  Override: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=0.</string>
+              </property>
+              <property name="text">
+               <string>LOD Material Variants</string>
+              </property>
+              <property name="checked">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
            </layout>
           </widget>
          </item>
@@ -2868,6 +2888,7 @@ loaded after restarting the application.</string>
   <tabstop>jtBudgetGibSpinBox</tabstop>
   <tabstop>jtPrefetchMinSpinBox</tabstop>
   <tabstop>jtDetailLevelComboBox</tabstop>
+  <tabstop>jtLodMaterialVariantsCheckBox</tabstop>
   <tabstop>threeDxmlStrictCheckBox</tabstop>
   <tabstop>threeDxmlThreadsSpinBox</tabstop>
   <tabstop>threeDxmlParallelMinSpinBox</tabstop>

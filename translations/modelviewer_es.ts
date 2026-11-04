@@ -18149,6 +18149,30 @@ activado)</translation>
   Anulación: MODELVIEWER_JT_DETAIL_LEVEL.</translation>
     </message>
     <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2344"/>
+        <source>LOD Material Variants</source>
+        <translation>Variantes de material LOD</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2334"/>
+        <source>Some JT files give a shape its own material in one
+  LOD alternative and let it inherit one in another.
+  On: the explicit material is the default and the loaded
+  level&apos;s own material is the variant &quot;As authored in this
+  level&quot; in the Variants panel. Parts that differ no longer
+  merge into one mesh. Off: each level shows only its own
+  materials. Applies to files opened afterwards.
+  Override: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=0.</source>
+        <translation>Algunos archivos JT dan a una forma su propio material en una alternativa
+  LOD y la dejan heredar uno en otra.
+  Activado: el material explícito es el predeterminado y el material propio
+  del nivel cargado es la variante &quot;As authored in this level&quot; del panel
+  de variantes. Las piezas que difieren dejan de fusionarse en una sola malla.
+  Desactivado: cada nivel muestra solo sus propios materiales.
+  Se aplica a los archivos abiertos después.
+  Anulación: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=0.</translation>
+    </message>
+    <message>
         <location filename="../ui/App/SettingsDialog.ui" line="2316"/>
         <source>Finest</source>
         <translation>Más fino</translation>

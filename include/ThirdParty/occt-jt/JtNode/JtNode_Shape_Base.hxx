@@ -40,6 +40,14 @@ public:
 
   const Jt_BBoxF32& Bounds() const { return myUntransBnd; }
 
+  //! Stored surface area and vertex/polygon count ranges of the shape node (read-only accessors; used by the LOD diagnostics).
+  float Area() const { return myArea; }
+  int VertexRangeMin() const { return myVertexRange[0]; }
+  int VertexRangeMax() const { return myVertexRange[1]; }
+  int PolyRangeMin() const { return myPolyRange[0]; }
+  int PolyRangeMax() const { return myPolyRange[1]; }
+  bool HasCountRanges() const { return myHasCountRanges; }
+
   //! Get the late loaded properties associated with this node.
   const VectorOfLateLoads& LateLoads() const { return myLateLoads; }
 

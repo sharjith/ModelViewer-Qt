@@ -1404,6 +1404,21 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			ImportDiagnostics::checkpoint(_importStage);
 			_scene = _jt.scene.get();
 			_declaredLengthUnit = Jt::declaredLengthUnit(_jt.measurementUnits, _jt.notes);
+			// LOD material variants: scene meshes whose loaded alternative's own materials differ from their default material.
+			// The prebuilt variant materials and the scene-graph registration are the ones the glTF path uses.
+			_variantData = GltfVariantData();
+			if (!_jt.variantNames.isEmpty())
+			{
+				_variantData.sourceFile = QString::fromStdString(_path);
+				_variantData.variantNames = _jt.variantNames;
+				for (const auto& item : _jt.variantMaterialByMesh)
+				{
+					GltfVariantMapping mapping;
+					mapping.materialIndex = static_cast<int>(item.second);
+					mapping.variantIndices.append(0);
+					_variantData.meshVariantMappings[static_cast<int>(item.first)].append(mapping);
+				}
+			}
 			for (const QString& warning : _jt.warnings + _jt.notes) qWarning().noquote() << warning;
 		} catch (const std::exception& e) {
 			_errorMessage = QString::fromUtf8(e.what());
