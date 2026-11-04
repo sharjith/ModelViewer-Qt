@@ -1675,6 +1675,21 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 	}
 }
 
+void SceneMesh::prepareWireBatchDraw(QOpenGLShaderProgram* wireProg, bool selected)
+{
+	if (!wireProg)
+		return;
+	// The batch geometry already carries each part's own transform, so only the global model matrix remains.
+	wireProg->setUniformValue("modelMatrix", currentGlobalModelMatrix());
+	wireProg->setUniformValue("baseColor", _material.albedoColor());
+	wireProg->setUniformValue("hasVertexColors", _hasVertexColors);
+	wireProg->setUniformValue("selected", selected);
+	const bool hasAlbedo = _material.hasAlbedoMap() && _material.albedoTextureId() != 0;
+	wireProg->setUniformValue("hasAlbedoMap", hasAlbedo);
+	if (hasAlbedo)
+		bindTextureUnitCached(GL_TEXTURE0, static_cast<GLuint>(_material.albedoTextureId()));
+}
+
 quint64 SceneMesh::drawGroupKey() const
 {
 	// The program is deliberately not part of the key: a batch is drawn with whichever program the pass uses, and

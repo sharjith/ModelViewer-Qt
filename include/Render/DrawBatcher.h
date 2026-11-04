@@ -69,8 +69,13 @@ public:
 
 	// Draws every mesh of `ids` that is currently covered by a valid batch and appends the rest, in order, to
 	// `individual`. Returns the number of meshes drawn from batches. `prog` must be the pass's program.
+	// With `wire` set, `prog` is the lightweight wireframe shader and the batches are drawn with its uniforms (see
+	// SceneMesh::prepareWireBatchDraw); the caller has set the pass-level uniforms and the polygon mode, and restores
+	// hasVertexColors / hasAlbedoMap / selected to false afterwards. The vertex attribute locations of that shader are those of
+	// the main shader, so a group's VAO configured for either serves both.
+	struct WireDraw { bool highlightSelected = false; };
 	int drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>& ids, int hoveredId,
-	                const MeshLookup& meshAt, std::vector<int>& individual);
+	                const MeshLookup& meshAt, std::vector<int>& individual, const WireDraw* wire = nullptr);
 
 	// Transparent pass. `orderedIds` is the back-to-front draw order. Consecutive meshes of one batch group are drawn
 	// with a single multi-draw in exactly that order, so the picture is identical to drawing them one by one; any mesh

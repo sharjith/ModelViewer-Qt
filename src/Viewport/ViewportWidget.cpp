@@ -8421,6 +8421,40 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 	// opacity/transmission do not change wire coverage.
 	const bool useWireShader = _renderCtrl.wireframeShader() && _renderCtrl.wireframeShader()->isLinked()
 	    && activeClipPlaneIndex < 0;
+	// The wire passes of a large model take the merged-buffer path of Shaded mode too: one multi-draw per material group with the
+	// wireframe shader, instead of one draw plus uniform uploads per mesh. `rest` receives what the batches do not cover
+	// (hovered, new or changed meshes), to be drawn mesh by mesh. False = nothing was batched.
+	bool batcherUpdated = false;
+	const auto drawWireBatches = [&](bool highlightSelected, int hoveredForBatch, std::vector<int>& rest) -> bool
+	{
+		rest.clear();
+		if (!useWireShader)
+			return false;
+		DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+		batchSettings.immediateInitialBuild = _sceneRuntime.pendingSceneUuids().isEmpty();
+		if (!_drawBatcher)
+			_drawBatcher = std::make_unique<DrawBatcher>();
+		const auto meshLookup = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+		if (!batcherUpdated)
+		{
+			_drawBatcher->update(_sceneRuntime.currentVisibleObjectIds(), meshLookup, batchSettings);
+			batcherUpdated = true;
+		}
+		if (!batchSettings.enabled || !_drawBatcher->hasBatches()
+			|| static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) < batchSettings.minDisplayedMeshes)
+			return false;
+		std::vector<int> culledIds;
+		culledIds.reserve(opaque.size());
+		for (const auto& entry : opaque)
+			culledIds.push_back(entry.second);
+		const DrawBatcher::WireDraw wireDraw{ highlightSelected };
+		_drawBatcher->drawBatches(_renderCtrl.wireframeShader(), culledIds, hoveredForBatch, meshLookup, rest, &wireDraw);
+		// Batched meshes set these per group; the mesh-by-mesh path expects the pass defaults.
+		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap", false);
+		_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+		return true;
+	};
 	if (_displayMode == DisplayMode::HOLLOW_MESH)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
@@ -8446,7 +8480,11 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 			selectedFlag.bind(_renderCtrl.wireframeShader(), "selected");
 			hoveredFlag.bind(_renderCtrl.wireframeShader(), "hovered");
 			const int hoveredIdNow = _selectionManager->getHoveredId();
-			for (auto& [key, id] : opaque)
+			std::vector<int> wireIds;
+			if (!drawWireBatches(true, hoverHighlightingEnabled ? hoveredIdNow : -1, wireIds))
+				for (const auto& entry : opaque)
+					wireIds.push_back(entry.second);
+			for (int id : wireIds)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 				{
@@ -8501,6 +8539,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 				_drawBatcher = std::make_unique<DrawBatcher>();
 			const auto meshLookup = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
 			_drawBatcher->update(_sceneRuntime.currentVisibleObjectIds(), meshLookup, batchSettings);
+			batcherUpdated = true;
 			if (batchSettings.enabled && _drawBatcher->hasBatches()
 				&& static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) >= batchSettings.minDisplayedMeshes)
 			{
@@ -8548,7 +8587,14 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
 			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);			
-			for (auto& [key, id] : opaque)
+			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
+			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+			// The line pass does not signal hover or selection (the fill pass carries them), so nothing is kept out of the batches.
+			std::vector<int> wireIds;
+			if (!drawWireBatches(false, -1, wireIds))
+				for (const auto& entry : opaque)
+					wireIds.push_back(entry.second);
+			for (int id : wireIds)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))					
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());				

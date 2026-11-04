@@ -605,7 +605,7 @@ void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& m
 }
 
 int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>& ids, int hoveredId,
-                             const MeshLookup& meshAt, std::vector<int>& individual)
+                             const MeshLookup& meshAt, std::vector<int>& individual, const WireDraw* wire)
 {
 	individual.clear();
 	individual.reserve(ids.size());
@@ -772,13 +772,23 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 	_slowChecksLastFrame = slowChecks;
 
 	const auto drawSet = [&](Group& g, SceneMesh* rep, const std::vector<int>& counts, const std::vector<const void*>& offsets,
-	                         const std::vector<int>& lodCounts, const std::vector<const void*>& lodOffsets, qint64 triangles)
+	                         const std::vector<int>& lodCounts, const std::vector<const void*>& lodOffsets, qint64 triangles,
+	                         bool selectedSet)
 	{
 		if (!rep || (counts.empty() && lodCounts.empty()))
 			return;
-		rep->prepareBatchDraw(prog); // the representative's own selection state supplies the "selected" uniform
-		if (g.configuredProgram != prog)
-			configureVao(g, prog);
+		if (wire)
+		{
+			rep->prepareWireBatchDraw(prog, selectedSet && wire->highlightSelected);
+			if (!g.configuredProgram)
+				configureVao(g, prog);
+		}
+		else
+		{
+			rep->prepareBatchDraw(prog); // the representative's own selection state supplies the "selected" uniform
+			if (g.configuredProgram != prog)
+				configureVao(g, prog);
+		}
 
 		glBindVertexArray(g.vao);
 		if (!counts.empty())
@@ -798,8 +808,8 @@ int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>&
 
 	for (Group& g : _groups)
 	{
-		drawSet(g, g.frameRep, g.counts, g.offsets, g.lodCounts, g.lodOffsets, g.frameTriangles);
-		drawSet(g, g.frameRepSelected, g.selCounts, g.selOffsets, g.selLodCounts, g.selLodOffsets, g.frameTrianglesSelected);
+		drawSet(g, g.frameRep, g.counts, g.offsets, g.lodCounts, g.lodOffsets, g.frameTriangles, false);
+		drawSet(g, g.frameRepSelected, g.selCounts, g.selOffsets, g.selLodCounts, g.selLodOffsets, g.frameTrianglesSelected, true);
 	}
 	return batched;
 }

@@ -528,6 +528,10 @@ public:
 	// global model matrix), then the material state, textures and render state of this mesh, which stands for every
 	// mesh in the batch (they share a drawGroupKey()).
 	void prepareBatchDraw(QOpenGLShaderProgram* prog);
+	// The same for a batch drawn with the lightweight wireframe shader (Hollow Mesh, and the line pass of Mesh Edges): the
+	// per-mesh uniforms renderWireframeFast() would upload, for the whole batch. `selected` is the batch's selection pass.
+	// Sets hasVertexColors, hasAlbedoMap and selected; the caller restores them to false after the batch pass.
+	void prepareWireBatchDraw(QOpenGLShaderProgram* wireProg, bool selected);
 
 	// ---- Animation state (moved from RenderableMesh) ------------------------
 	MeshAnimationState&        animationState()       { return _animState; }
