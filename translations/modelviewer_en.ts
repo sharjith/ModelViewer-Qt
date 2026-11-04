@@ -15306,6 +15306,16 @@ on)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="1773"/>
+        <source>Import Diagnostics</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="1773"/>
+        <source>Large-Model Performance</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <location filename="../ui/App/SettingsDialog.ui" line="2587"/>
         <source>Writes a timing and memory checkpoint trace while
 a model is imported (for diagnosing slow or failing

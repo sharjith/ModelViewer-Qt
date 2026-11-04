@@ -18208,6 +18208,16 @@ un secondo, senza riavvio.</translation>
         <translation>Diagnostica di prestazioni e importazione</translation>
     </message>
     <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="1773"/>
+        <source>Import Diagnostics</source>
+        <translation>Diagnostica di importazione</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="1773"/>
+        <source>Large-Model Performance</source>
+        <translation>Prestazioni con modelli grandi</translation>
+    </message>
+    <message>
         <location filename="../ui/App/SettingsDialog.ui" line="2587"/>
         <source>Writes a timing and memory checkpoint trace while
 a model is imported (for diagnosing slow or failing

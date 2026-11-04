@@ -179,7 +179,7 @@ Not used (unchanged per-mesh path): transparent pass, shadow pass, SSS/transmiss
 passes, clipping passes and capping, flat shading, wireframe/edge display modes, small models.
 
 ### 8.4 Settings and diagnostics
-- Debug tab: Batched Drawing (key `batchedDrawing`, default on), Batching Minimum Model Size (`batchMinMeshes`, 3000).
+- Rendering tab, Large-Model Performance group (moved from the Debug tab on 4 November 2026): Batched Drawing (key `batchedDrawing`, default on), Batching Minimum Model Size (`batchMinMeshes`, 3000).
   `batchMinGroupSize` (default 6) is a QSettings-only key.
 - `[RenderDiagnostics]` lines now end with `batchedMeshes/frame`, `batchDraws/frame` and `batchMs/frame` (CPU spent in
   the batcher update plus validation and draw submission). `draws/frame` counts one per group multi-draw.
@@ -219,7 +219,7 @@ instead of about three minutes; to be confirmed by the `[Teardown]` lines.
 ### 8.7 Owner test list
 1. Large synthetic model (`out/perf/synthetic_40k_heavy.glb`), orbit: expect `batchedMeshes/frame` near the part count,
    `batchDraws/frame` near the group count (about 40), `frameCpuMs` and `gpuMs` far below the 190/170 ms baseline.
-2. Compare Batched Drawing on and off in the Debug tab: images must be identical (colours, lighting, back faces).
+2. Compare Batched Drawing on and off in Settings, Rendering tab: images must be identical (colours, lighting, back faces).
 3. Select a part, hover parts, multi-select, deselect: highlights correct, no part vanishes or doubles.
 4. Move a part with the gizmo, undo/redo, explode view, animations: moved parts follow immediately.
 5. Hide/show, isolate, delete and undo delete, paste: no ghost geometry.

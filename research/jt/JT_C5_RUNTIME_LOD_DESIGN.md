@@ -104,7 +104,7 @@ Do A, then B; design D with the on-demand loading branch; treat C as not needed 
 - `Jt::Options::DetailLevel { Finest, Medium, Coarsest }`, default Finest (behaviour unchanged). `Options::fromEnvironment()` reads the setting `jtDetailLevel` (0 to 2) and `MODELVIEWER_JT_DETAIL_LEVEL` (finest, medium, coarsest; the variable wins).
 - `JtSceneBuilder`: `shapeLevel()` reads the Shape LOD segment type (7 to 16) of the shapes below each alternative from the late-load properties, so nothing is decoded to choose; `chooseByDetail()` takes the coarsest distinct level (Coarsest) or `ordered[n/2]` of the distinct levels (Medium; the coarser of two). With fewer than two distinct levels (generic type 6, a single level) the established choice stands. The scout pass follows the same choice so the parallel prefetch decodes the level the build will use. A detail choice overrides `lodEyePoint`; a failed alternative still falls back through source order.
 - A note is added to the import notes: levels chosen, nodes reduced, nodes without distinct levels.
-- Settings, Debug tab, JT Importer group: Detail Level combo (Finest, Medium, Coarsest). It applies to files opened afterwards. Translations de/es/fr/it done (5 strings).
+- Settings, Import Export tab, JT Importer group: Detail Level combo (Finest, Medium, Coarsest). It applies to files opened afterwards. Translations de/es/fr/it done (5 strings).
 - `jt_probe --detail-level finest|medium|coarsest`; scene test `selectionTests` gains a detail-level block (order independence, two levels, type 6 and single-level fall-back, levels above 9).
 - Not done: showing the level in the UI after import, the interaction-tier work (C5b) and refinement (D).
 
