@@ -235,6 +235,59 @@ void testSingleGroupLayout()
         if ((hier.offsetForMesh(id) - (s.centres.value(id) - centre)).length() > 1e-4f) same = false;
     check(same, "one group scales its parts proportionally about its centre");
 }
+
+ExplodedGroupTree::Tree singleGroup(const Scene& s)
+{
+    ExplodedGroupTree::Draft root;
+    root.id = QUuid::createUuid();
+    for (const QUuid& id : s.parts) root.parts.append(id);
+    return ExplodedGroupTree::fromDraft(root);
+}
+
+// Auto mode: a part that sits against another leaves along the direction it comes off it, not away from the group centre.
+void testMatingLayout()
+{
+    // A wide board with a truck hanging below it, offset from the middle in x: radial would push the truck sideways.
+    Scene s;
+    const QUuid board = s.add({QVector3D(-5, -2, 0), QVector3D(5, 2, 1)});
+    const QUuid truck = s.add({QVector3D(2, -1, -1), QVector3D(4, 1, 0.05f)});
+    ExplodedViewManager m;
+    m.recomputeHierarchical(singleGroup(s), QUuid(), 1.0f, s.centres, s.boxes, nullptr, 0, ExplodedViewManager::Mode::AutoMating);
+    check(m.offsetForMesh(board).length() < 1e-5f, "mating: the base part stays");
+    const QVector3D t = m.offsetForMesh(truck);
+    check(std::fabs(t.x()) < 1e-5f && std::fabs(t.y()) < 1e-5f, "mating: the truck does not move sideways");
+    // Clearance = distance to leave the board's box (0.05) plus half the truck's own height (1.05 / 2).
+    check(std::fabs(t.z() + 0.575f) < 1e-4f, "mating: the truck drops straight down by its clearance");
+
+    ExplodedViewManager radial;
+    radial.recomputeHierarchical(singleGroup(s), QUuid(), 1.0f, s.centres, s.boxes, nullptr, 0, ExplodedViewManager::Mode::Auto);
+    check(std::fabs(radial.offsetForMesh(truck).x()) > 1e-3f, "radial: the same truck moves sideways");
+}
+
+// Auto mode: a part concentric with a similarly sized one (a wheel in its tire) separates along its thin axis.
+void testMatingConcentric()
+{
+    Scene s;
+    const QUuid tire = s.add({QVector3D(-1.2f, -1.2f, -0.4f), QVector3D(1.2f, 1.2f, 0.4f)});
+    const QUuid wheel = s.add({QVector3D(-1, -1, -0.3f), QVector3D(1, 1, 0.3f)});
+    ExplodedViewManager m;
+    m.recomputeHierarchical(singleGroup(s), QUuid(), 1.0f, s.centres, s.boxes, nullptr, 0, ExplodedViewManager::Mode::AutoMating);
+    const QVector3D w = m.offsetForMesh(wheel);
+    check(m.offsetForMesh(tire).length() < 1e-5f, "concentric: the larger part stays");
+    check(std::fabs(w.x()) < 1e-5f && std::fabs(w.y()) < 1e-5f && std::fabs(std::fabs(w.z()) - 0.7f) < 1e-4f,
+          "concentric: the smaller part moves along the thin axis by half the sum of the thicknesses");
+}
+
+// Radial mode: concentric parts used to get no offset at all.
+void testRadialConcentric()
+{
+    Scene s;
+    s.add({QVector3D(-1.2f, -1.2f, -0.4f), QVector3D(1.2f, 1.2f, 0.4f)});
+    const QUuid wheel = s.add({QVector3D(-1, -1, -0.3f), QVector3D(1, 1, 0.3f)});
+    ExplodedViewManager m;
+    m.recomputeHierarchical(singleGroup(s), QUuid(), 1.0f, s.centres, s.boxes, nullptr, 0, ExplodedViewManager::Mode::Auto);
+    check(m.offsetForMesh(wheel).length() > 1e-3f, "radial: concentric parts still separate");
+}
 }
 
 int main()
@@ -243,6 +296,9 @@ int main()
     testFromBoxes();
     testHierarchicalLayout();
     testSingleGroupLayout();
+    testMatingLayout();
+    testMatingConcentric();
+    testRadialConcentric();
     if (failures == 0)
         std::cout << "exploded_view_tests: all passed\n";
     return failures == 0 ? 0 : 1;
