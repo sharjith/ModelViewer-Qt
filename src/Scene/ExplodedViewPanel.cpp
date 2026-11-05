@@ -3578,6 +3578,7 @@ bool ExplodedViewPanel::ensureDraftPreviewSession()
     _draftPreviewCurrentTime = 0.0;
     _draftPreviewActive = true;
     _draftPreviewPlaying = false;
+    _draftPreviewPoseSignatureValid = false; // the first pose touches every mesh
     applyDraftPreviewPose(0.0);
     return true;
 }
@@ -3893,17 +3894,31 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
         }
     }
 
+    // Only meshes under an animated node, or animated themselves, change between ticks. The rest were posed by the first (full) pass,
+    // and rewriting them each tick invalidated every mesh's transform and bounds. The full pass repeats whenever the animated set
+    // differs from the previous tick's (another step selected, a step edited), so a mesh that stops moving is still reset.
+    quint64 poseSignature = 1469598103934665603ull;
+    for (auto it = sampledByNode.cbegin(); it != sampledByNode.cend(); ++it)
+        poseSignature += static_cast<quint64>(qHash(it.key(), 0x9e3779b9u)) * 0x100000001b3ull;
+    for (auto it = sampledByMesh.cbegin(); it != sampledByMesh.cend(); ++it)
+        poseSignature += static_cast<quint64>(qHash(it.key(), 0x85ebca6bu)) * 0xff51afd7ed558ccdull;
+    poseSignature ^= (static_cast<quint64>(sampledByNode.size()) << 32) ^ static_cast<quint64>(sampledByMesh.size());
+    const bool fullPass = !_draftPreviewPoseSignatureValid || poseSignature != _draftPreviewPoseSignature;
+    _draftPreviewPoseSignature = poseSignature;
+    _draftPreviewPoseSignatureValid = true;
+
     for (const QString& sourceFile : std::as_const(_draftPreviewFiles))
     {
         SceneNode* fileNode = _sceneGraph->findFileNode(sourceFile);
         if (!fileNode)
             continue;
 
-        std::function<void(SceneNode*, const QMatrix4x4&)> applyNode =
-            [&](SceneNode* node, const QMatrix4x4& parentWorld)
+        std::function<void(SceneNode*, const QMatrix4x4&, bool)> applyNode =
+            [&](SceneNode* node, const QMatrix4x4& parentWorld, bool ancestorAnimated)
         {
             if (!node)
                 return;
+            const bool nodeAnimated = ancestorAnimated || sampledByNode.contains(node->nodeUuid);
 
             QMatrix4x4 localMatrix = aiToQMatrix(node->localTransform);
             if (sampledByNode.contains(node->nodeUuid))
@@ -3919,6 +3934,8 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
             const QMatrix4x4 world = parentWorld * localMatrix;
             for (const QUuid& meshUuid : node->meshUuids)
             {
+                if (!fullPass && !nodeAnimated && !sampledByMesh.contains(meshUuid))
+                    continue;
                 if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(meshUuid))
                 {
                     mesh->setExplosionOffset(QVector3D());
@@ -3938,14 +3955,16 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
             }
 
             for (SceneNode* child : node->children)
-                applyNode(child, world);
+                applyNode(child, world, nodeAnimated);
         };
 
         for (SceneNode* child : fileNode->children)
-            applyNode(child, QMatrix4x4());
+            applyNode(child, QMatrix4x4(), false);
     }
 
     _draftPreviewCurrentTime = clampedTime;
+    // Same fast path as the factor slider: coarse LODs, small-part culling, single sample, no shadows while the pose changes.
+    _viewportWidget->noteExplodedViewPoseChanged();
     _viewportWidget->update();
 }
 

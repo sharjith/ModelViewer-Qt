@@ -275,6 +275,9 @@ private:
     QElapsedTimer _draftPreviewElapsed;
     QTimer* _draftPreviewTimer = nullptr;
     QSet<QString> _draftPreviewFiles;
+    // Which nodes and meshes the previous preview pose animated. While it stays the same, a tick only touches meshes that move.
+    quint64 _draftPreviewPoseSignature = 0;
+    bool _draftPreviewPoseSignatureValid = false;
     QHash<QUuid, PreviewMeshState> _draftPreviewMeshStates;
     SuspendedAnimationState _draftPreviewSuspendedAnimation;
     QSet<QUuid> _emptyAssemblyUuids;

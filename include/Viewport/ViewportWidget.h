@@ -303,6 +303,9 @@ public:
 	void finishExplodedViewManualPlacement();
 	void clearExplodedViewManualPlacement();
 	bool isExplodedViewManualPlacementActive() const { return _explodedViewCtrl.isManualPlacementActive(); }
+	// Called by the exploded-view panel's captured-step preview on every pose it applies, so that playback uses the same interaction
+	// fast path as the factor slider (see interactionLowRes()).
+	void noteExplodedViewPoseChanged() { noteExplosionMotion(); }
 	bool hasExplodedViewManualPlacement() const { return !_explodedViewCtrl.manualOriginalStates().isEmpty(); }
 	bool hasExplodedViewManualTransformChanges() const;
 	QSet<QUuid> explodedViewManualPlacementUuids() const;
@@ -2149,6 +2152,25 @@ private:
 	AnimationRuntimeController _animCtrl;
 
 	ExplodedViewRuntimeController _explodedViewCtrl;
+
+	// Explosion: the layout (which part goes where) depends on everything but the factor, so a factor-only tick can reuse it. The
+	// key records what the layout was computed from; boundsRevision is the runtime bounds revision right after the offsets were
+	// applied, so any other change to a mesh's transform or bounds makes the next tick recompute the layout.
+	struct ExplosionLayoutKey
+	{
+		QSet<QUuid> assemblies;
+		QUuid anchor;
+		int mode = 0;
+		QVector3D vector;
+		int strategy = 0;
+		quint64 boundsRevision = 0;
+		bool valid = false;
+	};
+	ExplosionLayoutKey _explosionLayoutKey;
+	// Active for a short while after each explosion update, so interactionLowRes() treats a moving explosion like camera motion
+	// (coarse LOD copies, small-part culling, single-sample) and a full-quality frame follows when it stops.
+	QTimer* _explosionMotionTimer = nullptr;
+	void noteExplosionMotion();
 
 	// Render-pipeline resources â€” owned here; ViewportWidget aliases every field by
 	// reference so all existing call sites in ViewportWidget.cpp remain unchanged.

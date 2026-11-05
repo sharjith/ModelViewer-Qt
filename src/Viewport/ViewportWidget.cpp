@@ -4576,6 +4576,7 @@ void ViewportWidget::updateExplosion()
     const QSet<QUuid>& assemblyUuids = _explodedViewPanel->assemblyUuids();
     if (assemblyUuids.isEmpty()) {
         _explodedViewCtrl.explodedViewManager()->reset();
+        _explosionLayoutKey.valid = false;
         for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
         {
             if (_sceneRuntime.meshAt(i))
@@ -4587,6 +4588,37 @@ void ViewportWidget::updateExplosion()
         _renderCtrl.setShadowMapNeedsInitialization(true);
         update();
         return;
+    }
+
+    // Factor-only tick (the slider, or a step of the preview animation): the layout is the same as at the last update, so only
+    // the offsets are rescaled. Everything else, sorting parts into sectors and placing them, is skipped, and so is the pass
+    // that cleared and re-applied every mesh's offset to measure the unexploded boxes.
+    {
+        ExplodedViewManager* manager = _explodedViewCtrl.explodedViewManager();
+        const int modeKey = static_cast<int>(_explodedViewPanel->mode());
+        const int strategyKey = static_cast<int>(_explodedViewPanel->autoStrategy());
+        if (_explosionLayoutKey.valid && manager->hasLayout()
+            && _explosionLayoutKey.boundsRevision == RenderableMesh::currentRuntimeBoundsRevision()
+            && _explosionLayoutKey.mode == modeKey && _explosionLayoutKey.strategy == strategyKey
+            && _explosionLayoutKey.anchor == _explodedViewPanel->anchorUuid()
+            && _explosionLayoutKey.vector == _explodedViewPanel->userVector()
+            && _explosionLayoutKey.assemblies == assemblyUuids)
+        {
+            manager->setFactor(_explodedViewPanel->factor());
+            for (const QUuid& uuid : assemblyUuids)
+            {
+                if (SceneMesh* mesh = getMeshByUuid(uuid))
+                {
+                    mesh->setExplosionOffset(manager->offsetForMesh(uuid));
+                    mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
+                }
+            }
+            _explosionLayoutKey.boundsRevision = RenderableMesh::currentRuntimeBoundsRevision();
+            _renderCtrl.setShadowMapNeedsInitialization(true);
+            noteExplosionMotion();
+            update();
+            return;
+        }
     }
 
     // Clear any previous offsets BEFORE building centroids so that getBoundingSphere()
@@ -4693,8 +4725,29 @@ void ViewportWidget::updateExplosion()
         }
     }
 
+    _explosionLayoutKey.assemblies = assemblyUuids;
+    _explosionLayoutKey.anchor = _explodedViewPanel->anchorUuid();
+    _explosionLayoutKey.mode = static_cast<int>(_explodedViewPanel->mode());
+    _explosionLayoutKey.vector = _explodedViewPanel->userVector();
+    _explosionLayoutKey.strategy = static_cast<int>(_explodedViewPanel->autoStrategy());
+    _explosionLayoutKey.boundsRevision = RenderableMesh::currentRuntimeBoundsRevision();
+    _explosionLayoutKey.valid = true;
+
     _renderCtrl.setShadowMapNeedsInitialization(true);
+    noteExplosionMotion();
     update();
+}
+
+void ViewportWidget::noteExplosionMotion()
+{
+    if (!_explosionMotionTimer)
+    {
+        _explosionMotionTimer = new QTimer(this);
+        _explosionMotionTimer->setSingleShot(true);
+        // One full-quality frame once the explosion has stopped changing.
+        connect(_explosionMotionTimer, &QTimer::timeout, this, [this] { update(); });
+    }
+    _explosionMotionTimer->start(250);
 }
 
 // ---------------------------------------------------------------------------
@@ -18471,7 +18524,8 @@ bool ViewportWidget::interactionLowRes() const
 	const auto running = [](const QTimer* timer) { return timer && timer->isActive(); };
 	return _renderCtrl.lowResEnabled() || running(_inertiaTimer) || running(_turntableTimer)
 		|| running(_animateViewTimer) || running(_animateFitAllTimer) || running(_animateWindowZoomTimer)
-		|| running(_animateCenterScreenTimer) || !_keys.empty();
+		|| running(_animateCenterScreenTimer) || !_keys.empty()
+		|| running(_explosionMotionTimer) || running(_animCtrl.animationTimer());
 }
 
 void ViewportWidget::onInertiaTimer()

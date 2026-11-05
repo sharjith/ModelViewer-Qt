@@ -299,7 +299,9 @@ void ExplodedViewManager::recompute(
         float totalSize = 0.0f;
         for (const auto& p : parts) totalSize += p.size();
         const float avgSize  = totalSize / n;
-        const float baseGap  = std::max(avgSize * 0.5f, assemblyRadius * 0.05f);
+        // The radius-based floor is capped so that n gaps add up to at most about one radius; otherwise the line-up grows with the part count.
+        const float baseGap  = std::max(avgSize * 0.5f,
+                                        std::min(assemblyRadius * 0.05f, assemblyRadius / static_cast<float>(n)));
 
         // ----------------------------------------------------------------
         // WITH ANCHOR  —  anchor pinned, parts placed by bbox-clearance
@@ -584,11 +586,6 @@ void ExplodedViewManager::recompute(
         if (parts.empty())
             continue;
 
-        float totalSize = 0.0f;
-        for (const auto& p : parts)
-            totalSize += p.size();
-        const float avgSize = totalSize / static_cast<float>(parts.size());
-
         std::sort(parts.begin(), parts.end(),
                   [&](const MeshData& a, const MeshData& b)
                   {
@@ -634,26 +631,62 @@ void ExplodedViewManager::recompute(
                           < b.uuid.toString(QUuid::WithoutBraces);
                   });
 
-        const float baseGap = std::max(avgSize * 0.35f, assemblyRadius * 0.05f);
+        // The spread must depend on the assembly's size, not on how many parts it has. The previous scheme stacked every part of a
+        // sector one after another along its axis, so the explosion grew in proportion to the part count (a gap of 5 % of the
+        // radius per part: hundreds of radii for a few thousand parts). Here each part moves out in proportion to its own distance
+        // from the origin (the whole assembly scales up about the origin), and is pushed further only past parts that really sit in
+        // its way: those whose footprint overlaps its own across the axis. A column of N parts still gets N gaps, which is correct;
+        // unrelated parts side by side no longer queue behind each other.
+        constexpr float kSpread = 0.6f;                      // extra distance at factor 1, as a fraction of the distance from the origin
+        const float minGap = std::max(assemblyRadius * 0.004f, 1.0e-4f);
+        const float maxPush = assemblyRadius * 0.4f;         // most a part is pushed past others for clearance
+        const float overlapTol =std::max(assemblyRadius * 1.0e-4f, 1.0e-6f);
 
-        float cursor = baseGap;
+        float floorMin = std::max(assemblyRadius * 0.01f, minGap);
         if (!anchorUuid.isNull() && worldBoxes.contains(anchorUuid))
         {
             auto [anchorMin, anchorMax] = aabbAxisExtent(worldBoxes.value(anchorUuid), dir);
             Q_UNUSED(anchorMin);
-            cursor = std::max(cursor, (anchorMax - originProj) + baseGap);
+            floorMin = std::max(floorMin, (anchorMax - originProj) + minGap);
         }
+
+        const int axisIdx = sector / 2;
+        const int axisA = (axisIdx + 1) % 3;
+        const int axisB = (axisIdx + 2) % 3;
+
+        struct Placed
+        {
+            float aMin, aMax, bMin, bMax; // footprint across the axis
+            float placedMax;              // far face along the axis, relative to the origin, after placement
+        };
+        std::vector<Placed> placed;
+        placed.reserve(parts.size());
 
         for (const auto& part : parts)
         {
             const float relMin = part.projMin - originProj;
-            const float targetMin = std::max(cursor, relMin);
-            const float disp = targetMin - relMin;
+            const auto box = worldBoxes.value(part.uuid);
+            const float aMin = axisComponent(box.first, axisA), aMax = axisComponent(box.second, axisA);
+            const float bMin = axisComponent(box.first, axisB), bMax = axisComponent(box.second, axisB);
+            const float gap = std::max(part.size() * 0.2f, minGap);
 
+            float targetMin = relMin > 0.0f ? relMin * (1.0f + kSpread) : relMin;
+            targetMin = std::max(targetMin, relMin < floorMin ? floorMin : relMin);
+            const float baseTarget = targetMin;
+            for (const Placed& other : placed)
+            {
+                if (other.aMin >= aMax - overlapTol || other.aMax <= aMin + overlapTol) continue;
+                if (other.bMin >= bMax - overlapTol || other.bMax <= bMin + overlapTol) continue;
+                targetMin = std::max(targetMin, other.placedMax + gap);
+            }
+            // Clearance may push a part past those in front of it, but only so far: a deep stack (or a part with a large footprint
+            // that many others overlap) used to build long rails along the axes. Beyond the cap parts may still overlap in depth.
+            targetMin = std::min(targetMin, baseTarget + maxPush);
+
+            const float disp = targetMin - relMin;
             if (disp > 1e-6f)
                 _baseOffsets.insert(part.uuid, dir * disp);
-
-            cursor = targetMin + part.size() + baseGap;
+            placed.push_back({aMin, aMax, bMin, bMax, targetMin + part.size()});
         }
     }
 

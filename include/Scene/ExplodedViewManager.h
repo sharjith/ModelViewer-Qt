@@ -32,6 +32,11 @@ public:
 
     void reset();
 
+    // Rescales the offsets of the last recompute() to a new factor. The layout does not depend on the factor (the offsets are
+    // linear in it), so a slider tick or a preview step needs no sorting and no sector assignment.
+    void setFactor(float factor) { _factor = factor; applyFactor(); }
+    bool hasLayout() const { return !_baseOffsets.isEmpty(); }
+
     QVector3D offsetForMesh(const QUuid& uuid) const;
     bool isActive() const { return !_scaledOffsets.isEmpty(); }
 
