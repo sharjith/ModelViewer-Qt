@@ -411,8 +411,8 @@ ExplodedViewManager::Mode ExplodedViewPanel::mode() const
 
 int ExplodedViewPanel::explodeDepth() const
 {
-    if (spinBoxExplodeDepth)
-        return spinBoxExplodeDepth->value();
+    if (comboBoxExplodeDepth)
+        return comboBoxExplodeDepth->currentIndex();   // item index == depth, 0 = All
     if (const ExplodedViewPreset* preset = activePreset())
         return preset->explodeDepth;
     return 0;
@@ -823,7 +823,7 @@ void ExplodedViewPanel::syncActivePresetFromUi()
     const int oldExplodeDepth = preset.explodeDepth;
     preset.mode = modeFromComboIndex(comboBoxMode ? comboBoxMode->currentIndex() : 0);
     preset.autoStrategy = autoStrategyFromComboIndex(comboBoxAutoStrategy ? comboBoxAutoStrategy->currentIndex() : 0);
-    preset.explodeDepth = spinBoxExplodeDepth ? spinBoxExplodeDepth->value() : 0;
+    preset.explodeDepth = comboBoxExplodeDepth ? comboBoxExplodeDepth->currentIndex() : 0;
     preset.userVector = QVector3D(
         static_cast<float>(doubleSpinBoxVectorX ? doubleSpinBoxVectorX->value() : 1.0),
         static_cast<float>(doubleSpinBoxVectorY ? doubleSpinBoxVectorY->value() : 0.0),
@@ -940,8 +940,8 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
             checkBoxCombinedPose->setChecked(preset.useCombinedPose);
         if (comboBoxAutoStrategy)
             comboBoxAutoStrategy->setCurrentIndex(comboIndexFromAutoStrategy(preset.autoStrategy));
-        if (spinBoxExplodeDepth)
-            spinBoxExplodeDepth->setValue(preset.explodeDepth);
+        if (comboBoxExplodeDepth)
+            comboBoxExplodeDepth->setCurrentIndex(qBound(0, preset.explodeDepth, comboBoxExplodeDepth->count() - 1));
     }
     _syncingPresetUi = false;
 
@@ -1271,9 +1271,9 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
             emit explosionParametersChanged();
         });
     }
-    if (spinBoxExplodeDepth)
+    if (comboBoxExplodeDepth)
     {
-        connect(spinBoxExplodeDepth, qOverload<int>(&QSpinBox::valueChanged), this, [this](int) {
+        connect(comboBoxExplodeDepth, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
             _hasUncapturedAutoPose = true;
             syncActivePresetFromUi();
             emit explosionParametersChanged();
@@ -3121,7 +3121,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
             || !qFuzzyCompare(doubleSpinBoxVectorY->value(), 0.0)
             || !qFuzzyCompare(doubleSpinBoxVectorZ->value(), 0.0)
             || comboBoxAutoStrategy->currentIndex() != comboIndexFromAutoStrategy(AutoStrategy::AssemblyAware)
-            || (spinBoxExplodeDepth && spinBoxExplodeDepth->value() != 0)
+            || (comboBoxExplodeDepth && comboBoxExplodeDepth->currentIndex() != 0)
             || comboBoxAnimationMode->currentIndex() != 0
             || !qFuzzyCompare(doubleSpinBoxAnimationDuration->value(), 3.0)
             || !checkBoxLoopBack->isChecked());
@@ -3158,7 +3158,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     QSignalBlocker b5(doubleSpinBoxVectorZ);
     QSignalBlocker b6(checkBoxCombinedPose);
     QSignalBlocker b7(comboBoxAutoStrategy);
-    QSignalBlocker bDepth(spinBoxExplodeDepth);
+    QSignalBlocker bDepth(comboBoxExplodeDepth);
 
     clearAssemblySelection();
 
@@ -3196,8 +3196,8 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     active.useCombinedPose = true;
     active.autoStrategy = AutoStrategy::AssemblyAware;
     active.explodeDepth = 0;
-    if (spinBoxExplodeDepth)
-        spinBoxExplodeDepth->setValue(0);
+    if (comboBoxExplodeDepth)
+        comboBoxExplodeDepth->setCurrentIndex(0);
     comboBoxAnimationMode->setCurrentIndex(active.outputMode);
     doubleSpinBoxAnimationDuration->setValue(active.durationSeconds);
     checkBoxLoopBack->setChecked(active.loopBack);
@@ -3446,8 +3446,8 @@ void ExplodedViewPanel::updateAuthoringModeUi()
         comboBoxAutoStrategy->setVisible(autoMode);
     if (labelExplodeDepth)
         labelExplodeDepth->setVisible(autoMode);
-    if (spinBoxExplodeDepth)
-        spinBoxExplodeDepth->setVisible(autoMode);
+    if (comboBoxExplodeDepth)
+        comboBoxExplodeDepth->setVisible(autoMode);
 
     updateManualPlacementUi();
     updateCaptureButton();

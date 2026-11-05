@@ -716,6 +716,12 @@ void ExplodedViewManager::applyFactor()
 // ---------------------------------------------------------------------------
 // recomputeHierarchical
 // ---------------------------------------------------------------------------
+namespace
+{
+constexpr float kLevelDamping = 0.85f;       // per hierarchy level, applied to the offsets inside that level
+constexpr float kGroupGrowthShare = 0.4f;    // share of a sub-group's own explosion growth that its siblings make room for
+}
+
 void ExplodedViewManager::recomputeHierarchical(
     const ExplodedGroupTree::Tree&              tree,
     const QUuid&                                anchorUuid,
@@ -785,18 +791,32 @@ void ExplodedViewManager::recomputeHierarchical(
             continue;
 
         if (items.size() >= 2 && (maxDepth <= 0 || depth[gi] < maxDepth))
+        {
             layoutFlat(items, anchorItem, Mode::Auto, QVector3D(), centres, boxes, autoHints, itemOffsets[gi]);
+            // Deeper levels explode a little less, so the top-level structure stays readable.
+            const float levelScale = std::pow(kLevelDamping, float(depth[gi]));
+            if (levelScale < 0.999f)
+                for (auto it = itemOffsets[gi].begin(); it != itemOffsets[gi].end(); ++it)
+                    it.value() *= levelScale;
+        }
 
-        QVector3D bMin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
-        QVector3D bMax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+        const float inf = std::numeric_limits<float>::max();
+        QVector3D bMin(inf, inf, inf), bMax(-inf, -inf, -inf);   // the group with its own explosion applied
+        QVector3D cMin(inf, inf, inf), cMax(-inf, -inf, -inf);   // the group as it sits unexploded
         for (auto it = boxes.cbegin(); it != boxes.cend(); ++it)
         {
             const QVector3D shift = itemOffsets[gi].value(it.key());
             const QVector3D lo = it.value().first + shift, hi = it.value().second + shift;
             bMin = QVector3D(std::min(bMin.x(), lo.x()), std::min(bMin.y(), lo.y()), std::min(bMin.z(), lo.z()));
             bMax = QVector3D(std::max(bMax.x(), hi.x()), std::max(bMax.y(), hi.y()), std::max(bMax.z(), hi.z()));
+            const QVector3D& clo = it.value().first;
+            const QVector3D& chi = it.value().second;
+            cMin = QVector3D(std::min(cMin.x(), clo.x()), std::min(cMin.y(), clo.y()), std::min(cMin.z(), clo.z()));
+            cMax = QVector3D(std::max(cMax.x(), chi.x()), std::max(cMax.y(), chi.y()), std::max(cMax.z(), chi.z()));
         }
-        groupBox[gi] = {bMin, bMax};
+        // The parent spaces this group by its compact size plus only a share of the growth from its own explosion,
+        // so one heavily exploded sub-assembly does not push every sibling far away.
+        groupBox[gi] = {cMin + (bMin - cMin) * kGroupGrowthShare, cMax + (bMax - cMax) * kGroupGrowthShare};
         hasBox[gi] = 1;
     }
 
