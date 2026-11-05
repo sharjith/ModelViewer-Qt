@@ -59,6 +59,7 @@ public:
     QUuid               anchorUuid()   const;
     ExplodedViewManager::Mode mode()   const;
     AutoStrategy        autoStrategy() const;
+    int                 explodeDepth() const;  // 0 = every level
     QVector3D           userVector()   const;
     float               factor()       const;  // sliderValue / 100.0f
 
@@ -132,6 +133,7 @@ private:
         bool loopBack = true;
         bool useCombinedPose = true;
         AutoStrategy autoStrategy = AutoStrategy::AssemblyAware;
+        int explodeDepth = 0;   // levels of the hierarchy that explode, 0 = all
     };
 
     struct PreviewMeshState

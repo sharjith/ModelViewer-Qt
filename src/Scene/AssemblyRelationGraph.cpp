@@ -398,6 +398,60 @@ AutoPlacementHints buildAutoPlacementHints(const QSet<QUuid>& assemblyUuids,
     return hints;
 }
 
+namespace
+{
+ExplodedGroupTree::Draft draftFromSceneNode(const SceneNode* node, const QSet<QUuid>& parts, QSet<QUuid>& placed)
+{
+    ExplodedGroupTree::Draft draft;
+    draft.id = node->nodeUuid;
+    for (const QUuid& uuid : node->meshUuids)
+    {
+        if (parts.contains(uuid) && !placed.contains(uuid))
+        {
+            draft.parts.append(uuid);
+            placed.insert(uuid);
+        }
+    }
+    for (const SceneNode* child : node->children)
+        if (child)
+            draft.children.push_back(draftFromSceneNode(child, parts, placed));
+    return draft;
+}
+}
+
+ExplodedGroupTree::Tree buildSceneGroupTree(const QSet<QUuid>& assemblyUuids, const SceneGraph* sceneGraph)
+{
+    ExplodedGroupTree::Draft root;
+    QSet<QUuid> placed;
+    if (sceneGraph && sceneGraph->root())
+        root = draftFromSceneNode(sceneGraph->root(), assemblyUuids, placed);
+    else
+        root.id = QUuid::createUuid();
+    for (const QUuid& uuid : assemblyUuids)
+        if (!placed.contains(uuid))
+            root.parts.append(uuid);
+    return ExplodedGroupTree::fromDraft(std::move(root));
+}
+
+AutoPlacementHints buildSiblingPlacementHints(const ExplodedGroupTree::Tree& tree,
+                                              const ViewportWidget* viewportWidget,
+                                              const SceneGraph* sceneGraph)
+{
+    AutoPlacementHints hints;
+    for (const ExplodedGroupTree::Group& group : tree.groups)
+    {
+        if (group.parts.size() < 2 || group.parts.size() > kMaxHintGroupParts)
+            continue;
+        const QSet<QUuid> parts(group.parts.begin(), group.parts.end());
+        const AutoPlacementHints part = buildAutoPlacementHints(parts, viewportWidget, sceneGraph);
+        hints.strongPairKeys.unite(part.strongPairKeys);
+        hints.nearPairKeys.unite(part.nearPairKeys);
+        hints.nestedOuterUuid.insert(part.nestedOuterUuid);
+        hints.partGroupUuid.insert(part.partGroupUuid);
+    }
+    return hints;
+}
+
 QJsonObject buildInspectionJson(const QSet<QUuid>& assemblyUuids,
                                 const ViewportWidget* viewportWidget,
                                 const SceneGraph* sceneGraph)

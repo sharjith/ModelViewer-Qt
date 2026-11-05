@@ -88,6 +88,17 @@ target_link_libraries(mvf_tests PRIVATE Qt6::Core)
 set_target_properties(mvf_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 add_test(NAME mvf_tests COMMAND mvf_tests)
 
+# Hierarchical exploded view: group tree builders and the level-by-level layout (QtCore + QtGui, no GL).
+add_executable(exploded_view_tests
+    exploded_view_tests.cpp
+    ${CMAKE_SOURCE_DIR}/src/Scene/ExplodedGroupTree.cpp
+    ${CMAKE_SOURCE_DIR}/src/Scene/ExplodedViewManager.cpp
+)
+target_include_directories(exploded_view_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Scene)
+target_link_libraries(exploded_view_tests PRIVATE Qt6::Core Qt6::Gui)
+set_target_properties(exploded_view_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+add_test(NAME exploded_view_tests COMMAND exploded_view_tests)
+
 # Native 3DXML codec and scene parity checks (QtCore, Assimp and ZIP; no GL).
 add_subdirectory(3dxml)
 add_subdirectory(jt)

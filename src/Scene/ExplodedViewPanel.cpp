@@ -409,6 +409,15 @@ ExplodedViewManager::Mode ExplodedViewPanel::mode() const
     return ExplodedViewManager::Mode::Auto;
 }
 
+int ExplodedViewPanel::explodeDepth() const
+{
+    if (spinBoxExplodeDepth)
+        return spinBoxExplodeDepth->value();
+    if (const ExplodedViewPreset* preset = activePreset())
+        return preset->explodeDepth;
+    return 0;
+}
+
 ExplodedViewPanel::AutoStrategy ExplodedViewPanel::autoStrategy() const
 {
     if (comboBoxAutoStrategy)
@@ -537,6 +546,7 @@ QJsonArray ExplodedViewPanel::presetsToJson()
         presetObj.insert(QStringLiteral("loopBack"), preset.loopBack);
         presetObj.insert(QStringLiteral("useCombinedPose"), preset.useCombinedPose);
         presetObj.insert(QStringLiteral("autoStrategy"), comboIndexFromAutoStrategy(preset.autoStrategy));
+        presetObj.insert(QStringLiteral("explodeDepth"), preset.explodeDepth);
 
         const std::function<QJsonObject(const CapturedExplosionStep&)> serializeStep =
             [&](const CapturedExplosionStep& step) -> QJsonObject
@@ -662,6 +672,7 @@ void ExplodedViewPanel::restorePresetsFromJson(const QJsonArray& presetsJson,
         preset.autoStrategy = autoStrategyFromComboIndex(
             presetObj.value(QStringLiteral("autoStrategy")).toInt(
                 comboIndexFromAutoStrategy(AutoStrategy::AssemblyAware)));
+        preset.explodeDepth = qBound(0, presetObj.value(QStringLiteral("explodeDepth")).toInt(0), 32);
 
         const std::function<CapturedExplosionStep(const QJsonObject&, int)> deserializeStep =
             [&](const QJsonObject& stepObj, int fallbackIndex) -> CapturedExplosionStep
@@ -809,8 +820,10 @@ void ExplodedViewPanel::syncActivePresetFromUi()
     const bool oldLoopBack = preset.loopBack;
     const bool oldUseCombinedPose = preset.useCombinedPose;
     const AutoStrategy oldAutoStrategy = preset.autoStrategy;
+    const int oldExplodeDepth = preset.explodeDepth;
     preset.mode = modeFromComboIndex(comboBoxMode ? comboBoxMode->currentIndex() : 0);
     preset.autoStrategy = autoStrategyFromComboIndex(comboBoxAutoStrategy ? comboBoxAutoStrategy->currentIndex() : 0);
+    preset.explodeDepth = spinBoxExplodeDepth ? spinBoxExplodeDepth->value() : 0;
     preset.userVector = QVector3D(
         static_cast<float>(doubleSpinBoxVectorX ? doubleSpinBoxVectorX->value() : 1.0),
         static_cast<float>(doubleSpinBoxVectorY ? doubleSpinBoxVectorY->value() : 0.0),
@@ -828,7 +841,8 @@ void ExplodedViewPanel::syncActivePresetFromUi()
         || !qFuzzyCompare(1.0 + preset.durationSeconds, 1.0 + oldDurationSeconds)
         || preset.loopBack != oldLoopBack
         || preset.useCombinedPose != oldUseCombinedPose
-        || preset.autoStrategy != oldAutoStrategy;
+        || preset.autoStrategy != oldAutoStrategy
+        || preset.explodeDepth != oldExplodeDepth;
     if (changed)
         markDocumentModified();
 
@@ -926,6 +940,8 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
             checkBoxCombinedPose->setChecked(preset.useCombinedPose);
         if (comboBoxAutoStrategy)
             comboBoxAutoStrategy->setCurrentIndex(comboIndexFromAutoStrategy(preset.autoStrategy));
+        if (spinBoxExplodeDepth)
+            spinBoxExplodeDepth->setValue(preset.explodeDepth);
     }
     _syncingPresetUi = false;
 
@@ -1250,6 +1266,14 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
     if (comboBoxAutoStrategy)
     {
         connect(comboBoxAutoStrategy, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+            _hasUncapturedAutoPose = true;
+            syncActivePresetFromUi();
+            emit explosionParametersChanged();
+        });
+    }
+    if (spinBoxExplodeDepth)
+    {
+        connect(spinBoxExplodeDepth, qOverload<int>(&QSpinBox::valueChanged), this, [this](int) {
             _hasUncapturedAutoPose = true;
             syncActivePresetFromUi();
             emit explosionParametersChanged();
@@ -3097,6 +3121,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
             || !qFuzzyCompare(doubleSpinBoxVectorY->value(), 0.0)
             || !qFuzzyCompare(doubleSpinBoxVectorZ->value(), 0.0)
             || comboBoxAutoStrategy->currentIndex() != comboIndexFromAutoStrategy(AutoStrategy::AssemblyAware)
+            || (spinBoxExplodeDepth && spinBoxExplodeDepth->value() != 0)
             || comboBoxAnimationMode->currentIndex() != 0
             || !qFuzzyCompare(doubleSpinBoxAnimationDuration->value(), 3.0)
             || !checkBoxLoopBack->isChecked());
@@ -3133,6 +3158,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     QSignalBlocker b5(doubleSpinBoxVectorZ);
     QSignalBlocker b6(checkBoxCombinedPose);
     QSignalBlocker b7(comboBoxAutoStrategy);
+    QSignalBlocker bDepth(spinBoxExplodeDepth);
 
     clearAssemblySelection();
 
@@ -3169,6 +3195,9 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     active.loopBack = true;
     active.useCombinedPose = true;
     active.autoStrategy = AutoStrategy::AssemblyAware;
+    active.explodeDepth = 0;
+    if (spinBoxExplodeDepth)
+        spinBoxExplodeDepth->setValue(0);
     comboBoxAnimationMode->setCurrentIndex(active.outputMode);
     doubleSpinBoxAnimationDuration->setValue(active.durationSeconds);
     checkBoxLoopBack->setChecked(active.loopBack);
@@ -3206,6 +3235,7 @@ void ExplodedViewPanel::on_pushButtonPresetNew_clicked()
     preset.durationSeconds = 3.0;
     preset.loopBack = true;
     preset.autoStrategy = AutoStrategy::AssemblyAware;
+    preset.explodeDepth = 0;
 
     _presets.append(preset);
     _activePresetIndex = _presets.size() - 1;
@@ -3414,6 +3444,10 @@ void ExplodedViewPanel::updateAuthoringModeUi()
         labelModeAutoStrategy->setVisible(autoMode);
     if (comboBoxAutoStrategy)
         comboBoxAutoStrategy->setVisible(autoMode);
+    if (labelExplodeDepth)
+        labelExplodeDepth->setVisible(autoMode);
+    if (spinBoxExplodeDepth)
+        spinBoxExplodeDepth->setVisible(autoMode);
 
     updateManualPlacementUi();
     updateCaptureButton();

@@ -194,6 +194,22 @@ void ExplodedViewManager::recompute(
         return;
 
     _factor = factor;
+    layoutFlat(assemblyUuids, anchorUuid, mode, userVector, worldCentroids, worldBoxes, autoHints, _baseOffsets);
+    applyFactor();
+}
+
+void ExplodedViewManager::layoutFlat(
+    const QSet<QUuid>&                          assemblyUuids,
+    const QUuid&                                anchorUuid,
+    Mode                                        mode,
+    const QVector3D&                            userVector,
+    const QHash<QUuid, QVector3D>&              worldCentroids,
+    const QHash<QUuid, QPair<QVector3D,QVector3D>>& worldBoxes,
+    const AssemblyRelationGraph::AutoPlacementHints* autoHints,
+    QHash<QUuid, QVector3D>&                    out) const
+{
+    if (assemblyUuids.isEmpty())
+        return;
 
     // --- Assembly bounding box centre (explosion origin for no-anchor modes) ---
     // Use the geometric centre of the combined AABB rather than the arithmetic
@@ -322,7 +338,7 @@ void ExplodedViewManager::recompute(
             {
                 const float targetMin = prevMax + baseGap;
                 const float disp      = targetMin - parts[i].projMin;
-                _baseOffsets.insert(parts[i].uuid, axisDir * disp);
+                out.insert(parts[i].uuid, axisDir * disp);
                 prevMax = targetMin + parts[i].size();
             }
 
@@ -332,7 +348,7 @@ void ExplodedViewManager::recompute(
             {
                 const float targetMax = prevMin - baseGap;
                 const float disp      = targetMax - parts[i].projMax;
-                _baseOffsets.insert(parts[i].uuid, axisDir * disp);
+                out.insert(parts[i].uuid, axisDir * disp);
                 prevMin = targetMax - parts[i].size();
             }
         }
@@ -352,12 +368,11 @@ void ExplodedViewManager::recompute(
                 const float targetMin = cursor;
                 const float disp      = targetMin - parts[i].projMin;
                 if (std::abs(disp) > 1e-9f)
-                    _baseOffsets.insert(parts[i].uuid, axisDir * disp);
+                    out.insert(parts[i].uuid, axisDir * disp);
                 cursor += parts[i].size() + baseGap;
             }
         }
 
-        applyFactor();
         return;
     }
 
@@ -562,7 +577,7 @@ void ExplodedViewManager::recompute(
                 const float targetMin = std::max(cursor, relMin);
                 const float disp = targetMin - relMin;
                 if (disp > 1.0e-6f)
-                    _baseOffsets.insert(part.uuid, dir * disp);
+                    out.insert(part.uuid, dir * disp);
                 cursor = targetMin + (partMax - partMin) + chainGap;
                 handledByBackbone.insert(part.uuid);
             }
@@ -685,12 +700,10 @@ void ExplodedViewManager::recompute(
 
             const float disp = targetMin - relMin;
             if (disp > 1e-6f)
-                _baseOffsets.insert(part.uuid, dir * disp);
+                out.insert(part.uuid, dir * disp);
             placed.push_back({aMin, aMax, bMin, bMax, targetMin + part.size()});
         }
     }
-
-    applyFactor();
 }
 
 void ExplodedViewManager::applyFactor()
@@ -698,4 +711,109 @@ void ExplodedViewManager::applyFactor()
     _scaledOffsets.clear();
     for (auto it = _baseOffsets.cbegin(); it != _baseOffsets.cend(); ++it)
         _scaledOffsets.insert(it.key(), it.value() * _factor);
+}
+
+// ---------------------------------------------------------------------------
+// recomputeHierarchical
+// ---------------------------------------------------------------------------
+void ExplodedViewManager::recomputeHierarchical(
+    const ExplodedGroupTree::Tree&              tree,
+    const QUuid&                                anchorUuid,
+    float                                       factor,
+    const QHash<QUuid, QVector3D>&              /*worldCentroids*/,
+    const QHash<QUuid, QPair<QVector3D,QVector3D>>& worldBoxes,
+    const AssemblyRelationGraph::AutoPlacementHints* autoHints,
+    int                                         maxDepth)
+{
+    using Box = QPair<QVector3D, QVector3D>;
+
+    reset();
+    if (tree.groups.isEmpty())
+        return;
+    _factor = factor;
+
+    const int n = tree.groups.size();
+
+    // Depth of every group, and the groups whose subtree holds the anchor part (the groups are in pre-order: parents first).
+    QVector<int> depth(n, 0);
+    QVector<char> holdsAnchor(n, 0);
+    for (int gi = 0; gi < n; ++gi)
+    {
+        const ExplodedGroupTree::Group& g = tree.groups[gi];
+        depth[gi] = g.parent < 0 ? 0 : depth[g.parent] + 1;
+        if (!anchorUuid.isNull() && g.parts.contains(anchorUuid))
+            for (int up = gi; up >= 0; up = tree.groups[up].parent)
+                holdsAnchor[up] = 1;
+    }
+
+    QVector<QHash<QUuid, QVector3D>> itemOffsets(n);   // offset of each part / sub-group block inside its group, factor 1
+    QVector<Box> groupBox(n);                          // the group's box with its own explosion applied
+    QVector<char> hasBox(n, 0);
+
+    // Children come after their parents, so walking backwards lays out every sub-group before the group that contains it.
+    for (int gi = n - 1; gi >= 0; --gi)
+    {
+        const ExplodedGroupTree::Group& g = tree.groups[gi];
+
+        QSet<QUuid> items;
+        QHash<QUuid, QVector3D> centres;
+        QHash<QUuid, Box> boxes;
+        const auto addItem = [&](const QUuid& id, const Box& box) {
+            items.insert(id);
+            boxes.insert(id, box);
+            centres.insert(id, (box.first + box.second) * 0.5f);
+        };
+        for (const QUuid& part : g.parts)
+        {
+            const auto it = worldBoxes.constFind(part);
+            if (it != worldBoxes.constEnd())
+                addItem(part, it.value());
+        }
+        QUuid anchorItem;
+        if (!anchorUuid.isNull() && items.contains(anchorUuid))
+            anchorItem = anchorUuid;
+        for (int child : g.children)
+        {
+            if (!hasBox[child])
+                continue;
+            const QUuid& childId = tree.groups[child].id;
+            addItem(childId, groupBox[child]);
+            if (holdsAnchor[child])
+                anchorItem = childId;
+        }
+        if (items.isEmpty())
+            continue;
+
+        if (items.size() >= 2 && (maxDepth <= 0 || depth[gi] < maxDepth))
+            layoutFlat(items, anchorItem, Mode::Auto, QVector3D(), centres, boxes, autoHints, itemOffsets[gi]);
+
+        QVector3D bMin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+        QVector3D bMax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+        for (auto it = boxes.cbegin(); it != boxes.cend(); ++it)
+        {
+            const QVector3D shift = itemOffsets[gi].value(it.key());
+            const QVector3D lo = it.value().first + shift, hi = it.value().second + shift;
+            bMin = QVector3D(std::min(bMin.x(), lo.x()), std::min(bMin.y(), lo.y()), std::min(bMin.z(), lo.z()));
+            bMax = QVector3D(std::max(bMax.x(), hi.x()), std::max(bMax.y(), hi.y()), std::max(bMax.z(), hi.z()));
+        }
+        groupBox[gi] = {bMin, bMax};
+        hasBox[gi] = 1;
+    }
+
+    // Top-down: a part moves with every block above it.
+    QVector<QVector3D> accumulated(n);
+    for (int gi = 0; gi < n; ++gi)
+    {
+        const ExplodedGroupTree::Group& g = tree.groups[gi];
+        if (g.parent >= 0)
+            accumulated[gi] = accumulated[g.parent] + itemOffsets[g.parent].value(g.id);
+        for (const QUuid& part : g.parts)
+        {
+            const QVector3D offset = accumulated[gi] + itemOffsets[gi].value(part);
+            if (offset.lengthSquared() > 1.0e-12f)
+                _baseOffsets.insert(part, offset);
+        }
+    }
+
+    applyFactor();
 }

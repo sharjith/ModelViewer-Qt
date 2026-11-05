@@ -4600,6 +4600,7 @@ void ViewportWidget::updateExplosion()
         if (_explosionLayoutKey.valid && manager->hasLayout()
             && _explosionLayoutKey.boundsRevision == RenderableMesh::currentRuntimeBoundsRevision()
             && _explosionLayoutKey.mode == modeKey && _explosionLayoutKey.strategy == strategyKey
+            && _explosionLayoutKey.depth == _explodedViewPanel->explodeDepth()
             && _explosionLayoutKey.anchor == _explodedViewPanel->anchorUuid()
             && _explosionLayoutKey.vector == _explodedViewPanel->userVector()
             && _explosionLayoutKey.assemblies == assemblyUuids)
@@ -4684,8 +4685,23 @@ void ViewportWidget::updateExplosion()
     const bool useAssemblyAwareAutoHints =
         _explodedViewPanel->autoStrategy() == ExplodedViewPanel::AutoStrategy::AssemblyAware;
 
-    // Rebuild O(n²) placement hints only when the assembly or anchor changes,
-    // not on every slider tick.
+    // Auto mode lays the assembly out level by level (ExplodedGroupTree): Assembly-aware follows the scene tree, Classic a spatial
+    // hierarchy over the part boxes. The other modes, and a missing scene graph for Assembly-aware, keep the flat layout.
+    // MODELVIEWER_EXPLODED_FLAT=1 forces the flat layout everywhere.
+    static const bool forceFlatExplosion = qEnvironmentVariableIntValue("MODELVIEWER_EXPLODED_FLAT") != 0;
+    const bool hierarchicalExplosion = !forceFlatExplosion
+        && _explodedViewPanel->mode() == ExplodedViewManager::Mode::Auto
+        && (!useAssemblyAwareAutoHints || sg);
+    ExplodedGroupTree::Tree groupTree;
+    if (hierarchicalExplosion)
+    {
+        groupTree = useAssemblyAwareAutoHints
+            ? AssemblyRelationGraph::buildSceneGroupTree(assemblyUuids, sg)
+            : ExplodedGroupTree::fromBoxes(assemblyUuids, worldBoxes);
+    }
+
+    // Rebuild the placement hints only when the assembly or anchor changes,
+    // not on every slider tick. Hierarchical layout computes them among siblings only (the flat set is O(n²) in the part count).
     if (useAssemblyAwareAutoHints)
     {
         const QUuid anchorUuid = _explodedViewPanel->anchorUuid();
@@ -4695,7 +4711,9 @@ void ViewportWidget::updateExplosion()
         {
             _explodedViewCtrl.setHintsCache(
                 assemblyUuids, anchorUuid,
-                AssemblyRelationGraph::buildAutoPlacementHints(assemblyUuids, this, sg));
+                hierarchicalExplosion
+                    ? AssemblyRelationGraph::buildSiblingPlacementHints(groupTree, this, sg)
+                    : AssemblyRelationGraph::buildAutoPlacementHints(assemblyUuids, this, sg));
         }
     }
     else
@@ -4703,6 +4721,18 @@ void ViewportWidget::updateExplosion()
         _explodedViewCtrl.invalidateHintsCache();
     }
 
+    if (hierarchicalExplosion)
+    {
+        _explodedViewCtrl.explodedViewManager()->recomputeHierarchical(
+            groupTree,
+            _explodedViewPanel->anchorUuid(),
+            _explodedViewPanel->factor(),
+            worldCentroids,
+            worldBoxes,
+            useAssemblyAwareAutoHints ? &_explodedViewCtrl.cachedAutoHints() : nullptr,
+            _explodedViewPanel->explodeDepth());
+    }
+    else
     _explodedViewCtrl.explodedViewManager()->recompute(
         assemblyUuids,
         _explodedViewPanel->anchorUuid(),
@@ -4730,6 +4760,7 @@ void ViewportWidget::updateExplosion()
     _explosionLayoutKey.mode = static_cast<int>(_explodedViewPanel->mode());
     _explosionLayoutKey.vector = _explodedViewPanel->userVector();
     _explosionLayoutKey.strategy = static_cast<int>(_explodedViewPanel->autoStrategy());
+    _explosionLayoutKey.depth = _explodedViewPanel->explodeDepth();
     _explosionLayoutKey.boundsRevision = RenderableMesh::currentRuntimeBoundsRevision();
     _explosionLayoutKey.valid = true;
 

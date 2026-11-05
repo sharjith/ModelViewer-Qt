@@ -2163,6 +2163,7 @@ private:
 		int mode = 0;
 		QVector3D vector;
 		int strategy = 0;
+		int depth = 0;
 		quint64 boundsRevision = 0;
 		bool valid = false;
 	};

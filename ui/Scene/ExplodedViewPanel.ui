@@ -600,6 +600,34 @@ Classic explodes every part independently</string>
               </item>
              </widget>
             </item>
+            <item>
+             <widget class="QLabel" name="labelExplodeDepth">
+              <property name="text">
+               <string>Levels</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QSpinBox" name="spinBoxExplodeDepth">
+              <property name="toolTip">
+               <string>How many levels of the hierarchy explode (Auto mode).
+All explodes every level; 1 moves only the top-level groups,
+each as one block</string>
+              </property>
+              <property name="specialValueText">
+               <string>All</string>
+              </property>
+              <property name="minimum">
+               <number>0</number>
+              </property>
+              <property name="maximum">
+               <number>32</number>
+              </property>
+              <property name="value">
+               <number>0</number>
+              </property>
+             </widget>
+            </item>
            </layout>
           </item>
           <item row="5" column="0">
