@@ -353,11 +353,16 @@ scene or tree</string>
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
               </property>
               <property name="toolTip">
-               <string>Direction meshes explode away from each other</string>
+               <string>&lt;p&gt;Direction meshes explode away from each other.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Auto&lt;/b&gt;: each part leaves along the direction it comes off the part it touches, and spreads from the centre where the contact is unclear.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Radial&lt;/b&gt;: every part spreads from the centre in proportion to its distance.&lt;/p&gt;</string>
               </property>
               <item>
                <property name="text">
-                <string>Auto (Radial)</string>
+                <string>Auto</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Radial</string>
                </property>
               </item>
               <item>

@@ -4690,7 +4690,8 @@ void ViewportWidget::updateExplosion()
     // MODELVIEWER_EXPLODED_FLAT=1 forces the flat layout everywhere.
     static const bool forceFlatExplosion = qEnvironmentVariableIntValue("MODELVIEWER_EXPLODED_FLAT") != 0;
     const bool hierarchicalExplosion = !forceFlatExplosion
-        && _explodedViewPanel->mode() == ExplodedViewManager::Mode::Auto
+        && (_explodedViewPanel->mode() == ExplodedViewManager::Mode::Auto
+            || _explodedViewPanel->mode() == ExplodedViewManager::Mode::AutoMating)
         && (!useAssemblyAwareAutoHints || sg);
     ExplodedGroupTree::Tree groupTree;
     if (hierarchicalExplosion)
@@ -4734,7 +4735,8 @@ void ViewportWidget::updateExplosion()
             worldCentroids,
             worldBoxes,
             useAssemblyAwareAutoHints ? &_explodedViewCtrl.cachedAutoHints() : nullptr,
-            _explodedViewPanel->explodeDepth());
+            _explodedViewPanel->explodeDepth(),
+            _explodedViewPanel->mode());
     }
     else
     _explodedViewCtrl.explodedViewManager()->recompute(

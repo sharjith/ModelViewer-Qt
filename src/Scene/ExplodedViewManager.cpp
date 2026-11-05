@@ -1,6 +1,7 @@
 #include "ExplodedViewManager.h"
 
 #include <QtGlobal>
+#include <QDebug>
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -729,7 +730,8 @@ constexpr float kScaleGain = 1.0f;           // radial scale gain at factor 1: i
 void layoutRadialScaled(const QSet<QUuid>& items, const QUuid& anchorItem,
                         const QHash<QUuid, QVector3D>& centres,
                         const QHash<QUuid, QPair<QVector3D, QVector3D>>& boxes,
-                        float gain, QHash<QUuid, QVector3D>& out)
+                        float gain, QHash<QUuid, QVector3D>& out,
+                        const QHash<QUuid, QVector3D>* fixedOffsets = nullptr)   // items placed by another rule (mating layout)
 {
     out.clear();
     if (items.size() < 2 || gain <= 0.0f)
@@ -747,8 +749,47 @@ void layoutRadialScaled(const QSet<QUuid>& items, const QUuid& anchorItem,
     const QVector3D centre = (lo + hi) * 0.5f;
 
     QHash<QUuid, QVector3D> offsets;
+    const auto isFixed = [&](const QUuid& id) { return fixedOffsets && fixedOffsets->contains(id); };
     for (const QUuid& id : items)
-        offsets.insert(id, (centres.value(id) - centre) * gain);
+        offsets.insert(id, isFixed(id) ? fixedOffsets->value(id) : (centres.value(id) - centre) * gain);
+
+    // Concentric items (wheel and tire, shaft and bush) share a centre, so scaling about it moves none of them and the level would
+    // show no change. When two or more items sit at the group centre, spread them along the group's thinnest axis (the usual
+    // axis of such parts), centred on the group so the layout stays symmetrical.
+    const QVector3D extent = hi - lo;
+    const float diag = extent.length();
+    QVector<QUuid> central;
+    for (const QUuid& id : items)
+        if (!isFixed(id) && (centres.value(id) - centre).length() < 0.2f * diag)
+            central.push_back(id);
+    // Only when the whole group is concentric: in a big group, items near the middle are not coincident, and spreading them by the
+    // group's diagonal threw parts far away.
+    int movable = 0;
+    for (const QUuid& id : items)
+        if (!isFixed(id))
+            ++movable;
+    if (central.size() >= 2 && central.size() == movable && central.size() <= 4 && diag > 0.0f)
+    {
+        const auto volume = [&](const QUuid& id) {
+            const auto b = boxes.value(id);
+            const QVector3D e = b.second - b.first;
+            return double(e.x()) * e.y() * e.z();
+        };
+        std::sort(central.begin(), central.end(), [&](const QUuid& a, const QUuid& b) {
+            const double va = volume(a), vb = volume(b);
+            return va != vb ? va < vb : a.toString() < b.toString();
+        });
+        int axis = 0;
+        if (extent.y() < extent[axis]) axis = 1;
+        if (extent.z() < extent[axis]) axis = 2;
+        QVector3D dir;
+        dir[axis] = 1.0f;
+        const float step = 0.5f * diag * gain;
+        const int m = central.size();
+        for (int i = 0; i < m; ++i)
+            offsets[central[i]] += dir * ((float(i) - 0.5f * float(m - 1)) * step);
+    }
+
     const QVector3D hold = anchorItem.isNull() ? QVector3D() : offsets.value(anchorItem);
     for (auto it = offsets.cbegin(); it != offsets.cend(); ++it)
     {
@@ -756,6 +797,252 @@ void layoutRadialScaled(const QSet<QUuid>& items, const QUuid& anchorItem,
         if (offset.lengthSquared() > 1.0e-12f)
             out.insert(it.key(), offset);
     }
+}
+
+// "Mating" layout of one group: every item leaves the item it touches along the direction in which it comes off it, instead of
+// moving away from the group centre. The direction is the axis of least penetration between the two boxes (a truck under a board
+// drops straight down); a rod lying inside its partner (a screw in a block) leaves along its own long axis. An item moves with the
+// item it is attached to plus a clearance, so fasteners clear the part they go through. Items with no clear contact partner keep
+// the proportional radial placement.
+void layoutMating(const QSet<QUuid>& items, const QUuid& anchorItem,
+                  const QHash<QUuid, QVector3D>& centres,
+                  const QHash<QUuid, QPair<QVector3D, QVector3D>>& boxes,
+                  float gain, const QVector3D& refCentre, QHash<QUuid, QVector3D>& out)
+{
+    out.clear();
+    if (items.size() < 2 || gain <= 0.0f)
+        return;
+    // A part uses the contact rule only when it is trustworthy (checked per part); otherwise it keeps the radial placement:
+    //  - its best contact partner must clearly beat the runner-up (kPartnerDominance times the overlap),
+    //  - the contact must be a face contact (small penetration), an embedded rod, or a concentric fit,
+    //  - the partner must itself have been placed by the rule (parts placed radially are never used as partners).
+    constexpr double kPartnerDominance = 2.0;
+    // MODELVIEWER_EXPLODED_DEBUG=1 logs, for every item of every group, how the mating layout treated it.
+    static const bool debugLog = qEnvironmentVariableIntValue("MODELVIEWER_EXPLODED_DEBUG") != 0;
+    const auto tag = [&](const QUuid& id) {
+        const auto b = boxes.value(id);
+        const QVector3D e = b.second - b.first, c = (b.first + b.second) * 0.5f;
+        return QStringLiteral("%1 ext(%2,%3,%4) ctr(%5,%6,%7)").arg(id.toString(QUuid::WithoutBraces).left(8))
+            .arg(e.x(), 0, 'g', 4).arg(e.y(), 0, 'g', 4).arg(e.z(), 0, 'g', 4)
+            .arg(c.x(), 0, 'g', 4).arg(c.y(), 0, 'g', 4).arg(c.z(), 0, 'g', 4);
+    };
+    const auto note = [&](const QUuid& id, const QString& what) {
+        if (debugLog)
+            qInfo().noquote() << "[ExplodedMating]" << tag(id) << "->" << what;
+    };
+    if (debugLog)
+        qInfo().noquote() << "[ExplodedMating] group of" << items.size() << "items, gain" << gain;
+
+    const float inf = std::numeric_limits<float>::max();
+    QVector3D lo(inf, inf, inf), hi(-inf, -inf, -inf);
+    for (const QUuid& id : items)
+    {
+        const auto it = boxes.constFind(id);
+        if (it == boxes.constEnd())
+            continue;
+        lo = QVector3D(std::min(lo.x(), it->first.x()), std::min(lo.y(), it->first.y()), std::min(lo.z(), it->first.z()));
+        hi = QVector3D(std::max(hi.x(), it->second.x()), std::max(hi.y(), it->second.y()), std::max(hi.z(), it->second.z()));
+    }
+    const QVector3D groupCentre = (lo + hi) * 0.5f;
+    const float tol = 0.05f * (hi - lo).length();
+
+    const auto extentOf = [&](const QUuid& id) { const auto b = boxes.value(id); return b.second - b.first; };
+    const auto volumeOf = [&](const QUuid& id) {
+        const QVector3D e = extentOf(id);
+        return double(e.x()) * e.y() * e.z();
+    };
+
+    // Largest first: the biggest item is the base the others come off, and a part is placed after the part it sits in or on.
+    QVector<QUuid> order(items.cbegin(), items.cend());
+    std::sort(order.begin(), order.end(), [&](const QUuid& a, const QUuid& b) {
+        const double va = volumeOf(a), vb = volumeOf(b);
+        return va != vb ? va > vb : a.toString() < b.toString();
+    });
+
+    QHash<QUuid, QVector3D> placed;
+
+    // How an item would leave a given partner: axis, direction and kind of contact, or why that is not clear.
+    struct Exit
+    {
+        bool ok = false;
+        int axis = 0;
+        float dir = 1.0f;
+        bool rod = false, embedded = false, concentric = false;
+        QString why;
+    };
+    const auto exitFrom = [&](const QUuid& id, const QUuid& partner, const float sep[3]) {
+        Exit e;
+        const auto bi = boxes.value(id);
+        const QVector3D ei = extentOf(id), ci = centres.value(id);
+        const QVector3D ej = extentOf(partner), cj = centres.value(partner);
+        // Axis of least penetration (or of the separating gap).
+        int axis = 0;
+        for (int a = 1; a < 3; ++a)
+            if (sep[a] > sep[axis])
+                axis = a;
+        // A rod embedded in its partner leaves along its own length instead.
+        e.embedded = -sep[axis] >= 0.5f * ei[axis];
+        if (e.embedded)
+        {
+            int longest = 0;
+            for (int a = 1; a < 3; ++a)
+                if (ei[a] > ei[longest]) longest = a;
+            float second = 0.0f;
+            for (int a = 0; a < 3; ++a)
+                if (a != longest) second = std::max(second, ei[a]);
+            if (ei[longest] >= 2.0f * second)
+            {
+                axis = longest;
+                e.rod = true;
+            }
+        }
+        e.axis = axis;
+        // Concentric = same centre in all three axes and a partner of similar size (a wheel in its tire). A part inside a much
+        // larger partner (a wheel set inside the frame's box) is not concentric with it.
+        const float ejMax = std::max(ej.x(), std::max(ej.y(), ej.z()));
+        const float eiMax = std::max(ei.x(), std::max(ei.y(), ei.z()));
+        e.concentric = (ci - cj).length() < 0.1f * ejMax && ejMax <= 1.5f * eiMax && eiMax <= 1.5f * ejMax;
+        if (e.concentric)
+        {
+            int thin = 0;
+            for (int a = 1; a < 3; ++a)
+                if (ei[a] < ei[thin]) thin = a;
+            e.axis = thin;
+            const float outward = groupCentre[thin] - refCentre[thin];
+            e.dir = outward < 0.0f ? -1.0f : 1.0f;
+            e.ok = true;
+            return e;
+        }
+        if (e.embedded && !e.rod)
+        {
+            e.why = QStringLiteral("buried in partner on axis %1").arg(axis);
+            return e;
+        }
+        // Direction: away from the partner along the axis; when the centres coincide on it, away from the group centre.
+        float side = ci[axis] - cj[axis];
+        if (std::fabs(side) < 0.05f * std::max(ej[axis], 1.0e-6f))
+            side = ci[axis] - groupCentre[axis];
+        if (std::fabs(side) < 1.0e-6f)
+        {
+            e.why = QStringLiteral("no direction along axis %1").arg(axis);
+            return e;
+        }
+        e.dir = side > 0.0f ? 1.0f : -1.0f;
+        e.ok = true;
+        return e;
+    };
+
+    struct Candidate { QUuid id; double score; float sep[3]; };
+    for (const QUuid& id : order)
+    {
+        if (placed.isEmpty())
+        {
+            placed.insert(id, QVector3D());
+            note(id, QStringLiteral("base (largest item), stays"));
+            continue;
+        }
+        const auto bi = boxes.value(id);
+        const QVector3D ei = extentOf(id);
+
+        // Contact candidates among the items placed so far.
+        QVector<Candidate> candidates;
+        for (auto pit = placed.cbegin(); pit != placed.cend(); ++pit)
+        {
+            const auto bj = boxes.value(pit.key());
+            Candidate c;
+            c.id = pit.key();
+            float maxSep = -inf;
+            for (int a = 0; a < 3; ++a)
+            {
+                c.sep[a] = std::max(bi.first[a] - bj.second[a], bj.first[a] - bi.second[a]);   // < 0: boxes overlap on this axis
+                maxSep = std::max(maxSep, c.sep[a]);
+            }
+            if (maxSep > tol)
+                continue;
+            c.score = 1.0;
+            for (int a = 0; a < 3; ++a)
+                c.score *= double(std::max(0.0f, -c.sep[a]) + 1.0e-6f);
+            candidates.push_back(c);
+        }
+        if (candidates.isEmpty())
+        {
+            note(id, QStringLiteral("radial: touches no placed part"));
+            continue;
+        }
+        std::sort(candidates.begin(), candidates.end(), [](const Candidate& a, const Candidate& b) { return a.score > b.score; });
+        const Candidate& best = candidates.first();
+        const Exit ex = exitFrom(id, best.id, best.sep);
+        if (!ex.ok)
+        {
+            note(id, QStringLiteral("radial: %1 (partner %2)").arg(ex.why).arg(tag(best.id)));
+            continue;
+        }
+        // Several partners touched about equally (a bolt through a truck and a board) are fine when they all leave along the same
+        // axis. The direction is then that of the biggest of them, and the part moves out beyond the one that has itself moved
+        // furthest that way, so it clears all of them.
+        QVector<int> tied;
+        tied.push_back(0);
+        for (int k = 1; k < candidates.size(); ++k)
+            if (best.score < kPartnerDominance * candidates[k].score)
+                tied.push_back(k);
+        int baseIdx = 0;
+        float dir = ex.dir;
+        if (tied.size() > 1)
+        {
+            bool sameAxis = true;
+            int biggest = 0;
+            for (int k : tied)
+            {
+                const Exit other = exitFrom(id, candidates[k].id, candidates[k].sep);
+                if (!other.ok || other.axis != ex.axis)
+                {
+                    sameAxis = false;
+                    break;
+                }
+                if (volumeOf(candidates[k].id) > volumeOf(candidates[biggest].id))
+                    biggest = k;
+            }
+            if (!sameAxis)
+            {
+                note(id, QStringLiteral("radial: ambiguous partners leave along different axes (best %1)").arg(best.score));
+                continue;
+            }
+            dir = exitFrom(id, candidates[biggest].id, candidates[biggest].sep).dir;
+            float furthest = -inf;
+            for (int k : tied)
+            {
+                const float along = dir * placed.value(candidates[k].id)[ex.axis];
+                if (along > furthest)
+                {
+                    furthest = along;
+                    baseIdx = k;
+                }
+            }
+        }
+
+        const Candidate& base = candidates[baseIdx];
+        const QVector3D ej = extentOf(base.id);
+        QVector3D offset = placed.value(base.id);
+        if (ex.concentric && tied.size() == 1)
+        {
+            offset[ex.axis] += ex.dir * gain * 0.5f * (ei[ex.axis] + ej[ex.axis]);
+            note(id, QStringLiteral("mating: concentric with %1, axis %2, dir %3").arg(tag(base.id)).arg(ex.axis).arg(ex.dir));
+        }
+        else
+        {
+            // Distance to leave the partner's box on that side, plus half the part's own size as a gap.
+            const auto bj = boxes.value(base.id);
+            const float exitDistance = dir > 0.0f ? std::max(0.0f, bj.second[ex.axis] - bi.first[ex.axis])
+                                                  : std::max(0.0f, bi.second[ex.axis] - bj.first[ex.axis]);
+            offset[ex.axis] += dir * gain * (exitDistance + 0.5f * ei[ex.axis]);
+            note(id, QStringLiteral("mating: partner %1 (%2 tied), axis %3, dir %4, %5").arg(tag(base.id)).arg(tied.size())
+                         .arg(ex.axis).arg(dir)
+                         .arg(ex.rod ? QStringLiteral("rod") : (ex.embedded ? QStringLiteral("embedded") : QStringLiteral("face contact"))));
+        }
+        placed.insert(id, offset);
+    }
+
+    layoutRadialScaled(items, anchorItem, centres, boxes, gain, out, &placed);
 }
 }
 
@@ -766,7 +1053,8 @@ void ExplodedViewManager::recomputeHierarchical(
     const QHash<QUuid, QVector3D>&              /*worldCentroids*/,
     const QHash<QUuid, QPair<QVector3D,QVector3D>>& worldBoxes,
     const AssemblyRelationGraph::AutoPlacementHints* autoHints,
-    int                                         maxDepth)
+    int                                         maxDepth,
+    Mode                                        mode)
 {
     using Box = QPair<QVector3D, QVector3D>;
 
@@ -776,6 +1064,24 @@ void ExplodedViewManager::recomputeHierarchical(
     _factor = factor;
 
     const int n = tree.groups.size();
+
+    // Middle of the whole assembly: the mating layout uses it to tell outward from inward for concentric parts.
+    QVector3D assemblyCentre;
+    {
+        const float inf = std::numeric_limits<float>::max();
+        QVector3D lo(inf, inf, inf), hi(-inf, -inf, -inf);
+        for (const ExplodedGroupTree::Group& g : tree.groups)
+            for (const QUuid& part : g.parts)
+            {
+                const auto it = worldBoxes.constFind(part);
+                if (it == worldBoxes.constEnd())
+                    continue;
+                lo = QVector3D(std::min(lo.x(), it->first.x()), std::min(lo.y(), it->first.y()), std::min(lo.z(), it->first.z()));
+                hi = QVector3D(std::max(hi.x(), it->second.x()), std::max(hi.y(), it->second.y()), std::max(hi.z(), it->second.z()));
+            }
+        if (lo.x() <= hi.x())
+            assemblyCentre = (lo + hi) * 0.5f;
+    }
 
     // Depth of every group, and the groups whose subtree holds the anchor part (the groups are in pre-order: parents first).
     QVector<int> depth(n, 0);
@@ -840,6 +1146,8 @@ void ExplodedViewManager::recomputeHierarchical(
                     for (auto it = itemOffsets[gi].begin(); it != itemOffsets[gi].end(); ++it)
                         it.value() *= levelScale;
             }
+            else if (mode == Mode::AutoMating)
+                layoutMating(items, anchorItem, centres, boxes, kScaleGain * levelScale, assemblyCentre, itemOffsets[gi]);
             else
                 layoutRadialScaled(items, anchorItem, centres, boxes, kScaleGain * levelScale, itemOffsets[gi]);
         }

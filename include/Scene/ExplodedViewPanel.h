@@ -122,7 +122,7 @@ private:
         QString name;
         QSet<QUuid> assemblyUuids;
         QUuid anchorUuid;
-        ExplodedViewManager::Mode mode = ExplodedViewManager::Mode::Auto;
+        ExplodedViewManager::Mode mode = ExplodedViewManager::Mode::AutoMating;
         QVector3D userVector = QVector3D(1.0f, 0.0f, 0.0f);
         float factor = 1.0f;
         QVector<QUuid> manualSelectionUuids;

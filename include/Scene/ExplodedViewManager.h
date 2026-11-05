@@ -16,7 +16,8 @@
 class ExplodedViewManager
 {
 public:
-    enum class Mode { Auto, AxisX, AxisY, AxisZ, Vector };
+    // AutoMating is Auto with the hierarchical layout moving each part off the part it touches (flat fallbacks behave as Auto).
+    enum class Mode { Auto, AxisX, AxisY, AxisZ, Vector, AutoMating };
 
     // Recompute offsets from current settings.
     //   worldCentroids : world-space centroid for each assembly mesh
@@ -43,7 +44,8 @@ public:
                                const QHash<QUuid, QVector3D>&              worldCentroids,
                                const QHash<QUuid, QPair<QVector3D,QVector3D>>& worldBoxes,
                                const AssemblyRelationGraph::AutoPlacementHints* autoHints = nullptr,
-                               int                   maxDepth = 0);
+                               int                   maxDepth = 0,
+                               Mode                  mode = Mode::Auto);   // Auto: radial; AutoMating: along the mating direction
 
     void reset();
 

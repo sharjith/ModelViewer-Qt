@@ -290,11 +290,12 @@ ExplodedViewManager::Mode modeFromComboIndex(int index)
 {
     switch (index)
     {
-    case 1: return ExplodedViewManager::Mode::AxisX;
-    case 2: return ExplodedViewManager::Mode::AxisY;
-    case 3: return ExplodedViewManager::Mode::AxisZ;
-    case 4: return ExplodedViewManager::Mode::Vector;
-    default: return ExplodedViewManager::Mode::Auto;
+    case 1: return ExplodedViewManager::Mode::Auto;          // Auto (Radial)
+    case 2: return ExplodedViewManager::Mode::AxisX;
+    case 3: return ExplodedViewManager::Mode::AxisY;
+    case 4: return ExplodedViewManager::Mode::AxisZ;
+    case 5: return ExplodedViewManager::Mode::Vector;
+    default: return ExplodedViewManager::Mode::AutoMating;   // index 0: Auto (Mating), the default
     }
 }
 
@@ -302,11 +303,12 @@ int comboIndexFromMode(ExplodedViewManager::Mode mode)
 {
     switch (mode)
     {
-    case ExplodedViewManager::Mode::AxisX: return 1;
-    case ExplodedViewManager::Mode::AxisY: return 2;
-    case ExplodedViewManager::Mode::AxisZ: return 3;
-    case ExplodedViewManager::Mode::Vector: return 4;
-    case ExplodedViewManager::Mode::Auto:
+    case ExplodedViewManager::Mode::Auto: return 1;
+    case ExplodedViewManager::Mode::AxisX: return 2;
+    case ExplodedViewManager::Mode::AxisY: return 3;
+    case ExplodedViewManager::Mode::AxisZ: return 4;
+    case ExplodedViewManager::Mode::Vector: return 5;
+    case ExplodedViewManager::Mode::AutoMating:
     default:
         return 0;
     }
@@ -320,6 +322,7 @@ QString modeToString(ExplodedViewManager::Mode mode)
     case ExplodedViewManager::Mode::AxisY: return QStringLiteral("AxisY");
     case ExplodedViewManager::Mode::AxisZ: return QStringLiteral("AxisZ");
     case ExplodedViewManager::Mode::Vector: return QStringLiteral("Vector");
+    case ExplodedViewManager::Mode::AutoMating: return QStringLiteral("AutoMating");
     case ExplodedViewManager::Mode::Auto:
     default:
         return QStringLiteral("Auto");
@@ -336,6 +339,8 @@ ExplodedViewManager::Mode modeFromString(const QString& mode)
         return ExplodedViewManager::Mode::AxisZ;
     if (mode == QLatin1String("Vector"))
         return ExplodedViewManager::Mode::Vector;
+    if (mode == QLatin1String("AutoMating"))
+        return ExplodedViewManager::Mode::AutoMating;
     return ExplodedViewManager::Mode::Auto;
 }
 
@@ -406,7 +411,7 @@ ExplodedViewManager::Mode ExplodedViewPanel::mode() const
         return modeFromComboIndex(comboBoxMode->currentIndex());
     if (const ExplodedViewPreset* preset = activePreset())
         return preset->mode;
-    return ExplodedViewManager::Mode::Auto;
+    return ExplodedViewManager::Mode::AutoMating;
 }
 
 int ExplodedViewPanel::explodeDepth() const
@@ -967,7 +972,7 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
 
     labelDistancePercent->setText(QString("%1%").arg(qRound(preset.factor * 100.0f)));
     if (frameVector)
-        frameVector->setVisible((!radioButtonModeManual || !radioButtonModeManual->isChecked()) && comboBoxMode && comboBoxMode->currentIndex() == 4);
+        frameVector->setVisible((!radioButtonModeManual || !radioButtonModeManual->isChecked()) && comboBoxMode && comboBoxMode->currentIndex() == 5);
 
     QList<int> selectionIds;
     selectionIds.reserve(preset.assemblyUuids.size());
@@ -3109,7 +3114,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
 void ExplodedViewPanel::on_comboBoxMode_currentIndexChanged(int index)
 {
     const bool autoMode = !radioButtonModeManual || !radioButtonModeManual->isChecked();
-    frameVector->setVisible(autoMode && index == 4);
+    frameVector->setVisible(autoMode && index == 5);
     syncActivePresetFromUi();
     emit explosionParametersChanged();
 }
@@ -3202,7 +3207,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     doubleSpinBoxVectorY->setValue(0.0);
     doubleSpinBoxVectorZ->setValue(0.0);
     ExplodedViewPreset& active = ensureActivePreset();
-    active.mode = ExplodedViewManager::Mode::Auto;
+    active.mode = ExplodedViewManager::Mode::AutoMating;
     active.userVector = QVector3D(1.0f, 0.0f, 0.0f);
     active.factor = 1.0f;
     active.manualSelectionUuids.clear();
@@ -3248,7 +3253,7 @@ void ExplodedViewPanel::on_pushButtonPresetNew_clicked()
     ExplodedViewPreset preset;
     preset.id = QUuid::createUuid();
     preset.name = nextPresetName();
-    preset.mode = ExplodedViewManager::Mode::Auto;
+    preset.mode = ExplodedViewManager::Mode::AutoMating;
     preset.userVector = QVector3D(1.0f, 0.0f, 0.0f);
     preset.factor = 1.0f;
     preset.outputMode = 0;
@@ -3459,7 +3464,7 @@ void ExplodedViewPanel::updateAuthoringModeUi()
         stackedWidgetAuthoring->setCurrentWidget(autoMode ? pageAutoExplode : pageManualPlacement);
 
     if (frameVector)
-        frameVector->setVisible(autoMode && comboBoxMode && comboBoxMode->currentIndex() == 4);
+        frameVector->setVisible(autoMode && comboBoxMode && comboBoxMode->currentIndex() == 5);
     if (labelModeAutoStrategy)
         labelModeAutoStrategy->setVisible(autoMode);
     if (comboBoxAutoStrategy)
