@@ -40,7 +40,7 @@ target_sources(jt_tests PRIVATE jt_texture_batch_tests.cpp)
 
 target_sources(jt_tests PRIVATE jt_texture_mip_tests.cpp)
 target_sources(jt_tests PRIVATE jt_skipped_content_tests.cpp)
-target_sources(jt_tests PRIVATE jt_primitive_topology_tests.cpp)
+target_sources(jt_tests PRIVATE jt_primitive_topology_tests.cpp jt_c3_sample_tests.cpp)
 target_sources(jt_tests PRIVATE jt_node_properties_tests.cpp ${REPO}/src/Import/NodeProperties.cpp)
 target_sources(jt_tests PRIVATE jt_pmi_tests.cpp jt_recorded_pmi_tests.cpp)
 target_sources(jt_tests PRIVATE ${REPO}/src/Scene/SceneUtils.cpp)

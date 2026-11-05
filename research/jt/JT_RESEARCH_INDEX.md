@@ -88,3 +88,4 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 
 - [Production allocation-budget trial](JT_PRODUCTION_MEMORY_BUDGET.md) - 26 October 2026: 16 GiB guard identified as the first limit; 64 GiB passed decoding before a distinct post-read crash.
 - [Large-assembly post-decode crash diagnostics](JT_PRODUCTION_IMPORT_CRASH.md) - 26 October 2026: prepared exception containment, reduced handoff copies and an opt-in flushed stage/memory trace; owner build and production validation pending.
+- [C3 polyline and point set decoder](JT_C3_POLYLINE_POINT_DECODER.md) - 5 November 2026: NX JT10.10 polyline and point set LODs decoded and shown (lines, points, colours); owner confirmed all samples against another viewer; JT 9.x/8.x layouts need samples; regression test `tests/jt/jt_c3_sample_tests.cpp` (local samples).

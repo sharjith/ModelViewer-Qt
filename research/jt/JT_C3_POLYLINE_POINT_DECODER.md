@@ -35,3 +35,18 @@ Not decoded and rejected with an explicit message: texture, flag and auxiliary v
 - Records-per-coordinate list: treated as the number of consecutive vertex records sharing each unique coordinate (all ones in the samples).
 - Whether NX closed polylines (`C3_P3`) repeat the first point or use a flag.
 - Trailing bytes after the element are skipped by the model reader, so a misparse of the tail would not be reported.
+
+## Regression test (5 November 2026)
+
+`tests/jt/jt_c3_sample_tests.cpp` (part of `jt_tests`) imports each local sample from `MV_JT_C3_SAMPLES` (default `out/jt-research/c3-nx-samples`) and checks the segment and point counts above, that every face has the index count of its primitive kind with in-range indices, and that no triangles are invented (`C3_M1` holds only a polyline and a point shape, 5 segments and 7 points, with no triangle solid, as `jt_probe` and the segment inventory show). Files that are not present are skipped. Not run until the owner builds; the counts are the ones the owner's viewer checks matched, not an independent reference.
+
+## Sample checks for instancing, units and visibility (5 November 2026)
+
+Owner observations in the viewer plus read-only `jt_probe --properties` on the local files. The three exports do not exercise what the sample plan asked for, and the exact samples cannot be produced with the available NX export, so these rows stay **inconclusive**; nothing is claimed for them.
+
+- `C3_I1`: an assembly of two different parts (`polyline1` and `polyline2`, each as a `_WF` and a `_POINTS` part under nested wrapper assemblies), not one wire instanced twice. The geometry shown matches the decoder note (4 + 3 segments with their points). Shared-instance handling of line and point shapes is not tested by this file.
+- `C3_U1`: `JT_PROP_MEASUREMENT_UNITS` is Millimeters, one wire shape, 4 vertices, 2 segments; structurally the same as `C3_V1`. No other unit system is present, so unit conversion of wires is not tested.
+- `C3_V1`: one shape payload, no hidden marker in the node properties, both segments shown. Either NX did not write the hidden wire or the file carries no hidden state; the hidden-node path for wires is not tested.
+- Not covered by any sample: selection on line and point meshes (owner manual check), the GLB round trip.
+
+Qualification limit and what covers it instead: from the code, instancing, transforms and visibility are node-level and independent of the primitive kind, the geometry cache and subsets keep the primitive type, part merging skips non-triangle meshes, and the declared length unit is reported on the file node only (geometry is never scaled). These are argued from the code, not shown on authentic wire files. `lineAndPointScenePaths` in `tests/jt/jt_scene_tests.cpp` (synthetic, in-memory node graphs; not evidence of any exporter's output) checks them for line and point shapes: three placements of one shared line shape with two appearances (shared mesh, placement, colour variant, exact coordinates, segment indices, no normals), a hidden line shape and a point shape under a hidden group (kept and marked hidden), and a part with a triangle, a line and a point shape (all three kinds kept). Unit scaling has no code to test (no scaling is applied); a real wire export in a second unit system would still be needed to see the viewer's Import Units behaviour. Not run until the owner builds `jt_tests`.

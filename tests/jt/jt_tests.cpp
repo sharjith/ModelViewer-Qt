@@ -63,6 +63,7 @@ void huffmanTests();
 void arithmeticCountTests();
 void skippedContentTests();
 void primitiveTopologyTests();
+void c3SampleTests();
 void nodePropertiesTests();
 void pmiTests();
 void recordedPmiTests();
@@ -309,7 +310,7 @@ void samples(const QString& dir) {
 }
 int main(int argc,char** argv) {
     QCoreApplication app(argc,argv);
-    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();coordinateTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();skippedContentTests();primitiveTopologyTests();nodePropertiesTests();pmiTests();recordedPmiTests();quantizedTests();modernAttributeTests();paletteTests();duplicateMaterialCompatibilityTests();jt95Tests();
+    try {allocationBudgetTests();codecTests();colorStreamTests();uvTests();coordinateTests();quantizedColourTests();jt9ColourTests();attributeTests();sceneTests();containerTests({});legacyTests();huffmanTests();arithmeticCountTests();skippedContentTests();primitiveTopologyTests();c3SampleTests();nodePropertiesTests();pmiTests();recordedPmiTests();quantizedTests();modernAttributeTests();paletteTests();duplicateMaterialCompatibilityTests();jt95Tests();
         textureTests();
         textureTransformTests();
         texturePlanarTests();

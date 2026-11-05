@@ -575,7 +575,92 @@ void drawStyleTests() {
     shape->late({new ZeroProperty(new ZeroTriangle)});shape->attributes({new DrawStyle(0x1a)});
     result=build(root);check(result.scene->mMeshes[0]->mNumFaces==1 && result.scene->mMeshes[0]->mNormals[0].z==1,"Degenerate flat triangle lost finite normals");
 }
-void sceneTests() {inheritance();shininessTests();vertexColorTests();vertexAlphaTests();instances();transforms();emptyShapeTests();lodAndFailures();selectionTests();lodMaterialVariantTests();metadataTests();drawStyleTests();std::cout<<"Synthetic JT assembly, shininess, vertex colours, transforms, selection, metadata and draw styles passed\n";}
+
+// C3: line and point shapes use the same scene paths as triangle shapes (instancing, transforms, visibility, part merging).
+// Synthetic and in-memory: no JT file, not evidence of any exporter's output. The authentic NX samples could not be exported for
+// instancing, units or visibility, so these tests are the only coverage of those paths for line and point meshes.
+struct Segments:JtElement_ShapeLOD_Vertex {
+    Segments() {
+        myPrimitive=PrimitiveKind::Lines;
+        myVertices.Allocate(4,3);myIndices.Allocate(6);
+        const float points[4][3]={{0,0,0},{1,0,0},{1,1,0},{2,1,1}};const int indices[6]={0,1,1,2,2,3};
+        for(unsigned i=0;i<4;++i)for(unsigned j=0;j<3;++j)myVertices[i][j]=points[i][j];
+        for(unsigned i=0;i<6;++i)myIndices[i]=indices[i];
+    }
+};
+struct Dots:JtElement_ShapeLOD_Vertex {
+    Dots() {
+        myPrimitive=PrimitiveKind::Points;
+        myVertices.Allocate(3,3);myIndices.Allocate(3);
+        for(unsigned i=0;i<3;++i){for(unsigned j=0;j<3;++j)myVertices[i][j]=float(i+j);myIndices[i]=int(i);}
+    }
+};
+struct SegmentsProperty:JtProperty_LateLoaded {SegmentsProperty() {mySegmentType=7;myDefferedObject=new Segments;}};
+struct DotsProperty:JtProperty_LateLoaded {DotsProperty() {mySegmentType=7;myDefferedObject=new Dots;}};
+auto lineLeaf(const char* name="segments") {auto n=node<JtNode_Shape_Base>(name);n->late({new SegmentsProperty});return n;}
+auto pointLeaf(const char* name="dots") {auto n=node<JtNode_Shape_Base>(name);n->late({new DotsProperty});return n;}
+bool anyHidden(const aiNode& n,const QSet<const aiNode*>& hidden) {
+    if(hidden.contains(&n))return true;
+    for(unsigned i=0;i<n.mNumChildren;++i)if(anyHidden(*n.mChildren[i],hidden))return true;
+    return false;
+}
+void checkLineMesh(const aiMesh& mesh) {
+    check(mesh.mPrimitiveTypes==aiPrimitiveType_LINE,"Line shape did not stay a line mesh");
+    check(mesh.mNumVertices==4 && mesh.mNumFaces==3 && !mesh.mNormals,"Line mesh gained vertices, faces or normals");
+    const float expected[4][3]={{0,0,0},{1,0,0},{1,1,0},{2,1,1}};
+    for(unsigned i=0;i<4;++i)for(unsigned j=0;j<3;++j)check(mesh.mVertices[i][j]==expected[i][j],"Line coordinates were changed (geometry is never scaled)");
+    for(unsigned f=0;f<mesh.mNumFaces;++f){
+        check(mesh.mFaces[f].mNumIndices==2,"Line face is not a segment");
+        check(mesh.mFaces[f].mIndices[0]==f+0 && mesh.mFaces[f].mIndices[1]==f+1,"Line segment indices were changed");
+    }
+}
+void lineAndPointScenePaths() {
+    // Instancing: one shared line shape placed three times; two appearances.
+    {
+        auto root=node<JtNode_Partition>("root");auto shared=lineLeaf("shared");
+        auto a=node<JtNode_Instance>("a");auto b=node<JtNode_Instance>("b");auto c=node<JtNode_Instance>("c");
+        a->target(shared);b->target(shared);c->target(shared);root->children({a,b,c});
+        a->attributes({new Transform(10),new Material({1,0,0,1})});b->attributes({new Transform(20),new Material({1,0,0,1})});c->attributes({new Material({0,1,0,1})});
+        auto result=build(root);auto& tree=*result.scene->mRootNode;
+        check(result.scene->mNumMeshes==2 && references(tree)==3,"Shared line geometry/material occurrence accounting failed");
+        check(tree.mChildren[0]->mChildren[0]->mMeshes[0]==tree.mChildren[1]->mChildren[0]->mMeshes[0],"Identical line instances did not share a mesh");
+        check(tree.mChildren[0]->mTransformation.a4==10 && tree.mChildren[1]->mTransformation.a4==20,"Line instance placement lost");
+        check(color(result,*tree.mChildren[2]->mChildren[0]).g==1,"Line instance appearance variant lost");
+        for(unsigned i=0;i<result.scene->mNumMeshes;++i)checkLineMesh(*result.scene->mMeshes[i]);
+    }
+    // Visibility: a hidden line shape is kept and marked hidden, its visible sibling is not.
+    {
+        auto root=node<JtNode_Partition>("root");auto hiddenShape=lineLeaf("hidden line");auto visibleShape=lineLeaf("visible line");
+        hiddenShape->hidden();root->children({hiddenShape,visibleShape});
+        auto result=build(root);const auto& tree=*result.scene->mRootNode;
+        check(references(tree)==2 && tree.mNumChildren>=2,"A hidden line shape was dropped");
+        check(anyHidden(*tree.mChildren[0],result.hiddenNodes) && !anyHidden(*tree.mChildren[1],result.hiddenNodes),"Line shape visibility was not carried");
+        for(unsigned i=0;i<result.scene->mNumMeshes;++i)checkLineMesh(*result.scene->mMeshes[i]);
+    }
+    // A hidden parent hides a point shape below it.
+    {
+        auto root=node<JtNode_Partition>("root");auto group=node<JtNode_Group>("hidden group");auto dots=pointLeaf();
+        group->hidden();group->children({dots});root->children({group});
+        auto result=build(root);
+        check(references(*result.scene->mRootNode)==1 && anyHidden(*result.scene->mRootNode,result.hiddenNodes),"A point shape did not inherit its hidden parent");
+        check(result.scene->mMeshes[0]->mPrimitiveTypes==aiPrimitiveType_POINT && result.scene->mMeshes[0]->mNumFaces==3,"Point shape did not stay a point mesh");
+    }
+    // Part merging only merges triangles: a part with a triangle, a line and a point shape keeps all three kinds.
+    {
+        auto root=node<JtNode_Partition>("root");auto part=node<JtNode_Part>("part");
+        part->children({leaf(),lineLeaf(),pointLeaf()});root->children({part});
+        auto result=build(root);unsigned lines=0,points=0,triangles=0;
+        for(unsigned i=0;i<result.scene->mNumMeshes;++i){
+            const auto& mesh=*result.scene->mMeshes[i];
+            if(mesh.mPrimitiveTypes==aiPrimitiveType_LINE){++lines;checkLineMesh(mesh);}
+            else if(mesh.mPrimitiveTypes==aiPrimitiveType_POINT){++points;check(mesh.mNumFaces==3 && mesh.mFaces[0].mNumIndices==1,"Point faces changed");}
+            else if(mesh.mPrimitiveTypes==aiPrimitiveType_TRIANGLE)++triangles;
+            else check(false,"Part merging mixed primitive kinds");
+        }
+        check(lines==1 && points==1 && triangles==1,"Part merging lost or converted a line, point or triangle mesh");
+    }
+}
+void sceneTests() {inheritance();shininessTests();vertexColorTests();vertexAlphaTests();instances();transforms();emptyShapeTests();lodAndFailures();selectionTests();lodMaterialVariantTests();metadataTests();drawStyleTests();lineAndPointScenePaths();std::cout<<"Synthetic JT assembly, shininess, vertex colours, transforms, selection, metadata and draw styles passed\n";}
 
 void vertexAlphaFixtureFiles(const QString& folder){
     check(QDir().mkpath(folder),"Cannot create alpha fixture directory");QDir dir(folder);
