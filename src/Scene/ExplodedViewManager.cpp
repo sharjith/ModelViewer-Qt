@@ -1,5 +1,6 @@
 #include "ExplodedViewManager.h"
 
+#include <QtGlobal>
 #include <algorithm>
 #include <cmath>
 #include <numeric>
@@ -720,6 +721,42 @@ namespace
 {
 constexpr float kLevelDamping = 0.85f;       // per hierarchy level, applied to the offsets inside that level
 constexpr float kGroupGrowthShare = 0.4f;    // share of a sub-group's own explosion growth that its siblings make room for
+constexpr float kScaleGain = 1.0f;           // radial scale gain at factor 1: item positions about the group centre grow by (1 + gain)
+
+// Proportional ("radial scale") layout of one group: every item (part or sub-group block) moves away from the centre of the group
+// in proportion to its distance from it. The overall shape, symmetry and relative weights are kept: items near the centre barely
+// move, outer items move most, and concentric parts stay concentric. The anchor item, when given, stays where it is.
+void layoutRadialScaled(const QSet<QUuid>& items, const QUuid& anchorItem,
+                        const QHash<QUuid, QVector3D>& centres,
+                        const QHash<QUuid, QPair<QVector3D, QVector3D>>& boxes,
+                        float gain, QHash<QUuid, QVector3D>& out)
+{
+    out.clear();
+    if (items.size() < 2 || gain <= 0.0f)
+        return;
+    const float inf = std::numeric_limits<float>::max();
+    QVector3D lo(inf, inf, inf), hi(-inf, -inf, -inf);
+    for (const QUuid& id : items)
+    {
+        const auto it = boxes.constFind(id);
+        if (it == boxes.constEnd())
+            continue;
+        lo = QVector3D(std::min(lo.x(), it->first.x()), std::min(lo.y(), it->first.y()), std::min(lo.z(), it->first.z()));
+        hi = QVector3D(std::max(hi.x(), it->second.x()), std::max(hi.y(), it->second.y()), std::max(hi.z(), it->second.z()));
+    }
+    const QVector3D centre = (lo + hi) * 0.5f;
+
+    QHash<QUuid, QVector3D> offsets;
+    for (const QUuid& id : items)
+        offsets.insert(id, (centres.value(id) - centre) * gain);
+    const QVector3D hold = anchorItem.isNull() ? QVector3D() : offsets.value(anchorItem);
+    for (auto it = offsets.cbegin(); it != offsets.cend(); ++it)
+    {
+        const QVector3D offset = it.value() - hold;
+        if (offset.lengthSquared() > 1.0e-12f)
+            out.insert(it.key(), offset);
+    }
+}
 }
 
 void ExplodedViewManager::recomputeHierarchical(
@@ -792,12 +829,19 @@ void ExplodedViewManager::recomputeHierarchical(
 
         if (items.size() >= 2 && (maxDepth <= 0 || depth[gi] < maxDepth))
         {
-            layoutFlat(items, anchorItem, Mode::Auto, QVector3D(), centres, boxes, autoHints, itemOffsets[gi]);
             // Deeper levels explode a little less, so the top-level structure stays readable.
             const float levelScale = std::pow(kLevelDamping, float(depth[gi]));
-            if (levelScale < 0.999f)
-                for (auto it = itemOffsets[gi].begin(); it != itemOffsets[gi].end(); ++it)
-                    it.value() *= levelScale;
+            // MODELVIEWER_EXPLODED_PACK=1 selects the earlier block-packing layout instead of the proportional one.
+            static const bool packLayout = qEnvironmentVariableIntValue("MODELVIEWER_EXPLODED_PACK") != 0;
+            if (packLayout)
+            {
+                layoutFlat(items, anchorItem, Mode::Auto, QVector3D(), centres, boxes, autoHints, itemOffsets[gi]);
+                if (levelScale < 0.999f)
+                    for (auto it = itemOffsets[gi].begin(); it != itemOffsets[gi].end(); ++it)
+                        it.value() *= levelScale;
+            }
+            else
+                layoutRadialScaled(items, anchorItem, centres, boxes, kScaleGain * levelScale, itemOffsets[gi]);
         }
 
         const float inf = std::numeric_limits<float>::max();

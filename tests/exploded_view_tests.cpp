@@ -120,6 +120,8 @@ void testCollapse()
     check(tree.groups[0].parts == QVector<QUuid>{p3}, "a single-part group is lifted into its parent");
     check(tree.groups[1].parent == 0 && tree.groups[1].id == inner.id, "pre-order with parent links");
     check(fromDraft(Draft{}).isEmpty(), "an empty draft gives an empty tree");
+    check(tree.levelCount() == 2, "root plus one sub-group is two levels");
+    check(Tree{}.levelCount() == 0, "an empty tree has no levels");
 }
 
 void testFromBoxes()
@@ -207,7 +209,7 @@ void testHierarchicalLayout()
     check(same, "the same input gives the same offsets");
 }
 
-void testFlatTreeMatchesFlatLayout()
+void testSingleGroupLayout()
 {
     Scene s;
     for (int i = 0; i < 12; ++i) s.add(cube(float(i % 4) * 3.0f, float(i / 4) * 3.0f, float(i % 3) * 2.0f));
@@ -217,13 +219,21 @@ void testFlatTreeMatchesFlatLayout()
     const auto tree = ExplodedGroupTree::fromDraft(root);
     check(tree.groups.size() == 1, "a flat draft stays one group");
 
-    ExplodedViewManager flat, hier;
-    flat.recompute(s.parts, QUuid(), ExplodedViewManager::Mode::Auto, QVector3D(), 1.0f, s.centres, s.boxes);
+    ExplodedViewManager hier;
     hier.recomputeHierarchical(tree, QUuid(), 1.0f, s.centres, s.boxes);
+    // Proportional layout: every part moves away from the centre of the group by its own distance from it (gain 1 at the top level).
+    QVector3D lo(1e30f, 1e30f, 1e30f), hi(-1e30f, -1e30f, -1e30f);
+    for (const QUuid& id : s.parts)
+    {
+        const Box b = s.boxes.value(id);
+        lo = QVector3D(std::min(lo.x(), b.first.x()), std::min(lo.y(), b.first.y()), std::min(lo.z(), b.first.z()));
+        hi = QVector3D(std::max(hi.x(), b.second.x()), std::max(hi.y(), b.second.y()), std::max(hi.z(), b.second.z()));
+    }
+    const QVector3D centre = (lo + hi) * 0.5f;
     bool same = true;
     for (const QUuid& id : s.parts)
-        if ((flat.offsetForMesh(id) - hier.offsetForMesh(id)).length() > 1e-5f) same = false;
-    check(same, "one group gives exactly the flat Auto layout");
+        if ((hier.offsetForMesh(id) - (s.centres.value(id) - centre)).length() > 1e-4f) same = false;
+    check(same, "one group scales its parts proportionally about its centre");
 }
 }
 
@@ -232,7 +242,7 @@ int main()
     testCollapse();
     testFromBoxes();
     testHierarchicalLayout();
-    testFlatTreeMatchesFlatLayout();
+    testSingleGroupLayout();
     if (failures == 0)
         std::cout << "exploded_view_tests: all passed\n";
     return failures == 0 ? 0 : 1;

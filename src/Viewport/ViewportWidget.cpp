@@ -4700,6 +4700,10 @@ void ViewportWidget::updateExplosion()
             : ExplodedGroupTree::fromBoxes(assemblyUuids, worldBoxes);
     }
 
+    // Levels offers the depth of the hierarchy of the selected strategy.
+    if (hierarchicalExplosion)
+        _explodedViewPanel->setAvailableExplodeLevels(groupTree.levelCount());
+
     // Rebuild the placement hints only when the assembly or anchor changes,
     // not on every slider tick. Hierarchical layout computes them among siblings only (the flat set is O(n²) in the part count).
     if (useAssemblyAwareAutoHints)

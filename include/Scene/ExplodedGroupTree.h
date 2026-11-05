@@ -8,6 +8,7 @@
 #include <QVector>
 #include <QVector3D>
 
+#include <algorithm>
 #include <vector>
 
 // ---------------------------------------------------------------------------
@@ -39,6 +40,18 @@ struct Tree
 
     bool isEmpty() const { return groups.isEmpty(); }
     int partCount() const;
+    //! Number of levels, 1 for a single group. Levels are the selectable depths of the exploded view.
+    int levelCount() const
+    {
+        QVector<int> depth(groups.size(), 0);
+        int levels = 0;
+        for (int i = 0; i < groups.size(); ++i)
+        {
+            depth[i] = groups[i].parent < 0 ? 0 : depth[groups[i].parent] + 1;
+            levels = std::max(levels, depth[i] + 1);
+        }
+        return levels;
+    }
 };
 
 // Recursive form the builders fill in before collapsing.

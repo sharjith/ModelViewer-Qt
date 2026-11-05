@@ -60,6 +60,8 @@ public:
     ExplodedViewManager::Mode mode()   const;
     AutoStrategy        autoStrategy() const;
     int                 explodeDepth() const;  // 0 = every level
+    //! Offers Levels = All plus 1..levels (the depth of the current strategy's hierarchy). Keeps the preset's choice when it still fits.
+    void                setAvailableExplodeLevels(int levels);
     QVector3D           userVector()   const;
     float               factor()       const;  // sliderValue / 100.0f
 

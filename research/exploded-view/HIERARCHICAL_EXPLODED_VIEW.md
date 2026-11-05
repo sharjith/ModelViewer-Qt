@@ -36,3 +36,10 @@ hints were computed over all parts, O(n^2) (about 6.6 million pair classificatio
 Unit test `tests/exploded_view_tests.cpp` (target `exploded_view_tests`, `-DMV_BUILD_TESTS=ON`): collapse rules, `fromBoxes`
 coverage/fan-out/cluster separation, local explosion of sub-assemblies, depth limit, anchor, linearity, determinism, and that a
 one-group tree equals the flat Auto layout. Not run.
+
+## Proportional layout (5 November 2026)
+
+Owner feedback on a 4475-part JT vehicle model: the block-packing layout (flat Auto algorithm applied per level) gave lopsided gaps and rows of thin plates, where the reference viewer shows a symmetrical, proportionally weighted spread (observation from screenshots; the reference's algorithm is not documented).
+
+The hierarchical layout now scales each group about its own centre: every item (part or sub-group block) moves by `(item centre - group centre) * gain`, where gain is 1.0 at the top level (factor 1) and is damped by 0.85 per level. Shape, symmetry and weights are kept; concentric parts stay concentric (overlaps are not resolved). The anchor item holds still. Sub-groups still enter the parent as rigid blocks, sized by their compact box plus 40% of their own growth. `MODELVIEWER_EXPLODED_PACK=1` selects the earlier packing layout for comparison; `MODELVIEWER_EXPLODED_FLAT=1` still forces the flat (non-hierarchical) layout. The constants live in `ExplodedViewManager.cpp` (`kScaleGain`, `kLevelDamping`, `kGroupGrowthShare`) and are untuned guesses.
+

@@ -418,6 +418,26 @@ int ExplodedViewPanel::explodeDepth() const
     return 0;
 }
 
+void ExplodedViewPanel::setAvailableExplodeLevels(int levels)
+{
+    if (!comboBoxExplodeDepth)
+        return;
+    levels = qBound(1, levels, 64);
+    if (comboBoxExplodeDepth->count() == levels + 1)
+        return;
+
+    const ExplodedViewPreset* preset = activePreset();
+    const int wanted = preset ? preset->explodeDepth : comboBoxExplodeDepth->currentIndex();
+    {
+        QSignalBlocker blocker(comboBoxExplodeDepth);
+        comboBoxExplodeDepth->clear();
+        comboBoxExplodeDepth->addItem(tr("All"));
+        for (int level = 1; level <= levels; ++level)
+            comboBoxExplodeDepth->addItem(QString::number(level));
+        comboBoxExplodeDepth->setCurrentIndex(wanted > 0 && wanted <= levels ? wanted : 0);
+    }
+}
+
 ExplodedViewPanel::AutoStrategy ExplodedViewPanel::autoStrategy() const
 {
     if (comboBoxAutoStrategy)
