@@ -36,6 +36,10 @@ public:
   typedef JtData_CompVector <float  , int32_t> VertexData;
   typedef JtData_Vector     <int32_t, int32_t> IndicesVec;
 
+  //! What the faces of Indices() are: triangles (3 indices), line segments (2) or points (1).
+  //! Original ModelViewer-Qt addition for the polyline and point set shape LODs (C3).
+  enum class PrimitiveKind { Triangles, Lines, Points };
+
   static constexpr unsigned MaxTextureChannels=4;
   using TextureData=std::array<VertexData,MaxTextureChannels>;
 
@@ -108,6 +112,8 @@ public:
   //! Indices into the vertex parameters arrays.
   bool ExplicitEmpty() const {return myExplicitEmpty;}
 
+  PrimitiveKind Primitive() const { return myPrimitive; }
+
   const IndicesVec& FaceGroups() const { return myFaceGroups; }
 
   const IndicesVec& Indices()  const { return myIndices; }
@@ -135,7 +141,11 @@ protected:
 
   Standard_Boolean readVertexShapeLODData (
     JtData_Reader&   theReader,
-    Standard_Boolean theIsTriStripSet = Standard_False);
+    Standard_Boolean theIsTriStripSet = Standard_False,
+    PrimitiveKind    theKind = PrimitiveKind::Triangles);
+
+  //! TopoMesh Compressed Rep Data of a polyline or point set LOD (JT 10): primitive and vertex lists plus compressed vertex records.
+  Standard_Boolean readTopoMeshCompressedRepData (JtData_Reader& theReader, PrimitiveKind theKind);
 
   Standard_Boolean readVertexBasedShapeCompressedRepData (JtData_Reader& theReader);
   Standard_Boolean readTopologicallyCompressedData       (JtData_Reader& theReader);
@@ -147,6 +157,7 @@ protected:
 
 protected:
   bool myExplicitEmpty=false;
+  PrimitiveKind myPrimitive=PrimitiveKind::Triangles;
   IndicesVec myFaceGroups; //!< one face-group ID per decoded triangle
   IndicesVec myIndices;  //!< Indices into the vertex parameters arrays
   VertexData myVertices; //!< vertex coordinates

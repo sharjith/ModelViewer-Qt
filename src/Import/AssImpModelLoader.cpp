@@ -1943,6 +1943,14 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			mode != GL_TRIANGLE_STRIP &&
 			mode != GL_TRIANGLE_FAN);
 	}
+	else if (mesh->mPrimitiveTypes != 0
+		&& (mesh->mPrimitiveTypes & (aiPrimitiveType_TRIANGLE | aiPrimitiveType_POLYGON)) == 0
+		&& (mesh->mPrimitiveTypes & (aiPrimitiveType_POINT | aiPrimitiveType_LINE)) != 0)
+	{
+		// Importers other than glTF (JT polyline and point set shapes) declare line/point meshes through
+		// Assimp's primitive types; they must not take the triangle flat-normal expansion below.
+		isNonTrianglePrimitive = true;
+	}
 
 	// Walk through each of the mesh's vertices
 	int step = 0;

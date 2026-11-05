@@ -42,7 +42,9 @@ inline void ConvertHSV(JtDecode_VertexData::Decoded& result,unsigned count) {
         }
     }
 }
-inline JtDecode_VertexData::Decoded::Mover Read(JtData_Reader& reader,unsigned components,int expectedCount) {
+//! `losslessLag1` selects the predictor of JT 10 lossless component arrays. NX-written polyline and point set LODs (C3 samples)
+//! store the raw component words (Null predictor); the Lag1 form is retained for the existing tessellation path.
+inline JtDecode_VertexData::Decoded::Mover Read(JtData_Reader& reader,unsigned components,int expectedCount,bool losslessLag1=true) {
     if(reader.Model()->MajorVersion()<9)throw std::runtime_error("Unsupported older JT colour collection");
     const bool transitional=reader.Model()->MajorVersion()==9;
     Jt_U32 count;Jt_U8 storedComponents,bits;
@@ -95,7 +97,7 @@ inline JtDecode_VertexData::Decoded::Mover Read(JtData_Reader& reader,unsigned c
         if(space==1)ConvertHSV(result,count);
     } else {
         for(unsigned c=0;c<components;++c) {
-            Jt_VecI32 values(Codes(reader,count,transitional?JtDecode_Unpack_Null:JtDecode_Unpack_Lag1));
+            Jt_VecI32 values(Codes(reader,count,transitional||!losslessLag1?JtDecode_Unpack_Null:JtDecode_Unpack_Lag1));
             Jt_VecI32 mantissae;
             if(transitional)mantissae=Codes(reader,count,JtDecode_Unpack_Null);
             for(unsigned i=0;i<count;++i) {

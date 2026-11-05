@@ -262,9 +262,11 @@ Standard_Integer JtElement_ShapeLOD_Vertex::Dump (Standard_OStream& theStream) c
 //=======================================================================
 Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
   JtData_Reader&   theReader,
-  Standard_Boolean theIsTriStripSet)
+  Standard_Boolean theIsTriStripSet,
+  PrimitiveKind    theKind)
 {
   myExplicitEmpty=false;
+  myPrimitive=theKind;
   myIndices.Free();myFaceGroups.Free();
   myVertices.Free();
   myNormals.Free();
@@ -302,7 +304,10 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
     if(theReader.Model()->MajorVersion()>=10) {
       Jt_I32 length, id; Jt_GUID guid; Jt_U8 base;
       if(!theReader.ReadI32(length) || length<21 || !theReader.ReadGUID(guid)
-        || guid != Jt_GUID("f830a5ad-be4c-4fbc-9b-5f-b9-26-92-78-d2-e1")
+        || guid != (theIsTriStripSet || theKind==PrimitiveKind::Triangles ? Jt_GUID("f830a5ad-be4c-4fbc-9b-5f-b9-26-92-78-d2-e1")
+                    // Observed in NX-written JT 10.10 polyline / point set LODs (C3 samples); the two differ in the last byte.
+                    : theKind==PrimitiveKind::Lines ? Jt_GUID("11c12d32-38f9-45ba-93-ba-66-f9-d5-38-dd-fb")
+                                                    : Jt_GUID("11c12d32-38f9-45ba-93-ba-66-f9-d5-38-dd-fc"))
         || !theReader.ReadU8(base) || base!=9 || !theReader.ReadI32(id)) return Standard_False;
     }
     if (
@@ -315,6 +320,15 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
 
     if (theIsTriStripSet)
       return readTopologicallyCompressedData (theReader);
+    else if (theKind != PrimitiveKind::Triangles)
+    {
+      if (theReader.Model()->MajorVersion() < 10)
+      {
+        JtData_SkippedContent::record("polyline or point set LOD in a JT 9.x file (not decoded)");
+        return Standard_True;
+      }
+      return readTopoMeshCompressedRepData (theReader, theKind);
+    }
     else
     {
       // TODO: Read TopoMesh Compressed Rep Data
@@ -628,4 +642,174 @@ void JtElement_ShapeLOD_Vertex::assembleVertexRecords(
     for(unsigned channel=0;channel<MaxTextureChannels;++channel)
       if(uv[channel].Count())myTexCoords[channel][i]=uv[channel][attributes[corner]];
   }
+}
+
+//=======================================================================
+//function : readTopoMeshCompressedRepData
+//purpose  : Polyline / point set LOD geometry (JT 10, TopoMesh Compressed Rep Data, version 1)
+//=======================================================================
+// Layout, from the NX-written C3 samples (JT 10.10) and the public structure description; unproven for other writers:
+//   I32 face group count, I32 primitive count, I32 vertex list length,
+//   CDP2 face group boundaries (count + 1 values, indices into the primitive list),
+//   CDP2 primitive boundaries (count + 1 values, indices into the vertex list), CDP2 vertex list,
+//   I32 hash, vertex binding (8 bytes), 4 quantization bytes, I32 vertex record count,
+//   CDP2 records-per-coordinate list, I32 (observed = unique coordinate count), compressed coordinates, [normals, colours].
+Standard_Boolean JtElement_ShapeLOD_Vertex::readTopoMeshCompressedRepData (JtData_Reader& reader, PrimitiveKind kind)
+{
+  const bool lines = (kind == PrimitiveKind::Lines);
+  const char* const what = lines ? "polyline" : "point set";
+  const auto fail = [&](const std::string& message) { throw std::runtime_error(std::string("JT ") + what + " LOD: " + message); };
+
+  Jt_I32 groupCount = 0, primitiveCount = 0, listCount = 0;
+  if (!reader.ReadI32 (groupCount) || !reader.ReadI32 (primitiveCount) || !reader.ReadI32 (listCount))
+    return Standard_False;
+  if (groupCount < 0 || groupCount > 16000000 || primitiveCount < 0 || primitiveCount > 16000000 || listCount < 0 || listCount > 16000000)
+    fail("invalid primitive or vertex list size");
+
+  const auto readList = [&](Jt_I32 expected, const char* name) {
+    JtDecode_Int32CDP packet;
+    if (!packet.Load2 (reader))
+      fail(std::string("cannot read the ") + name);
+    const Jt_I32 count = packet.GetOutValCount();
+    if (count != expected)
+      fail(std::string(name) + " holds " + std::to_string(count) + " values, expected " + std::to_string(expected));
+    return packet.DecodeI32 (JtDecode_Unpack_Lag1);   // JT predictors apply from the fifth value on
+  };
+  Jt_VecI32 groupBounds (readList (groupCount + 1, "face group list"));
+  Jt_VecI32 primitiveBounds (readList (primitiveCount + 1, "primitive list"));
+  Jt_VecI32 vertexList (readList (listCount, "vertex list"));
+
+  Jt_I32 hash, recordCount, uniqueCount;
+VertexBinding2 binding;
+  QuantizationParams quantization;
+  if (!reader.ReadI32 (hash) || !binding.Read (reader) || !quantization.Read (reader) || !reader.ReadI32 (recordCount))
+    return Standard_False;
+  if (recordCount < 0 || recordCount > 16000000)
+    fail("invalid vertex record count");
+  if (recordCount == 0)
+  {
+    if (listCount != 0)
+      fail("zero vertex records with a nonempty vertex list");
+    myExplicitEmpty = true;
+    return Standard_True;
+  }
+
+  JtDecode_Int32CDP lengthPacket;
+  Jt_I32 trailer;
+  if (!lengthPacket.Load2 (reader))
+    fail("cannot read the records-per-coordinate list");
+  uniqueCount = lengthPacket.GetOutValCount();
+  if (uniqueCount < 1 || uniqueCount > recordCount)
+    fail("invalid unique coordinate list");
+  Jt_VecI32 lengths (lengthPacket.DecodeI32 (JtDecode_Unpack_Null));
+  if (!reader.ReadI32 (trailer))   // observed equal to the unique coordinate count; not validated
+    return Standard_False;
+
+  if (binding.NbVertexCoordComponents() == 0)
+    fail("no vertex coordinates");
+  JtDecode_VertexData::Handle encodedCoords = JtDecode_VertexData::LoadCompressedCoords (reader);
+  if (!encodedCoords)
+    return Standard_False;
+  if (encodedCoords->GetOutVertexCount() != uniqueCount)
+    fail("unique coordinate count disagrees with the coordinate array");
+  VertexData uniqueCoords (encodedCoords->Decode());
+  if (uniqueCoords.Count() != uniqueCount || uniqueCoords.CompCount() != 3)
+    fail("unsupported coordinate layout");
+
+  VertexData normals, colours;
+  if (binding.IsNormalBinding())
+  {
+    JtDecode_VertexData::Handle encodedNormals = JtDecode_VertexData::LoadCompressedNormals (reader);
+    if (!encodedNormals)
+      return Standard_False;
+    normals = encodedNormals->Decode();
+    if (normals.Count() != recordCount)
+      fail("normal count disagrees with the vertex records");
+  }
+  if (const unsigned colourComponents = unsigned (binding.NbColorComponents()))
+    colours = JtDecode_VertexColors::Read (reader, colourComponents, recordCount, false);
+  if (binding.TextureChannelCount() != 0 || binding.IsFlagBinding() || binding.IsAuxFieldBinding())
+    fail("texture, flag and auxiliary vertex attributes are not supported");
+
+  // Vertex record -> unique coordinate.
+  std::vector<int> recordCoordinate;
+  recordCoordinate.reserve (size_t (recordCount));
+  for (int u = 0; u < uniqueCount; ++u)
+  {
+    if (lengths[u] < 1 || size_t (recordCoordinate.size()) + size_t (lengths[u]) > size_t (recordCount))
+      fail("records-per-coordinate list disagrees with the vertex record count");
+    for (int k = 0; k < lengths[u]; ++k)
+      recordCoordinate.push_back (u);
+  }
+  if (int (recordCoordinate.size()) != recordCount)
+    fail("records-per-coordinate list disagrees with the vertex record count");
+
+  JtData_Limits::allocation (size_t (recordCount) * 3 * sizeof (float));
+  myVertices.Allocate (recordCount, 3);
+  for (int i = 0; i < recordCount; ++i)
+    myVertices[i] = uniqueCoords[recordCoordinate[i]];
+  if (normals.Count())
+    myNormals = normals;
+  if (colours.Count())
+  {
+    if (colours.Count() != recordCount)
+      fail("colour count disagrees with the vertex records");
+    myColors = colours;
+  }
+
+  for (int i = 0; i < listCount; ++i)
+    if (vertexList[i] < 0 || vertexList[i] >= recordCount)
+      fail("vertex list index out of range");
+
+  const auto checkBounds = [&](const Jt_VecI32& bounds, Jt_I32 last, const char* name) {
+    if (bounds.Count() < 1 || bounds[0] != 0 || bounds[bounds.Count() - 1] != last)
+      fail(std::string(name) + " does not span its target list");
+    for (int i = 1; i < bounds.Count(); ++i)
+      if (bounds[i] < bounds[i - 1])
+        fail(std::string(name) + " is not ascending");
+  };
+  checkBounds (primitiveBounds, listCount, "primitive list");
+
+  checkBounds (groupBounds, primitiveCount, "face group list");
+  if (!lines)
+  {
+    // Every vertex list entry is one point.
+    JtData_Limits::allocation (size_t (listCount) * sizeof (int32_t));
+    myIndices.Allocate (listCount);
+    for (int i = 0; i < listCount; ++i)
+      myIndices[i] = vertexList[i];
+    return Standard_True;
+  }
+
+  size_t segments = 0;
+  for (int p = 0; p < primitiveCount; ++p)
+  {
+    const int vertices = primitiveBounds[p + 1] - primitiveBounds[p];
+    if (vertices < 2)
+      fail("a polyline has fewer than two vertices");
+    segments += size_t (vertices - 1);
+    if (segments > 16000000)
+      fail("segment limit exceeded");
+  }
+  JtData_Limits::allocation (segments * 2 * sizeof (int32_t));
+  myIndices.Allocate (int (segments * 2));
+  const bool grouped = groupCount > 1;
+  if (grouped)
+    myFaceGroups.Allocate (int (segments));
+  int output = 0, outputSegment = 0, group = 0;
+  for (int p = 0; p < primitiveCount; ++p)
+  {
+    JtData_Limits::poll();
+    while (group + 1 < groupCount && p >= groupBounds[group + 1])
+      ++group;
+    for (int j = primitiveBounds[p]; j + 1 < primitiveBounds[p + 1]; ++j)
+    {
+      myIndices[output++] = vertexList[j];
+      myIndices[output++] = vertexList[j + 1];
+      if (grouped)
+        myFaceGroups[outputSegment] = group;
+      ++outputSegment;
+    }
+  }
+  return Standard_True;
 }

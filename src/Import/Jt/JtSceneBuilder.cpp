@@ -126,13 +126,18 @@ std::unique_ptr<aiMesh> exactMesh(const TopoDS_Shape& shape,const Options& optio
 std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& source,unsigned& repairedNormals) {
     const auto& p=source->Vertices();const auto& n=source->Normals();const auto& ix=source->Indices();
     const auto& colors=source->Colors();
-    if(p.Count()<=0 || p.CompCount()!=3 || ix.Count()<=0 || ix.Count()%3)
+    // Polyline and point set LODs (C3): faces of 2 or 1 indices, no surface normals.
+    const auto kind=source->Primitive();
+    const bool surface=kind==JtElement_ShapeLOD_Vertex::PrimitiveKind::Triangles;
+    const unsigned per=surface?3u:kind==JtElement_ShapeLOD_Vertex::PrimitiveKind::Lines?2u:1u;
+    if(p.Count()<=0 || p.CompCount()!=3 || ix.Count()<=0 || ix.Count()%int(per))
         throw std::runtime_error("Unsupported/empty JT tessellation layout");
-    auto out=std::make_unique<aiMesh>();out->mPrimitiveTypes=aiPrimitiveType_TRIANGLE;
-    out->mNumVertices=unsigned(p.Count());out->mNumFaces=unsigned(ix.Count()/3);
-    JtData_Limits::allocation(size_t(out->mNumVertices)*2*sizeof(aiVector3D)+size_t(out->mNumFaces)*(sizeof(aiFace)+3*sizeof(unsigned)));
-    out->mVertices=new aiVector3D[out->mNumVertices];out->mNormals=new aiVector3D[out->mNumVertices]{};
-    const bool storedNormals=n.Count()==p.Count() && n.CompCount()==3;
+    auto out=std::make_unique<aiMesh>();
+    out->mPrimitiveTypes=surface?aiPrimitiveType_TRIANGLE:per==2?aiPrimitiveType_LINE:aiPrimitiveType_POINT;
+    out->mNumVertices=unsigned(p.Count());out->mNumFaces=unsigned(ix.Count()/int(per));
+    JtData_Limits::allocation(size_t(out->mNumVertices)*(surface?2:1)*sizeof(aiVector3D)+size_t(out->mNumFaces)*(sizeof(aiFace)+per*sizeof(unsigned)));
+    out->mVertices=new aiVector3D[out->mNumVertices];if(surface)out->mNormals=new aiVector3D[out->mNumVertices]{};
+    const bool storedNormals=surface && n.Count()==p.Count() && n.CompCount()==3;
     repairedNormals=0;
     for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel) {
         const auto& uv=source->TexCoords(channel);
@@ -170,6 +175,14 @@ std::unique_ptr<aiMesh> storedMesh(const Handle(JtElement_ShapeLOD_Vertex)& sour
         }
     }
     for(unsigned i=0;i<out->mNumVertices;++i) {out->mVertices[i]={p[i][0],p[i][1],p[i][2]};if(storedNormals) out->mNormals[i]={n[i][0],n[i][1],n[i][2]};}
+    if(!surface) {
+        out->mFaces=new aiFace[out->mNumFaces];
+        for(unsigned i=0;i<out->mNumFaces;++i) {
+            auto& f=out->mFaces[i];f.mNumIndices=per;f.mIndices=new unsigned[per];
+            for(unsigned j=0;j<per;++j) {const int index=ix[int(per*i+j)];if(index<0 || unsigned(index)>=out->mNumVertices) throw std::runtime_error("JT primitive index out of range");f.mIndices[j]=unsigned(index);}
+        }
+        validate(*out);return out;
+    }
     if(storedNormals) for(unsigned i=0;i<out->mNumVertices;++i) {
         const auto& normal=out->mNormals[i];
         if(!finite(normal) || !std::isfinite(normal.SquareLength())) throw std::runtime_error("JT has nonfinite stored normals");
@@ -1868,7 +1881,7 @@ struct Builder {
                             const bool sourceColoured=geometries.at(geometryIndex)->HasVertexColors(0);
                             const auto transformKeyOf=[](const aiMatrix4x4& m){std::array<float,16> k;for(unsigned r=0;r<4;++r)for(unsigned c=0;c<4;++c)k[r*4+c]=m[r][c];return k;};
                             std::map<std::tuple<std::array<float,16>,bool,std::vector<float>>,std::vector<size_t>> mergeSets;
-                            if(!sourceColoured)for(size_t b=0;b<batches.size();++b)if(mergeableStyle(batches[b].style))
+                            if(!sourceColoured && Detail::isTriangleMesh(*geometries.at(geometryIndex)))for(size_t b=0;b<batches.size();++b)if(mergeableStyle(batches[b].style))
                                 mergeSets[std::make_tuple(transformKeyOf(batches[b].local),batches[b].hidden,styleSignature(batches[b].style))].push_back(b);
                             std::vector<int> setFirst(batches.size(),-1);
                             for(const auto& entry:mergeSets)if(entry.second.size()>1)for(size_t b:entry.second)setFirst[b]=int(entry.second.front());
