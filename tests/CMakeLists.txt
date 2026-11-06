@@ -93,7 +93,7 @@ add_executable(pdf3d_tests
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/Pdf3DViews.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/Pdf3DExporter.cpp
 )
-target_include_directories(pdf3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Pdf3D)
+target_include_directories(pdf3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Pdf3D ${CMAKE_SOURCE_DIR}/include/Scene)
 target_link_libraries(pdf3d_tests PRIVATE Qt6::Core Qt6::Gui assimp::assimp u3d::idtf)
 set_target_properties(pdf3d_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 foreach(U3D_MODULE ${U3D_MODULE_NAMES})

@@ -4,6 +4,8 @@
 #include <QVector>
 #include <QVector3D>
 
+#include "ClippingState.h"
+
 // ---------------------------------------------------------------------------
 // GltfCameraData
 //
@@ -84,6 +86,13 @@ struct GltfCameraEntry
     // different pose/zoom than what was actually captured. -1 means
     // "not set, fall back to the heuristic" (authored cameras / old data).
     float           capturedViewRange = -1.0f;
+
+    // Captured-view-only: the Clipping Planes (section view) that were on when the view was captured. hasClipping is false for
+    // authored glTF cameras and for views captured before this field existed: activating those leaves the clipping alone. A
+    // captured view that was taken with no clipping has hasClipping = true and an inactive state, so activating it switches
+    // clipping off again. A SceneState's camera is a captured entry, so scene states carry the clipping the same way.
+    bool            hasClipping = false;
+    ClippingState   clipping;
 };
 
 // All camera information for one loaded glTF/GLB source file.

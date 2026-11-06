@@ -287,6 +287,11 @@ void ClippingPlanesEditor::setCoefficientLimits(double xMin, double xMax, double
 	doubleSpinBoxZXCoeff->setSingleStep((yMax - yMin) / 50.0);
 }
 
+void ClippingPlanesEditor::setGizmoVisible(bool visible)
+{
+	checkBoxShowGizmo->setChecked(visible);
+}
+
 bool ClippingPlanesEditor::isGizmoVisible() const
 {
 	return checkBoxShowGizmo->isChecked();
@@ -348,6 +353,13 @@ void ClippingPlanesEditor::applyPreset(bool xy, bool yz, bool zx, bool box)
 	checkBoxXY->setChecked(xy);
 	checkBoxYZ->setChecked(yz);
 	checkBoxZX->setChecked(zx);
+}
+
+void ClippingPlanesEditor::applyBoxState(bool keepInside, const double limits[6])
+{
+	checkBoxBoxKeepInside->setChecked(keepInside);
+	for (int face = 0; face < 6; ++face)
+		boxSpin(face)->setValue(limits[face]);
 }
 
 QDoubleSpinBox* ClippingPlanesEditor::boxSpin(int face) const

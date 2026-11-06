@@ -12,6 +12,7 @@
 class ToolsToolbar;
 
 #include "AdaptiveShadowMapper.h"
+#include "ClippingState.h"
 #include "AnimationRuntimeController.h"
 #include "VisibilityComputationHelper.h"
 #include "BoundingSphere.h"
@@ -1629,6 +1630,12 @@ public:
 	};
 	QVector<ClippingCut> clippingCuts() const;
 	void applyClippingCuts(const QVector<ClippingCut>& cuts);
+
+	// The Clipping Planes as they are now (planes at their world position, or the box with its world limits), for saving with a
+	// captured view or a scene state; and the reverse: switches everything off, then applies `state` through the Clipping Planes
+	// editor so its controls follow. An inactive state switches the clipping off.
+	ClippingState currentClippingState() const;
+	void applyClippingState(const ClippingState& state);
 
 	// Compare mode (simulation results side by side, docs/simulation_compare_mode_design.md): the window is divided
 	// into one pane per mesh, each drawing ONLY its mesh with the shared camera - orbit, pan, zoom and fit act on all

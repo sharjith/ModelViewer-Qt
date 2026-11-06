@@ -1390,6 +1390,8 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 cameraObj.insert(QStringLiteral("needsModelTransformCompensation"),
                                  camera.needsModelTransformCompensation);
                 cameraObj.insert(QStringLiteral("capturedViewRange"), camera.capturedViewRange);
+                if (camera.hasClipping)
+                    cameraObj.insert(QStringLiteral("clipping"), clippingStateToJson(camera.clipping));
                 camerasArray.append(cameraObj);
             }
 

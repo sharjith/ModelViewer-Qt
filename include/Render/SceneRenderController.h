@@ -388,6 +388,7 @@ public:
     bool  clippingYFlipped()              const { return _clipYFlipped != _clipYDefaultInverted; }
     void  setClippingYFlipped(bool v)           { _clipYFlipped = v; }
     void  setClippingYDefaultInverted(bool v)   { _clipYDefaultInverted = v; }
+    bool  clippingYDefaultInverted()      const { return _clipYDefaultInverted; }
     bool  clippingZFlipped()              const { return _clipZFlipped; }
     void  setClippingZFlipped(bool v)           { _clipZFlipped = v; }
 

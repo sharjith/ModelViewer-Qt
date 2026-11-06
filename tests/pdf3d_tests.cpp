@@ -3,6 +3,7 @@
 //   pdf3d_tests          view dictionaries, aiScene conversion, incremental PDF update on a real QPdfWriter page, the
 //                        in-process u3d conversion (skipped when the u3d modules are not next to the test executable)
 //   pdf3d_tests --full   additionally runs Pdf3DExporter::exportToFile (text layout and fonts) and checks the written file
+#include "ClippingState.h"
 #include "PdfAppender.h"
 #include "Pdf3DExporter.h"
 #include "Pdf3DViews.h"
@@ -17,6 +18,8 @@
 #include <QCoreApplication>
 #include <QFile>
 #include <QGuiApplication>
+#include <QJsonArray>
+#include <QJsonObject>
 #include <QPageSize>
 #include <QPainter>
 #include <QPdfWriter>
@@ -150,6 +153,41 @@ aiScene* makeTriangleScene()
     return s;
 }
 
+void testClippingStateJson()
+{
+    // the Clipping Planes snapshot stored with captured views and scene states round-trips through its JSON encoding
+    ClippingState state;
+    state.planes.append({0, 12.5, false});
+    state.planes.append({2, -3.25, true});
+    state.showGizmo = false;
+    const ClippingState back = clippingStateFromJson(clippingStateToJson(state));
+    CHECK(!back.showGizmo && clippingStateFromJson(QJsonObject()).showGizmo);   // the gizmo choice is stored; absent means shown
+    CHECK(back.planes.size() == 2 && back.isActive() && !back.boxEnabled);
+    CHECK(back.planes.size() == 2 && back.planes[0].axis == 0 && nearly(back.planes[0].position, 12.5) && !back.planes[0].keepPositive);
+    CHECK(back.planes.size() == 2 && back.planes[1].axis == 2 && nearly(back.planes[1].position, -3.25) && back.planes[1].keepPositive);
+
+    ClippingState box;
+    box.boxEnabled = true;
+    box.boxKeepInside = true;
+    const double limits[6] = {-1, 2, -3, 4, -5, 6};
+    for (int i = 0; i < 6; ++i)
+        box.boxLimits[i] = limits[i];
+    const ClippingState boxBack = clippingStateFromJson(clippingStateToJson(box));
+    CHECK(boxBack.boxEnabled && boxBack.boxKeepInside && boxBack.planes.isEmpty() && boxBack.isActive());
+    bool same = true;
+    for (int i = 0; i < 6; ++i)
+        same = same && nearly(boxBack.boxLimits[i], limits[i]);
+    CHECK(same);
+
+    // an empty object is an inactive state; a plane on an invalid axis is dropped
+    CHECK(!clippingStateFromJson(QJsonObject()).isActive());
+    QJsonObject bad;
+    QJsonObject badPlane;
+    badPlane.insert(QStringLiteral("axis"), 7);
+    bad.insert(QStringLiteral("planes"), QJsonArray{badPlane});
+    CHECK(clippingStateFromJson(bad).planes.isEmpty());
+}
+
 void testFittedViews()
 {
     // a long flat box 10 x 1 x 0.2 (Z up): the fitted Front view (looking along +Y at the 10 x 0.2 face) is closer than the sphere
@@ -180,6 +218,7 @@ void testCameraViews()
     persp.fovDegrees = 45.0f;
     const QByteArray pv = Pdf3D::makeCameraView(persp, QVector3D(0, 0, 0), 5.0f);
     CHECK(pv.contains("/XN (Saved)") && pv.contains("/Subtype /P") && pv.contains("/FOV 45") && !pv.contains("/NA"));
+    CHECK(pv.contains("/SA []"));   // a view without a section clears the previous view's section
     // the orbit centre is the scene centre projected on the view axis: 10 units ahead of the eye
     const QRegularExpressionMatch co = QRegularExpression(QStringLiteral("/CO ([0-9.]+)")).match(QString::fromLatin1(pv));
     CHECK(co.hasMatch() && nearly(co.captured(1).toDouble(), 10.0, 1.0e-3));
@@ -208,6 +247,35 @@ void testCameraViews()
     moved.nodes.append(nv);
     const QByteArray mv = Pdf3D::makeCameraView(moved, QVector3D(0, 0, 0), 5.0f);
     CHECK(mv.contains("/N (N0000_a) /V true /M [1 0 0 0 1 0 0 0 1 1 2 3]"));
+
+    // cross sections: the centre is relative to the scene centre; angle pairs verified in Acrobat (see makeCrossSection)
+    Pdf3D::SectionPlane plane;
+    plane.axis = 2;
+    plane.position = 30.0;
+    plane.keepPositive = false;
+    const QByteArray sz = Pdf3D::makeCrossSection(plane, QVector3D(0, 0, 20));
+    CHECK(sz.contains("/C [0 0 10]") && sz.contains("/O [0 0 null]") && sz.contains("/SC true") && sz.contains("/PV false") && sz.contains("/IV true"));
+    plane.keepPositive = true;
+    CHECK(Pdf3D::makeCrossSection(plane, QVector3D(0, 0, 20)).contains("/O [180 0 null]"));
+    plane.axis = 1;
+    plane.position = 7.0;
+    CHECK(Pdf3D::makeCrossSection(plane, QVector3D(1, 2, 3)).contains("/C [0 5 0]") && Pdf3D::makeCrossSection(plane, QVector3D(1, 2, 3)).contains("/O [90 0 null]"));
+    plane.keepPositive = false;
+    CHECK(Pdf3D::makeCrossSection(plane, QVector3D(1, 2, 3)).contains("/O [-90 0 null]"));
+    plane.axis = 0;
+    plane.position = 12.0;
+    CHECK(Pdf3D::makeCrossSection(plane, QVector3D(2, 0, 0)).contains("/C [10 0 0]") && Pdf3D::makeCrossSection(plane, QVector3D(2, 0, 0)).contains("/O [0 90 null]"));
+    plane.keepPositive = true;
+    CHECK(Pdf3D::makeCrossSection(plane, QVector3D(2, 0, 0)).contains("/O [0 -90 null]"));
+
+    Pdf3D::CameraViewSpec sectioned = persp;
+    sectioned.sections.append(plane);
+    CHECK(Pdf3D::makeCameraView(sectioned, QVector3D(0, 0, 0), 5.0f).contains("/SA [<< /Type /3DCrossSection"));
+    Pdf3D::SectionPlane second = plane;
+    second.axis = 2;
+    sectioned.sections.append(second);   // several planes in one view are all written
+    CHECK(Pdf3D::makeCameraView(sectioned, QVector3D(0, 0, 0), 5.0f).count("/Type /3DCrossSection") == 2);
+    CHECK(Pdf3D::makeCameraView(persp, QVector3D(0, 0, 0), 5.0f).contains("/SA []"));
 
     // a scene centre behind the eye still gives a positive orbit distance
     Pdf3D::CameraViewSpec behind = persp;
@@ -482,6 +550,7 @@ int main(int argc, char** argv)
     testViews();
     testCameraViews();
     testFittedViews();
+    testClippingStateJson();
     testSceneToU3d();
     testVertexColors();
     testAppender();

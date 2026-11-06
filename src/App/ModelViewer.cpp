@@ -5578,6 +5578,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "SceneGraphExporter.h"
 #include "Pdf3DExporter.h"
 #include "Pdf3DExportDialog.h"
+#include "Pdf3DSectionChoiceDialog.h"
 #include "SceneToU3d.h"
 #include "U3dWriter.h"
 #include <QDialog>
@@ -5964,11 +5965,12 @@ void ModelViewer::exportAs3DPdf()
 
 	options.subtitle = sourceNames.join(QStringLiteral(", "));
 
+	QStringList sectionNotes;   // saved section views that could not be carried over completely
 	if (options.includeSavedViews)
 	{
 		// Saved camera views (Cameras panel, authored glTF cameras) and scene states become named PDF views. Cameras are in the
 		// space of their file; the viewer-space correction put back above maps them into the exported scene.
-		auto specFromEntry = [](const GltfCameraEntry& cam, const QString& name, const QMatrix4x4& toScene) {
+		auto specFromEntry = [&sectionNotes](const GltfCameraEntry& cam, const QString& name, const QMatrix4x4& toScene) {
 			Pdf3D::CameraViewSpec spec;
 			spec.name = name;
 			spec.eye = toScene.map(cam.worldPosition);
@@ -5977,6 +5979,27 @@ void ModelViewer::exportAs3DPdf()
 			spec.orthographic = (cam.type == GltfCameraType::Orthographic);
 			spec.fovDegrees = qRadiansToDegrees(cam.fovYRadians);
 			spec.orthoRange = (cam.capturedViewRange >= 0.0f) ? cam.capturedViewRange : std::max(cam.xMag, cam.yMag) * 2.0f;
+
+			// A captured section view (Clipping Planes) becomes the view's PDF cross section. The PDF has no box clip, so a box is
+			// reported and the view has no section.
+			if (cam.hasClipping && cam.clipping.isActive())
+			{
+				if (cam.clipping.boxEnabled)
+					sectionNotes << tr("%1: the box clip has no PDF equivalent, the view has no section.").arg(name);
+				else
+				{
+					// All planes are collected here; Acrobat shows ONE section per view (verified), so views with several planes are
+					// resolved with the user below (Pdf3DSectionChoiceDialog) before the export.
+					for (const ClippingState::Plane& plane : cam.clipping.planes)
+					{
+						Pdf3D::SectionPlane section;
+						section.axis = plane.axis;
+						section.position = plane.position;
+						section.keepPositive = plane.keepPositive;
+						spec.sections.append(section);
+					}
+				}
+			}
 			return spec;
 		};
 
@@ -6039,11 +6062,72 @@ void ModelViewer::exportAs3DPdf()
 	options.upAxis = _viewportWidget->isCameraUpAxisZUp() ? Pdf3D::UpAxis::Z : Pdf3D::UpAxis::Y;
 	options.poster = _viewportWidget->grabFramebuffer();
 
+	// Saved views with more than one clipping plane: a PDF view shows one section plane only, so the user decides, per view, which
+	// plane to export or to keep every plane in a view of its own. Cancelling stops the export.
+	{
+		QVector<Pdf3DSectionChoiceDialog::Item> items;
+		for (const Pdf3D::CameraViewSpec& spec : std::as_const(options.extraViews))
+		{
+			if (spec.sections.size() <= 1)
+				continue;
+			Pdf3DSectionChoiceDialog::Item item;
+			item.viewName = spec.name;
+			for (const Pdf3D::SectionPlane& plane : spec.sections)
+			{
+				const QString axis = QString(QChar(u'X' + plane.axis));
+				item.planes << tr("%1 = %2, keep the %3%1 side").arg(axis).arg(plane.position, 0, 'g', 6).arg(plane.keepPositive ? QStringLiteral("+") : QStringLiteral("-"));
+			}
+			items.append(item);
+		}
+		if (!items.isEmpty())
+		{
+			QApplication::restoreOverrideCursor();
+			Pdf3DSectionChoiceDialog choiceDialog(items, this);
+			if (choiceDialog.exec() != QDialog::Accepted)
+				return;
+			QApplication::setOverrideCursor(Qt::WaitCursor);
+
+			const QVector<int> choices = choiceDialog.choices();
+			QVector<Pdf3D::CameraViewSpec> resolved;
+			int itemIndex = 0;
+			for (const Pdf3D::CameraViewSpec& spec : std::as_const(options.extraViews))
+			{
+				if (spec.sections.size() <= 1)
+				{
+					resolved.append(spec);
+					continue;
+				}
+				const int choice = choices.value(itemIndex++, -1);
+				if (choice >= 0 && choice < spec.sections.size())
+				{
+					Pdf3D::CameraViewSpec one = spec;
+					one.sections = { spec.sections[choice] };
+					// keep the elaborate name so the view says which plane it shows
+					one.name = tr("%1 (plane %2 of %3)").arg(spec.name).arg(choice + 1).arg(spec.sections.size());
+					resolved.append(one);
+				}
+				else
+				{
+					for (int k = 0; k < spec.sections.size(); ++k)
+					{
+						Pdf3D::CameraViewSpec one = spec;
+						one.sections = { spec.sections[k] };
+						one.name = tr("%1 (plane %2 of %3)").arg(spec.name).arg(k + 1).arg(spec.sections.size());
+						resolved.append(one);
+					}
+				}
+			}
+			options.extraViews = resolved;
+		}
+	}
+
 	const Pdf3D::Pdf3DResult result = Pdf3D::Pdf3DExporter::exportToFile(u3dScene, options, fileName);
 	QApplication::restoreOverrideCursor();
 
 	if (result.ok)
-		QMessageBox::information(this, tr("Save as 3D PDF"), tr("Saved %1").arg(QFileInfo(fileName).fileName()));
+		QMessageBox::information(this, tr("Save as 3D PDF"),
+			sectionNotes.isEmpty() ? tr("Saved %1").arg(QFileInfo(fileName).fileName())
+			                       : tr("Saved %1\n\n%2").arg(QFileInfo(fileName).fileName(), sectionNotes.join(QLatin1Char('\n'))));
 	else
 		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Saving the 3D PDF failed:\n%1").arg(result.error));
 }
@@ -6378,6 +6462,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 					camera.needsModelTransformCompensation = false;
 				camera.capturedViewRange = static_cast<float>(
 					cameraObj[QStringLiteral("capturedViewRange")].toDouble(-1.0));
+				if (cameraObj.contains(QStringLiteral("clipping")))
+				{
+					camera.hasClipping = true;
+					camera.clipping = clippingStateFromJson(cameraObj[QStringLiteral("clipping")].toObject());
+				}
 
 				// needsNewNode isn't itself persisted - every camera in the
 				// captured-views bucket is synthetic by construction (no
@@ -6514,6 +6603,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			cam.needsNewNode = true; // synthetic, same as any captured view - see GltfCameraData.h
 			cam.capturedViewRange = static_cast<float>(
 				cameraObj[QStringLiteral("capturedViewRange")].toDouble(-1.0));
+			if (cameraObj.contains(QStringLiteral("clipping")))
+			{
+				cam.hasClipping = true;
+				cam.clipping = clippingStateFromJson(cameraObj[QStringLiteral("clipping")].toObject());
+			}
 
 			for (const QJsonValue& uv : stateObj[QStringLiteral("visibleMeshUuids")].toArray())
 				st.visibleMeshUuids.insert(QUuid(uv.toString()));
@@ -7617,6 +7711,8 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			cameraObj.insert(QStringLiteral("worldDirection"), vec3ToJson(cam.worldDirection));
 			cameraObj.insert(QStringLiteral("worldUp"), vec3ToJson(cam.worldUp));
 			cameraObj.insert(QStringLiteral("capturedViewRange"), static_cast<double>(cam.capturedViewRange));
+			if (cam.hasClipping)
+				cameraObj.insert(QStringLiteral("clipping"), clippingStateToJson(cam.clipping));
 
 			QJsonArray visArr;
 			for (const QUuid& u : s.visibleMeshUuids)

@@ -28,6 +28,16 @@ struct NodeVisibility
     QMatrix4x4 matrix;             // local-to-world, Qt layout; nodes are direct children of the scene root
 };
 
+// An Acrobat 3D cross section (section view): one plane perpendicular to X, Y or Z at a world position, keeping one side, with
+// the cut face capped. A view lists its planes (/SA); every view writes the list, empty when it has no section, because Acrobat
+// keeps the previous view's section on otherwise.
+struct SectionPlane
+{
+    int    axis = 2;               // 0 = X, 1 = Y, 2 = Z: the axis the plane is perpendicular to
+    double position = 0.0;         // world coordinate on that axis (the PDF writes it relative to the scene centre)
+    bool   keepPositive = false;   // keep the +axis side (y >= position), else the -axis side
+};
+
 // A view built from a saved camera (Cameras panel, authored glTF camera, scene state) instead of a standard direction.
 // eye/direction/up are in the exported scene's space. For a scene state, `nodes` lists the visibility of every part.
 struct CameraViewSpec
@@ -40,7 +50,14 @@ struct CameraViewSpec
     float                   fovDegrees = 45.0f;   // vertical field of view (perspective)
     float                   orthoRange = 0.0f;    // world length shown across the smaller viewport dimension (orthographic)
     QVector<NodeVisibility> nodes;                // empty: the view leaves visibility alone
+    QVector<SectionPlane>   sections;             // the cross sections of this view (empty: the view has none)
 };
+
+// The /3DCrossSection dictionary for `plane` in a scene whose bounding box centre is `sceneCenter`. Verified in Acrobat (research doc,
+// section views): the centre /C is relative to the scene's bounding box centre, and the rotation /O = [x y z] degrees with one angle
+// null decides the plane and the kept side: Z: [0 0 null] keeps z <= position, [180 0 null] keeps z >= position; Y: [-90 0 null]
+// keeps y <= position, [90 0 null] keeps y >= position; X: [0 90 null] keeps x <= position, [0 -90 null] keeps x >= position.
+QByteArray makeCrossSection(const SectionPlane& plane, const QVector3D& sceneCenter);
 
 // The /3DView dictionary for a CameraViewSpec. The orbit centre is the scene centre projected on the view axis (at least a
 // small distance in front of the eye).

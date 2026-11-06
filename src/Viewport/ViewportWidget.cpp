@@ -3820,9 +3820,56 @@ void ViewportWidget::applyClippingCuts(const QVector<ClippingCut>& cuts)
 			continue;
 		enabled[cut.axis] = true;
 		flipped[cut.axis] = cut.keepPositive;
+		// clippingCuts() reports the EFFECTIVE flip, but the editor's Flip checkbox stores the choice relative to the Y plane's
+		// default cut side (which follows the up axis, see SceneRenderController::clippingYFlipped()): convert back, or an
+		// unflipped Y plane would come back with Flip ticked in a Z-up scene.
+		if (cut.axis == 1)
+			flipped[cut.axis] = (cut.keepPositive != _renderCtrl.clippingYDefaultInverted());
 		coefficient[cut.axis] = cut.position - centres[cut.axis]; // a plane sits at its coefficient from the scene's centre
 	}
 	_clippingPlanesEditor->applyCuts(enabled, coefficient, flipped);
+}
+
+ClippingState ViewportWidget::currentClippingState() const
+{
+	ClippingState state;
+	for (const ClippingCut& cut : clippingCuts())
+		state.planes.append({ cut.axis, cut.position, cut.keepPositive });
+	state.showGizmo = !_clippingPlanesEditor || _clippingPlanesEditor->isGizmoVisible();
+	state.boxEnabled = _renderCtrl.boxClippingEnabled();
+	state.boxKeepInside = _renderCtrl.boxClippingKeepInside();
+	const BoundingBox& limits = _renderCtrl.boxClippingLimits();
+	state.boxLimits[0] = limits.xMin();
+	state.boxLimits[1] = limits.xMax();
+	state.boxLimits[2] = limits.yMin();
+	state.boxLimits[3] = limits.yMax();
+	state.boxLimits[4] = limits.zMin();
+	state.boxLimits[5] = limits.zMax();
+	return state;
+}
+
+void ViewportWidget::applyClippingState(const ClippingState& state)
+{
+	if (!_clippingPlanesEditor)
+		return;
+
+	// Everything off first (box and the three planes), through the editor's checkboxes so the render state follows.
+	_clippingPlanesEditor->applyPreset(false, false, false, false);
+	if (state.boxEnabled)
+	{
+		_clippingPlanesEditor->applyPreset(false, false, false, true);
+		_clippingPlanesEditor->applyBoxState(state.boxKeepInside, state.boxLimits);
+	}
+	else if (!state.planes.isEmpty())
+	{
+		QVector<ClippingCut> cuts;
+		for (const ClippingState::Plane& plane : state.planes)
+			cuts.append({ plane.axis, plane.position, plane.keepPositive });
+		applyClippingCuts(cuts);
+	}
+	// last: the gizmos follow which planes are on, so their visibility is set once the planes are in place
+	_clippingPlanesEditor->setGizmoVisible(state.showGizmo);
+	update();
 }
 
 QVector<ViewportWidget::ClippingCut> ViewportWidget::clippingCuts() const
@@ -13217,6 +13264,8 @@ void ViewportWidget::activateGltfCamera(const QString& sourceFile, int cameraInd
 	// (e.g. AnimationPointerUVs, where cameras have static matrix transforms
 	// but are not targeted by any animation channel).
 	applyGltfCameraEntryTransform(cam);
+	if (cam.hasClipping)
+		applyClippingState(cam.clipping);
 
 	// If an animation clip is active for this file, re-run applyAnimationPose
 	// so that animated cameras (e.g. DiffuseTransmissionPlant) get overridden
@@ -13314,6 +13363,11 @@ GltfCameraEntry ViewportWidget::captureCurrentCameraEntry(const QString& name) c
 		entry.worldUp        = _primaryCamera->getUpVector();
 	}
 
+	// The section view (Clipping Planes) is part of what the user sees, so it is captured with the view. A capture taken with no
+	// clipping is stored too (hasClipping with an inactive state): activating it switches clipping off again.
+	entry.clipping = currentClippingState();
+	entry.hasClipping = true;
+
 	return entry;
 }
 
@@ -13335,6 +13389,8 @@ void ViewportWidget::activateCameraEntry(const GltfCameraEntry& cam)
 	_animCtrl.setActiveGltfCamera(QString(), -1);
 
 	applyGltfCameraEntryTransform(cam);
+	if (cam.hasClipping)
+		applyClippingState(cam.clipping);
 
 	// Genuine one-shot jump, same as activateGltfCamera()'s non-animated
 	// branch - no animation clip will notify on this call's behalf.

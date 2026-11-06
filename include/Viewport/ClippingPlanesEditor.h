@@ -36,6 +36,8 @@ public:
 	// (still further gated per-axis by that axis's own enable checkbox -
 	// see ViewportWidget::updatePlaneGizmos()). Backed by checkBoxShowGizmo.
 	bool isGizmoVisible() const;
+	// Ticks or unticks Show Gizmo (through the checkbox, so the gizmos update): used to restore a captured section view.
+	void setGizmoVisible(bool visible);
 
 	// Pushes a coefficient value into the matching spin box WITHOUT
 	// re-triggering its own on_doubleSpinBox*Coeff_valueChanged() handler
@@ -56,6 +58,11 @@ public:
 	// render state, viewport update - run exactly as if the user had ticked them.
 	// xy/yz/zx use this panel's own naming (XY = the Z-normal plane).
 	void applyPreset(bool xy, bool yz, bool zx, bool box);
+
+	// Sets the box clip's in/out choice and its six world limits (xMin, xMax, yMin, yMax, zMin, zMax) through the spin boxes and the
+	// checkbox, so the normal handlers run. Call after the box mode has been switched on (applyPreset(.., true)): switching it on
+	// for the first time seeds the limits from the scene.
+	void applyBoxState(bool keepInside, const double limits[6]);
 
 	// ---- Box clipping (4th mode) --------------------------------------------
 	// Box limits are ABSOLUTE world coordinates (unlike the relative axis

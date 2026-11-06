@@ -49,7 +49,7 @@ constexpr float kOrthoFovDegrees = 2.0f;
 const char* const kPerspective30 = "<< /Type /3DProjection /Subtype /P /PS /Min /FOV 30 >>";
 
 QByteArray buildView(const QString& name, const QVector3D& eye, const QVector3D& target, const QVector3D& up,
-                     const QByteArray& projection, const QByteArray& nodes)
+                     const QByteArray& projection, const QByteArray& nodes, const QByteArray& sections = QByteArray())
 {
     const QVector3D forward = (target - eye).normalized();
     QVector3D upN = up.normalized();
@@ -77,6 +77,7 @@ QByteArray buildView(const QString& name, const QVector3D& eye, const QVector3D&
            PdfAppender::pdfNumber((target - eye).length()) +
            " /P " + projection +
            (nodes.isEmpty() ? QByteArray() : " /NA [" + nodes + "]") +
+           " /SA [" + sections + "]" +   // always written: a view without a section must clear the previous view's
            " /BG << /Type /3DBG /Subtype /SC /C [1 1 1] >>"
            " /RM << /Type /3DRenderMode /Subtype /Solid >>"
            " /LS << /Type /3DLightingScheme /Subtype /CAD >> >>";
@@ -87,6 +88,28 @@ QByteArray buildView(const QString& name, const QVector3D& eye, const QVector3D&
 QByteArray makeView(const QString& name, const QVector3D& eye, const QVector3D& target, const QVector3D& up)
 {
     return buildView(name, eye, target, up, kPerspective30, QByteArray());
+}
+
+QByteArray makeCrossSection(const SectionPlane& plane, const QVector3D& sceneCenter)
+{
+    const int axis = qBound(0, plane.axis, 2);
+    const double centre[3] = {0.0, 0.0, 0.0};
+    double c[3] = {centre[0], centre[1], centre[2]};
+    const double sceneC[3] = {sceneCenter.x(), sceneCenter.y(), sceneCenter.z()};
+    c[axis] = plane.position - sceneC[axis];   // relative to the scene's bounding box centre (verified in Acrobat)
+
+    // the rotation that turns the default plane (perpendicular to Z, keeping z <= position) onto the wanted axis and side
+    const char* angles = nullptr;
+    switch (axis)
+    {
+    case 0: angles = plane.keepPositive ? "0 -90 null" : "0 90 null"; break;
+    case 1: angles = plane.keepPositive ? "90 0 null" : "-90 0 null"; break;
+    default: angles = plane.keepPositive ? "180 0 null" : "0 0 null"; break;
+    }
+    // the capped cut face and a thin dark outline; the translucent plane itself is hidden (the viewer shows none either)
+    return "<< /Type /3DCrossSection /C [" + PdfAppender::pdfNumber(c[0]) + " " + PdfAppender::pdfNumber(c[1]) + " " +
+           PdfAppender::pdfNumber(c[2]) + "] /O [" + angles + "] /PO 0.25 /PC [/DeviceRGB 0.7 0.8 1] /PV false /IV true "
+           "/IC [/DeviceRGB 0.15 0.15 0.15] /SC true >>";
 }
 
 QByteArray makeCameraView(const CameraViewSpec& spec, const QVector3D& sceneCenter, float sceneRadius)
@@ -139,7 +162,14 @@ QByteArray makeCameraView(const CameraViewSpec& spec, const QVector3D& sceneCent
         }
         nodes += " >>";
     }
-    return buildView(spec.name, eye, target, spec.up, projection, nodes);
+    QByteArray sections;
+    for (const SectionPlane& plane : spec.sections)
+    {
+        if (!sections.isEmpty())
+            sections += ' ';
+        sections += makeCrossSection(plane, sceneCenter);
+    }
+    return buildView(spec.name, eye, target, spec.up, projection, nodes, sections);
 }
 
 QList<QByteArray> standardViews(const QVector3D& center, float radius, UpAxis upAxis)
