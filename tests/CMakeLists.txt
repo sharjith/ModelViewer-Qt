@@ -97,6 +97,7 @@ add_executable(pdf3d_tests
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/SceneToU3d.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/PdfAppender.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/Pdf3DViews.cpp
+    ${CMAKE_SOURCE_DIR}/src/Pdf3D/OverlayToU3d.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/Pdf3DExporter.cpp
 )
 target_include_directories(pdf3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Pdf3D ${CMAKE_SOURCE_DIR}/include/Scene)

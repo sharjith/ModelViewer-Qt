@@ -38,6 +38,7 @@ struct U3dNode
     QString    name;
     QString    displayName;
     int        meshIndex = -1;
+    bool       overlay = false;      // a measurement or annotation graphic, not a part (kept out of the parts list and count)
     QMatrix4x4 world;                // local-to-world; Qt layout, written as the row-vector matrix u3d expects
 };
 

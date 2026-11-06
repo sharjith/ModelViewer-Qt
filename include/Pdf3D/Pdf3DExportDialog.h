@@ -40,7 +40,15 @@ public:
 		bool    warning = false;     // the note is a limitation of this view (shown highlighted)
 	};
 
-	Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo, QWidget* parent = nullptr);
+	// A measurement or annotation that can be written into the 3D model.
+	struct OverlayItem
+	{
+		QString group;   // "Measurements" or "Annotations"
+		QString name;
+	};
+
+	Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
+		const QVector<OverlayItem>& overlays, QWidget* parent = nullptr);
 	~Pdf3DExportDialog() override;
 
 	// Copies the sheet tab's values into the title block fields of `options` (title, drawing number, revision, author, company,
@@ -50,13 +58,18 @@ public:
 	// For each ViewItem passed to the constructor, in order: whether it is ticked.
 	QVector<bool> viewSelection() const;
 
+	// For each OverlayItem passed to the constructor, in order: whether it is ticked.
+	QVector<bool> overlaySelection() const;
+
 protected:
 	void done(int result) override;   // saves the remembered fields and the geometry on every way out
 
 private:
 	void updateOkEnabled();
 	void setAllViewsChecked(bool checked);
+	void setAllOverlaysChecked(bool checked);
 
 	std::unique_ptr<Ui::Pdf3DExportDialog> ui;
 	int _viewCount = 0;
+	int _overlayCount = 0;
 };

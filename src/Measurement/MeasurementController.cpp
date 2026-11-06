@@ -4104,13 +4104,53 @@ void MeasurementController::finishDimensionLineDrag(ViewportWidget* viewportWidg
 	_dimensionDragKind = DimensionDragKind::None;
 }
 
-void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer)
+bool MeasurementController::captureGraphic(const QUuid& id, Camera* camera, const QSize& viewportSize, OverlayGraphic* out)
+{
+	if (!out || !camera)
+		return false;
+	// The draw refills the live viewport's hit-testing state; keep it as it was.
+	const auto savedHandles = _labelHandles;
+	const auto savedStrokes = _recordedStrokes;
+	const auto savedMinDistance = _minDistanceSegments;
+
+	OverlayGraphic graphic;
+	drawMeasurementOverlay(camera, viewportSize, nullptr, &graphic, id);
+
+	_labelHandles = savedHandles;
+	_recordedStrokes = savedStrokes;
+	_minDistanceSegments = savedMinDistance;
+	if (graphic.lines.empty() && graphic.triangles.empty())
+		return false;
+	graphic.id = id;
+	graphic.annotation = false;
+	*out = std::move(graphic);
+	return true;
+}
+
+QVector<QUuid> MeasurementController::visibleMeasurementIds() const
+{
+	QVector<QUuid> ids;
+	if (!_viewer || !_viewer->sceneGraph())
+		return ids;
+	for (const Measurement& m : _viewer->sceneGraph()->measurements())
+	{
+		if (isEffectivelyVisible(m))
+			ids.append(m.id);
+	}
+	return ids;
+}
+
+void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer,
+	OverlayGraphic* capture, const QUuid& captureId)
 {
 	// Refilled below by what this draw shows; anything not drawn this time (hidden, deleted) cannot be hit.
 	_labelHandles.clear();
 	_recordedStrokes.clear();
 	_minDistanceSegments.clear();
-	if (!_glFunctionsInitialized || !camera || !axisTextRenderer || !_renderCtrl.axisShader() || !_viewer || !_viewer->sceneGraph())
+	if (!camera || !_viewer || !_viewer->sceneGraph())
+		return;
+	// a capture touches no OpenGL state, so it needs neither the GL functions nor the text renderer
+	if (!capture && (!_glFunctionsInitialized || !axisTextRenderer || !_renderCtrl.axisShader()))
 		return;
 
 	const QVector<Measurement>& measurements = _viewer->sceneGraph()->measurements();
@@ -4712,11 +4752,13 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 	{
 		if (!isEffectivelyVisible(m))
 			continue;
+		if (capture && m.id != captureId)
+			continue;
 
 		dimPlaneValid = false;
 		dimAlign = 0.0f;
 		dimOrientation = m.orientation;
-		const bool isSelected = _selectedMeasurementIds.contains(m.id);
+		const bool isSelected = !capture && _selectedMeasurementIds.contains(m.id);
 		// Selection is the stronger cue and wins if somehow both apply
 		// (shouldn't normally happen - hover-select only runs while nothing
 		// new is being placed - but a stale hover from just before a click
@@ -4746,7 +4788,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		// distinct from `color` above (used for markers/legs/normal-
 		// indicators, which don't change) so the exact grabbable part reads
 		// clearly, not the whole measurement.
-		const bool isDimensionHovered = !isSelected && (m.id == _hoveredDimensionId);
+		const bool isDimensionHovered = !capture && !isSelected && (m.id == _hoveredDimensionId);
 		const QVector3D dimensionColor = isDimensionHovered
 			? (color * 0.4f + QVector3D(1.0f, 1.0f, 1.0f) * 0.6f)
 			: color;
@@ -5427,6 +5469,14 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 				appendReportLabel(m, (pathPoints.first() + pathPoints.last()) * 0.5f, summary, dimensionColor);
 			}
 		}
+	}
+
+	if (capture)
+	{
+		// the geometry of the one measurement, nothing of the live interaction (pending picks, hover previews) and no drawing
+		capture->lines = std::move(lineVertices);
+		capture->triangles = std::move(triangleVertices);
+		return;
 	}
 
 	// In-progress measurement: N of the required anchors already picked,

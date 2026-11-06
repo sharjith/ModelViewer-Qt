@@ -13,6 +13,7 @@ class ToolsToolbar;
 
 #include "AdaptiveShadowMapper.h"
 #include "ClippingState.h"
+#include "OverlayGraphic.h"
 #include "AnimationRuntimeController.h"
 #include "VisibilityComputationHelper.h"
 #include "BoundingSphere.h"
@@ -1651,6 +1652,11 @@ public:
 	// The Clipping Planes as they are now (planes at their world position, or the box with its world limits), for saving with a
 	// captured view or a scene state; and the reverse: switches everything off, then applies `state` through the Clipping Planes
 	// editor so its controls follow. An inactive state switches the clipping off.
+	// The geometry of every visible measurement and annotation, each captured for the view it was created from (a scratch orthographic
+	// camera looking along its offsetReferenceDir, so a label oriented for that view comes out that way whatever the live camera
+	// shows), without any drawing; for exports (Save as 3D PDF). Items that draw nothing are left out.
+	QVector<OverlayGraphic> captureOverlayGraphics() const;
+
 	ClippingState currentClippingState() const;
 	void applyClippingState(const ClippingState& state);
 

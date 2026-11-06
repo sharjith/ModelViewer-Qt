@@ -5626,6 +5626,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "SceneGraphExporter.h"
 #include "Pdf3DExporter.h"
 #include "Pdf3DExportDialog.h"
+#include "OverlayToU3d.h"
 #include "SceneToU3d.h"
 #include "U3dWriter.h"
 #include <QDialog>
@@ -5989,8 +5990,15 @@ void ModelViewer::exportAs3DPdf()
 		sourceNames << fileNode->name;
 	}
 
-	const Pdf3D::U3dScene u3dScene = Pdf3D::SceneToU3d::build(exportScene, corrections);
+	Pdf3D::U3dScene u3dScene = Pdf3D::SceneToU3d::build(exportScene, corrections);
 	delete exportScene;
+
+	// The visible measurements and annotations, each captured for the view it was made from (no drawing involved); the options
+	// dialog lists them and the ticked ones are written into the 3D model as nodes of their own.
+	const QVector<OverlayGraphic> overlayGraphics = _viewportWidget->captureOverlayGraphics();
+	QVector<Pdf3DExportDialog::OverlayItem> overlayItems;
+	for (const OverlayGraphic& graphic : overlayGraphics)
+		overlayItems.append({ graphic.annotation ? tr("Annotations") : tr("Measurements"), graphic.name });
 
 	// ---- the views the document can offer ----------------------------------------------------------------------------------
 	struct ViewEntry
@@ -6164,7 +6172,7 @@ void ModelViewer::exportAs3DPdf()
 	QString defaultTitle;
 	if (!_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
-	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), this);
+	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, this);
 	if (optionsDialog.exec() != QDialog::Accepted)
 		return;
 	Pdf3D::Pdf3DOptions options;
@@ -6183,6 +6191,27 @@ void ModelViewer::exportAs3DPdf()
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
 	options.subtitle = sourceNames.join(QStringLiteral(", "));
+
+	// Ticked measurements and annotations become nodes of the 3D model. The ribbon width of a line is a fixed fraction of the model's
+	// size, so lines read at the same weight whatever the units.
+	{
+		const QVector<bool> overlaySelection = optionsDialog.overlaySelection();
+		QVector3D lo, hi;
+		const float diagonal = u3dScene.computeBounds(&lo, &hi) ? (hi - lo).length() : 1.0f;
+		const float lineWidth = std::max(diagonal * 0.0015f, 1.0e-6f);
+		for (int i = 0; i < overlayGraphics.size() && i < overlaySelection.size(); ++i)
+		{
+			if (!overlaySelection[i])
+				continue;
+			Pdf3D::OverlayGraphicData data;
+			data.name = overlayGraphics[i].name;
+			data.viewDirection = overlayGraphics[i].viewDirection;
+			data.lines = overlayGraphics[i].lines;
+			data.triangles = overlayGraphics[i].triangles;
+			Pdf3D::OverlayToU3d::append(u3dScene, data, lineWidth);
+		}
+	}
+
 	const QVector<bool> selection = optionsDialog.viewSelection();
 	for (int i = 0; i < entries.size() && i < selection.size(); ++i)
 	{

@@ -635,10 +635,45 @@ void AnnotationController::finishAnnotationLeaderDrag(ViewportWidget* viewportWi
     _leaderDragCandidateId = QUuid();
 }
 
-void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer)
+bool AnnotationController::captureGraphic(const QUuid& id, Camera* camera, const QSize& viewportSize, OverlayGraphic* out)
+{
+    if (!out || !camera)
+        return false;
+    const auto savedStrokes = _recordedStrokes;   // the draw refills the live viewport's hit-testing state; keep it as it was
+
+    OverlayGraphic graphic;
+    drawAnnotationOverlay(camera, viewportSize, nullptr, &graphic, id);
+
+    _recordedStrokes = savedStrokes;
+    if (graphic.lines.empty() && graphic.triangles.empty())
+        return false;
+    graphic.id = id;
+    graphic.annotation = true;
+    *out = std::move(graphic);
+    return true;
+}
+
+QVector<QUuid> AnnotationController::visibleAnnotationIds() const
+{
+    QVector<QUuid> ids;
+    if (!_viewer || !_viewer->sceneGraph())
+        return ids;
+    for (const Annotation& a : _viewer->sceneGraph()->annotations())
+    {
+        if (isEffectivelyVisible(a))
+            ids.append(a.id);
+    }
+    return ids;
+}
+
+void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer,
+    OverlayGraphic* capture, const QUuid& captureId)
 {
     _recordedStrokes.clear();
-    if (!_glFunctionsInitialized || !camera || !axisTextRenderer || !_renderCtrl.axisShader() || !_viewer || !_viewer->sceneGraph())
+    if (!camera || !_viewer || !_viewer->sceneGraph())
+        return;
+    // a capture touches no OpenGL state, so it needs neither the GL functions nor the text renderer
+    if (!capture && (!_glFunctionsInitialized || !axisTextRenderer || !_renderCtrl.axisShader()))
         return;
 
     const QVector<Annotation>& annotations = _viewer->sceneGraph()->annotations();
@@ -673,11 +708,13 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
     {
         if (!isEffectivelyVisible(a))
             continue;
+        if (capture && a.id != captureId)
+            continue;
 
-        const bool isSelected = _selectedAnnotationIds.contains(a.id);
+        const bool isSelected = !capture && _selectedAnnotationIds.contains(a.id);
         // Selection is the stronger cue - see MeasurementController::
         // drawMeasurementOverlay()'s identical reasoning.
-        const bool isHovered = !isSelected && (a.id == _hoveredAnnotationId || a.id == _hoveredLeaderId);
+        const bool isHovered = !capture && !isSelected && (a.id == _hoveredAnnotationId || a.id == _hoveredLeaderId);
 
         QVector3D color = isSelected ? selectedColor : noteColor;
         if (isHovered)
@@ -756,6 +793,14 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         }
 
         labels.append({ labelPos, a.text });
+    }
+
+    if (capture)
+    {
+        // the geometry of the one annotation (filled letters included), no live placement preview and no drawing
+        capture->lines = std::move(lineVertices);
+        capture->triangles = std::move(fillVertices);
+        return;
     }
 
     // Live placement preview while the tool is armed - mirrors

@@ -16,10 +16,12 @@ namespace
 	constexpr int kViewIndexRole = Qt::UserRole;   // the index into the caller's ViewItem list, on the leaf items
 }
 
-Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo, QWidget* parent)
+Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
+	const QVector<OverlayItem>& overlays, QWidget* parent)
 	: QDialog(parent)
 	, ui(std::make_unique<Ui::Pdf3DExportDialog>())
 	, _viewCount(views.size())
+	, _overlayCount(overlays.size())
 {
 	ui->setupUi(this);
 
@@ -77,6 +79,32 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	connect(ui->selectAllButton, &QPushButton::clicked, this, [this]() { setAllViewsChecked(true); });
 	connect(ui->selectNoneButton, &QPushButton::clicked, this, [this]() { setAllViewsChecked(false); });
 	ui->tabWidget->setTabEnabled(1, !views.isEmpty());
+
+	// the measurements and annotations, grouped; all ticked at first
+	QTreeWidgetItem* overlayGroup = nullptr;
+	QString overlayGroupName;
+	for (int i = 0; i < overlays.size(); ++i)
+	{
+		const OverlayItem& overlay = overlays[i];
+		if (!overlayGroup || overlay.group != overlayGroupName)
+		{
+			overlayGroup = new QTreeWidgetItem(ui->overlayTree, QStringList{overlay.group});
+			overlayGroup->setFlags(overlayGroup->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
+			overlayGroup->setCheckState(0, Qt::Checked);
+			QFont f = overlayGroup->font(0);
+			f.setBold(true);
+			overlayGroup->setFont(0, f);
+			overlayGroupName = overlay.group;
+		}
+		auto* item = new QTreeWidgetItem(overlayGroup, QStringList{overlay.name});
+		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+		item->setCheckState(0, Qt::Checked);
+		item->setData(0, kViewIndexRole, i);
+	}
+	ui->overlayTree->expandAll();
+	connect(ui->overlayAllButton, &QPushButton::clicked, this, [this]() { setAllOverlaysChecked(true); });
+	connect(ui->overlayNoneButton, &QPushButton::clicked, this, [this]() { setAllOverlaysChecked(false); });
+	ui->tabWidget->setTabEnabled(2, !overlays.isEmpty());
 	updateOkEnabled();
 }
 
@@ -104,6 +132,27 @@ QVector<bool> Pdf3DExportDialog::viewSelection() const
 			selection[index.toInt()] = ((*it)->checkState(0) == Qt::Checked);
 	}
 	return selection;
+}
+
+QVector<bool> Pdf3DExportDialog::overlaySelection() const
+{
+	QVector<bool> selection(_overlayCount, false);
+	for (QTreeWidgetItemIterator it(ui->overlayTree); *it; ++it)
+	{
+		const QVariant index = (*it)->data(0, kViewIndexRole);
+		if (index.isValid())
+			selection[index.toInt()] = ((*it)->checkState(0) == Qt::Checked);
+	}
+	return selection;
+}
+
+void Pdf3DExportDialog::setAllOverlaysChecked(bool checked)
+{
+	for (QTreeWidgetItemIterator it(ui->overlayTree); *it; ++it)
+	{
+		if ((*it)->data(0, kViewIndexRole).isValid())
+			(*it)->setCheckState(0, checked ? Qt::Checked : Qt::Unchecked);
+	}
 }
 
 void Pdf3DExportDialog::setAllViewsChecked(bool checked)

@@ -4,6 +4,7 @@
 #include "MeasurementData.h"
 #include "MeshSurfaceAnchor.h"
 #include "MeshEdgeCircleAnchor.h"
+#include "OverlayGraphic.h"
 #include "SelectionManager.h"  // HoverHighlightMode - used as a value field type below
 
 #include <QHash>
@@ -247,7 +248,17 @@ public:
 	// controller otherwise depending on no ViewportWidget back-reference.
 	void finishDimensionLineDrag(ViewportWidget* viewportWidget);
 
-	void drawMeasurementOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer);
+	// With `capture` set the function builds the geometry of the ONE measurement `captureId` into it and draws nothing (no OpenGL
+	// is touched, axisTextRenderer may be null); selection and hover are ignored, pending picks and hover previews are skipped.
+	void drawMeasurementOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer,
+		OverlayGraphic* capture = nullptr, const QUuid& captureId = QUuid());
+
+	// The geometry of measurement `id` as the overlay would draw it with `camera` (see OverlayGraphic.h and drawMeasurementOverlay()),
+	// without disturbing the live viewport's hit-testing state. False when the measurement draws nothing.
+	bool captureGraphic(const QUuid& id, Camera* camera, const QSize& viewportSize, OverlayGraphic* out);
+
+	// The measurements the overlay shows now (visible ones), in order, for listing in an export.
+	QVector<QUuid> visibleMeasurementIds() const;
 
 	// ---- Hover preview (called from ViewportWidget::mouseMoveEvent) ------
 	// Live hover preview while a pick tool is armed - the specific point/

@@ -4032,6 +4032,78 @@ void ViewportWidget::applyClippingCuts(const QVector<ClippingCut>& cuts)
 	_clippingPlanesEditor->applyCuts(enabled, coefficient, flipped);
 }
 
+QVector<OverlayGraphic> ViewportWidget::captureOverlayGraphics() const
+{
+	QVector<OverlayGraphic> graphics;
+	if (!_viewer || !_viewer->sceneGraph() || (!_measurementController && !_annotationController))
+		return graphics;
+
+	const BoundingSphere& sphere = _viewCtrl.boundingSphere();
+	const QVector3D center = sphere.getCenter();
+	const float radius = std::max(sphere.getRadius(), 1.0e-3f);
+	const bool zUp = _viewCtrl.cameraUpAxisZUp();
+	const QSize size(1200, 800);
+
+	// A scratch orthographic camera looking along `viewDir`, with the up direction the world's up axis gives; the view range is
+	// the scene's diameter, so markers and arrowheads come out at the size the live overlay gives them in a fitted view.
+	const auto aimCamera = [&](Camera& cam, const QVector3D& requested) {
+		QVector3D dir = requested;
+		if (dir.lengthSquared() < 1.0e-8f)
+			dir = _primaryCamera ? _primaryCamera->getViewDir() : QVector3D(0.0f, 1.0f, 0.0f);
+		dir.normalize();
+		QVector3D worldUp = zUp ? QVector3D(0.0f, 0.0f, 1.0f) : QVector3D(0.0f, 1.0f, 0.0f);
+		if (std::fabs(QVector3D::dotProduct(dir, worldUp)) > 0.999f)
+			worldUp = QVector3D(1.0f, 0.0f, 0.0f);
+		const QVector3D right = QVector3D::crossProduct(dir, worldUp).normalized();
+		const QVector3D up = QVector3D::crossProduct(right, dir).normalized();
+		cam.setMode(Camera::CameraMode::Fly);
+		cam.setProjectionType(Camera::ProjectionType::ORTHOGRAPHIC);
+		cam.setScreenSize(static_cast<float>(size.width()), static_cast<float>(size.height()));
+		cam.setViewRange(2.0f * radius);
+		cam.setSceneRadius(radius);
+		cam.setView(center - dir * (3.0f * radius), dir, up, right);
+		cam.updateViewMatrix();
+		cam.updateProjectionMatrix();
+		return dir;
+	};
+
+	if (_measurementController)
+	{
+		const QVector<QUuid> visibleMeasurements = _measurementController->visibleMeasurementIds();
+		for (const Measurement& m : _viewer->sceneGraph()->measurements())
+		{
+			if (!visibleMeasurements.contains(m.id))
+				continue;
+			Camera cam(static_cast<float>(size.width()), static_cast<float>(size.height()), 2.0f * radius, 45.0f);
+			const QVector3D dir = aimCamera(cam, m.offsetReferenceDir);
+			OverlayGraphic graphic;
+			if (!_measurementController->captureGraphic(m.id, &cam, size, &graphic))
+				continue;
+			graphic.name = _measurementController->measurementSummaryText(m).replace(QLatin1Char('\n'), QStringLiteral(" - "));
+			graphic.viewDirection = dir;
+			graphics.append(std::move(graphic));
+		}
+	}
+	if (_annotationController)
+	{
+		const QVector<QUuid> visibleAnnotations = _annotationController->visibleAnnotationIds();
+		for (const Annotation& a : _viewer->sceneGraph()->annotations())
+		{
+			if (!visibleAnnotations.contains(a.id))
+				continue;
+			Camera cam(static_cast<float>(size.width()), static_cast<float>(size.height()), 2.0f * radius, 45.0f);
+			const QVector3D dir = aimCamera(cam, a.offsetReferenceDir);
+			OverlayGraphic graphic;
+			if (!_annotationController->captureGraphic(a.id, &cam, size, &graphic))
+				continue;
+			graphic.name = a.text.split(QLatin1Char('\n')).value(0);
+			graphic.viewDirection = dir;
+			graphics.append(std::move(graphic));
+		}
+	}
+	return graphics;
+}
+
 ClippingState ViewportWidget::currentClippingState() const
 {
 	ClippingState state;

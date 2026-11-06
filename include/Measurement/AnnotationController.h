@@ -3,6 +3,7 @@
 #include "IGpuContextResource.h"
 #include "AnnotationData.h"
 #include "MeshSurfaceAnchor.h"
+#include "OverlayGraphic.h"
 #include "SelectionManager.h"  // HoverHighlightMode - used as a value field type below
 
 #include <QObject>
@@ -102,7 +103,17 @@ public:
     // makes for finishDimensionLineDrag().
     void finishAnnotationLeaderDrag(ViewportWidget* viewportWidget);
 
-    void drawAnnotationOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer);
+    // With `capture` set the function builds the geometry of the ONE annotation `captureId` into it and draws nothing (no OpenGL is
+    // touched, axisTextRenderer may be null); selection and hover are ignored.
+    void drawAnnotationOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer,
+        OverlayGraphic* capture = nullptr, const QUuid& captureId = QUuid());
+
+    // The geometry of annotation `id` as the overlay would draw it with `camera` (see OverlayGraphic.h), without disturbing the live
+    // viewport's hit-testing state. False when the annotation draws nothing.
+    bool captureGraphic(const QUuid& id, Camera* camera, const QSize& viewportSize, OverlayGraphic* out);
+
+    // The annotations the overlay shows now (visible ones), in order, for listing in an export.
+    QVector<QUuid> visibleAnnotationIds() const;
 
     // ---- Hover preview (called from ViewportWidget::mouseMoveEvent) ------
     // Live hover preview of where a click would place a note, while the

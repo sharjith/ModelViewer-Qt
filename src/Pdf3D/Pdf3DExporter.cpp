@@ -83,7 +83,7 @@ QVector<PartRow> buildPartRows(const U3dScene& scene, const QString& sourceFiles
     QHash<QString, int> index;
     for (const U3dNode& n : scene.nodes)
     {
-        if (n.meshIndex < 0 || n.meshIndex >= scene.meshes.size())
+        if (n.overlay || n.meshIndex < 0 || n.meshIndex >= scene.meshes.size())
             continue;
         const QString key = n.displayName + QLatin1Char('|') + QString::number(n.meshIndex);
         auto it = index.constFind(key);
@@ -315,7 +315,9 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         }
         layout.titleBlock = QRectF(kMargin, layout.page.bottom() - kMargin - blockHeight, layout.page.width() - 2 * kMargin, blockHeight);
         layout.area3d = QRectF(QPointF(kMargin, kMargin), QPointF(layout.page.right() - kMargin, layout.titleBlock.top() - 12));
-        const int partCount = static_cast<int>(scene.nodes.size());
+        int partCount = 0;
+        for (const U3dNode& n : scene.nodes)
+            partCount += n.overlay ? 0 : 1;
         const QVector<PartRow> rows = options.includePartsList ? buildPartRows(scene, options.subtitle) : QVector<PartRow>();
         const int perSheet = partsRowsPerSheet(layout);
         const int listSheets = rows.isEmpty() ? 0 : (static_cast<int>(rows.size()) + perSheet - 1) / perSheet;

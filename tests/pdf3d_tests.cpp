@@ -4,6 +4,7 @@
 //                        in-process u3d conversion (skipped when the u3d modules are not next to the test executable)
 //   pdf3d_tests --full   additionally runs Pdf3DExporter::exportToFile (text layout and fonts) and checks the written file
 #include "ClippingState.h"
+#include "OverlayToU3d.h"
 #include "PdfAppender.h"
 #include "Pdf3DExporter.h"
 #include "Pdf3DViews.h"
@@ -186,6 +187,51 @@ void testClippingStateJson()
     badPlane.insert(QStringLiteral("axis"), 7);
     bad.insert(QStringLiteral("planes"), QJsonArray{badPlane});
     CHECK(clippingStateFromJson(bad).planes.isEmpty());
+}
+
+void testOverlayToU3d()
+{
+    aiScene* scene = makeTriangleScene();
+    Pdf3D::U3dScene u = Pdf3D::SceneToU3d::build(scene);
+    delete scene;
+    const int nodesBefore = u.nodes.size();
+    const int meshesBefore = u.meshes.size();
+
+    // one dark and one bright triangle (a letter with its halo, coplanar) and one yellow segment
+    Pdf3D::OverlayGraphicData g;
+    g.name = QStringLiteral("Distance 12.5 mm");
+    g.viewDirection = QVector3D(0, 1, 0);
+    g.triangles = {0, 0, 0, 0.06f, 0.06f, 0.08f,  1, 0, 0, 0.06f, 0.06f, 0.08f,  0, 0, 1, 0.06f, 0.06f, 0.08f,
+                   0, 0, 0, 1.0f, 0.82f, 0.15f,   1, 0, 0, 1.0f, 0.82f, 0.15f,   0, 0, 1, 1.0f, 0.82f, 0.15f};
+    g.lines = {0, 0, 0, 1.0f, 0.82f, 0.15f,  0, 0, 5, 1.0f, 0.82f, 0.15f};
+    const int added = Pdf3D::OverlayToU3d::append(u, g, 0.1f);
+
+    // two colours -> two nodes, each with its own mesh; the segment joined the bright group as two crossed ribbons (4 triangles)
+    CHECK(added == 2 && u.nodes.size() == nodesBefore + 2 && u.meshes.size() == meshesBefore + 2);
+    if (u.nodes.size() == nodesBefore + 2)
+    {
+        const Pdf3D::U3dNode& dark = u.nodes[nodesBefore];
+        const Pdf3D::U3dNode& bright = u.nodes[nodesBefore + 1];
+        CHECK(dark.overlay && bright.overlay && !u.nodes[0].overlay);
+        CHECK(dark.name.startsWith(QStringLiteral("O0000_")) && bright.name.startsWith(QStringLiteral("O0001_")));
+        CHECK(dark.displayName == g.name);
+        CHECK(u.meshes[dark.meshIndex].indices.size() == 3);                        // the halo triangle
+        CHECK(u.meshes[bright.meshIndex].indices.size() == 3 + 4 * 3);              // the letter triangle + 4 ribbon triangles
+        // flat colour, materials shared by colour, the brighter group nudged towards the viewer (-view) against z-fighting
+        CHECK(u.materials[u.meshes[bright.meshIndex].materialIndex].emissive.x() > 0.4f);
+        CHECK(u.meshes[bright.meshIndex].positions[1] < u.meshes[dark.meshIndex].positions[1]);
+    }
+
+    // a second graphic of the same colours reuses the materials
+    const int materialsAfterFirst = u.materials.size();
+    Pdf3D::OverlayGraphicData g2 = g;
+    g2.name = QStringLiteral("Note");
+    Pdf3D::OverlayToU3d::append(u, g2, 0.1f);
+    CHECK(u.materials.size() == materialsAfterFirst);
+
+    // degenerate input adds nothing
+    Pdf3D::OverlayGraphicData empty;
+    CHECK(Pdf3D::OverlayToU3d::append(u, empty, 0.1f) == 0);
 }
 
 void testFittedViews()
@@ -589,6 +635,7 @@ int main(int argc, char** argv)
     testCameraViews();
     testFittedViews();
     testClippingStateJson();
+    testOverlayToU3d();
     testSceneToU3d();
     testVertexColors();
     testAppender();

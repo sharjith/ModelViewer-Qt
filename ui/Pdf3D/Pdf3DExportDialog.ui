@@ -223,6 +223,69 @@ item number, part name, material and quantity.</string>
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="overlayTab">
+      <attribute name="title">
+       <string>Measurements</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="overlayLayout">
+       <item>
+        <widget class="QLabel" name="overlayIntroLabel">
+         <property name="text">
+          <string>Tick the measurements and annotations to add to the 3D model. They are written for the view they were made from and show in every view.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTreeWidget" name="overlayTree">
+         <property name="rootIsDecorated">
+          <bool>true</bool>
+         </property>
+         <property name="uniformRowHeights">
+          <bool>true</bool>
+         </property>
+         <column>
+          <property name="text">
+           <string>Item</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="overlayButtonsLayout">
+         <item>
+          <widget class="QPushButton" name="overlayAllButton">
+           <property name="text">
+            <string>Select all</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="overlayNoneButton">
+           <property name="text">
+            <string>Select none</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="overlayButtonsSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
    <item>
