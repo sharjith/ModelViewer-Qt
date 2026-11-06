@@ -5,6 +5,7 @@
 #include "RenderableMesh.h"
 #include "SceneMesh.h"
 #include "PunctualLights.h"
+#include "UnlitMaterialExport.h"
 
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
@@ -12,6 +13,7 @@
 #include <assimp/anim.h>
 #include <assimp/camera.h>
 #include <assimp/material.h>
+#include <assimp/GltfMaterial.h>
 #include <assimp/mesh.h>
 #include <assimp/scene.h>
 #include <assimp/light.h>
@@ -425,6 +427,11 @@ namespace
         aiTextureMapMode mapModeV = toAiTextureMapMode(tex.wrapT);
         aiMat->AddProperty(&mapModeU, 1, AI_MATKEY_MAPPINGMODE_U(aiType, slot));
         aiMat->AddProperty(&mapModeV, 1, AI_MATKEY_MAPPINGMODE_V(aiType, slot));
+
+        const int magFilter = static_cast<int>(tex.magFilter);
+        const int minFilter = static_cast<int>(tex.minFilter);
+        aiMat->AddProperty(&magFilter, 1, AI_MATKEY_GLTF_MAPPINGFILTER_MAG(aiType, slot));
+        aiMat->AddProperty(&minFilter, 1, AI_MATKEY_GLTF_MAPPINGFILTER_MIN(aiType, slot));
 
         aiUVTransform uvTransform;
         uvTransform.mTranslation = aiVector2D(tex.offset.x, tex.offset.y);
@@ -1782,6 +1789,7 @@ aiMaterial* SceneGraphExporter::buildMaterialFromSceneMesh(const SceneMesh* mesh
     const Material material = exportBaseMaterial(mesh);
 
     aiMaterial* aiMat = new aiMaterial();
+    UnlitMaterialExport::apply(*aiMat, material.isUnlit());
 
     const QString materialName =
         material.name().trimmed().isEmpty()
@@ -1885,7 +1893,7 @@ aiMaterial* SceneGraphExporter::buildMaterialFromSceneMesh(const SceneMesh* mesh
     // Basic rendering hints.
     {
         int twoSided = material.twoSided() ? 1 : 0;
-        aiMat->AddProperty(&twoSided, 1, "$mat.gltf.doubleSided", 0, 0);
+        aiMat->AddProperty(&twoSided, 1, AI_MATKEY_TWOSIDED);
     }
 
     {

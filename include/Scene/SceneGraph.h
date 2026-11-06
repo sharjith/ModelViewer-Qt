@@ -221,6 +221,10 @@ public:
     // Measurement::offsetVector's doc comment.
     void setMeasurementOffsetVector(const QUuid& id, const QVector3D& offsetVector);
 
+    // Switches a 3-point angle between the angle and its reflex (see Measurement::reflexAngle). The value shown changes, so
+    // listeners are told.
+    void setMeasurementReflexAngle(const QUuid& id, bool reflex);
+
     // -----------------------------------------------------------------------
     // Annotations ("Annotate" tool) - text notes with a leader line, anchored
     // to a mesh surface point. Document-level, not per-file - see
@@ -248,6 +252,10 @@ public:
     // at drag-end), same "direct mutator + separate command wraps it" split
     // as setMeasurementOffsetVector().
     void setAnnotationLeaderOffset(const QUuid& id, const QVector3D& leaderOffset);
+
+    // How a measurement's or note's label is laid out (see LabelOrientation). Not undoable, like the visibility toggles.
+    void setMeasurementOrientation(const QUuid& id, LabelOrientation orientation);
+    void setAnnotationOrientation(const QUuid& id, LabelOrientation orientation);
 
     // -----------------------------------------------------------------------
     // Named selection sets ("Selection -> Save Selection Set..."). Document-
@@ -332,6 +340,19 @@ public:
     // is destroyed in the undone state.  Does NOT touch _meshUuidToNode.
     static void deleteDetachedSubtree(SceneNode* root);
 
+    // Defers structureChanged() while a bulk edit runs (batches nest). One signal is emitted when the outermost batch ends,
+    // so listeners that rescan the whole scene (the tree rebuild, the data validators) run once instead of once per edit.
+    void beginStructureBatch() { ++_structureBatchDepth; }
+    void endStructureBatch();
+    struct StructureBatch {
+        explicit StructureBatch(SceneGraph& graph) : _graph(graph) { _graph.beginStructureBatch(); }
+        ~StructureBatch() { _graph.endStructureBatch(); }
+        StructureBatch(const StructureBatch&) = delete;
+        StructureBatch& operator=(const StructureBatch&) = delete;
+    private:
+        SceneGraph& _graph;
+    };
+
 signals:
     // Emitted after any structural change (append, clear, remove, restore).
     // The tree widget connects to this to rebuild or refresh its items.
@@ -360,6 +381,10 @@ signals:
     void lightDataChanged();
 
 private:
+    void notifyStructureChanged();
+    int  _structureBatchDepth = 0;
+    bool _structureDirty      = false;
+
     // Recursively build a SceneNode subtree that mirrors ainode and its
     // descendants.  cursor advances through uuids as mesh UUIDs are assigned
     // to nodes — the traversal order must match processNode() exactly.

@@ -2,6 +2,7 @@
 
 #include "BoundingBox.h"
 #include "IGpuContextResource.h"
+#include "OverlayLineWeights.h"
 #include "PunctualLights.h"
 #include "RenderEnums.h"
 #include "ShaderProgram.h"
@@ -567,6 +568,18 @@ public:
     void         setHatchTiling(int v)               { _hatchTiling = v; }
     float        hatchThickness()              const { return _hatchThickness; }
     void         setHatchThickness(float v)          { _hatchThickness = v; }
+    HatchSpacingMode hatchSpacingMode()        const { return _hatchSpacingMode; }
+    void         setHatchSpacingMode(HatchSpacingMode m) { _hatchSpacingMode = m; }
+    float        hatchSpacingPx()              const { return _hatchSpacingPx; }
+    void         setHatchSpacingPx(float v)          { _hatchSpacingPx = v; }
+    float        hatchSpacingModelUnits()      const { return _hatchSpacingModelUnits; }
+    void         setHatchSpacingModelUnits(float v)  { _hatchSpacingModelUnits = v; }
+    float        hatchWidthPx()                const { return _hatchWidthPx; }
+    int          textureTiling()               const { return _textureTiling; }
+    void         setTextureTiling(int v)             { _textureTiling = v; }
+    float        textureBlend()                const { return _textureBlend; }
+    void         setTextureBlend(float v)            { _textureBlend = v; }
+    void         setHatchWidthPx(float v)            { _hatchWidthPx = v; }
     float        hatchIntensity()              const { return _hatchIntensity; }
     void         setHatchIntensity(float v)          { _hatchIntensity = v; }
     int          hatchLayers()                 const { return _hatchLayers; }
@@ -871,6 +884,12 @@ private:
     HatchPattern           _hatchPattern             = HatchPattern::DIAGONAL_45;
     int                    _hatchTiling              = 100;
     float                  _hatchThickness           = 0.05f;
+    HatchSpacingMode       _hatchSpacingMode         = HatchSpacingMode::ScreenConstant;
+    float                  _hatchSpacingPx           = OverlayLineWeights::hatchSpacingPx;
+    float                  _hatchSpacingModelUnits   = 2.0f;
+    float                  _hatchWidthPx             = OverlayLineWeights::hatchLine;
+    int                    _textureTiling            = 3;     // texture repeats across a cap
+    float                  _textureBlend             = 0.25f; // texture strength over the plane colour
     float                  _hatchIntensity           = 1.0f;
     int                    _hatchLayers              = 3;
     QVector3D              _hatchLineColor           = QVector3D(0.0f, 0.0f, 0.0f);

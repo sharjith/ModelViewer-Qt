@@ -20,6 +20,7 @@ uniform bool      hovered;         // true when this mesh is the hover-highlight
 uniform vec3      hoverColor;      // colour to use when hovered (gold by default)
 uniform bool      selected;        // true when this mesh is in the selection set
 uniform vec3      selectedColor;   // colour to use when selected (blue by default)
+uniform bool      vertexAlphaEnabled = false; // authored BLEND vertex coverage
 
 out vec4 fragColor;
 
@@ -65,5 +66,12 @@ void main()
     {
         // WIREFRAME — semi-transparent lit colour
         fragColor = vec4(color, 0.75);
+    }
+
+    if (vertexAlphaEnabled)
+    {
+        fragColor.a *= clamp(v_vertexColor.a, 0.0, 1.0);
+        // The matching per-draw scope selects premultiplied blending.
+        fragColor.rgb *= fragColor.a;
     }
 }

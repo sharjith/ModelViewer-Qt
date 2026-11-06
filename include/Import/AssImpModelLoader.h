@@ -2,15 +2,22 @@
 
 #include <fstream>
 #include <iostream>
+#include <condition_variable>
+#include <deque>
 #include <map>
+#include <mutex>
+#include <thread>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "SceneMesh.h"
 #include "BoundingBox.h"
 #include "MaterialProcessor.h"
 #include "MeshAnalyzer.h"
+#include "NodeProperties.h"
 #include "RenderableMesh.h"
 #include "UVGenerator.h"
 #include <assimp/Importer.hpp>
@@ -20,6 +27,7 @@
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <gp_Trsf.hxx>
+#include <QElapsedTimer>
 #include <QFileInfo>
 #include <QImage>
 #include <QMatrix4x4>
@@ -38,6 +46,9 @@
 #include "PunctualLights.h"
 #include "GltfAnimationData.h"
 #include "GltfCameraData.h"
+#include "ThreeDXml/Document.h"
+#include "Jt/JtImporter.h"
+#include "LengthUnits.h"
 #include "GltfVariantData.h"
 
 
@@ -100,6 +111,7 @@ struct SceneMeshInfo
 
 struct AssImpMeshData
 {
+	bool initiallyVisible = true;
 	QString name;
 	std::vector<Vertex> vertices;
 	std::vector<unsigned int> indices;
@@ -119,6 +131,8 @@ struct AssImpMeshData
 	// Absolute path of the file this mesh was loaded from.
 	QString sourceFile;
 	QString sourceNodeName;
+	// Metadata of the source node and its ancestors for the read-only property table; null when there is none.
+	NodePropertyChainPtr nodeProperties;
 	bool preserveNodeTransform = false;
 	QMatrix4x4 nodeWorldTransform;
 
@@ -138,6 +152,22 @@ struct AssImpMeshData
 
 	// Pre-computed B-Rep edge segments from OCC, flat {x0,y0,z0, x1,y1,z1, ...}
 	// in model space.  Empty for OBJ/glTF; populated for STEP/IGES/BREP.
+	// Importer-supplied per-vertex body ids (one per vertex, same order as `vertices`); empty when the importer
+	// merged nothing. Passed to SceneMesh as its initial source-mesh ids - see MeshImportAdaptor::sourceMeshIds().
+	std::vector<quint64> sourceMeshIds;
+
+	// Set by AssImpModelLoader::optimizeBatch(): the vertices/indices above already went through SceneMesh::optimizeGeometry() on a
+	// worker thread (sourceMeshIds permuted to match), so the viewer's SceneMesh constructor skips that pass and only uploads.
+	bool geometryPrepared = false;
+	std::vector<unsigned int> preparedLod1Indices;
+	// Feature edges computed on a worker thread against the final vertices/indices (see SceneMesh::computeFeatureEdges()).
+	bool featureEdgesPrepared = false;
+	std::vector<uint32_t> preparedFeatureEdges;
+	// OCC meshes: the cylinder/cone face table remapped onto the final (optimised) triangle order, computed on a worker thread
+	// against the pre-optimisation positions (see SceneMesh::remapOccFaceTriangleIndicesFromArrays()).
+	bool occFaceRemapPrepared = false;
+	std::vector<int> preparedOccTriangleIndices, preparedOccFaceIndices;
+
 	std::vector<float> precomputedOccEdges;
 	// Boundary table: bounds[i] = first vec3-index of topological edge i; bounds.back() = total.
 	std::vector<int>   precomputedOccEdgeBoundaries;
@@ -198,7 +228,12 @@ public:
 	// Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 	void loadModel(std::string path, const bool& progressiveLoading = false);
 
-	AssImpMeshDataBatch getMeshes() const;
+	// Transfer after the worker has stopped; avoid copying every geometry buffer.
+	AssImpMeshDataBatch takeMeshes() { return std::move(_meshes); }
+	// Lightweight import results remain available even when progressive batches
+	// have transferred their geometry directly to the viewer.
+	int processedMeshCount() const { return _processedMeshCount; }
+	bool preservesNodeTransforms() const { return _preservesNodeTransforms; }
 
 	glm::mat4 getGlobalSceneTransform() const { return _appliedTransform; }
 
@@ -226,6 +261,54 @@ public:
 	SceneUpAxis sceneUpAxis() const { return _sceneUpAxis; }
 
 	const aiScene* getScene() const { return _scene; }
+	bool hasThreeDXmlScene() const { return bool(_threeDXml.scene); }
+	// Length unit the imported file itself declares (JT: JT_PROP_MEASUREMENT_UNITS, when every node agrees and the value is
+	// a recognised one); Unknown when the file declares none or the format does not carry one. Reported only: the geometry
+	// is not scaled by it.
+	LengthUnit declaredLengthUnit() const { return _declaredLengthUnit; }
+	// Warnings the native importers (3DXML, JT) reported for the file just read; empty for other formats.
+	QStringList importWarnings() const
+	{
+		if (_sceneReleased)
+			return _releasedWarnings;
+		return _threeDXml.scene ? _threeDXml.warnings : _jt.scene ? QStringList(_jt.warnings + _jt.notes) : QStringList();
+	}
+	// Runs the vertex-cache/overdraw/LOD1/vertex-fetch optimisation (SceneMesh::optimizeGeometry) for every eligible mesh of the batch
+	// on a pool of threads. It is pure CPU work on the meshes' own arrays, and was done one mesh at a time on the GUI thread inside
+	// the SceneMesh constructor. Meshes that are skinned, morphed, not triangle lists or carry OCC face tables are left to the
+	// constructor as before.
+	static void optimizeBatch(std::vector<AssImpMeshData>& batch);
+
+	// GUI side of the progressive hand-off: moves the oldest waiting batch out of the queue. Returns false when none is waiting.
+	// The worker keeps converting the next batch while the viewer creates meshes for this one; it only waits when more than
+	// kMaxQueuedBatches are already waiting, so memory stays bounded.
+	bool takeReadyBatch(AssImpMeshDataBatch& out);
+
+	// Hands the imported scene to the caller, so the viewer can adopt it instead of deep-copying every mesh: the native JT and
+	// 3DXML scenes, the scenes built from OCC documents (STEP, IGES, BREP, VRML) and the scene Assimp's importer read (orphaned
+	// from the importer, which then no longer frees it). Null when there is no scene to hand over, or after
+	// MODELVIEWER_COPY_IMPORT_SCENE=1, which restores the deep copy. importWarnings() keeps working.
+	aiScene* releaseNativeScene()
+	{
+		aiScene* scene = nullptr;
+		if (_threeDXml.scene || _jt.scene)
+		{
+			_releasedWarnings = importWarnings();
+			_sceneReleased = true;
+			scene = _threeDXml.scene ? _threeDXml.scene.release() : _jt.scene.release();
+			_scene = nullptr;
+		}
+		else if (_scene && qEnvironmentVariableIntValue("MODELVIEWER_COPY_IMPORT_SCENE") == 0)
+		{
+			if (_xcafScene && _scene == _xcafScene.get())
+				scene = _xcafScene.release();
+			else if (_scene == _importer.GetScene())
+				scene = _importer.GetOrphanedScene();
+			if (scene)
+				_scene = nullptr;
+		}
+		return scene;
+	}
 
 	// Returns variant data parsed from KHR_materials_variants.
 	// Empty when the loaded file has no variant extension.
@@ -242,7 +325,9 @@ signals:
 	void fileReadProcessed(float percent);
 	void verticesProcessed(float percent);
 	void nodeMeshProgressUpdated(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed);
-	void meshBatchReady(AssImpMeshDataBatch batch);
+	// A converted batch is waiting in the hand-off queue (see takeReadyBatch()). Carries no payload: queued connections copy their
+	// arguments, and a batch is megabytes of vertices.
+	void meshBatchAvailable();
 	void sceneUpAxisDetected(SceneUpAxis sceneUpAxis, bool autoOrientCameraEnabled);
 	void loadingFinished(bool successFlag, const aiScene* scene);
 	void loadingCancelled();
@@ -253,6 +338,9 @@ public slots:
 	void cancelLoading();
 
 private:
+	void failProcessing(const char* reason);
+	const char* _importStage = "idle";
+	int _importSceneIndex = -1;
 	// Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 	void processNode(int nodeNum, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform);
 
@@ -303,11 +391,46 @@ private:
 	int _batchSize = 20;
 
 	const aiScene* _scene = nullptr; // Holds the loaded scene
+	void publishBatch(AssImpMeshDataBatch&& batch);
+	// Progressive pipeline, in three stages on three threads: this (conversion) thread builds a batch and submitBatch()es it; a
+	// preparation thread optimises it (optimizeBatch) and publishBatch()es it; the GUI thread takes it (takeReadyBatch). Each
+	// hand-off is bounded, so memory stays bounded and a slow stage holds back the one before it. flushBatches() waits until
+	// everything submitted has been published and stops the preparation thread; it must run before loadingFinished is emitted.
+	void submitBatch(AssImpMeshDataBatch&& batch);
+	void flushBatches();
+	void prepareLoop();
+	static constexpr size_t kMaxPrepBatches = 2;
+	std::thread _prepThread;
+	std::mutex _prepMutex;
+	std::condition_variable _prepWake, _prepIdle;
+	std::deque<AssImpMeshDataBatch> _prepQueue;
+	bool _prepBusy = false, _prepStop = false;
+	static constexpr size_t kMaxQueuedBatches = 2;
+	std::mutex _batchMutex;
+	std::condition_variable _batchSpace;
+	std::deque<AssImpMeshDataBatch> _readyBatches;
+	bool _sceneReleased = false;     // the native scene was handed to the viewer (releaseNativeScene())
+	QStringList _releasedWarnings;
+	ThreeDXml::ImportResult _threeDXml; // Owns custom aiScene independently of Assimp::Importer.
+	std::unique_ptr<aiScene> _xcafScene; // Owns the scene an OCC document processor built (STEP, IGES, BREP, VRML).
+	Jt::ImportResult _jt;
+	LengthUnit _declaredLengthUnit = LengthUnit::Unknown;
 	
 	SceneMeshInfo _sceneStats; // Holds statistics about the scene
 	int _totalNodeCount = 0;
+	int _totalMeshOccurrences = 0;
 	int _processedNodeCount = 0;
+	// Nodes from the root to the one being processed, and the flattened metadata already built for them.
+	std::vector<const aiNode*> _nodePath;
+	std::unordered_map<const aiNode*, NodePropertySetPtr> _nodePropertyCache;
+	NodePropertyChainPtr nodePropertyChain();
+	// Progress is reported at most every 50 ms: one queued signal per mesh and node left the viewer thread draining
+	// tens of thousands of status-bar updates long after a 40,000-part import had finished.
+	void emitNodeMeshProgress(bool uvProcessed, bool force = false);
+	QElapsedTimer _progressClock;
+	QElapsedTimer _vertexProgressClock; // same limit for verticesProcessed, which was emitted once per mesh
 	int _processedMeshCount = 0;
+	bool _preservesNodeTransforms = false;
 
 	bool _progressiveLoading = false; // If true, emit progress signals during loading
 
@@ -325,6 +448,8 @@ private:
 
 	// Map from mesh index to primitive mode (from glTF)
 	std::unordered_map<unsigned int, GLenum> _gltfMeshPrimitiveModes;
+	// -1 = not checked yet for this import, 0 = the glTF has no morph targets, 1 = it has some.
+	int _gltfHasMorphTargets = -1;
 	UVDecisionFn _uvDecisionCallback;
 
 	// Map from aiMesh index to original material index (before deduplication)

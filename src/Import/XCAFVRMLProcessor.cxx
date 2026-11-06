@@ -92,6 +92,7 @@ aiScene* XCAFVRMLProcessor::processVRMLFile(const std::string& path)
 	{
 		traverseXCAFAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), scene->mRootNode, scene, meshIndex, processedMeshes, totalMeshes);
 	}
+	releaseConvertedParts();
 
 	// Finalize the scene
 	if (scene->mNumMeshes == 0)

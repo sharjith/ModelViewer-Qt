@@ -1,5 +1,10 @@
-﻿
+﻿#include "TextureMipChain.h"
+
 #include "AssImpMeshBuilder.h"
+#include "ImportDiagnostics.h"
+#include "ScopedSelectionDepthBias.h"
+#include <Standard_Failure.hxx>
+#include <new>
 #include <QScopeGuard>
 #include "ClippingPlanesEditor.h"
 #include "ExplodedViewPanel.h"
@@ -7,6 +12,7 @@
 #include "ExplodedViewManager.h"
 #include "SceneGraph.h"
 #include "ConeRenderable.h"
+#include "OverlayLineWeights.h"
 #include "CubeRenderable.h"
 #include "CoordinateSystemHelper.h"
 #include "FloorPlane.h"
@@ -42,7 +48,15 @@
 #include "TangentGenerator.h"
 #include "TextRenderer.h"
 #include "Utils.h"
+#include "Logger.h"
+#include "DrawBatcher.h"
+#include "MeshMemoryUsage.h"
+#include "MeshBuildProfile.h"
+#include "ProcessMemory.h"
+#include <cstring>
 #include <algorithm>
+#include <functional>
+#include <unordered_map>
 #include <set>
 #include <array>
 #include <cmath>
@@ -62,12 +76,50 @@
 #include <QTreeView>
 #include <QVector2D>
 #include <QDebug>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QHash>
+#include <QFileInfo>
+#include <QFile>
 #include "AnimationUtils.h"
 #include "MeshMathUtils.h"
 #include "SceneNode.h"
+#include "Jt/RecordedPmiBuilder.h"
 
 
-constexpr auto  MAX_MODEL_SIZE_BYTES       = 52428800; // bytes
+// Displayed-geometry size above which the interaction fast path (low-res drawing, small-part culling) applies.
+// QSettings "interactionFastPathMB" (default 50); this is called per frame and in event handlers, so the registry is read
+// at most once a second. A change in the Settings dialog is therefore picked up within a second.
+static unsigned long long interactionFastPathBytes()
+{
+	static QElapsedTimer clock;
+	static unsigned long long bytes = 52428800ull;
+	if (!clock.isValid() || clock.elapsed() > 1000)
+	{
+		bytes = (unsigned long long)qBound(1, QSettings().value(QStringLiteral("interactionFastPathMB"), 50).toInt(), 65536) * 1024ull * 1024ull;
+		clock.restart();
+	}
+	return bytes;
+}
+#define MAX_MODEL_SIZE_BYTES interactionFastPathBytes()
+
+// Times a candidate-selection (culling) call for the profile-rendering diagnostics; free when profiling is off.
+struct CullProfileScope
+{
+	CullProfileScope() : _on(RenderableMesh::renderDiagnosticsEnabled())
+	{
+		if (_on)
+			_timer.start();
+	}
+	~CullProfileScope()
+	{
+		if (_on)
+			RenderableMesh::recordCullCpuMs(static_cast<double>(_timer.nsecsElapsed()) / 1000000.0);
+	}
+	QElapsedTimer _timer;
+	bool _on;
+};
 constexpr float kDefaultFloorOffsetPercent = 0.0f;
 
 // Degenerate-guard floor for TransformGizmo::computeWorldScale(), not a
@@ -816,6 +868,15 @@ _floorPlane(nullptr),
 
 ViewportWidget::~ViewportWidget()
 {
+	// Stage timings for the shutdown of a large model (logged at Info, category Performance).
+	QElapsedTimer teardownClock;
+	teardownClock.start();
+	const qint64 teardownMeshes = static_cast<qint64>(_sceneRuntime.meshStore().size());
+	const auto teardownStage = [&](const char* stage)
+	{
+		Logger::instance().info(QStringLiteral("[Teardown] %1 at %2 ms (%3 meshes)")
+			.arg(QLatin1String(stage)).arg(teardownClock.elapsed()).arg(teardownMeshes), QStringLiteral("Performance"));
+	};
 	// Must be first: disconnects the QOpenGLContext::aboutToBeDestroyed()
 	// handler wired up in initializeGL() before the explicit cleanup below
 	// runs. Without this, the base QOpenGLWidget destructor's later context
@@ -859,10 +920,34 @@ ViewportWidget::~ViewportWidget()
 	// initializeGL()'s and paintGL()'s own isOpenGLInitialized() guards),
 	// _renderCtrl/PunctualLights never resolved their GL function pointers,
 	// so any GL call below (even via a "valid" context) segfaults.
+	// Meshes are deleted while the context is still current (below), so their GL buffers are freed straight away
+	// instead of being queued. Called again after the context block for the no-context case; the pointers are cleared
+	// as they go, so the second call is a no-op when the first one ran.
+	const auto deleteAllMeshes = [&]()
+	{
+		qint64 deleted = 0;
+		qint64 chunkStart = teardownClock.elapsed();
+		auto& meshRecords = _sceneRuntime.meshStore();
+		for (size_t recordIndex = meshRecords.size(); recordIndex-- > 0;)
+		{
+			delete meshRecords[recordIndex].mesh;
+			meshRecords[recordIndex].mesh = nullptr;
+			// Progress for very large models: if the time per chunk grows, deletion is not linear.
+			if (teardownMeshes > 5000 && ++deleted % 5000 == 0)
+			{
+				const qint64 now = teardownClock.elapsed();
+				Logger::instance().info(QStringLiteral("[Teardown] deleted %1 of %2 meshes (+%3 ms for the last 5000)")
+					.arg(deleted).arg(teardownMeshes).arg(now - chunkStart), QStringLiteral("Performance"));
+				chunkStart = now;
+			}
+		}
+	};
+
 	if (context() && context()->isValid() && _renderCtrl.isOpenGLInitialized())
 	{
 		makeCurrent();
 		releaseGLSceneResources();
+		teardownStage("gpu-resources-released");
 		// Must run before doneCurrent(): unlike releaseGLSceneResources()
 		// (which only releases GPU handles, keeping the C++ objects alive
 		// for a future restore), this actually deletes them - their
@@ -874,6 +959,9 @@ ViewportWidget::~ViewportWidget()
 		// null) - nothing to delete, and no current context to safely
 		// delete through if there somehow were.
 		deleteGpuOwnedObjects();
+		teardownStage("gpu-owned-objects-deleted");
+		deleteAllMeshes();
+		teardownStage("meshes-deleted-with-context");
 		doneCurrent();  // Release context
 
 		qInfo() << "ViewportWidget::~ViewportWidget - OpenGL resources cleaned up successfully.";
@@ -883,10 +971,8 @@ ViewportWidget::~ViewportWidget()
 		qWarning() << "ViewportWidget::~ViewportWidget - No valid OpenGL context for cleanup.";
 	}
 
-	for (auto& a : _sceneRuntime.meshStore())
-	{
-		delete a.mesh;
-	}
+	deleteAllMeshes(); // no-op unless the context block above did not run
+	teardownStage("meshes-deleted");
 	if (_primaryCamera)
 		delete _primaryCamera;
 	if (_orthoViewsCamera)
@@ -897,6 +983,7 @@ ViewportWidget::~ViewportWidget()
 		SceneUtils::deleteScene(_sceneRuntime.globalScene());
 		_sceneRuntime.setGlobalScene(nullptr);
 	}
+	teardownStage("scene-deleted");
 
 	// _assimpModelLoader deletion also moved into releaseGLSceneResources()
 	// above, same reasoning as _textRenderer/_axisTextRenderer - kept out of
@@ -1004,12 +1091,32 @@ void ViewportWidget::invalidateTextureCacheGpuResources()
 
 void ViewportWidget::releaseLoadedMeshGpuResources()
 {
+	QElapsedTimer releaseClock;
+	releaseClock.start();
+	if (_drawBatcher)
+		_drawBatcher->invalidate();
 	invalidateTextureCacheGpuResources();
-	for (const SceneMeshRecord& meshRecord : _sceneRuntime.meshStore())
+	qint64 releasedCount = 0;
+	qint64 releaseChunkStart = 0;
+	// Order does not matter any more: the mesh buffers and VAOs are FastGlBuffer/FastGlVertexArray, whose release
+	// cost does not depend on how many other objects are alive (see FastGlObjects.h).
+	const auto& releaseRecords = _sceneRuntime.meshStore();
+	for (size_t recordIndex = releaseRecords.size(); recordIndex-- > 0;)
 	{
+		const SceneMeshRecord& meshRecord = releaseRecords[recordIndex];
 		if (meshRecord.mesh)
 			meshRecord.mesh->releaseContextBoundGpuResources();
+		if (_sceneRuntime.meshStore().size() > 5000 && ++releasedCount % 5000 == 0)
+		{
+			const qint64 now = releaseClock.elapsed();
+			Logger::instance().info(QStringLiteral("[Teardown] released GPU resources of %1 meshes (+%2 ms for the last 5000)")
+				.arg(releasedCount).arg(now - releaseChunkStart), QStringLiteral("Performance"));
+			releaseChunkStart = now;
+		}
 	}
+	if (_sceneRuntime.meshStore().size() > 1000)
+		Logger::instance().info(QStringLiteral("[Teardown] released GPU resources of %1 meshes in %2 ms")
+			.arg(_sceneRuntime.meshStore().size()).arg(releaseClock.elapsed()), QStringLiteral("Performance"));
 }
 
 void ViewportWidget::restoreLoadedMeshGpuResources()
@@ -1060,6 +1167,31 @@ void ViewportWidget::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 	}
 	qDebug() << "Moved mesh to recycle bin, uuid:" << uuid;
 	emit meshRecycleStateChanged(uuid, true);
+}
+
+void ViewportWidget::moveToRecycleBinBatch(const std::vector<std::pair<QUuid, int>>& uuidsAndOriginalIndices)
+{
+	if (uuidsAndOriginalIndices.empty())
+		return;
+	const int moved = _sceneRuntime.moveToRecycleBinBatch(uuidsAndOriginalIndices);
+	if (moved < static_cast<int>(uuidsAndOriginalIndices.size()))
+		qWarning() << "ViewportWidget::moveToRecycleBinBatch - meshes not found:"
+		           << (uuidsAndOriginalIndices.size() - static_cast<size_t>(moved));
+	// The only listener ignores the uuid and refreshes panels, so one notification covers the whole batch.
+	if (moved > 0)
+		emit meshRecycleStateChanged(uuidsAndOriginalIndices.front().first, true);
+}
+
+void ViewportWidget::restoreFromRecycleBinBatch(const std::vector<QUuid>& uuids)
+{
+	if (uuids.empty())
+		return;
+	const int restored = _sceneRuntime.restoreFromRecycleBinBatch(uuids);
+	if (restored < static_cast<int>(uuids.size()))
+		qWarning() << "ViewportWidget::restoreFromRecycleBinBatch - meshes not in bin:"
+		           << (uuids.size() - static_cast<size_t>(restored));
+	if (restored > 0)
+		emit meshRecycleStateChanged(uuids.front(), false);
 }
 
 bool ViewportWidget::restoreFromRecycleBin(const QUuid& uuid)
@@ -1181,7 +1313,9 @@ void ViewportWidget::initializeGL()
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	// Set Anisotropic Filtering Level
 	int anIsoVals[] = { 1, 2, 4, 8, 16, 32 };
-	_renderCtrl.setAnisotropicFilteringLevel(anIsoVals[settings.value("anisotropyComboBox", 4).toInt()]);
+	// Default 4x (index 2), and never more than the GPU reports (maxAniso, queried above; 0 if unsupported).
+	const int anIsoLevel = anIsoVals[std::clamp(settings.value("anisotropyComboBox", 2).toInt(), 0, 5)];
+	_renderCtrl.setAnisotropicFilteringLevel(maxAniso >= 1.0f ? std::min<float>(static_cast<float>(anIsoLevel), maxAniso) : 1.0f);
 
 	_viewCtrl.setUserShowAxisOverride(settings.value("showCenterTrihedronCheckBox", true).toBool());
 	_viewCtrl.setUserShowCornerAxisOverride(settings.value("showCornerTrihedronCheckBox", true).toBool());
@@ -1416,6 +1550,7 @@ void ViewportWidget::initializeGL()
 		// Initial size only - kept in sync afterward by setParameters()
 		// call sites elsewhere, so a stale size from construct-once is safe.
 		_axisCone = new ConeRenderable(_renderCtrl.axisShader(), _viewCtrl.viewRange() / size / 15, _viewCtrl.viewRange() / size / 5, 8u, 1u);
+		_axisCone->setAffectsSceneRevision(false); // decoration: rebuilt as the view changes, must not tick the scene revision
 		registerDecorationGpuResource(_axisCone, [this] { return _renderCtrl.axisShader(); });
 	}
 	if (_viewCube == nullptr)
@@ -1592,10 +1727,41 @@ void ViewportWidget::resizeGL(int width, int height)
 	update();
 }
 
+// Profile-rendering aid: where the CPU time of one paintGL() call goes (background, scene, overlays, tail), logged
+// once a second as "[PaintDiagnostics]" while "Profile rendering" is on. render() is only part of the scene section;
+// the scans and passes around it (renderSingleView()) are not covered by the render() profiler.
+namespace
+{
+struct PaintProbe
+{
+	QElapsedTimer cpu;
+	QElapsedTimer window;
+	double cpuSum = 0.0;
+	double cpuAt[5] = {};      // elapsed ms at: start, after background, after scene, after overlays, end
+	double cpuLap[4] = {};     // summed: background, scene, overlays, alpha stomp + tail
+	int cpuCount = 0;
+};
+PaintProbe g_paintProbe;
+}
+
 void ViewportWidget::paintGL()
 {
 	if (!_renderCtrl.isOpenGLInitialized())
 		return;
+
+	PaintProbe& probe = g_paintProbe;
+	const bool probing = ModelViewerApplication::slowEventTraceEnabled();
+	if (probing)
+	{
+		probe.cpu.start();
+		if (!probe.window.isValid())
+			probe.window.start();
+	}
+	const auto probeMark = [&](int index)
+	{
+		if (probing)
+			probe.cpuAt[index] = static_cast<double>(probe.cpu.nsecsElapsed()) / 1.0e6;
+	};
 
 	// Pull the latest interactive PT frame BEFORE the raster pass so the
 	// same published camera pose can drive both the presenter overlay and
@@ -1664,6 +1830,7 @@ void ViewportWidget::paintGL()
 			gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
 				botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
 
+		probeMark(1);
 		_renderCtrl.fgShader()->bind();
 		_renderCtrl.punctualLights()->bind(_renderCtrl.fgShader()->programId());
 		_renderCtrl.fgShader()->setUniformValue("lightCount", _renderCtrl.punctualLights()->getLightCount());
@@ -1683,6 +1850,7 @@ void ViewportWidget::paintGL()
 		{
 			renderSingleView(topColor, botColor);
 		}
+		probeMark(2);
 
 		// Self-healing watchdog: armed, but neither counting down to a settle
 		// nor actually tracing nor showing a result - something (a visibility
@@ -1816,10 +1984,38 @@ void ViewportWidget::paintGL()
 	// alpha-blends against the desktop, showing whatever's behind the window
 	// through those pixels. The color mask restricts this to the alpha channel
 	// only, so it can't affect the RGB result already rendered this frame.
+	if (probing)
+		probe.cpuAt[3] = static_cast<double>(probe.cpu.nsecsElapsed()) / 1.0e6;
 	glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_TRUE);
 	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+
+	if (probing)
+	{
+		probe.cpuAt[4] = static_cast<double>(probe.cpu.nsecsElapsed()) / 1.0e6;
+		probe.cpuLap[0] += probe.cpuAt[1];
+		probe.cpuLap[1] += probe.cpuAt[2] - probe.cpuAt[1];
+		probe.cpuLap[2] += probe.cpuAt[3] - probe.cpuAt[2];
+		probe.cpuLap[3] += probe.cpuAt[4] - probe.cpuAt[3];
+		probe.cpuSum += probe.cpuAt[4];
+		++probe.cpuCount;
+		if (probe.window.elapsed() >= 1000 && probe.cpuCount > 0)
+		{
+			const double c = probe.cpuCount;
+			Logger::instance().info(
+				QStringLiteral("[PaintDiagnostics] paints=%1 paintCpuMs=%2 (background %3, scene %4, overlays %5, alpha stomp %6)")
+					.arg(probe.cpuCount).arg(probe.cpuSum / c, 0, 'f', 1)
+					.arg(probe.cpuLap[0] / c, 0, 'f', 1).arg(probe.cpuLap[1] / c, 0, 'f', 1)
+					.arg(probe.cpuLap[2] / c, 0, 'f', 1).arg(probe.cpuLap[3] / c, 0, 'f', 1),
+				QStringLiteral("Performance"));
+			probe.cpuSum = 0.0;
+			probe.cpuCount = 0;
+			for (double& v : probe.cpuLap)
+				v = 0.0;
+			probe.window.restart();
+		}
+	}
 
 	// For testing rendered shadow map
 	/*_renderCtrl.debugShader()->bind();
@@ -3408,7 +3604,13 @@ void ViewportWidget::refreshFallbackLight()
 				static_cast<float>(fallbackLightPos.y()),
 				static_cast<float>(fallbackLightPos.z())
 			), calibratedIntensity);
-			syncPunctualLightUniforms(1, true);
+			// This synthetic light represents the application's default light.
+			// Raster PBR already evaluates lightSource when useDefaultLights is
+			// enabled; adding this again as a punctual light double-lights only
+			// formats eligible for the legacy fallback (glTF is excluded).
+			// Retain the buffer for its other consumers, but do not expose the
+			// synthetic duplicate as an authored raster punctual light.
+			syncPunctualLightUniforms(0, false);
 		}
 		else
 		{
@@ -4126,29 +4328,12 @@ PlaneGizmo* ViewportWidget::hitTestPlaneGizmos(const QPoint& pixel)
 	if (!camera)
 		return nullptr;
 
-	// World-space ray for this pixel - replicates SelectionManager::convertClickToRay()'s
-	// own NDC-unprojection technique exactly (that method is private to SelectionManager,
-	// so the math is duplicated here rather than reused).
-	const int yInverted = height() - pixel.y() - 1;
-	const QMatrix4x4 viewMatrix = camera->getViewMatrix();
-	const QMatrix4x4 projectionMatrix = camera->getProjectionMatrix();
-
-	const float ndcX = (2.0f * (pixel.x() - viewport.x())) / viewport.width() - 1.0f;
-	const float ndcY = (2.0f * (yInverted - viewport.y())) / viewport.height() - 1.0f;
-
-	const QVector4D nearNDC(ndcX, ndcY, -1.0f, 1.0f);
-	const QVector4D farNDC(ndcX, ndcY, 1.0f, 1.0f);
-	const QMatrix4x4 inv = (projectionMatrix * viewMatrix).inverted();
-
-	QVector4D nearWorld = inv * nearNDC;
-	QVector4D farWorld = inv * farNDC;
-	if (qFuzzyIsNull(nearWorld.w()) || qFuzzyIsNull(farWorld.w()))
+	// World-space ray for this pixel. Uses the shared unprojection helper: a private copy of this math here once rejected
+	// every perspective ray whose far plane was large (see ViewportInteractionController::convertPixelToRay()).
+	QVector3D rayOrigin;
+	QVector3D rayDir;
+	if (!ViewportInteractionController::convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir))
 		return nullptr;
-	nearWorld /= nearWorld.w();
-	farWorld /= farWorld.w();
-
-	const QVector3D rayOrigin = nearWorld.toVector3D();
-	const QVector3D rayDir = (farWorld.toVector3D() - rayOrigin).normalized();
 
 	// Test ALL visible gizmos and keep the closest hit along the ray - a
 	// screen-space-only test can't disambiguate when several large,
@@ -4438,6 +4623,7 @@ void ViewportWidget::updateExplosion()
     const QSet<QUuid>& assemblyUuids = _explodedViewPanel->assemblyUuids();
     if (assemblyUuids.isEmpty()) {
         _explodedViewCtrl.explodedViewManager()->reset();
+        _explosionLayoutKey.valid = false;
         for (size_t i = 0; i < _sceneRuntime.meshStore().size(); ++i)
         {
             if (_sceneRuntime.meshAt(i))
@@ -4449,6 +4635,38 @@ void ViewportWidget::updateExplosion()
         _renderCtrl.setShadowMapNeedsInitialization(true);
         update();
         return;
+    }
+
+    // Factor-only tick (the slider, or a step of the preview animation): the layout is the same as at the last update, so only
+    // the offsets are rescaled. Everything else, sorting parts into sectors and placing them, is skipped, and so is the pass
+    // that cleared and re-applied every mesh's offset to measure the unexploded boxes.
+    {
+        ExplodedViewManager* manager = _explodedViewCtrl.explodedViewManager();
+        const int modeKey = static_cast<int>(_explodedViewPanel->mode());
+        const int strategyKey = static_cast<int>(_explodedViewPanel->autoStrategy());
+        if (_explosionLayoutKey.valid && manager->hasLayout()
+            && _explosionLayoutKey.boundsRevision == RenderableMesh::currentRuntimeBoundsRevision()
+            && _explosionLayoutKey.mode == modeKey && _explosionLayoutKey.strategy == strategyKey
+            && _explosionLayoutKey.depth == _explodedViewPanel->explodeDepth()
+            && _explosionLayoutKey.anchor == _explodedViewPanel->anchorUuid()
+            && _explosionLayoutKey.vector == _explodedViewPanel->userVector()
+            && _explosionLayoutKey.assemblies == assemblyUuids)
+        {
+            manager->setFactor(_explodedViewPanel->factor());
+            for (const QUuid& uuid : assemblyUuids)
+            {
+                if (SceneMesh* mesh = getMeshByUuid(uuid))
+                {
+                    mesh->setExplosionOffset(manager->offsetForMesh(uuid));
+                    mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
+                }
+            }
+            _explosionLayoutKey.boundsRevision = RenderableMesh::currentRuntimeBoundsRevision();
+            _renderCtrl.setShadowMapNeedsInitialization(true);
+            noteExplosionMotion();
+            update();
+            return;
+        }
     }
 
     // Clear any previous offsets BEFORE building centroids so that getBoundingSphere()
@@ -4514,8 +4732,28 @@ void ViewportWidget::updateExplosion()
     const bool useAssemblyAwareAutoHints =
         _explodedViewPanel->autoStrategy() == ExplodedViewPanel::AutoStrategy::AssemblyAware;
 
-    // Rebuild O(n²) placement hints only when the assembly or anchor changes,
-    // not on every slider tick.
+    // Auto mode lays the assembly out level by level (ExplodedGroupTree): Assembly-aware follows the scene tree, Classic a spatial
+    // hierarchy over the part boxes. The other modes, and a missing scene graph for Assembly-aware, keep the flat layout.
+    // MODELVIEWER_EXPLODED_FLAT=1 forces the flat layout everywhere.
+    static const bool forceFlatExplosion = qEnvironmentVariableIntValue("MODELVIEWER_EXPLODED_FLAT") != 0;
+    const bool hierarchicalExplosion = !forceFlatExplosion
+        && (_explodedViewPanel->mode() == ExplodedViewManager::Mode::Auto
+            || _explodedViewPanel->mode() == ExplodedViewManager::Mode::AutoMating)
+        && (!useAssemblyAwareAutoHints || sg);
+    ExplodedGroupTree::Tree groupTree;
+    if (hierarchicalExplosion)
+    {
+        groupTree = useAssemblyAwareAutoHints
+            ? AssemblyRelationGraph::buildSceneGroupTree(assemblyUuids, sg)
+            : ExplodedGroupTree::fromBoxes(assemblyUuids, worldBoxes);
+    }
+
+    // Levels offers the depth of the hierarchy of the selected strategy.
+    if (hierarchicalExplosion)
+        _explodedViewPanel->setAvailableExplodeLevels(groupTree.levelCount());
+
+    // Rebuild the placement hints only when the assembly or anchor changes,
+    // not on every slider tick. Hierarchical layout computes them among siblings only (the flat set is O(n²) in the part count).
     if (useAssemblyAwareAutoHints)
     {
         const QUuid anchorUuid = _explodedViewPanel->anchorUuid();
@@ -4525,7 +4763,9 @@ void ViewportWidget::updateExplosion()
         {
             _explodedViewCtrl.setHintsCache(
                 assemblyUuids, anchorUuid,
-                AssemblyRelationGraph::buildAutoPlacementHints(assemblyUuids, this, sg));
+                hierarchicalExplosion
+                    ? AssemblyRelationGraph::buildSiblingPlacementHints(groupTree, this, sg)
+                    : AssemblyRelationGraph::buildAutoPlacementHints(assemblyUuids, this, sg));
         }
     }
     else
@@ -4533,6 +4773,19 @@ void ViewportWidget::updateExplosion()
         _explodedViewCtrl.invalidateHintsCache();
     }
 
+    if (hierarchicalExplosion)
+    {
+        _explodedViewCtrl.explodedViewManager()->recomputeHierarchical(
+            groupTree,
+            _explodedViewPanel->anchorUuid(),
+            _explodedViewPanel->factor(),
+            worldCentroids,
+            worldBoxes,
+            useAssemblyAwareAutoHints ? &_explodedViewCtrl.cachedAutoHints() : nullptr,
+            _explodedViewPanel->explodeDepth(),
+            _explodedViewPanel->mode());
+    }
+    else
     _explodedViewCtrl.explodedViewManager()->recompute(
         assemblyUuids,
         _explodedViewPanel->anchorUuid(),
@@ -4555,8 +4808,30 @@ void ViewportWidget::updateExplosion()
         }
     }
 
+    _explosionLayoutKey.assemblies = assemblyUuids;
+    _explosionLayoutKey.anchor = _explodedViewPanel->anchorUuid();
+    _explosionLayoutKey.mode = static_cast<int>(_explodedViewPanel->mode());
+    _explosionLayoutKey.vector = _explodedViewPanel->userVector();
+    _explosionLayoutKey.strategy = static_cast<int>(_explodedViewPanel->autoStrategy());
+    _explosionLayoutKey.depth = _explodedViewPanel->explodeDepth();
+    _explosionLayoutKey.boundsRevision = RenderableMesh::currentRuntimeBoundsRevision();
+    _explosionLayoutKey.valid = true;
+
     _renderCtrl.setShadowMapNeedsInitialization(true);
+    noteExplosionMotion();
     update();
+}
+
+void ViewportWidget::noteExplosionMotion()
+{
+    if (!_explosionMotionTimer)
+    {
+        _explosionMotionTimer = new QTimer(this);
+        _explosionMotionTimer->setSingleShot(true);
+        // One full-quality frame once the explosion has stopped changing.
+        connect(_explosionMotionTimer, &QTimer::timeout, this, [this] { update(); });
+    }
+    _explosionMotionTimer->start(250);
 }
 
 // ---------------------------------------------------------------------------
@@ -5420,12 +5695,33 @@ void ViewportWidget::centerScreen(std::vector<int> selectedIDs)
 
 bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uvMethod, QString& error, bool progressiveLoading)
 {
+	ImportDiagnostics::begin();
+	ImportDiagnostics::checkpoint("viewer.import-begin");
+	// Hand-off points of the import, in the main log (the import trace wraps long before a large import ends).
+	QElapsedTimer loadClock;
+	loadClock.start();
+	auto phase = [&loadClock](const char* what) {
+		Logger::instance().info(QStringLiteral("[LoadPhases] %1 at %2 ms").arg(QLatin1String(what)).arg(loadClock.elapsed()),
+			QStringLiteral("Performance"));
+	};
 	SceneNode* importedFileNode = nullptr;
+	QStringList nativeImportWarnings; // taken from the loader before it is deleted, shown once the load UI is reset
+	_progressivePaintClock.invalidate();
+	_progressivePaintCostMs = 0;
+	// Painting is suspended between the paced repaints of a progressive import; whatever way the import ends, resume it.
+	struct PaintResume {
+		ViewportWidget* widget;
+		~PaintResume() { widget->setUpdatesEnabled(true); widget->update(); }
+	} paintResume{ this };
 	_sceneRuntime.setProgressiveLoadingEnabled(progressiveLoading);
 	_sceneRuntime.setCancelRequested(false);
 	_sceneRuntime.setLoadCancelled(false);
 	_sceneRuntime.pendingSceneUuids().clear();
 	const bool hadExistingMeshes = !_sceneRuntime.meshStore().empty();
+	_initiallyHiddenImportMeshes.clear();
+	const size_t meshCountBeforeLoad = _sceneRuntime.meshStore().size();
+	const bool isNativeCadImport = fileName.endsWith(".3dxml", Qt::CaseInsensitive) ||
+		fileName.endsWith(".jt", Qt::CaseInsensitive);
 	MainWindow::clearFileLoadCancel();
 	bool success = false;
 
@@ -5466,12 +5762,21 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		QEventLoop waitLoop;
 		QThread loadingThread;
 		bool loadingCompleted = false;
+		bool batchFailed = false;
+		QString batchFailure;
+		auto reportBatchFailure = [&](const char* reason) {
+			ImportDiagnostics::failure("viewer.mesh-batch", reason);
+			batchFailed = true;
+			batchFailure = QString::fromUtf8(reason);
+			MainWindow::requestFileLoadCancel();
+		};
 
 		QMetaObject::Connection finishedConnection = connect(
 			loadingWorker,
 			&AssImpModelLoader::loadingFinished,
 			this,
-			[this, loadingWorker, &success, &error, &loadingCompleted, &waitLoop](bool successFlag, const aiScene* /*scene*/) {
+			[this, loadingWorker, &success, &error, &loadingCompleted, &waitLoop, &phase](bool successFlag, const aiScene* /*scene*/) {
+				phase("loadingFinished handled on viewer thread");
 				loadingCompleted = true;
 				success = successFlag;
 				error = loadingWorker->getErrorMessage();
@@ -5525,12 +5830,36 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			},
 			Qt::BlockingQueuedConnection);
 
+		// Batches are handed over through a small queue in the loader, not a blocking call: the worker converts the next batch while
+		// this thread creates meshes for the previous one. The signal only says that one is waiting. onMeshBatchReady() spins the
+		// event loop, which can deliver the next signal while a batch is being handled; that re-entry returns at once and the
+		// drain loop of the outer call picks the new batch up. Signals from the worker reach this thread in order, so every batch
+		// has been taken before loadingFinished is handled.
+		bool drainingBatches = false;
 		QMetaObject::Connection batchConnection = connect(
 			loadingWorker,
-			&AssImpModelLoader::meshBatchReady,
+			&AssImpModelLoader::meshBatchAvailable,
 			this,
-			&ViewportWidget::onMeshBatchReady,
-			Qt::BlockingQueuedConnection);
+			[this, loadingWorker, &drainingBatches, &batchFailed, &reportBatchFailure]() {
+				if (drainingBatches)
+					return;
+				drainingBatches = true;
+				AssImpMeshDataBatch batch;
+				while (loadingWorker->takeReadyBatch(batch))
+				{
+					if (!batchFailed)
+					{
+						try { onMeshBatchReady(std::move(batch)); }
+						catch (const std::bad_alloc&) { reportBatchFailure("Out of memory (std::bad_alloc) creating viewer meshes"); }
+						catch (const Standard_Failure& e) { reportBatchFailure(e.GetMessageString()); }
+						catch (const std::exception& e) { reportBatchFailure(e.what()); }
+						catch (...) { reportBatchFailure("Unknown C++ exception creating viewer meshes"); }
+					}
+					batch.clear();
+				}
+				drainingBatches = false;
+			},
+			Qt::QueuedConnection);
 
 		QMetaObject::Connection cancelRequestConnection = connect(
 			this,
@@ -5563,6 +5892,8 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 
 		loadingThread.quit();
 		loadingThread.wait();
+		ImportDiagnostics::checkpoint("viewer.worker-joined");
+		phase("worker joined");
 
 		if (!loadingCompleted)
 		{
@@ -5574,8 +5905,43 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		}
 
 		makeCurrent();
-		std::vector<AssImpMeshData> meshes = loadingWorker->getMeshes();
-		if (meshes.empty())
+		const int processedMeshCount = loadingWorker->processedMeshCount();
+		const bool preservesNodeTransforms = loadingWorker->preservesNodeTransforms();
+		ImportDiagnostics::checkpoint("viewer.take-meshes");
+		AssImpMeshDataBatch meshes = loadingWorker->takeMeshes();
+		ImportDiagnostics::checkpoint("viewer.meshes-transferred", -1, processedMeshCount, processedMeshCount);
+		if (success && !_sceneRuntime.loadCancelled() && !progressiveLoading)
+		{
+			phase("consumeMeshBatch begin");
+			try { consumeMeshBatch(std::move(meshes)); }
+			catch (const std::bad_alloc&) { reportBatchFailure("Out of memory (std::bad_alloc) creating viewer meshes"); }
+			catch (const Standard_Failure& e) { reportBatchFailure(e.GetMessageString()); }
+			catch (const std::exception& e) { reportBatchFailure(e.what()); }
+			catch (...) { reportBatchFailure("Unknown C++ exception creating viewer meshes"); }
+		}
+		phase("mesh creation done");
+		if (batchFailed)
+		{
+			success = false;
+			error = QString("Viewer mesh creation failed: %1").arg(batchFailure);
+			_sceneRuntime.setLoadCancelled(false);
+		}
+		const bool rollbackImport = batchFailed || (isNativeCadImport && (!success || _sceneRuntime.loadCancelled()));
+		if (rollbackImport) {
+			// A native archive import is atomic: never attach a complete hierarchy
+			// to only the progressive batches that happened to arrive before Cancel.
+			_sceneRuntime.pendingSceneUuids().clear();
+			while (_sceneRuntime.meshStore().size() > meshCountBeforeLoad)
+				delete _sceneRuntime.detachMeshAt(static_cast<int>(_sceneRuntime.meshStore().size()-1));
+			_initiallyHiddenImportMeshes.clear();
+			meshes.clear();
+			_viewer->updateDisplayList();
+		}
+		const size_t meshCountAfterLoad = _sceneRuntime.meshStore().size();
+		const size_t attachedMeshCount = meshCountAfterLoad >= meshCountBeforeLoad
+			? meshCountAfterLoad - meshCountBeforeLoad
+			: 0;
+		if (attachedMeshCount == 0)
 		{
 			if (error.isEmpty())
 			{
@@ -5590,18 +5956,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		else
 		{
 			success = true;
-			if (!_sceneRuntime.progressiveLoadingEnabled())
-			{
-				for (const AssImpMeshData& meshData : meshes)
-				{
-					SceneMesh* mesh = createMeshFromData(meshData);
-					addToDisplay(mesh);
-					_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
-				}
-			}
 		}
 
-		_sceneRuntime.setAssimpScene(loadingWorker->getScene());
+		_sceneRuntime.setAssimpScene(rollbackImport || !success ? nullptr : loadingWorker->getScene());
 		_sceneRuntime.globalSceneTransform() = loadingWorker->getGlobalSceneTransform();
 		const bool autoOrientCameraEnabled = loadingWorker->isAutoOrientActive();
 		const SceneUpAxis sceneUpAxis = loadingWorker->sceneUpAxis();
@@ -5611,13 +5968,42 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			// while the original aiNode* tree is still intact and unmodified.
 			if (success && !_sceneRuntime.pendingSceneUuids().isEmpty())
 			{
+				ImportDiagnostics::checkpoint("viewer.scene-graph-begin", -1, attachedMeshCount);
 				_viewer->sceneGraph()->appendFromScene(
 					_sceneRuntime.assimpScene(), fileName, _sceneRuntime.pendingSceneUuids(),
 					SceneUtils::glmToAiMatrix(_sceneRuntime.globalSceneTransform()),
 					loadingWorker->wasAutoOrientApplied(),
 					loadingWorker->wasAutoScaleApplied());
 				importedFileNode = _viewer->sceneGraph()->root()->children.last();
+				ImportDiagnostics::checkpoint("viewer.scene-graph-end");
+				if (loadingWorker->hasThreeDXmlScene()) {
+					// Use the just-appended import, including when this file was imported before.
+					SceneNode* fileNode = _viewer->sceneGraph()->root()->children.last();
+					if (fileNode && !fileNode->importUnitUserOverridden) fileNode->importUnit = LengthUnit::Millimeter;
+				} else if (loadingWorker->declaredLengthUnit() != LengthUnit::Unknown) {
+					// The file states its own unit (JT): record it on the file node, never as a geometry scale.
+					SceneNode* fileNode = _viewer->sceneGraph()->root()->children.last();
+					if (fileNode && !fileNode->importUnitUserOverridden) fileNode->importUnit = loadingWorker->declaredLengthUnit();
+				}
+				// Recorded PMI dimensions (JT): anchor each on its part's mesh and keep them with the document.
+				if (meshCountAfterLoad > meshCountBeforeLoad) {
+					const auto& store = _sceneRuntime.meshStore();
+					const std::vector<SceneMeshRecord> importedMeshes(store.begin() + std::ptrdiff_t(meshCountBeforeLoad), store.begin() + std::ptrdiff_t(meshCountAfterLoad));
+					const RecordedPmi::BuildResult recordedPmi = RecordedPmi::buildDimensions(importedMeshes, importedFileNode->importUnit);
+					for (const Measurement& recorded : recordedPmi.measurements)
+						_viewer->sceneGraph()->addMeasurement(recorded);
+					for (const QString& note : recordedPmi.notes)
+						qWarning().noquote() << note;
+					if (!recordedPmi.warning.isEmpty())
+						QMessageBox::warning(this, tr("Recorded PMI"), recordedPmi.warning);
+					const RecordedPmi::AnnotationResult recordedNotes = RecordedPmi::buildAnnotations(importedMeshes);
+					for (const Annotation& recorded : recordedNotes.annotations)
+						_viewer->sceneGraph()->addAnnotation(recorded);
+					for (const QString& note : recordedNotes.notes)
+						qWarning().noquote() << note;
+				}
 
+				ImportDiagnostics::checkpoint("viewer.scene-graph-extras-begin");
 				// Register per-file punctual lights (if any) for this file.
 				// setLightData() emits lightDataChanged() which triggers the
 				// PunctualLightsPanel to refresh and ViewportWidget to rebuild the GPU list.
@@ -5633,12 +6019,6 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 					_viewer->sceneGraph()->setVariantData(fileName, vd);
 
 				const GltfAnimationData& ad = loadingWorker->getAnimationData();
-				const bool preservesNodeTransforms =
-					std::any_of(meshes.begin(), meshes.end(),
-						[](const AssImpMeshData& meshData)
-						{
-							return meshData.preserveNodeTransform;
-						});
 				if (!ad.isEmpty() || ad.hasSkinning)
 				{
 					_viewer->sceneGraph()->setAnimationData(fileName, ad);
@@ -5655,7 +6035,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 				else if (preservesNodeTransforms)
 				{
 					_animCtrl.removeAnimationFile(fileName);
+					ImportDiagnostics::checkpoint("viewer.sync-node-transforms-begin");
 					syncFileNodeTransforms(fileName);
+					ImportDiagnostics::checkpoint("viewer.sync-node-transforms-end");
 				}
 
 				// Register glTF camera data (if any) for this file.
@@ -5675,15 +6057,29 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			const unsigned int oldMeshCount =
 				_sceneRuntime.globalScene() ? _sceneRuntime.globalScene()->mNumMeshes : 0u;
 
-			aiScene* copiedScene = SceneUtils::deepCopyScene(_sceneRuntime.assimpScene());
+			ImportDiagnostics::checkpoint("viewer.scene-copy-begin");
+			// A natively imported scene (JT, 3DXML) is adopted as it is: the loader is deleted right after this, so copying every
+			// mesh (seconds and a second full copy of the geometry for a large assembly) would only be thrown away again.
+			aiScene* copiedScene = loadingWorker->releaseNativeScene();
+			if (!copiedScene)
+				copiedScene = SceneUtils::deepCopyScene(_sceneRuntime.assimpScene());
+			ImportDiagnostics::checkpoint("viewer.scene-copy-end");
+			ImportDiagnostics::checkpoint("viewer.scene-merge-begin");
 			SceneUtils::mergeScene(&_sceneRuntime.globalScene(), copiedScene);
+			ImportDiagnostics::checkpoint("viewer.scene-merge-end");
+			// Nothing reads the retained scene's geometry (the meshes and the scene graph hold it; exports build their own scene), so
+			// the imported arrays are freed here. MODELVIEWER_KEEP_SCENE_GEOMETRY=1 keeps them, as before.
+			static const bool keepSceneGeometry = qEnvironmentVariableIntValue("MODELVIEWER_KEEP_SCENE_GEOMETRY") != 0;
+			if (!keepSceneGeometry)
+				SceneUtils::releaseMeshGeometry(_sceneRuntime.globalScene(), oldMeshCount);
+			ImportDiagnostics::checkpoint("viewer.scene-geometry-released");
 
 			// Offset the sceneIndices of the meshes that were just added.
-			// They are the last meshes.size() entries in _sceneRuntime.meshStore() because
+			// They are the last attachedMeshCount entries in _sceneRuntime.meshStore() because
 			// addToDisplay() always appends.
-			if (oldMeshCount > 0 && !meshes.empty())
+			if (oldMeshCount > 0 && attachedMeshCount > 0)
 			{
-				const int newCount = static_cast<int>(meshes.size());
+				const int newCount = static_cast<int>(attachedMeshCount);
 				const int storeSize = static_cast<int>(_sceneRuntime.meshStore().size());
 				const int firstNew  = storeSize - newCount;
 				for (int i = firstNew; i < storeSize; ++i)
@@ -5696,6 +6092,7 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			}
 		}
 		_sceneRuntime.setAssimpScene(nullptr);
+		ImportDiagnostics::checkpoint("viewer.scene-index-fixup-end");
 
 		if (success && autoOrientCameraEnabled)
 		{
@@ -5710,6 +6107,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 			}
 		}
 
+		ImportDiagnostics::checkpoint("viewer.auto-orient-end");
+		if (success)
+			nativeImportWarnings = loadingWorker->importWarnings();
 		disconnect(finishedConnection);
 		disconnect(cancelledConnection);
 		disconnect(fileProgressConnection);
@@ -5721,20 +6121,26 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		disconnect(lightsConnection);
 
 		loadingWorker->moveToThread(this->thread());
+		ImportDiagnostics::checkpoint("viewer.worker-delete-begin");
 		delete loadingWorker;
+		ImportDiagnostics::checkpoint("viewer.worker-delete-end");
 	}
 
 	if (_sceneRuntime.loadCancelled())
 	{
-		if (!_sceneRuntime.meshStore().empty())
+		if (isNativeCadImport) {
+			success = false;
+			MainWindow::showStatusMessage(tr("Model loading cancelled"), 3000);
+		}
+		else if (!_sceneRuntime.meshStore().empty())
 		{
 			success = true;
 		}
-		if (_sceneRuntime.meshStore().empty())
+		if (!isNativeCadImport && _sceneRuntime.meshStore().empty())
 		{
 			MainWindow::showStatusMessage(tr("Model loading cancelled"), 3000);
 		}
-		else
+		else if (!isNativeCadImport)
 		{
 			MainWindow::showStatusMessage(
 				tr("Model loading cancelled after importing %1 meshes").arg(_sceneRuntime.meshStore().size()),
@@ -5744,16 +6150,32 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 	else
 	{
 		MainWindow::showStatusMessage("");
+		if (success)
+			MainWindow::setImportWarnings(fileName, nativeImportWarnings);
 	}
 
+	ImportDiagnostics::checkpoint("viewer.purge-begin");
 	if (success && !_sceneRuntime.loadCancelled() && importedFileNode)
 		_viewer->purgeRedundantNodesAfterLoad(importedFileNode);
+	ImportDiagnostics::checkpoint("viewer.purge-end");
 
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();
+	ImportDiagnostics::checkpoint("viewer.ui-unlock-begin");
 	MainWindow::setLoadingUiLocked(false);
+	ImportDiagnostics::checkpoint("viewer.ui-unlock-end");
 	_sceneRuntime.setCancelRequested(false);
+	// Locking and unlocking the UI around an import moves keyboard focus away from the viewport, so the view shortcuts
+	// (PBR, shading modes, ...) would do nothing until the user clicked in it. Deferred so it runs after the unlocked
+	// widgets have settled; the window may have lost activation to a dialog meanwhile, in which case leave focus alone.
+	if (success)
+		QTimer::singleShot(0, this, [this]()
+		{
+			if (isVisible() && window() && window()->isActiveWindow())
+				setFocus(Qt::OtherFocusReason);
+		});
 
+	ImportDiagnostics::checkpoint("viewer.import-end", -1, success ? 1 : 0);
 	return success;
 }
 
@@ -5866,7 +6288,10 @@ void ViewportWidget::showFileReadingProgress(float percent)
 
 void ViewportWidget::showMeshLoadingProgress(float /*percent*/)
 {
-	makeCurrent();
+	// Progress slots can be queued by the tens of thousands behind a large import; re-making the context current
+	// each time was measurable.
+	if (QOpenGLContext::currentContext() != context())
+		makeCurrent();
 }
 
 void ViewportWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNodes, int processedMeshes, int totalMeshes, bool uvProcessed)
@@ -5884,7 +6309,8 @@ void ViewportWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNo
 		MainWindow::setProgressValue(static_cast<int>((static_cast<float>(processedNodes) / static_cast<float>(totalNodes)) * 100.0f));
 	}
 
-	makeCurrent();
+	if (QOpenGLContext::currentContext() != context())
+		makeCurrent();
 }
 
 void ViewportWidget::swapVisible(bool checked)
@@ -6204,24 +6630,9 @@ void ViewportWidget::createCappingPlanes()
 	// "comboCameraUpAxis"/"comboDefaultView" above in this class - replaces
 	// SceneRenderController's own hardcoded member-initializer defaults
 	// (PROCEDURAL/Diagonal 45/100/0.05/1.0/black) as the effective source of
-	// truth without needing to touch that class. Mode is intentionally only
-	// read here, once - see ClippingPlanesEditor's own doc comment on why
-	// it's no longer a live in-panel toggle.
-	{
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		_renderCtrl.setHatchMode(static_cast<ClippingPlaneHatchMode>(
-			settings.value("sectionCappingMode", 0).toInt()));
-		_renderCtrl.setHatchPattern(static_cast<HatchPattern>(
-			settings.value("sectionCappingHatchPattern", 0).toInt()));
-		_renderCtrl.setHatchTiling(settings.value("sectionCappingHatchTiling", 100).toInt());
-		_renderCtrl.setHatchThickness(static_cast<float>(
-			settings.value("sectionCappingHatchThickness", 0.05).toDouble()));
-		_renderCtrl.setHatchIntensity(static_cast<float>(
-			settings.value("sectionCappingHatchIntensity", 1.0).toDouble()));
-		const QColor hatchColor = settings.value("sectionCappingHatchLineColor", QColor(0, 0, 0)).value<QColor>();
-		_renderCtrl.setHatchLineColor(QVector3D(static_cast<float>(hatchColor.redF()),
-			static_cast<float>(hatchColor.greenF()), static_cast<float>(hatchColor.blueF())));
-	}
+	// truth without needing to touch that class. Settings -> Apply re-runs the
+	// same read for every open document (MainWindow), so these are live too.
+	loadSectionCappingSettings();
     _renderCtrl.setCappingTexture(loadTextureFromFile(QString(path + "textures/patterns/hatch_03.png").toStdString().c_str()));
 	glActiveTexture(GL_TEXTURE6);
 	glBindTexture(GL_TEXTURE_2D, _renderCtrl.cappingTexture());
@@ -6718,6 +7129,49 @@ void ViewportWidget::updateMainLightPosition(float halfObjectSize)
 		CoordinateSystemHelper::setCoordinateAlongCurrentWorldUp(_viewCtrl.cameraUpAxisZUp(), _lightPosition,
 			highestUp + halfObjectSize * 5.0f + (_floorSize * _renderCtrl.floorOffsetPercent()));
 	}
+	// Opt-in local evidence for appearance comparisons. No source paths,
+	// images or geometry payloads are logged; ordinary launches stay quiet.
+	const QString diagnosticPath=qEnvironmentVariable("MODELVIEWER_APPEARANCE_DIAGNOSTICS");
+	if (!diagnosticPath.isEmpty())
+	{
+		const auto vector = [](const QVector3D& v) { return QJsonArray{v.x(),v.y(),v.z()}; };
+		const auto matrix = [](const QMatrix4x4& m) {
+			QJsonArray values;for(int i=0;i<16;++i)values.append(m.constData()[i]);return values;
+		};
+		QJsonArray meshes;
+		for(int id : _sceneRuntime.currentVisibleObjectIds())
+			if(const auto* mesh=_sceneRuntime.meshAt(id))
+			{
+				const auto& material=mesh->getMaterial();const auto sphere=mesh->getBoundingSphere();
+				meshes.append(QJsonObject{
+					{"format",QFileInfo(mesh->getSourceFile()).suffix().toLower()},
+					{"center",vector(sphere.getCenter())},{"radius",sphere.getRadius()},
+					{"transform",matrix(mesh->getSceneRenderTransform())},
+					{"albedo",vector(material.albedoColor())},{"opacity",material.opacity()},
+					{"blendMode",int(material.blendMode())},{"twoSided",material.twoSided()},
+					{"unlit",material.isUnlit()},{"metalness",material.metalness()},
+					{"roughness",material.roughness()},{"ambient",vector(material.ambient())},
+					{"specular",vector(material.specular())}});
+			}
+		const auto& box=_viewCtrl.boundingBox();
+		const QJsonObject record{
+			{"viewport",QString::number(quintptr(this),16)},
+			{"zUp",_viewCtrl.cameraUpAxisZUp()},
+			{"bounds",QJsonArray{box.xMin(),box.xMax(),box.yMin(),box.yMax(),box.zMin(),box.zMax()}},
+			{"sceneCenter",vector(_viewCtrl.boundingSphere().getCenter())},
+			{"sceneRadius",_viewCtrl.boundingSphere().getRadius()},
+			{"modelMatrix",matrix(_viewCtrl.modelMatrix())},
+			{"floorSize",_floorSize},{"floorOffset",_renderCtrl.floorOffsetPercent()},
+			{"lightPosition",vector(effectiveWorldLightPosition())},
+			{"lightOffset",vector(effectiveWorldLightOffset())},{"meshes",meshes}};
+		const auto encoded=QJsonDocument(record).toJson(QJsonDocument::Compact);
+		// An explicit local destination also works when the application's
+		// ordinary logger is disabled or filters informational messages.
+		QFile evidence(diagnosticPath);
+		if(QFileInfo(diagnosticPath).isAbsolute()&&evidence.size()<1024*1024
+		   &&evidence.open(QIODevice::WriteOnly|QIODevice::Append))
+			evidence.write(encoded+'\n');
+	}
 }
 
 float ViewportWidget::updateFloorGeometry()
@@ -7008,7 +7462,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	// the full-resolution shadow depth pass itself still running for nothing
 	// - skip generating it too, matching the same condition.
 	if (_renderCtrl.shadowsEnabled()
-		&& !(_renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
+		&& !(interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
@@ -7098,7 +7552,7 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 	glViewport(0, 0, width(), height());
 	// The view-independent passes are done once for the whole scene, exactly as the single view does.
 	if (_renderCtrl.shadowsEnabled()
-		&& !(_renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
+		&& !(interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
@@ -7461,7 +7915,7 @@ void ViewportWidget::renderMultiView(QColor& topColor, QColor& botColor)
 	// (not just the shadow-map SAMPLING that showShadows already gates) during
 	// interaction on oversized models.
 	if (_renderCtrl.shadowsEnabled()
-		&& !(_renderCtrl.lowResEnabled() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
+		&& !(interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES))
 		renderToShadowBuffer();
 
 	if (sceneHasVisibleSSSMaterials())
@@ -7630,10 +8084,71 @@ void ViewportWidget::drawFloor(const bool& drawReflection)
 	_renderCtrl.fgShader()->setUniformValue("sssCapture", false);
 	_renderCtrl.fgShader()->setUniformValue("modelMatrix", model);
 	RenderableMesh::setCurrentRenderContext(model, _viewCtrl.viewMatrix());
-	if (_renderCtrl.reflectionsEnabled() && drawReflection)
+	// The reflection redraws the whole scene a second time; on a large model it is skipped while the camera is moving
+	// (same gate as the shadow passes) and comes back when the interaction ends.
+	const bool skipReflectionForInteraction = interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
+	if (_renderCtrl.reflectionsEnabled() && drawReflection && !skipReflectionForInteraction)
 	{
 		_renderCtrl.fgShader()->setUniformValue("renderingMode", static_cast<int>(_renderCtrl.renderingMode()));
-		drawMesh(_renderCtrl.fgShader());
+		// Large models: the mirrored scene is drawn from the same merged buffers as the main pass (the model matrix above is
+		// a uniform, so the baked batches mirror with it); only what the batches do not cover is drawn mesh by mesh.
+		bool reflectionBatched = false;
+		// The mirror image is dim and secondary: on an oversized model draw it from the coarse LOD tier (the same one the
+		// interaction fast path uses) so its triangle cost is a fraction of the main pass.
+		const bool previousLodPolicy = RenderableMesh::lodPolicyActive();
+		if (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES)
+			RenderableMesh::setLodPolicy(true);
+		const std::vector<int>& visibleIds = _sceneRuntime.currentVisibleObjectIds();
+		const bool anyClipping = _renderCtrl.yzClippingEnabled() || _renderCtrl.zxClippingEnabled()
+			|| _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+		if (_drawBatcher && _drawBatcher->hasBatches() && _displayMode == DisplayMode::SHADED
+			&& _shadingNormalMode != ShadingNormalMode::FLAT && !anyClipping)
+		{
+			const DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+			if (batchSettings.enabled && static_cast<int>(visibleIds.size()) >= batchSettings.minDisplayedMeshes)
+			{
+				QOpenGLShaderProgram* prog = _renderCtrl.fgShader();
+				setupClippingUniforms(prog, _primaryCamera->getRenderPosition());
+				glDisable(GL_BLEND);
+				glDepthMask(GL_TRUE);
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				glDisable(GL_POLYGON_OFFSET_FILL);
+				prog->setUniformValue("hovered", false);
+				// Only meshes whose mirror image falls inside the camera frustum can show up in the reflection; the
+				// others (the camera sees them directly but their image lies below the screen or behind the camera)
+				// are not drawn. The mirror is a reflection about the floor plane, so a box maps to a box.
+				const bool zUp = _viewCtrl.cameraUpAxisZUp();
+				std::vector<int> mirroredVisibleIds;
+				mirroredVisibleIds.reserve(visibleIds.size());
+				for (int id : visibleIds)
+				{
+					const SceneMesh* mesh = _sceneRuntime.meshAt(id);
+					if (!mesh)
+						continue;
+					if (mesh->hasSkinning()) // bind-pose bounds are not reliable for a skinned mesh
+					{
+						mirroredVisibleIds.push_back(id);
+						continue;
+					}
+					const BoundingBox& bb = mesh->getBoundingBox();
+					BoundingBox mirrored;
+					if (zUp)
+						mirrored.setLimits(bb.xMin(), bb.xMax(), bb.yMin(), bb.yMax(), 2.0f * floorPos - bb.zMax(), 2.0f * floorPos - bb.zMin());
+					else
+						mirrored.setLimits(bb.xMin(), bb.xMax(), 2.0f * floorPos - bb.yMax(), 2.0f * floorPos - bb.yMin(), bb.zMin(), bb.zMax());
+					if (!VisibilityComputationHelper::isBoundingBoxOutside(mirrored, _frustumCtx))
+						mirroredVisibleIds.push_back(id);
+				}
+				std::vector<int> individual;
+				_drawBatcher->drawBatches(prog, mirroredVisibleIds, -1,
+					[this](int meshId) { return _sceneRuntime.meshAt(meshId); }, individual);
+				drawMeshSubset(prog, individual);
+				reflectionBatched = true;
+			}
+		}
+		if (!reflectionBatched)
+			drawMesh(_renderCtrl.fgShader());
+		RenderableMesh::setLodPolicy(previousLodPolicy);
 	}
 
 	glStencilMask(0x00);
@@ -7871,6 +8386,24 @@ std::vector<std::vector<int>> ViewportWidget::collectCappingGroups(int planeInde
 	return groups;
 }
 
+float ViewportWidget::hatchWorldUnitsPerTile(const QVector3D& refPoint, float partRelativeTile, bool textured) const
+{
+	const HatchSpacingMode mode = _renderCtrl.hatchSpacingMode();
+	if (textured || mode == HatchSpacingMode::PartRelative)
+		return partRelativeTile;
+	if (mode == HatchSpacingMode::ModelUnits)
+		return std::max(_renderCtrl.hatchSpacingModelUnits(), 1.0e-6f);
+	const QMatrix4x4 proj = _viewCtrl.projectionMatrix();
+	const QVector4D clip = proj * _viewCtrl.viewMatrix() * QVector4D(refPoint, 1.0f);
+	const float heightPx = static_cast<float>(height() * devicePixelRatioF());
+	const float scale = proj(1, 1) * heightPx;
+	if (!(scale > 1.0e-6f) || !(clip.w() > 1.0e-6f))
+		return partRelativeTile;
+	// One device pixel spans 2 * w / (P11 * height) eye units at the reference depth (w = 1 for orthographic).
+	const float worldPerPixel = 2.0f * clip.w() / scale;
+	return worldPerPixel * _renderCtrl.hatchSpacingPx() * static_cast<float>(devicePixelRatioF());
+}
+
 float ViewportWidget::computeLocalCappingSceneDiag() const
 {
 	bool haveExtent = false;
@@ -7921,6 +8454,38 @@ float ViewportWidget::computeLocalCappingSceneDiag() const
 	return (localMax - localMin).length();
 }
 
+namespace {
+// Antialiased-line mode off for the duration of a wire pass. SceneMesh turns GL_LINE_SMOOTH on together with blending for a
+// transparent mesh and only turns it off again at the next opaque one, so a wire pass inherited whatever the previous frame
+// or display mode left behind: smoothed, blended lines (slow, and the multisampling no longer does the antialiasing). The
+// previous state is restored afterwards for the mesh code that tracks it.
+struct ScopedLineSmoothOff
+{
+	QOpenGLFunctions* gl = QOpenGLContext::currentContext() ? QOpenGLContext::currentContext()->functions() : nullptr;
+	bool was = false;
+	ScopedLineSmoothOff() { if (gl && gl->glIsEnabled(GL_LINE_SMOOTH)) { was = true; gl->glDisable(GL_LINE_SMOOTH); } }
+	~ScopedLineSmoothOff() { if (gl && was) gl->glEnable(GL_LINE_SMOOTH); }
+};
+
+// A bool uniform of the wire shader that is uploaded only when it changes. In a large assembly nearly every mesh is unselected and
+// unhovered, and uploading by name for each mesh is a glGetUniformLocation round trip per mesh per frame.
+struct WireFlagUniform
+{
+	int location = -1;
+	int last = -1;
+	void bind(QOpenGLShaderProgram* program, const char* name) { location = program->uniformLocation(name); last = -1; }
+	void set(QOpenGLShaderProgram* program, bool value)
+	{
+		const int next = value ? 1 : 0;
+		if (location >= 0 && last != next)
+		{
+			program->setUniformValue(location, static_cast<GLint>(next));
+			last = next;
+		}
+	}
+};
+}
+
 void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClipPlaneIndex)
 {
 	RenderableMesh::resetTextureBindingCacheForCurrentContext();
@@ -7967,7 +8532,19 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 	{
 		std::vector<int> candidateIds;
 		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
-		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, false, candidateIds);
+		{
+			CullProfileScope cullProfile;
+			// One traversal sorts opaque and transparent meshes; the transparent pass of this camera and frame reuses it.
+			_cullCache.transparent.clear();
+			collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, false, candidateIds,
+				&_cullCache.transparent);
+			_cullCache.valid = true;
+			_cullCache.frame = _renderFrameCounter;
+			_cullCache.clipIndex = activeClipPlaneIndex;
+			_cullCache.frustum = _frustumCtx;
+			_cullCache.screen = _screenSizeCtx;
+		}
+		RenderableMesh::recordCullResult(static_cast<qint64>(candidateIds.size()));
 		opaque.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
@@ -7990,14 +8567,52 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		[](const auto& a, const auto& b) { return a.first < b.first; });
 	// Lightweight wire shader requires no active clip plane (it has no gl_ClipDistance).
 	// The fast path supports both static and skinned meshes; wireframe rendering
-	// intentionally uses a geometry-first contract rather than material-faithful
-	// alpha/transmission behavior.
+	// uses a geometry-first contract with authored BLEND vertex alpha; material-only
+	// opacity/transmission do not change wire coverage.
+	// While the interaction fast path rasterizes single-sample (see GL_MULTISAMPLE in the render setup), a line of 1.25-1.5 px
+	// is rounded to whole pixels and looks heavier than the antialiased one at rest, so the width follows the sampling.
+	const bool wireSingleSample = interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
 	const bool useWireShader = _renderCtrl.wireframeShader() && _renderCtrl.wireframeShader()->isLinked()
 	    && activeClipPlaneIndex < 0;
+	// The wire passes of a large model take the merged-buffer path of Shaded mode too: one multi-draw per material group with the
+	// wireframe shader, instead of one draw plus uniform uploads per mesh. `rest` receives what the batches do not cover
+	// (hovered, new or changed meshes), to be drawn mesh by mesh. False = nothing was batched.
+	bool batcherUpdated = false;
+	const auto drawWireBatches = [&](bool highlightSelected, int hoveredForBatch, std::vector<int>& rest) -> bool
+	{
+		rest.clear();
+		if (!useWireShader)
+			return false;
+		DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+		batchSettings.immediateInitialBuild = _sceneRuntime.pendingSceneUuids().isEmpty();
+		if (!_drawBatcher)
+			_drawBatcher = std::make_unique<DrawBatcher>();
+		const auto meshLookup = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+		if (!batcherUpdated)
+		{
+			_drawBatcher->update(_sceneRuntime.currentVisibleObjectIds(), meshLookup, batchSettings);
+			batcherUpdated = true;
+		}
+		if (!batchSettings.enabled || !_drawBatcher->hasBatches()
+			|| static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) < batchSettings.minDisplayedMeshes)
+			return false;
+		std::vector<int> culledIds;
+		culledIds.reserve(opaque.size());
+		for (const auto& entry : opaque)
+			culledIds.push_back(entry.second);
+		const DrawBatcher::WireDraw wireDraw{ highlightSelected };
+		_drawBatcher->drawBatches(_renderCtrl.wireframeShader(), culledIds, hoveredForBatch, meshLookup, rest, &wireDraw);
+		// Batched meshes set these per group; the mesh-by-mesh path expects the pass defaults.
+		_renderCtrl.wireframeShader()->setUniformValue("hasVertexColors", false);
+		_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap", false);
+		_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+		return true;
+	};
 	if (_displayMode == DisplayMode::HOLLOW_MESH)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(1.25f);
+		glLineWidth(wireSingleSample ? 1.0f : 1.25f);
+		ScopedLineSmoothOff noLineSmooth;
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShader)
 		{
@@ -8015,14 +8630,21 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);			
 			_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.0f, 0.5f, 1.0f));	
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
-			for (auto& [key, id] : opaque)
+			WireFlagUniform selectedFlag, hoveredFlag;
+			selectedFlag.bind(_renderCtrl.wireframeShader(), "selected");
+			hoveredFlag.bind(_renderCtrl.wireframeShader(), "hovered");
+			const int hoveredIdNow = _selectionManager->getHoveredId();
+			std::vector<int> wireIds;
+			if (!drawWireBatches(true, hoverHighlightingEnabled ? hoveredIdNow : -1, wireIds))
+				for (const auto& entry : opaque)
+					wireIds.push_back(entry.second);
+			for (int id : wireIds)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 				{
 					const bool isSel = selIds.contains(id);
-					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
-					_renderCtrl.wireframeShader()->setUniformValue("hovered",
-						!isSel && hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+					selectedFlag.set(_renderCtrl.wireframeShader(), isSel);
+					hoveredFlag.set(_renderCtrl.wireframeShader(), !isSel && hoverHighlightingEnabled && id == hoveredIdNow);
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 				}
 			}
@@ -8056,7 +8678,41 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(1.25f, 1.25f);
 		prog->setUniformValue("isWireframePass", false);
-		for (auto& [key, id] : opaque)
+		// The fill pass is the shaded pass with a depth bias, so a large model takes the same merged-buffer path as Shaded
+		// mode (see DrawBatcher): one multi-draw per material group, and only what the batches do not cover is drawn mesh by
+		// mesh below. The depth bias set above is left alone by the batch draw.
+		std::vector<int> fillIds;
+		bool fillBatched = false;
+		const bool anyClippingFill = activeClipPlaneIndex >= 0 || _renderCtrl.yzClippingEnabled()
+			|| _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+		if (!flatProg && !anyClippingFill)
+		{
+			DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+			batchSettings.immediateInitialBuild = _sceneRuntime.pendingSceneUuids().isEmpty();
+			if (!_drawBatcher)
+				_drawBatcher = std::make_unique<DrawBatcher>();
+			const auto meshLookup = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+			_drawBatcher->update(_sceneRuntime.currentVisibleObjectIds(), meshLookup, batchSettings);
+			batcherUpdated = true;
+			if (batchSettings.enabled && _drawBatcher->hasBatches()
+				&& static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) >= batchSettings.minDisplayedMeshes)
+			{
+				std::vector<int> culledIds;
+				culledIds.reserve(opaque.size());
+				for (const auto& entry : opaque)
+					culledIds.push_back(entry.second);
+				prog->setUniformValue("hovered", false);
+				_drawBatcher->drawBatches(prog, culledIds,
+					hoverHighlightingEnabled ? _selectionManager->getHoveredId() : -1, meshLookup, fillIds);
+				fillBatched = true;
+			}
+			else if (!batchSettings.enabled && _drawBatcher->hasBatches())
+				_drawBatcher->releaseGl();
+		}
+		if (!fillBatched)
+			for (const auto& entry : opaque)
+				fillIds.push_back(entry.second);
+		for (int id : fillIds)
 		{
 			if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 			{
@@ -8066,14 +8722,19 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 				if (sssObjectIdLocation >= 0)
 					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
-				mesh->render();
+				{
+					// The hovered mesh is pulled toward the camera so coincident copies cannot hide the highlight (ScopedSelectionDepthBias).
+					ScopedSelectionDepthBias hoverDepthBias(*this, hoverHighlightingEnabled && id == _selectionManager->getHoveredId() && !mesh->isSelected() && mesh->getPrimitiveMode() == GL_TRIANGLES);
+					mesh->render();
+				}
 			}
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
 
 		// Wire pass — draw edges at true depth; no line offset needed.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(1.5f);
+		glLineWidth(wireSingleSample ? 1.0f : OverlayLineWeights::objectLine);
+		ScopedLineSmoothOff noLineSmooth;
 		if (useWireShader)
 		{			
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
@@ -8085,7 +8746,14 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
 			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);			
-			for (auto& [key, id] : opaque)
+			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
+			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+			// The line pass does not signal hover or selection (the fill pass carries them), so nothing is kept out of the batches.
+			std::vector<int> wireIds;
+			if (!drawWireBatches(false, -1, wireIds))
+				for (const auto& entry : opaque)
+					wireIds.push_back(entry.second);
+			for (int id : wireIds)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))					
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());				
@@ -8118,7 +8786,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		// True feature-edge wireframe — draw only pre-computed crease/boundary edges via GL_LINES.
 		// No glPolygonMode needed; the feature-edge VAO draws GL_LINES primitives directly.
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(1.75f);
+		glLineWidth(OverlayLineWeights::wireframeOverlayLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -8169,12 +8837,16 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
 				if (sssObjectIdLocation >= 0)
 					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
-				mesh->render();
+				{
+					// The hovered mesh is pulled toward the camera so coincident copies cannot hide the highlight (ScopedSelectionDepthBias).
+					ScopedSelectionDepthBias hoverDepthBias(*this, hoverHighlightingEnabled && id == _selectionManager->getHoveredId() && !mesh->isSelected() && mesh->getPrimitiveMode() == GL_TRIANGLES);
+					mesh->render();
+				}
 			}
 		}
 		// Feature-edge overlay — no offset needed; solid was already pushed back.
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(1.5f);
+		glLineWidth(wireSingleSample ? 1.0f : OverlayLineWeights::objectLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -8210,7 +8882,80 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 	}
 	else
 	{
-		for (auto& [key, id] : opaque)
+		// Large models: draw the static parts from merged buffers, one multi-draw per material group, and fall
+		// through to the per-mesh loop below for everything the batches do not cover (selected, hovered, moved,
+		// transparent-like, ...). See DrawBatcher.
+		std::vector<int> drawIds;
+		drawIds.reserve(opaque.size());
+		bool batchedPass = false;
+		const bool anyClipping = activeClipPlaneIndex >= 0 || _renderCtrl.yzClippingEnabled()
+			|| _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+		if (_displayMode == DisplayMode::SHADED && !flatProg && !anyClipping)
+		{
+			DrawBatcher::Settings batchSettings = DrawBatcher::readSettings();
+			// No import in progress: the scene is complete, so the first batches can be built before this frame is drawn.
+			batchSettings.immediateInitialBuild = _sceneRuntime.pendingSceneUuids().isEmpty();
+			if (!_drawBatcher)
+				_drawBatcher = std::make_unique<DrawBatcher>();
+			const auto meshLookup = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+			QElapsedTimer batchTimer;
+			if (RenderableMesh::renderDiagnosticsEnabled())
+				batchTimer.start();
+			_drawBatcher->update(_sceneRuntime.currentVisibleObjectIds(), meshLookup, batchSettings);
+			if (batchSettings.enabled && _drawBatcher->hasBatches()
+				&& static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) >= batchSettings.minDisplayedMeshes)
+			{
+				std::vector<int> culledIds;
+				culledIds.reserve(opaque.size());
+				for (const auto& entry : opaque)
+					culledIds.push_back(entry.second);
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				glLineWidth(1.0f);
+				glDisable(GL_POLYGON_OFFSET_FILL);
+				prog->setUniformValue("hovered", false);
+				_drawBatcher->drawBatches(prog, culledIds,
+					hoverHighlightingEnabled ? _selectionManager->getHoveredId() : -1, meshLookup, drawIds);
+				batchedPass = true;
+			}
+			if (batchTimer.isValid())
+				RenderableMesh::recordBatchCpuMs(static_cast<double>(batchTimer.nsecsElapsed()) / 1000000.0);
+			else if (!batchSettings.enabled && _drawBatcher->hasBatches())
+				_drawBatcher->releaseGl();
+		}
+		if (!batchedPass)
+			for (const auto& entry : opaque)
+				drawIds.push_back(entry.second);
+
+		// Plain shaded mode only needs the fill/line/offset state set once for the whole loop;
+		// renderMeshWithDisplayMode() set and reset it around every single mesh (six GL calls each).
+		const bool directShaded = (_displayMode == DisplayMode::SHADED);
+		if (directShaded)
+		{
+			glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+			glLineWidth(1.0f);
+			glDisable(GL_POLYGON_OFFSET_FILL);
+		}
+		// "hovered" only changes for the hovered mesh: look the location up once per program and upload on change.
+		struct HoverUniform { QOpenGLShaderProgram* program = nullptr; int location = -1; int last = -1; };
+		HoverUniform hoverUniforms[2];
+		const auto setHovered = [&](QOpenGLShaderProgram* p, bool value)
+		{
+			HoverUniform& state = (p == prog) ? hoverUniforms[0] : hoverUniforms[1];
+			if (state.program != p)
+			{
+				state.program = p;
+				state.location = p->uniformLocation("hovered");
+				state.last = -1;
+			}
+			if (state.location >= 0 && state.last != (value ? 1 : 0))
+			{
+				p->setUniformValue(state.location, value);
+				state.last = value ? 1 : 0;
+			}
+		};
+		const int hoveredIdNow = hoverHighlightingEnabled ? _selectionManager->getHoveredId() : -1;
+
+		for (int id : drawIds)
 		{
 			if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 			{
@@ -8232,11 +8977,17 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 				}
 				mesh->setProg(activeProg);
 				RenderableMesh::bindProgramCached(activeProg);
-				activeProg->setUniformValue("hovered",
-					hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+				setHovered(activeProg, hoveredIdNow >= 0 && id == hoveredIdNow);
 				if (activeSssObjectIdLocation >= 0)
 					activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
-				renderMeshExploded(mesh, _displayMode);
+				{
+					// The hovered mesh is pulled toward the camera so coincident copies cannot hide the highlight (ScopedSelectionDepthBias).
+					ScopedSelectionDepthBias hoverDepthBias(*this, hoveredIdNow >= 0 && id == hoveredIdNow && !mesh->isSelected() && mesh->getPrimitiveMode() == GL_TRIANGLES);
+					if (directShaded)
+						mesh->render();
+					else
+						renderMeshExploded(mesh, _displayMode);
+				}
 			}
 		}
 	}
@@ -8260,7 +9011,19 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 	{
 		std::vector<int> candidateIds;
 		candidateIds.reserve(_sceneRuntime.currentVisibleObjectIds().size());
-		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, true, candidateIds);
+		{
+			CullProfileScope cullProfile;
+			const bool reuse = _cullCache.valid && _cullCache.frame == _renderFrameCounter
+				&& _cullCache.clipIndex == activeClipPlaneIndex
+				&& std::memcmp(&_cullCache.frustum, &_frustumCtx, sizeof(_frustumCtx)) == 0
+				&& std::memcmp(&_cullCache.screen, &_screenSizeCtx, sizeof(_screenSizeCtx)) == 0;
+			if (reuse)
+				candidateIds = std::move(_cullCache.transparent);
+			else
+				collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(), activeClipPlaneIndex, true, candidateIds);
+			_cullCache.valid = false;
+		}
+		RenderableMesh::recordCullResult(static_cast<qint64>(candidateIds.size()));
 		transparent.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
@@ -8325,12 +9088,36 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 		flatProg->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
 		flatSssObjectIdLocation = flatProg->uniformLocation("sssObjectId");
 	}
+	// While the interaction fast path rasterizes single-sample (see GL_MULTISAMPLE in the render setup), a line of 1.25-1.5 px
+	// is rounded to whole pixels and looks heavier than the antialiased one at rest, so the width follows the sampling.
+	const bool wireSingleSampleT = interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
 	const bool useWireShaderT = _renderCtrl.wireframeShader() && _renderCtrl.wireframeShader()->isLinked()
 	    && activeClipPlaneIndex < 0;
+	// The transparent wire passes of a large model draw runs of meshes that share a batch with one multi-draw each, in the same
+	// back-to-front order (see DrawBatcher::drawTransparentSequence); `individual` draws the rest at their place in the order.
+	// False = not batched, the caller draws every mesh itself.
+	const auto drawWireSequence = [&](int hoveredForBatch, const std::function<void(int)>& individual) -> bool
+	{
+		if (!useWireShaderT || !_drawBatcher || !_drawBatcher->hasBatches())
+			return false;
+		const DrawBatcher::Settings batchSettingsW = DrawBatcher::readSettings();
+		if (!batchSettingsW.enabled
+			|| static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) < batchSettingsW.minDisplayedMeshes)
+			return false;
+		std::vector<int> orderedIds;
+		orderedIds.reserve(transparent.size());
+		for (const auto& it : transparent)
+			orderedIds.push_back(it.second);
+		const auto meshLookupW = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+		const DrawBatcher::WireDraw wireDraw{ false };
+		_drawBatcher->drawTransparentSequence(_renderCtrl.wireframeShader(), orderedIds, hoveredForBatch, meshLookupW, individual, &wireDraw);
+		return true;
+	};
 	if (_displayMode == DisplayMode::HOLLOW_MESH)
 	{
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(1.25f);
+		glLineWidth(wireSingleSampleT ? 1.0f : 1.25f);
+		ScopedLineSmoothOff noLineSmooth;
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShaderT)
 		{
@@ -8348,17 +9135,26 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
 			_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.0f, 0.5f, 1.0f));
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
-			for (auto& it : transparent)
+			const int selectedLocation = _renderCtrl.wireframeShader()->uniformLocation("selected");
+			const int hoveredLocation = _renderCtrl.wireframeShader()->uniformLocation("hovered");
+			const int hoveredIdNow = _selectionManager->getHoveredId();
+			// Batched runs set and clear these themselves, so the flags are uploaded here without a remembered state.
+			const std::function<void(int)> drawOne = [&](int id)
 			{
-				if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 				{
-					const bool isSel = selIds.contains(it.second);
-					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
-					_renderCtrl.wireframeShader()->setUniformValue("hovered",
-						!isSel && hoverHighlightingEnabledT && it.second == _selectionManager->getHoveredId());
+					const bool isSel = selIds.contains(id);
+					const bool isHov = !isSel && hoverHighlightingEnabledT && id == hoveredIdNow;
+					if (selectedLocation >= 0)
+						_renderCtrl.wireframeShader()->setUniformValue(selectedLocation, static_cast<GLint>(isSel));
+					if (hoveredLocation >= 0)
+						_renderCtrl.wireframeShader()->setUniformValue(hoveredLocation, static_cast<GLint>(isHov));
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 				}
-			}
+			};
+			if (!drawWireSequence(hoverHighlightingEnabledT ? hoveredIdNow : -1, drawOne))
+				for (auto& it : transparent)
+					drawOne(it.second);
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		}
@@ -8390,11 +9186,10 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 		glEnable(GL_POLYGON_OFFSET_FILL);
 		glPolygonOffset(1.25f, 1.25f);
 		prog->setUniformValue("isWireframePass", false);
-		for (auto& it : transparent)
+		const std::function<void(int)> drawFillOne = [&](int id)
 		{
-			if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+			if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 			{
-				const int id = it.second;
 				mesh->setProg(prog);
 				RenderableMesh::bindProgramCached(prog);
 				prog->setUniformValue("hovered",
@@ -8403,12 +9198,36 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 					prog->setUniformValue(sssObjectIdLocation, float(id + 1));
 				mesh->render();
 			}
+		};
+		// The fill pass is the shaded transparent pass with a depth bias: the same batched sequence as Shaded mode.
+		bool fillBatched = false;
+		if (!flatProg && _drawBatcher && _drawBatcher->hasBatches())
+		{
+			const bool anyClippingFillT = activeClipPlaneIndex >= 0 || _renderCtrl.yzClippingEnabled()
+				|| _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+			const DrawBatcher::Settings batchSettingsF = DrawBatcher::readSettings();
+			if (!anyClippingFillT && batchSettingsF.enabled
+				&& static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) >= batchSettingsF.minDisplayedMeshes)
+			{
+				std::vector<int> orderedIds;
+				orderedIds.reserve(transparent.size());
+				for (const auto& it : transparent)
+					orderedIds.push_back(it.second);
+				const auto meshLookupF = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+				_drawBatcher->drawTransparentSequence(prog, orderedIds,
+					hoverHighlightingEnabledT ? _selectionManager->getHoveredId() : -1, meshLookupF, drawFillOne);
+				fillBatched = true;
+			}
 		}
+		if (!fillBatched)
+			for (auto& it : transparent)
+				drawFillOne(it.second);
 		glDisable(GL_POLYGON_OFFSET_FILL);
 
 		// Wire pass — draw edges at true depth; no line offset needed.
 		glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-		glLineWidth(1.5f);
+		glLineWidth(wireSingleSampleT ? 1.0f : OverlayLineWeights::objectLine);
+		ScopedLineSmoothOff noLineSmooth;
 		if (useWireShaderT)
 		{
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
@@ -8420,11 +9239,17 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
 			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);
-			for (auto& it : transparent)
+			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
+			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+			const std::function<void(int)> drawLineOne = [&](int id)
 			{
-				if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
-			}
+			};
+			// The line pass does not signal hover, so the hovered mesh stays in its batch.
+			if (!drawWireSequence(-1, drawLineOne))
+				for (auto& it : transparent)
+					drawLineOne(it.second);
 		}
 		else
 		{
@@ -8452,7 +9277,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 	else if (_displayMode == DisplayMode::WIREFRAME && useWireShaderT)
 	{
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(1.75f);
+		glLineWidth(OverlayLineWeights::wireframeOverlayLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -8506,7 +9331,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 			}
 		}
 		glDisable(GL_POLYGON_OFFSET_FILL);
-		glLineWidth(1.5f);
+		glLineWidth(wireSingleSampleT ? 1.0f : OverlayLineWeights::objectLine);
 		RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 		_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 		_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -8543,11 +9368,10 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 	}
 	else
 	{
-		for (auto& it : transparent)
+		const auto drawTransparentMesh = [&](int id)
 		{
-			if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+			if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
 			{
-				const int id = it.second;
 				QOpenGLShaderProgram* activeProg = prog;
 				int activeSssObjectIdLocation = sssObjectIdLocation;
 				// See drawMeshSubset()'s equivalent opaque-pass guard.
@@ -8564,7 +9388,35 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 					activeProg->setUniformValue(activeSssObjectIdLocation, float(id + 1));
 				renderMeshExploded(mesh, _displayMode);
 			}
+		};
+
+		// Plain shaded mode on a large model: draw consecutive transparent meshes that share a batch with one
+		// multi-draw each, in exactly the sorted back-to-front order. Everything else goes through the lambda above.
+		bool batchedTransparent = false;
+		if (_displayMode == DisplayMode::SHADED && !flatProg && _drawBatcher && _drawBatcher->hasBatches())
+		{
+			const bool anyClippingT = activeClipPlaneIndex >= 0 || _renderCtrl.yzClippingEnabled()
+				|| _renderCtrl.zxClippingEnabled() || _renderCtrl.xyClippingEnabled() || _renderCtrl.boxClippingEnabled();
+			const DrawBatcher::Settings batchSettingsT = DrawBatcher::readSettings();
+			if (!anyClippingT && batchSettingsT.enabled
+				&& static_cast<int>(_sceneRuntime.currentVisibleObjectIds().size()) >= batchSettingsT.minDisplayedMeshes)
+			{
+				glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+				glLineWidth(1.0f);
+				glDisable(GL_POLYGON_OFFSET_FILL);
+				std::vector<int> orderedIds;
+				orderedIds.reserve(transparent.size());
+				for (const auto& it : transparent)
+					orderedIds.push_back(it.second);
+				const auto meshLookupT = [this](int meshId) { return _sceneRuntime.meshAt(meshId); };
+				_drawBatcher->drawTransparentSequence(prog, orderedIds,
+					hoverHighlightingEnabledT ? _selectionManager->getHoveredId() : -1, meshLookupT, drawTransparentMesh);
+				batchedTransparent = true;
+			}
 		}
+		if (!batchedTransparent)
+			for (const auto& it : transparent)
+				drawTransparentMesh(it.second);
 	}
 
 	glDepthMask(GL_TRUE);
@@ -8578,7 +9430,8 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
                                             int activeClipPlaneIndex,
                                             bool wantTransparent,
-                                            std::vector<int>& out) const
+                                            std::vector<int>& out,
+                                            std::vector<int>* otherOut) const
 {
 	if (nodeIndex < 0 || nodeIndex >= _sceneRuntime.runtimeVisibilityNodes().size())
 		return;
@@ -8588,6 +9441,9 @@ void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 		return;
 	namespace VCH = VisibilityComputationHelper;
 	if (VCH::isBoundingBoxOutside(runtimeNode.subtreeBounds, _frustumCtx))
+		return;
+	// Everything below a subtree that is itself only a few pixels across is smaller still.
+	if (VCH::isBoundingBoxTooSmall(runtimeNode.subtreeBounds, _screenSizeCtx))
 		return;
 
 	// Box-clip passes take no tree-level pruning: the axis-only checks below
@@ -8621,12 +9477,17 @@ void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 			continue;
 		if (!isMeshVisible(mesh, activeClipPlaneIndex))
 			continue;
+		// Skinned meshes keep bind-pose bounds, which are not reliable for size either.
+		if (!mesh->hasSkinning() && VCH::isMeshTooSmall(mesh, _screenSizeCtx))
+			continue;
 		if (mesh->isTransparent() == wantTransparent)
 			out.push_back(meshIndex);
+		else if (otherOut)
+			otherOut->push_back(meshIndex);
 	}
 
 	for (int childIndex : std::as_const(runtimeNode.children))
-		collectVisibleMeshIdsForPass(childIndex, activeClipPlaneIndex, wantTransparent, out);
+		collectVisibleMeshIdsForPass(childIndex, activeClipPlaneIndex, wantTransparent, out, otherOut);
 }
 
 void ViewportWidget::extractFrustumPlanes()
@@ -8635,6 +9496,31 @@ void ViewportWidget::extractFrustumPlanes()
 	const QVector4D* planes = _viewCtrl.frustumPlanes();
 	for (int i = 0; i < 6; ++i)
 		_frustumCtx.planes[i] = planes[i];
+
+	// Small-part culling: only while the camera is moving on a model large enough for the interaction fast path,
+	// so small models and resting views are drawn in full. Pixel threshold in QSettings "smallPartCullPixels"
+	// (default 4, 0 turns it off); read at most once a second because QSettings is a registry read on Windows.
+	static QElapsedTimer cullSettingClock;
+	static float cullPixels = 4.0f;
+	if (!cullSettingClock.isValid() || cullSettingClock.elapsed() > 1000)
+	{
+		cullPixels = QSettings().value(QStringLiteral("smallPartCullPixels"), 4.0).toFloat();
+		cullSettingClock.restart();
+	}
+	VisibilityComputationHelper::ScreenSizeContext& screen = _screenSizeCtx;
+	screen.enabled = cullPixels > 0.0f && interactionLowRes() && _displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES;
+	if (screen.enabled)
+	{
+		const QMatrix4x4& view = _viewCtrl.viewMatrix();
+		const QMatrix4x4& proj = _viewCtrl.projectionMatrix();
+		screen.minPixels = cullPixels;
+		screen.perspective = !(proj(3, 3) == 1.0f && proj(3, 2) == 0.0f);
+		screen.pixelScale = proj(1, 1) * static_cast<float>(height() * devicePixelRatioF());
+		for (int i = 0; i < 4; ++i)
+			screen.viewZRow[i] = view(2, i);
+		if (screen.pixelScale <= 0.0f)
+			screen.enabled = false;
+	}
 }
 
 void ViewportWidget::rebuildClippingContext()
@@ -8803,7 +9689,7 @@ bool ViewportWidget::sceneHasVisibleTransmissionMaterials() const
 		if (!mesh || !isMeshAnimationVisible(mesh))
 			continue;
 
-		const Material& mat = mesh->getMaterial();
+		const Material& mat = mesh->materialRef();
 		if (mat.hasTransmission() || mat.diffuseTransmissionFactor() > 0.0f)
 			return true;
 	}
@@ -8820,7 +9706,7 @@ bool ViewportWidget::sceneHasVisibleSSSMaterials() const
 		const SceneMesh* mesh = _sceneRuntime.meshAt(id);
 		if (!mesh || !isMeshAnimationVisible(mesh))
 			continue;
-		if (mesh->getMaterial().hasVolumeScattering())
+		if (mesh->materialRef().hasVolumeScattering())
 			return true;
 	}
 	return false;
@@ -8841,13 +9727,16 @@ void ViewportWidget::drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeCli
 		_sceneRuntime.runtimeVisibilityRootIndex() >= 0)
 	{
 		std::vector<int> candidateIds;
-		collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(),
-		                             activeClipPlaneIndex, false, candidateIds);
+		{
+			CullProfileScope cullProfile;
+			collectVisibleMeshIdsForPass(_sceneRuntime.runtimeVisibilityRootIndex(),
+			                             activeClipPlaneIndex, false, candidateIds);
+		}
 		sssMeshes.reserve(candidateIds.size());
 		for (int id : candidateIds)
 		{
 			if (const SceneMesh* mesh = _sceneRuntime.meshAt(id))
-				if (mesh->getMaterial().hasVolumeScattering())
+				if (mesh->materialRef().hasVolumeScattering())
 					sssMeshes.emplace_back(mesh->getRenderMaterialSortKey(), id);
 		}
 	}
@@ -8859,7 +9748,7 @@ void ViewportWidget::drawSSSMeshesOnly(QOpenGLShaderProgram* prog, int activeCli
 		{
 			SceneMesh* mesh = _sceneRuntime.meshAt(id);
 			if (!mesh || mesh->isTransparent()) continue;
-			if (!mesh->getMaterial().hasVolumeScattering()) continue;
+			if (!mesh->materialRef().hasVolumeScattering()) continue;
 			if (!isMeshVisible(mesh, activeClipPlaneIndex)) continue;
 			sssMeshes.emplace_back(mesh->getRenderMaterialSortKey(), id);
 		}
@@ -8895,8 +9784,10 @@ void ViewportWidget::drawMeshesWithClipping(QOpenGLShaderProgram* prog,
 				glEnable(GL_CLIP_DISTANCE0 + bit);
 		setBoxDiscardEnabled(pass.boxDiscard);
 
+		const int passGpuSlot = beginPassGpuTimer(transparentPass ? 1 : 0);
 		if (transparentPass) drawTransparentMeshes(prog, pass.cullIndex);
 		else                 drawOpaqueMeshes(prog, pass.cullIndex);
+		endPassGpuTimer(passGpuSlot);
 
 		setBoxDiscardEnabled(false);
 		for (int bit = 0; bit < 6; ++bit)
@@ -8956,6 +9847,12 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	QVector3D camDir = camera->getViewDir();
 	const QVector3D shaderLightPos = effectiveWorldLightPosition();
 
+	// Deferred settings/UI updates can run outside this viewport's draw context.
+	// Reapply the stored intensities with the drawing program bound, just as we
+	// do for its position, rather than retaining initialization-time uniforms.
+	prog->setUniformValue("lightSource.ambient", _ambientLight.toVector3D());
+	prog->setUniformValue("lightSource.diffuse", _diffuseLight.toVector3D());
+	prog->setUniformValue("lightSource.specular", _specularLight.toVector3D());
 	prog->setUniformValue("lightSource.position",
 		shaderLightPos);
 	prog->setUniformValue("modelViewMatrix", _viewCtrl.modelViewMatrix());
@@ -8968,8 +9865,8 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	const QVector3D worldUp = CoordinateSystemHelper::currentWorldUpVector(_viewCtrl.cameraUpAxisZUp());
 	QVector3D viewDir = _primaryCamera->getViewDir();
 	bool floorVisible = QVector3D::dotProduct(viewDir, worldUp) < 0.0f;
-	bool showShadows = (_renderCtrl.shadowsEnabled() && floorVisible && !_renderCtrl.lowResEnabled() && camera == _primaryCamera);
-	const bool interactionFastPath = _renderCtrl.lowResEnabled() && (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES);
+	bool showShadows = (_renderCtrl.shadowsEnabled() && floorVisible && !interactionLowRes() && camera == _primaryCamera);
+	const bool interactionFastPath = interactionLowRes() && (_displayedObjectsMemSize > MAX_MODEL_SIZE_BYTES);
 
 	prog->setUniformValue("shadowsEnabled", showShadows);
 	prog->setUniformValue("selfShadowsEnabled", _renderCtrl.selfShadowsEnabled());
@@ -8985,6 +9882,13 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	// interaction+oversized-model window, snapping back to full resolution
 	// the instant lowResEnabled() clears. See RenderableMesh::setLodPolicy().
 	RenderableMesh::setLodPolicy(interactionFastPath);
+	RenderableMesh::recordInteractionFastPath(interactionFastPath);
+	// Same window: rasterize single-sample while interacting with an oversized model. Multisampled coverage multiplies the
+	// fragments shaded along every triangle edge, which dominates on dense models; the full-quality image returns at rest.
+	if (interactionFastPath)
+		glDisable(GL_MULTISAMPLE);
+	else
+		glEnable(GL_MULTISAMPLE);
 	prog->setUniformValue("modelMatrix", _viewCtrl.modelMatrix());
 	prog->setUniformValue("viewMatrix", camera->getViewMatrix());
 	prog->setUniformValue("lightSpaceMatrix", _lightSpaceMatrix);
@@ -9009,6 +9913,58 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	prog->setUniformValue("worldUpAxis", _viewCtrl.cameraUpAxisZUp() ? 2 : 1);
 
 	bindIBLTextures();
+
+	// Capture final primary-view values, rather than an earlier scene-fit state.
+	// Orthographic framing does not constrain the finite eye position currently
+	// used by PBR specular shading. This evidence is opt-in and deduplicated.
+	const QString diagnosticPath = qEnvironmentVariable("MODELVIEWER_APPEARANCE_DIAGNOSTICS");
+	if (camera == _primaryCamera && prog == _renderCtrl.fgShader()
+		&& !diagnosticPath.isEmpty() && QFileInfo(diagnosticPath).isAbsolute())
+	{
+		const auto vector = [](const QVector3D& v) { return QJsonArray{v.x(), v.y(), v.z()}; };
+		const auto matrix = [](const QMatrix4x4& m) {
+			QJsonArray values;
+			for (int i = 0; i < 16; ++i) values.append(m.constData()[i]);
+			return values;
+		};
+		const QString key = diagnosticPath + ':' + QString::number(quintptr(this), 16);
+		const auto uniformVector = [this, prog](const char* name) {
+			const int location = prog->uniformLocation(name);
+			if (location < 0) return QJsonArray{};
+			GLfloat values[4] = {};
+			glGetUniformfv(prog->programId(), location, values);
+			return QJsonArray{values[0], values[1], values[2]};
+		};
+		const QJsonObject record{
+			{"kind", "draw-uniforms"}, {"viewport", QString::number(quintptr(this), 16)},
+			{"zUp", _viewCtrl.cameraUpAxisZUp()},
+			{"cameraPos", vector(camPos)}, {"cameraDir", vector(camDir)},
+			{"viewMatrix", matrix(camera->getViewMatrix())},
+			{"projectionMatrix", matrix(projMatrix)},
+			{"modelMatrix", matrix(_viewCtrl.modelMatrix())},
+			{"lightPosition", vector(shaderLightPos)},
+			{"storedLightAmbient", vector(_ambientLight.toVector3D())},
+			{"storedLightDiffuse", vector(_diffuseLight.toVector3D())},
+			{"storedLightSpecular", vector(_specularLight.toVector3D())},
+			{"lightAmbientUniform", uniformVector("lightSource.ambient")},
+			{"lightDiffuseUniform", uniformVector("lightSource.diffuse")},
+			{"lightSpecularUniform", uniformVector("lightSource.specular")},
+			{"useDefaultLights", _renderCtrl.useDefaultLights()}, {"useIBL", _renderCtrl.useIBL()},
+			{"iblExposure", _renderCtrl.iblExposure()}, {"envMapExposure", _renderCtrl.envMapExposure()},
+			{"shadowsEnabled", showShadows}, {"selfShadowsEnabled", _renderCtrl.selfShadowsEnabled()},
+			{"interactionFastPath", interactionFastPath}};
+		const QByteArray encoded = QJsonDocument(record).toJson(QJsonDocument::Compact);
+		static QHash<QString, QByteArray> previousDrawEvidence;
+		if (previousDrawEvidence.value(key) != encoded)
+		{
+			QFile evidence(diagnosticPath);
+			if (evidence.size() < 1024 * 1024 && evidence.open(QIODevice::WriteOnly | QIODevice::Append))
+			{
+				if (evidence.write(encoded + '\n') == encoded.size() + 1)
+					previousDrawEvidence.insert(key, encoded);
+			}
+		}
+	}
 }
 
 
@@ -9313,18 +10269,20 @@ void ViewportWidget::drawSectionCapping()
 				// than the whole scene - a small part cut out of a large
 				// assembly gets hatch tiles sized to that part, not lost in
 				// tiles sized for the entire loaded scene.
-				const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
-				const float worldUnitsPerTile = localCappingSceneDiag / tilesAcross;
+				const float tilesAcross = static_cast<float>(wantTexture ? std::max(_renderCtrl.textureTiling(), 1) : _renderCtrl.hatchTiling());
+				const float worldUnitsPerTile = hatchWorldUnitsPerTile(QVector3D(P.getX(), P.getY(), P.getZ()), localCappingSceneDiag / tilesAcross, wantTexture);
 
 				_renderCtrl.clippingPlaneShader()->setUniformValue("worldUnitsPerTile", worldUnitsPerTile);
 				// procedural hatch params (tweak to taste)
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
+				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchWidthPx", _renderCtrl.hatchWidthPx());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
 				_renderCtrl.clippingPlaneShader()->setUniformValue("hatchPattern", static_cast<int>(_renderCtrl.hatchPattern()));
 
 				_renderCtrl.clippingPlaneShader()->setUniformValue("useTexture", wantTexture);
+				_renderCtrl.clippingPlaneShader()->setUniformValue("textureBlend", _renderCtrl.textureBlend());
 
 				// texture flip control: (1,1) normal; (-1,1) flip U; (1,-1) flip V
 				QVector2D texFlip = QVector2D(wantFlipU ? -1.0f : 1.0f, wantFlipV ? -1.0f : 1.0f);
@@ -9457,14 +10415,18 @@ void ViewportWidget::drawBoxSectionCapping(float localCappingSceneDiag)
 		capShader->setUniformValue("boxTrimAxis", axis);
 
 		const bool wantTexture = _renderCtrl.hatchMode() == ClippingPlaneHatchMode::TEXTURE;
-		const float tilesAcross = wantTexture ? 3.0f : _renderCtrl.hatchTiling();
-		capShader->setUniformValue("worldUnitsPerTile", localCappingSceneDiag / tilesAcross);
+		const float tilesAcross = static_cast<float>(wantTexture ? std::max(_renderCtrl.textureTiling(), 1) : _renderCtrl.hatchTiling());
+		QVector3D hatchRef(0.5f * (lo[0] + hi[0]), 0.5f * (lo[1] + hi[1]), 0.5f * (lo[2] + hi[2]));
+		hatchRef[axis] = planePos;
+		capShader->setUniformValue("worldUnitsPerTile", hatchWorldUnitsPerTile(hatchRef, localCappingSceneDiag / tilesAcross, wantTexture));
 		capShader->setUniformValue("hatchThickness", _renderCtrl.hatchThickness());
+		capShader->setUniformValue("hatchWidthPx", _renderCtrl.hatchWidthPx());
 		capShader->setUniformValue("hatchIntensity", _renderCtrl.hatchIntensity());
 		capShader->setUniformValue("hatchLayers", _renderCtrl.hatchLayers());
 		capShader->setUniformValue("hatchLineColor", _renderCtrl.hatchLineColor());
 		capShader->setUniformValue("hatchPattern", static_cast<int>(_renderCtrl.hatchPattern()));
 		capShader->setUniformValue("useTexture", wantTexture);
+		capShader->setUniformValue("textureBlend", _renderCtrl.textureBlend());
 		capShader->setUniformValue("textureFlip", QVector2D(1.0f, 1.0f));
 
 		// Pose the shared unit quad (local XY plane, normal +Z) onto the face:
@@ -11888,6 +12850,7 @@ void ViewportWidget::drawViewCube(const QMatrix4x4* overrideRotationMatrix)
 	glFrontFace(GL_CCW);
 	glCullFace(GL_BACK);
 	glDepthFunc(GL_LEQUAL);
+	_viewCube->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
 	_viewCube->setSceneRenderTransformFast(modelMatrix);
 	_viewCube->setProg(_renderCtrl.viewCubeShader());
 
@@ -12025,6 +12988,7 @@ void ViewportWidget::drawLights()
 	_renderCtrl.lightCubeShader()->setUniformValue("lightColor", _diffuseLight.toVector3D());	
 	_renderCtrl.lightCubeShader()->setUniformValue("intensity", 1.0f);
 	_renderCtrl.lightCubeShader()->setUniformValue("intensityScale", 1.0f);  // Tune brightness
+	_lightCube->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
 	_lightCube->setSceneRenderTransformFast(model);
 	_lightCube->render();
 
@@ -12085,11 +13049,13 @@ void ViewportWidget::drawLights()
 
 			if (lightType == LightType::Directional)
 			{
+				_lightCube->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
 				_lightCube->setSceneRenderTransformFast(lightModel);
 				_lightCube->render();
 			}
 			else
 			{
+				_lightSphere->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
 				_lightSphere->setSceneRenderTransformFast(lightModel);
 				_lightSphere->render();
 			}
@@ -12124,14 +13090,32 @@ void ViewportWidget::bindIBLTextures()
 void ViewportWidget::render(Camera* camera)
 {
 	QElapsedTimer frameTimer;
-	const bool profileRendering =
-		QSettings().value(QStringLiteral("profileRenderingCheckBox"), false).toBool();
+	double slowFrameLap[4] = {}; // ms since the frame began: after the visibility cache, before opaque, after opaque, after transparent
+	// QSettings is a registry read on Windows; the checkbox does not change often enough to need it every frame.
+	static QElapsedTimer profileSettingClock;
+	static bool profileSetting = false;
+	if (!profileSettingClock.isValid() || profileSettingClock.elapsed() > 1000)
+	{
+		profileSetting = QSettings().value(QStringLiteral("profileRenderingCheckBox"), false).toBool();
+		profileSettingClock.restart();
+	}
+	const bool profileRendering = profileSetting;
+	ModelViewerApplication::setSlowEventTraceEnabled(profileRendering);
+	FastGlBuffer::flushPendingDeletes();
+	++_renderFrameCounter;
 	RenderableMesh::beginRenderDiagnosticsFrame(profileRendering);
 	if (profileRendering)
+	{
 		frameTimer.start();
+		beginFrameGpuTimer();
+		RenderableMesh::recordDisplayedMeshes(static_cast<qint64>(_sceneRuntime.currentVisibleObjectIds().size()));
+		logBatchDiagnostics();
+		logMemoryAudit();
+	}
 
 	glEnable(GL_DEPTH_TEST);
 	glDisable(GL_BLEND);
+	glDisable(GL_POLYGON_SMOOTH);
 	if (_renderCtrl.backfaceCulling()) { glEnable(GL_CULL_FACE); glCullFace(GL_BACK); }
 	else glDisable(GL_CULL_FACE);
 	glFrontFace(GL_CCW);
@@ -12157,6 +13141,8 @@ void ViewportWidget::render(Camera* camera)
 		(_viewer && _viewer->sceneGraph()) ? _viewer->sceneGraph()->root() : nullptr,
 		RenderableMesh::currentRuntimeBoundsRevision(),
 		[this](const SceneMesh* mesh) { return isMeshAnimationVisible(mesh); });
+	if (profileRendering)
+		slowFrameLap[0] = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
 
 	// While an interactive PT frame is being composited for the primary
 	// view, keep the raster skybox (drawn from the PT frame's own published
@@ -12243,6 +13229,8 @@ void ViewportWidget::render(Camera* camera)
 		_renderCtrl.fgShader()->bind();
 		RenderableMesh::recordProgramBindCall(true);
 		setCommonUniforms(_renderCtrl.fgShader(), camera);	
+		if (profileRendering)
+			slowFrameLap[1] = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
 		{
 			QElapsedTimer opaqueTimer;
 			if (profileRendering)
@@ -12251,6 +13239,8 @@ void ViewportWidget::render(Camera* camera)
 			if (profileRendering)
 				RenderableMesh::recordOpaquePassCpuMs(static_cast<double>(opaqueTimer.nsecsElapsed()) / 1000000.0);
 		}
+		if (profileRendering)
+			slowFrameLap[2] = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
 		_renderCtrl.fgShader()->release();
 	}
 
@@ -12346,6 +13336,8 @@ void ViewportWidget::render(Camera* camera)
 			if (profileRendering)
 				RenderableMesh::recordTransparentPassCpuMs(static_cast<double>(transparentTimer.nsecsElapsed()) / 1000000.0);
 		}
+		if (profileRendering)
+			slowFrameLap[3] = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
 		_renderCtrl.fgShader()->release();
 	}
 
@@ -12384,8 +13376,307 @@ void ViewportWidget::render(Camera* camera)
 	}
 	if (_renderCtrl.showLights()) drawLights();
 	if (profileRendering)
-		RenderableMesh::recordFrameCpuMs(static_cast<double>(frameTimer.nsecsElapsed()) / 1000000.0);
+	{
+		endFrameGpuTimer();
+		const double frameMs = static_cast<double>(frameTimer.nsecsElapsed()) / 1.0e6;
+		RenderableMesh::recordFrameCpuMs(frameMs);
+		// A frame of half a second or more (the first frame of a big model, a rebuild): where did it go?
+		if (frameMs >= 500.0)
+			Logger::instance().info(
+				QStringLiteral("[SlowFrame] total=%1 ms: visibility cache %2, skybox/pre-passes/uniforms %3, opaque pass %4, "
+					"floor + transparent %5, rest %6")
+					.arg(frameMs, 0, 'f', 0).arg(slowFrameLap[0], 0, 'f', 0).arg(slowFrameLap[1] - slowFrameLap[0], 0, 'f', 0)
+					.arg(slowFrameLap[2] - slowFrameLap[1], 0, 'f', 0).arg(slowFrameLap[3] - slowFrameLap[2], 0, 'f', 0)
+					.arg(frameMs - slowFrameLap[3], 0, 'f', 0),
+				QStringLiteral("Performance"));
+	}
 	RenderableMesh::flushRenderDiagnostics();
+}
+
+// Draw-batching study: how many distinct draw groups do the displayed meshes fall into, and how many could be
+// merged at all (see research/rendering/DRAW_BATCHING_DESIGN.md). Walks every displayed mesh, so it runs at most
+// every 5 seconds, only while render profiling is on and only for models large enough to matter.
+// Where does a large model's memory go? Sums the CPU-side arrays every mesh holds and sets the total against what the
+// OS says the process holds (the difference is the scene graph, the imported scene, driver copies of GL buffers, the
+// heap's own overhead and everything the application holds before any model is loaded). Logged once at the first
+// frame (the empty application) and then every 15 seconds for models of at least 1000 meshes, while render
+// profiling is on.
+void ViewportWidget::logMemoryAudit()
+{
+	static QElapsedTimer clock;
+	static bool baselineLogged = false;
+	const size_t meshCount = _sceneRuntime.meshStore().size();
+	if (baselineLogged && (meshCount < 1000 || (clock.isValid() && clock.elapsed() < 15000)))
+		return;
+	clock.restart();
+
+	constexpr double MB = 1024.0 * 1024.0;
+	QElapsedTimer auditClock;
+	auditClock.start();
+	quint64 privateBytes = 0, workingSet = 0;
+	const bool haveProcess = ProcessMemory::query(privateBytes, workingSet);
+
+	QString gpu;
+	if (context() && context()->hasExtension(QByteArrayLiteral("GL_NVX_gpu_memory_info")))
+	{
+		GLint totalKb = 0, availableKb = 0;
+		glGetIntegerv(0x9048 /*GPU_MEMORY_INFO_DEDICATED_VIDMEM_NVX*/, &totalKb);
+		glGetIntegerv(0x9049 /*GPU_MEMORY_INFO_CURRENT_AVAILABLE_VIDMEM_NVX*/, &availableKb);
+		gpu = QStringLiteral(" gpuUsedMB=%1 gpuTotalMB=%2")
+			.arg((totalKb - availableKb) / 1024).arg(totalKb / 1024);
+	}
+
+	if (!baselineLogged)
+	{
+		baselineLogged = true;
+		Logger::instance().info(QStringLiteral("[MemoryAudit] startup privateMB=%1 workingSetMB=%2%3")
+			.arg(privateBytes / MB, 0, 'f', 0).arg(workingSet / MB, 0, 'f', 0).arg(gpu), QStringLiteral("Performance"));
+		if (meshCount < 1000)
+			return;
+	}
+
+	MeshMemoryUsage u;
+	for (const SceneMeshRecord& record : _sceneRuntime.meshStore())
+		if (record.mesh)
+			record.mesh->addMemoryUsage(u);
+
+	const auto mb = [&](qint64 bytes) { return QString::number(static_cast<double>(bytes) / MB, 'f', 0); };
+	// What the meshes' own GPU buffers should hold: the arrays uploaded in RenderableMesh::initBuffers() (the CPU copies have
+	// the same sizes) plus the LOD index tier, against the merged buffers of the draw batches. Phase 0 of
+	// research/rendering/BATCH_GPU_RESIDENCY_DESIGN.md: confirms how much a residency scheme could free.
+	const qint64 perMeshGpuBytes = u.points + u.normals + u.colors + u.texCoords + u.tangents + u.joints + u.indices + u.lodIndices;
+	const qint64 batchGpuBytes = _drawBatcher ? _drawBatcher->gpuBytes() : 0;
+	Logger::instance().info(
+		QStringLiteral("[MemoryAudit] GPU buffers (estimate): per-mesh=%1 MB, draw batches=%2 MB")
+			.arg(mb(perMeshGpuBytes)).arg(mb(batchGpuBytes)),
+		QStringLiteral("Performance"));
+	Logger::instance().info(
+		QStringLiteral("[MemoryAudit] meshes=%1 vertices=%2 triangles=%3 | MB: vertexStructs=%4 points=%5 normals=%6 "
+			"colors=%7 texCoords=%8 tangents=%9 joints=%10 indices=%11 worldPoints=%12 lodIndices=%13 edges=%14 "
+			"caches=%15 | meshArraysMB=%16 | privateMB=%17 workingSetMB=%18 otherMB=%19%20")
+			.arg(u.meshes).arg(u.vertices).arg(u.triangles).arg(mb(u.vertexStructs)).arg(mb(u.points)).arg(mb(u.normals))
+			.arg(mb(u.colors)).arg(mb(u.texCoords)).arg(mb(u.tangents)).arg(mb(u.joints)).arg(mb(u.indices))
+			.arg(mb(u.worldPoints)).arg(mb(u.lodIndices)).arg(mb(u.edges)).arg(mb(u.caches)).arg(mb(u.total()))
+			.arg(haveProcess ? QString::number(privateBytes / MB, 'f', 0) : QStringLiteral("?"))
+			.arg(haveProcess ? QString::number(workingSet / MB, 'f', 0) : QStringLiteral("?"))
+			.arg(haveProcess ? QString::number((static_cast<double>(privateBytes) - static_cast<double>(u.total())) / MB, 'f', 0)
+				: QStringLiteral("?"))
+			.arg(gpu),
+		QStringLiteral("Performance"));
+
+	static bool detailLogged = false;
+	if (!detailLogged && haveProcess)
+	{
+		detailLogged = true;
+		// Fixed per-mesh object sizes: the arrays above are only part of what 40,000 mesh objects hold.
+		Logger::instance().info(
+			QStringLiteral("[MemoryAudit] object sizes (bytes): SceneMesh=%1 (x%2 = %3 MB) Material=%4 MeshInstanceState=%5 "
+				"MeshImportAdaptor=%6 MeshAnimationState=%7 Vertex=%8")
+				.arg(sizeof(SceneMesh)).arg(u.meshes).arg(static_cast<double>(sizeof(SceneMesh)) * u.meshes / MB, 0, 'f', 0)
+				.arg(sizeof(Material)).arg(sizeof(MeshInstanceState)).arg(sizeof(MeshImportAdaptor))
+				.arg(sizeof(MeshAnimationState)).arg(sizeof(Vertex)),
+			QStringLiteral("Performance"));
+		// Walks every region of the address space: seconds on a 9 GB process. Opt-in: QSettings memoryAuditBreakdown (bool).
+		ProcessMemory::Breakdown b;
+		if (QSettings().value(QStringLiteral("memoryAuditBreakdown"), false).toBool() && ProcessMemory::breakdown(b))
+		{
+			const auto m = [&](quint64 bytes) { return QString::number(static_cast<double>(bytes) / MB, 'f', 0); };
+			Logger::instance().info(
+				QStringLiteral("[MemoryAudit] where: heaps=%1 heapAllocatedMB=%2 heapCommittedMB=%3 | privateCommittedMB=%4 "
+					"mappedMB=%5 imageMB=%6 | private regions MB (count): <64KB %7 (%8), <1MB %9 (%10), <16MB %11 (%12), "
+					"<256MB %13 (%14), >=256MB %15 (%16)")
+					.arg(b.heapCount).arg(m(b.heapAllocated)).arg(m(b.heapCommitted)).arg(m(b.privateCommitted))
+					.arg(m(b.mappedCommitted)).arg(m(b.imageCommitted))
+					.arg(m(b.regionBytes[0])).arg(b.regionCount[0]).arg(m(b.regionBytes[1])).arg(b.regionCount[1])
+					.arg(m(b.regionBytes[2])).arg(b.regionCount[2]).arg(m(b.regionBytes[3])).arg(b.regionCount[3])
+					.arg(m(b.regionBytes[4])).arg(b.regionCount[4]),
+				QStringLiteral("Performance"));
+		}
+	}
+	if (auditClock.elapsed() >= 50)
+		Logger::instance().info(QStringLiteral("[MemoryAudit] the audit itself took %1 ms").arg(auditClock.elapsed()), QStringLiteral("Performance"));
+}
+
+void ViewportWidget::logBatchDiagnostics()
+{
+	static QElapsedTimer clock;
+	if (clock.isValid() && clock.elapsed() < 5000)
+		return;
+	const std::vector<int>& ids = _sceneRuntime.currentVisibleObjectIds();
+	if (ids.size() < 100)
+		return;
+	clock.restart();
+
+	std::unordered_map<quint64, int> groups; // key -> candidate meshes in the group
+	qint64 candidates = 0;
+	// Why meshes are not candidates (a mesh counts under the first reason that applies).
+	// Of the transparent meshes: by what the material says (a mesh counts under the first that applies).
+	qint64 trTransmission = 0, trBlendAlpha = 0, trOpacityLow = 0, trOpacityMap = 0, trOther = 0, trOpacityBelowHalf = 0;
+	qint64 notLines = 0, notTransparent = 0, notSkinMorph = 0, notNegScale = 0, notSelected = 0, notMaterial = 0, notOther = 0;
+	for (int id : ids)
+	{
+		const SceneMesh* mesh = _sceneRuntime.meshAt(id);
+		if (!mesh)
+			continue;
+		if (!mesh->isStaticBatchCandidate())
+		{
+			if (mesh->getPrimitiveMode() != GL_TRIANGLES) ++notLines;
+			else if (mesh->isTransparent())
+			{
+				++notTransparent;
+				const Material& tm = mesh->materialRef();
+				if (tm.opacity() < 0.5f) ++trOpacityBelowHalf;
+				if (tm.transmission() > 0.0f) ++trTransmission;
+				else if (tm.blendMode() == Material::BlendMode::Alpha) ++trBlendAlpha;
+				else if (tm.opacity() < 0.999f) ++trOpacityLow;
+				else if (tm.hasOpacityMap() || tm.hasTransmissionMap()) ++trOpacityMap;
+				else ++trOther; // texture alpha (not visible through the material API)
+			}
+			else if (mesh->hasSkinning() || mesh->hasMorphTargets()) ++notSkinMorph;
+			else if (mesh->hasNegativeScale()) ++notNegScale;
+			else if (mesh->isSelected()) ++notSelected;
+			else if (mesh->materialRef().wireframe() || mesh->materialRef().hasVolumeScattering()
+				|| mesh->materialRef().hasTransmission()) ++notMaterial;
+			else ++notOther;
+			continue;
+		}
+		++candidates;
+		++groups[mesh->drawGroupKey()];
+	}
+
+	std::vector<int> sizes;
+	sizes.reserve(groups.size());
+	qint64 singletons = 0;
+	for (const auto& entry : groups)
+	{
+		sizes.push_back(entry.second);
+		if (entry.second == 1)
+			++singletons;
+	}
+	std::sort(sizes.begin(), sizes.end(), std::greater<int>());
+	QStringList top;
+	for (size_t i = 0; i < sizes.size() && i < 8; ++i)
+		top << QString::number(sizes[i]);
+	const qint64 draws = static_cast<qint64>(ids.size());
+	const qint64 afterBatching = draws - candidates + static_cast<qint64>(groups.size());
+	Logger::instance().info(
+		QStringLiteral("[BatchDiagnostics] displayed=%1 candidates=%2 notCandidates=%3 groups=%4 singletonGroups=%5 "
+			"largestGroups=%6 drawsIfBatched=%7 | notCandidate: lines/points=%8 transparent=%9 skinOrMorph=%10 "
+			"negativeScale=%11 selected=%12 material=%13 other=%14 | transparent by: transmission=%15 blendAlpha=%16 "
+			"opacityBelow1=%17 opacityMap=%18 textureAlpha/other=%19 (opacityBelowHalf=%20)")
+			.arg(draws).arg(candidates).arg(draws - candidates).arg(groups.size()).arg(singletons)
+			.arg(top.join(QLatin1Char('/'))).arg(afterBatching)
+			.arg(notLines).arg(notTransparent).arg(notSkinMorph).arg(notNegScale).arg(notSelected).arg(notMaterial).arg(notOther)
+			.arg(trTransmission).arg(trBlendAlpha).arg(trOpacityLow).arg(trOpacityMap).arg(trOther).arg(trOpacityBelowHalf),
+		QStringLiteral("Performance"));
+}
+
+int ViewportWidget::beginPassGpuTimer(int pass)
+{
+	if (!RenderableMesh::renderDiagnosticsEnabled())
+		return -1;
+	int slot = -1;
+	for (size_t i = 0; i < _passGpuQueries.size(); ++i)
+		if (!_passGpuQueries[i].issued)
+		{
+			slot = static_cast<int>(i);
+			break;
+		}
+	if (slot < 0)
+	{
+		if (_passGpuQueries.size() >= 32)
+			return -1; // results are not being collected fast enough; skip rather than grow
+		_passGpuQueries.emplace_back();
+		glGenQueries(2, _passGpuQueries.back().ids);
+		slot = static_cast<int>(_passGpuQueries.size()) - 1;
+	}
+	PassGpuQuery& q = _passGpuQueries[static_cast<size_t>(slot)];
+	q.pass = pass;
+	glQueryCounter(q.ids[0], GL_TIMESTAMP);
+	return slot;
+}
+
+void ViewportWidget::endPassGpuTimer(int slot)
+{
+	if (slot < 0 || static_cast<size_t>(slot) >= _passGpuQueries.size())
+		return;
+	PassGpuQuery& q = _passGpuQueries[static_cast<size_t>(slot)];
+	glQueryCounter(q.ids[1], GL_TIMESTAMP);
+	q.issued = true;
+}
+
+void ViewportWidget::collectPassGpuTimers()
+{
+	for (PassGpuQuery& q : _passGpuQueries)
+	{
+		if (!q.issued)
+			continue;
+		GLint available = 0;
+		glGetQueryObjectiv(q.ids[1], GL_QUERY_RESULT_AVAILABLE, &available);
+		if (!available)
+			continue;
+		GLuint64 begin = 0, end = 0;
+		glGetQueryObjectui64v(q.ids[0], GL_QUERY_RESULT, &begin);
+		glGetQueryObjectui64v(q.ids[1], GL_QUERY_RESULT, &end);
+		RenderableMesh::recordGpuPassMs(q.pass, end >= begin ? static_cast<double>(end - begin) / 1000000.0 : 0.0);
+		q.issued = false;
+	}
+}
+
+void ViewportWidget::beginFrameGpuTimer()
+{
+	collectPassGpuTimers();
+	if (RenderableMesh::renderDiagnosticsEnabled())
+	{
+		const char* name = "other";
+		switch (_displayMode)
+		{
+		case DisplayMode::SHADED:            name = "Shaded"; break;
+		case DisplayMode::HOLLOW_MESH:       name = "HollowMesh"; break;
+		case DisplayMode::MESH_EDGES:        name = "MeshEdges"; break;
+		case DisplayMode::WIREFRAME:         name = "Wireframe"; break;
+		case DisplayMode::SHADED_WITH_EDGES: name = "ShadedWithEdges"; break;
+		default: break;
+		}
+		RenderableMesh::recordDisplayModeName(QString::fromLatin1(name));
+	}
+
+	if (_frameGpuQueryActive)
+		return; // render() re-entered (multi-view / compare): one timer covers the outermost call
+	if (_frameGpuQueries[0] == 0)
+		glGenQueries(2, _frameGpuQueries);
+
+	// Collect every finished result. Checking only the previous slot left a slot that was skipped as "still
+	// pending" uncollected forever, so the timer went silent for the rest of the session.
+	for (int slot = 0; slot < 2; ++slot)
+	{
+		if (!_frameGpuQueryIssued[slot])
+			continue;
+		GLint available = 0;
+		glGetQueryObjectiv(_frameGpuQueries[slot], GL_QUERY_RESULT_AVAILABLE, &available);
+		if (available)
+		{
+			GLuint64 nanoseconds = 0;
+			glGetQueryObjectui64v(_frameGpuQueries[slot], GL_QUERY_RESULT, &nanoseconds);
+			RenderableMesh::recordGpuMs(static_cast<double>(nanoseconds) / 1000000.0);
+			_frameGpuQueryIssued[slot] = false;
+		}
+	}
+
+	if (_frameGpuQueryIssued[_frameGpuQueryIndex])
+		return; // this slot's old result is still pending; skip this frame rather than stall
+	glBeginQuery(GL_TIME_ELAPSED, _frameGpuQueries[_frameGpuQueryIndex]);
+	_frameGpuQueryActive = true;
+}
+
+void ViewportWidget::endFrameGpuTimer()
+{
+	if (!_frameGpuQueryActive)
+		return;
+	glEndQuery(GL_TIME_ELAPSED);
+	_frameGpuQueryIssued[_frameGpuQueryIndex] = true;
+	_frameGpuQueryIndex = 1 - _frameGpuQueryIndex;
+	_frameGpuQueryActive = false;
 }
 
 
@@ -12775,6 +14066,35 @@ void ViewportWidget::loadBgColorSettings()
 		bgStyleValue.isValid() && bgStyleValue.canConvert<int>() ? bgStyleValue.toInt() : 0);
 }
 
+void ViewportWidget::loadSectionCappingSettings()
+{
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	_renderCtrl.setHatchMode(static_cast<ClippingPlaneHatchMode>(
+		settings.value("sectionCappingMode", 0).toInt()));
+	_renderCtrl.setHatchPattern(static_cast<HatchPattern>(
+		settings.value("sectionCappingHatchPattern", 0).toInt()));
+	_renderCtrl.setHatchTiling(settings.value("sectionCappingHatchTiling", 100).toInt());
+	_renderCtrl.setHatchThickness(static_cast<float>(
+		settings.value("sectionCappingHatchThickness", 0.05).toDouble()));
+	_renderCtrl.setHatchSpacingMode(static_cast<HatchSpacingMode>(
+		settings.value("sectionCappingHatchSpacingMode", 0).toInt()));
+	_renderCtrl.setHatchSpacingPx(static_cast<float>(
+		settings.value("sectionCappingHatchSpacingPx", double(OverlayLineWeights::hatchSpacingPx)).toDouble()));
+	_renderCtrl.setHatchSpacingModelUnits(static_cast<float>(
+		settings.value("sectionCappingHatchSpacingModelUnits", 2.0).toDouble()));
+	_renderCtrl.setHatchWidthPx(static_cast<float>(
+		settings.value("sectionCappingHatchWidthPx", double(OverlayLineWeights::hatchLine)).toDouble()));
+	_renderCtrl.setTextureTiling(settings.value("sectionCappingTextureTiling", 3).toInt());
+	_renderCtrl.setTextureBlend(static_cast<float>(settings.value("sectionCappingTextureBlend", 0.25).toDouble()));
+	_renderCtrl.setHatchIntensity(static_cast<float>(
+		settings.value("sectionCappingHatchIntensity", 1.0).toDouble()));
+	const QColor hatchColor = settings.value("sectionCappingHatchLineColor", QColor(0, 0, 0)).value<QColor>();
+	_renderCtrl.setHatchLineColor(QVector3D(static_cast<float>(hatchColor.redF()),
+		static_cast<float>(hatchColor.greenF()), static_cast<float>(hatchColor.blueF())));
+	update();
+	emit sectionCappingSettingsReloaded();
+}
+
 void ViewportWidget::loadTextOverlaySettings()
 {
 	if (!_textRenderer || !_axisTextRenderer)
@@ -13005,9 +14325,13 @@ void ViewportWidget::buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6])
 }
 
 
-SceneMesh* ViewportWidget::createMeshFromData(const AssImpMeshData& meshData)
+SceneMesh* ViewportWidget::createMeshFromData(AssImpMeshData meshData)
 {
-	return AssImpMeshBuilder::build(meshData, _renderCtrl.fgShader(), this);
+	ImportDiagnostics::checkpoint("viewer.create-mesh-begin",meshData.sceneIndex);
+	const int sceneIndex = meshData.sceneIndex;
+	auto* mesh = AssImpMeshBuilder::build(std::move(meshData), _renderCtrl.fgShader(), this);
+	ImportDiagnostics::checkpoint("viewer.create-mesh-end",sceneIndex);
+	return mesh;
 }
 
 void ViewportWidget::syncFileNodeTransforms(const QString& sourceFile)
@@ -14435,16 +15759,16 @@ void ViewportWidget::applyAnimationPose(const QString& sourceFile, int clipIndex
 	update();
 }
 
-void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
+void ViewportWidget::onMeshBatchReady(std::vector<AssImpMeshData>&& batch)
 {
+	ImportDiagnostics::checkpoint("viewer.batch-begin", -1, batch.size());
 	makeCurrent();
-	for (const AssImpMeshData& meshData : batch)
-	{
-		SceneMesh* mesh = createMeshFromData(meshData);
-		addToDisplay(mesh);
-		_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
-	}
-	_viewer->updateDisplayList();
+	const size_t batchSize = batch.size();
+	for (AssImpMeshData& meshData : batch)
+		attachImportedMesh(std::move(meshData));
+	// The records are moved-from; release them before the display-list update and the repaint.
+	batch.clear();
+	batch.shrink_to_fit();
 
 	// Progressive AssImp loading emits batches from a worker thread via
 	// BlockingQueuedConnection. Yield once here so paint/update events run
@@ -14457,8 +15781,81 @@ void ViewportWidget::onMeshBatchReady(const std::vector<AssImpMeshData>& batch)
 	// for the duration via MainWindow::setLoadingUiLocked(), so letting
 	// user-input events through here only lets the Cancel button do
 	// anything.
-	if (_sceneRuntime.progressiveLoadingEnabled())
-		QApplication::processEvents();
+	//
+	// The display list update (visibility, tree) and the repaint each cost O(meshes so far), so doing both at every batch is
+	// quadratic over the import. They are paced instead: they run when the cost of the last round has been amortised (about
+	// 20% overhead, between 250 ms and 5 s apart). The other yields only service input, so Cancel stays responsive without
+	// redrawing a model that grows by a batch each time. The caller's final updateDisplayList() settles whatever was skipped.
+	if (!_sceneRuntime.progressiveLoadingEnabled())
+	{
+		_viewer->updateDisplayList();
+	}
+	else
+	{
+		const qint64 interval = qBound(qint64(250), 5 * _progressivePaintCostMs, qint64(5000));
+		if (!_progressivePaintClock.isValid() || _progressivePaintClock.elapsed() >= interval)
+		{
+			QElapsedTimer cost;
+			cost.start();
+			_viewer->setTreeRebuildDeferred(true);
+			_viewer->updateDisplayList();
+			_viewer->setTreeRebuildDeferred(false);
+			setUpdatesEnabled(true);
+			QApplication::processEvents();
+			setUpdatesEnabled(false);
+			_progressivePaintCostMs = cost.elapsed();
+			_progressivePaintClock.restart();
+		}
+		else
+			QApplication::processEvents();
+	}
+	ImportDiagnostics::checkpoint("viewer.batch-end", -1, batchSize);
+}
+
+void ViewportWidget::consumeMeshBatch(AssImpMeshDataBatch&& batch)
+{
+	const size_t batchSize = batch.size();
+	ImportDiagnostics::checkpoint("viewer.batch-begin", -1, batchSize);
+	makeCurrent();
+	MeshBuildProfile::begin();
+	for (AssImpMeshData& meshData : batch)
+		attachImportedMesh(std::move(meshData));
+
+	// Destroy the moved-from records before hierarchy copying/scene merging.
+	// This is the non-progressive path, where the batch may represent the
+	// entire model rather than the bounded progressive batch size.
+	batch.clear();
+	batch.shrink_to_fit();
+	{
+		MeshBuildProfile::Lap displayListLap(MeshBuildProfile::UpdateDisplayList);
+		_viewer->updateDisplayList();
+	}
+	Logger::instance().info(MeshBuildProfile::end(), QStringLiteral("Performance"));
+	ImportDiagnostics::checkpoint("viewer.batch-end", -1, batchSize);
+}
+
+void ViewportWidget::attachImportedMesh(AssImpMeshData meshData)
+{
+	const int sceneIndex = meshData.sceneIndex;
+	const bool initiallyVisible = meshData.initiallyVisible;
+	std::unique_ptr<SceneMesh> pendingMesh;
+	{
+		MeshBuildProfile::Lap createLap(MeshBuildProfile::CreateTotal);
+		pendingMesh.reset(createMeshFromData(std::move(meshData)));
+	}
+	++MeshBuildProfile::meshCount();
+	MeshBuildProfile::Lap attachLap(MeshBuildProfile::Attach);
+	SceneMesh* mesh = pendingMesh.get();
+	ImportDiagnostics::checkpoint("viewer.attach-mesh-begin", sceneIndex);
+	addToDisplay(mesh);
+	pendingMesh.release();
+	ImportDiagnostics::checkpoint("viewer.attach-mesh-end", sceneIndex);
+	if (!initiallyVisible) {
+		_initiallyHiddenImportMeshes.insert(mesh->uuid());
+		_sceneRuntime.displayedObjectsIds().pop_back();
+		_sceneRuntime.hiddenObjectsIds().push_back(static_cast<int>(_sceneRuntime.meshStore().size()-1));
+	}
+	_sceneRuntime.pendingSceneUuids().append(mesh->uuid());
 }
 
 UVMethod ViewportWidget::promptLargeModelUVDecision(int totalTriangles, UVMethod currentMethod)
@@ -14540,14 +15937,31 @@ GLuint ViewportWidget::createGPUTextureFromImage(const QImage& image, const Text
 		break;
 	}
 
+	std::vector<QImage> authored;
+    try { authored = TextureMipChain::decode(image); }
+    catch (const std::exception& error) {
+        qWarning() << "Cannot upload authored mip chain:" << error.what();
+        return 0;
+    }
+    if(!authored.empty())internalFormat=GL_RGBA8;
 	GLuint textureID;
 	glGenTextures(1, &textureID);
 
 	glBindTexture(GL_TEXTURE_2D, textureID);
+	GLint oldAlignment=4;glGetIntegerv(GL_UNPACK_ALIGNMENT,&oldAlignment);glPixelStorei(GL_UNPACK_ALIGNMENT,1);
 	glTexImage2D(GL_TEXTURE_2D, 0, internalFormat, glImage.width(), glImage.height(), 0,
 		dataFormat, dataType, glImage.constBits());
-	glGenerateMipmap(GL_TEXTURE_2D);
+    if (authored.empty()) glGenerateMipmap(GL_TEXTURE_2D);
+    else {
+        for (size_t level=0; level<authored.size(); ++level) {
+            const auto rgba=authored[level].convertToFormat(QImage::Format_RGBA8888);
+            glTexImage2D(GL_TEXTURE_2D, GLint(level+1), internalFormat, rgba.width(), rgba.height(),
+                0, GL_RGBA, GL_UNSIGNED_BYTE, rgba.constBits());
+        }
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, GLint(authored.size()));
+    }
 
+	glPixelStorei(GL_UNPACK_ALIGNMENT,oldAlignment);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, samplers.wrapS);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, samplers.wrapT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, samplers.minFilter);
@@ -15617,6 +17031,16 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 				return;
 			}
 
+			// A recorded note has no leader to drag, so it is selected straight away.
+			const QUuid hitRecordedNote = _annotationController->hitTestAnnotation(clickPoint, _primaryCamera, QSize(width(), height()), _axisTextRenderer, 8);
+			if (!hitRecordedNote.isNull())
+			{
+				setSelectedAnnotationIds({ hitRecordedNote });
+				if (_selectionManager)
+					_selectionManager->setSelectedIds({});
+				return;
+			}
+
 			setSelectedAnnotationIds({});
 		}
 
@@ -16055,7 +17479,8 @@ void ViewportWidget::mouseDoubleClickEvent(QMouseEvent* e)
 		return;
 	}
 
-	const QUuid hitAnnotation = _annotationController->hitTestAnnotationLeader(
+	// hitTestAnnotation() rather than the leader test: a recorded note has no draggable leader, but it opens its dialog all the same.
+	const QUuid hitAnnotation = _annotationController->hitTestAnnotation(
 		clickPoint, _primaryCamera, QSize(width(), height()), _axisTextRenderer, 8);
 	if (!hitAnnotation.isNull())
 		_viewer->openAnnotationDialog(hitAnnotation);
@@ -16841,6 +18266,8 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 void ViewportWidget::keyReleaseEvent(QKeyEvent* event)
 {
 	_keys.remove(event->key());
+	if (_keys.empty())
+		update(); // the held-key movement rendered in the fast path; draw the settled frame
 	QWidget::keyReleaseEvent(event);
 }
 
@@ -17153,6 +18580,7 @@ void ViewportWidget::setTurntableEnabled(bool enabled)
 	else
 	{
 		_turntableTimer->stop();
+		update(); // the spin rendered in the fast path; draw the settled frame
 	}
 
 	emit turntableStateChanged(enabled);
@@ -17179,6 +18607,18 @@ void ViewportWidget::onTurntableTimer()
 	_rtInteractionCtrl->notifyCameraInteracting();
 
 	update();
+}
+
+bool ViewportWidget::interactionLowRes() const
+{
+	// Camera motion from any source: a drag (the flag), the coast after a drag, the turntable, the animated view / fit /
+	// zoom transitions and held navigation keys. Each of those used to depend on setting and clearing the flag by hand, and the
+	// turntable, the centre-on-selection animation and the keyboard navigation did not set it at all.
+	const auto running = [](const QTimer* timer) { return timer && timer->isActive(); };
+	return _renderCtrl.lowResEnabled() || running(_inertiaTimer) || running(_turntableTimer)
+		|| running(_animateViewTimer) || running(_animateFitAllTimer) || running(_animateWindowZoomTimer)
+		|| running(_animateCenterScreenTimer) || !_keys.empty()
+		|| running(_explosionMotionTimer) || running(_animCtrl.animationTimer());
 }
 
 void ViewportWidget::onInertiaTimer()

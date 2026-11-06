@@ -27,7 +27,7 @@ public:
 
 	void processAssimpColorAndMaterial(aiMaterial* material, Material& mat);
 	void setDefaultMaterial(Material& mat);
-	void processAssimpTextureMaps(aiMaterial* material, std::vector<Material::Texture>& textures, Material& mat);
+	void processAssimpTextureMaps(aiMaterial* material, std::vector<Material::Texture>& textures, Material& mat, const aiScene* scene = nullptr);
 	void setTextureTransforms(const std::vector<Material::Texture>& textures, Material& mat);
 	void addExtensionMaps(Material& mat, std::vector<Material::Texture>& textures);
 	void clearLoadedTextures() { _loadedTextures.clear(); }
@@ -58,7 +58,7 @@ public:
 		aiMaterial* mat,
 		aiTextureType type,
 		const std::string& typeName,
-		unsigned int slotIndex);
+		unsigned int slotIndex, const aiScene* scene = nullptr);
 
 	bool checkImageForAlpha(const QImage& image);
 
@@ -73,7 +73,8 @@ public:
 		Material& outMaterial,
 		std::vector<Material::Texture>& outTextures);
 
-	static QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer);
+	// readBinaryChunk=false skips the BIN chunk (seeks past it) for callers that only need the JSON; outBinaryBuffer stays empty.
+	static QString extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer, bool readBinaryChunk = true);
 
 	void clearGLBCaches();
 
@@ -93,7 +94,7 @@ private:
 	void validateMaterialConsistency(Material& mat);
 
 	unsigned int createTextureOnGPU(Material::Texture& texture,
-		const std::vector<uint8_t>* glbBinaryBuffer = nullptr,
+		const QByteArray* glbBinaryBuffer = nullptr,
 		const QJsonArray* jsonBufferViews = nullptr,
 		const QJsonArray* jsonImages = nullptr);
 
@@ -106,7 +107,7 @@ private:
 	bool decodeTextureImage(Material::Texture& texture,
 		QImage& outImage,
 		bool& outHasAlpha,
-		const std::vector<uint8_t>* glbBinaryBuffer = nullptr,
+		const QByteArray* glbBinaryBuffer = nullptr,
 		const QJsonArray* jsonBufferViews = nullptr,
 		const QJsonArray* jsonImages = nullptr);
 
@@ -202,7 +203,9 @@ private:
 	// Caches for both .gltf and .glb
 	QHash<QString, QJsonDocument> s_gltfJsonCache;
 	QHash<QString, QJsonDocument> s_glbJsonCache;
-	QHash<QString, std::vector<uint8_t>> s_glbBinaryCache;
+	// Reference-counted, so a reader that took the binary (fillAnimDataFromCache(), image decoding) keeps it alive
+	// even if the cache entry is replaced or cleared meanwhile; handing out raw views of a std::vector did not.
+	QHash<QString, QByteArray> s_glbBinaryCache;
 	QHash<QString, bool> s_glbImagesLoaded;  // Track if images uploaded to GPU
 	QHash<QString, bool> s_glbScenesSynced;  // Track which scenes have been synced
 	QHash<QString, std::vector<size_t>> s_glbImageIndices; // Maps: glbPath -> list of indices in _loadedTextures

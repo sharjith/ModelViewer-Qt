@@ -110,7 +110,7 @@ void SceneGraph::appendFromScene(const aiScene*                   scene,
                                           cursor);
     fileNode->children.append(subtreeRoot);
 
-    emit structureChanged();
+    notifyStructureChanged();
 }
 
 void SceneGraph::rebuildFlat(const QString& sessionName,
@@ -142,7 +142,7 @@ void SceneGraph::rebuildFlat(const QString& sessionName,
         _meshUuidToNode[uuid] = fileNode;
     }
 
-    emit structureChanged();
+    notifyStructureChanged();
 }
 
 SceneNode* SceneGraph::buildSubtree(const aiNode*       ainode,
@@ -198,7 +198,7 @@ void SceneGraph::clear()
     _root->nodeUuid = QUuid::createUuid();
     _root->name     = QStringLiteral("__SceneRoot__");
 
-    emit structureChanged();
+    notifyStructureChanged();
 }
 
 void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
@@ -373,7 +373,7 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
         }
     }
 
-    emit structureChanged();
+    notifyStructureChanged();
 }
 
 void SceneGraph::serialize(QDataStream& out) const
@@ -485,7 +485,7 @@ bool SceneGraph::deserialize(QDataStream& in)
         _root->children.append(child);
     }
 
-    emit structureChanged();
+    notifyStructureChanged();
     return in.status() == QDataStream::Ok;
 }
 
@@ -603,6 +603,23 @@ void SceneGraph::collectUuidsRecursive(const SceneNode* node,
 // Mutation
 // ---------------------------------------------------------------------------
 
+void SceneGraph::notifyStructureChanged()
+{
+    if (_structureBatchDepth > 0)
+        _structureDirty = true;
+    else
+        emit structureChanged();
+}
+
+void SceneGraph::endStructureBatch()
+{
+    if (_structureBatchDepth > 0 && --_structureBatchDepth == 0 && _structureDirty)
+    {
+        _structureDirty = false;
+        emit structureChanged();
+    }
+}
+
 SceneNode* SceneGraph::removeMeshUuid(const QUuid& meshUuid, int& outPosition)
 {
     SceneNode* node = _meshUuidToNode.value(meshUuid, nullptr);
@@ -616,7 +633,7 @@ SceneNode* SceneGraph::removeMeshUuid(const QUuid& meshUuid, int& outPosition)
     node->meshUuids.removeAll(meshUuid);
     _meshUuidToNode.remove(meshUuid);
 
-    emit structureChanged();
+    notifyStructureChanged();
     return node;
 }
 
@@ -632,7 +649,7 @@ void SceneGraph::restoreMeshUuid(SceneNode*   node,
     node->meshUuids.insert(position, meshUuid);
     _meshUuidToNode[meshUuid] = node;
 
-    emit structureChanged();
+    notifyStructureChanged();
 }
 
 SceneNode* SceneGraph::detachEmptyFileNode(const QString& sourceFile, int& outPosition)
@@ -657,7 +674,7 @@ SceneNode* SceneGraph::detachEmptyFileNode(const QString& sourceFile, int& outPo
     // Mesh UUIDs were already deregistered by removeMeshUuid(), so no lookup
     // table work is needed here.
 
-    emit structureChanged();
+    notifyStructureChanged();
     return fileNode;
 }
 
@@ -670,7 +687,7 @@ void SceneGraph::reattachFileNode(SceneNode* fileNode, int position)
     position = qBound(0, position, static_cast<int>(_root->children.size()));
     _root->children.insert(position, fileNode);
 
-    emit structureChanged();
+    notifyStructureChanged();
 }
 
 void SceneGraph::insertChildNode(SceneNode* parent, SceneNode* newChild, int position)
@@ -686,7 +703,7 @@ void SceneGraph::insertChildNode(SceneNode* parent, SceneNode* newChild, int pos
 
     registerSubtreeUuids(newChild);
 
-    emit structureChanged();
+    notifyStructureChanged();
 }
 
 void SceneGraph::removeChildNode(SceneNode* parent, SceneNode* child, int& outPosition)
@@ -706,7 +723,7 @@ void SceneGraph::removeChildNode(SceneNode* parent, SceneNode* child, int& outPo
 
     deregisterSubtreeUuids(child);
 
-    emit structureChanged();
+    notifyStructureChanged();
 }
 
 SceneNode* SceneGraph::findNodeByUuid(const QUuid& nodeUuid) const
@@ -934,6 +951,15 @@ void SceneGraph::setMeasurementOffsetDistance(const QUuid& id, float offsetDista
     // of times per second for no visible change, for no reason.
 }
 
+void SceneGraph::setMeasurementReflexAngle(const QUuid& id, bool reflex)
+{
+    const int index = measurementIndexById(id);
+    if (index < 0 || _measurements.at(index).reflexAngle == reflex)
+        return;
+    _measurements[index].reflexAngle = reflex;
+    emit measurementsChanged();
+}
+
 void SceneGraph::setMeasurementOffsetVector(const QUuid& id, const QVector3D& offsetVector)
 {
     const int index = measurementIndexById(id);
@@ -1104,6 +1130,26 @@ void SceneGraph::setAnnotationText(const QUuid& id, const QString& text)
     if (index < 0 || _annotations.at(index).text == text)
         return;
     _annotations[index].text = text;
+    emit annotationsChanged();
+}
+
+void SceneGraph::setMeasurementOrientation(const QUuid& id, LabelOrientation orientation)
+{
+    const int index = measurementIndexById(id);
+    if (index < 0 || _measurements.at(index).orientation == orientation)
+        return;
+    _measurements[index].orientation = orientation;
+    // A frame placed in a plane has no stored offset, but one the user already dragged does: leave it, so switching modes never
+    // moves a placed dimension.
+    emit measurementsChanged();
+}
+
+void SceneGraph::setAnnotationOrientation(const QUuid& id, LabelOrientation orientation)
+{
+    const int index = annotationIndexById(id);
+    if (index < 0 || _annotations.at(index).orientation == orientation)
+        return;
+    _annotations[index].orientation = orientation;
     emit annotationsChanged();
 }
 

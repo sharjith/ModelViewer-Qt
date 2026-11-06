@@ -1,4 +1,7 @@
 #include "FloatingPanelDialog.h"
+#include "ImportDiagnostics.h"
+#include "Logger.h"
+#include <QElapsedTimer>
 #include "AddMeasurementCommand.h"
 #include "AddAnnotationCommand.h"
 #include "MeasurementVisibilityCommand.h"
@@ -22,12 +25,15 @@
 #include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
+#include "RenameNodeCommand.h"
 #include "ViewportWidget.h"
 #include "MeasurementDialog.h"
 #include "AnnotationDialog.h"
 #include "ShrinkWrapDialog.h"
 #include "SurfaceAnalysisDialog.h"
 #include "MassPropertiesDialog.h"
+#include "RecordedDrawingJson.h"
+#include "MeshInfoDialog.h"
 #include "ReportExportDialog.h"
 #include "BatchRenderViewsDialog.h"
 #include "SubdivisionDialog.h"
@@ -294,7 +300,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	setAttribute(Qt::WA_DeleteOnClose);
 		
 	int values[] = { 0, 2, 4, 8, 16, 32 };
-	int samples = values[settings.value("msaaComboBox", 4).toInt()];
+	int samples = values[std::clamp(settings.value("msaaComboBox", 2).toInt(), 0, 5)]; // default 4x, see ModelViewerApplication.cpp
 	bool vsyncEnabled = settings.value("vsyncCheckBox", true).toBool();
 
 	QSurfaceFormat format;
@@ -468,6 +474,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Rename via tree widget's internal delegate handling
 	connect(treeWidgetModel, &SceneTreeWidget::meshRenamed,
 	        this, &ModelViewer::handleTreeWidgetMeshRenamed);
+	connect(treeWidgetModel, &SceneTreeWidget::nodeRenamed,
+	        this, &ModelViewer::handleTreeWidgetNodeRenamed);
 
 	QTimer* searchTimer = new QTimer(this);
 	searchTimer->setSingleShot(true);
@@ -1984,21 +1992,28 @@ void ModelViewer::updateDisplayList()
 	const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
 	_viewportWidget->setAutoFitViewOnUpdate(false);
 
+	ImportDiagnostics::checkpoint("viewer.display-list-begin");
 	_visibleMeshUuids = collectVisibleUuidsFromDisplayList();
 	if (_progressiveLoadingEnabled)
 	{
 		const QList<QUuid> pendingSceneUuids = _viewportWidget->getPendingSceneUuids();
 		for (const QUuid& uuid : pendingSceneUuids)
 		{
-			if (!uuid.isNull())
+			if (!uuid.isNull() && !_viewportWidget->isInitiallyHiddenImportMesh(uuid))
 				_visibleMeshUuids.insert(uuid);
 		}
 	}
+	ImportDiagnostics::checkpoint("viewer.display-list-visible-collected");
 	applyVisibleMeshState(false);
+	ImportDiagnostics::checkpoint("viewer.display-list-visibility-applied");
 
 	++_treeRebuildGeneration;
 	_treeRebuildPending = false;
-	rebuildTreeFromCurrentState();
+	// A progressive load calls this after every paced batch; restarting a whole-tree rebuild each
+	// time keeps the panel flickering and, on a large assembly, never lets it finish.
+	if (!_treeRebuildDeferred)
+		rebuildTreeFromCurrentState();
+	ImportDiagnostics::checkpoint("viewer.display-list-tree-started");
 	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 
 	// Start the fit animation immediately using the bounding sphere already
@@ -2529,6 +2544,7 @@ void ModelViewer::setLastSelectedFilter(const QString& lastSelectedFilter)
 void ModelViewer::showContextMenu(const QPoint& pos)
 {
 	setFocus();
+	ImportDiagnostics::checkpoint("tree.contextmenu-begin");
 
 	const bool clickedAssembly = treeWidgetModel->isAssemblyAt(pos);
 
@@ -2536,6 +2552,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// mesh descendants (used to decide which menu sections to show).
 	if (clickedAssembly)
 		treeWidgetModel->ensureAssemblySelectionAt(pos);
+	ImportDiagnostics::checkpoint("tree.contextmenu-ensure-end");
 
 	// NOT hasMeshSelection(): on a first right-click of a previously
 	// unselected assembly, ensureAssemblySelectionAt() above selects only
@@ -2565,8 +2582,10 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// Visual feedback: narrow the highlight to just the right-clicked node.
 	// Save the full selection so we can restore it if the user dismisses.
 	const QSet<QUuid> savedSelection = getSelectedUuids();
+	ImportDiagnostics::checkpoint("tree.contextmenu-saved-selection", -1, savedSelection.size());
 	if (clickedAssembly)
 		treeWidgetModel->highlightSingleItemAt(pos);
+	ImportDiagnostics::checkpoint("tree.contextmenu-highlight-end");
 
 	// Flag set by any action that intentionally changes selection state.
 	// If the menu is dismissed without an action, savedSelection is restored.
@@ -2643,6 +2662,17 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 			});
 			myMenu.addSeparator();
 		}
+	}
+
+	// ---- Rename --------------------------------------------------------------
+	// Double-click expands/collapses an assembly, so renaming has its own entry (and F2).
+	if (treeWidgetModel->itemAt(pos))
+	{
+		myMenu.addAction(tr("Rename	F2"), this, [this, pos, &actionTaken]() {
+			actionTaken = true;
+			treeWidgetModel->beginRenameAt(pos);
+		});
+		myMenu.addSeparator();
 	}
 
 	// ---- Copy / Cut --------------------------------------------------------
@@ -2740,11 +2770,19 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction(QIcon(":/icons/res/mesh_info.png"), tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
 	}
 
+	ImportDiagnostics::checkpoint("tree.contextmenu-built");
 	myMenu.exec(treeWidgetModel->mapMenuToGlobal(pos));
 
 	// If no action was taken (menu dismissed), restore the previous selection.
 	if (!actionTaken)
+	{
+		// Restoring must neither scroll nor expand: scrolling to the first selected mesh
+		// opens every ancestor, which undid Expand/Collapse to 1st Level and Collapse All.
+		treeWidgetModel->setRevealOnSelect(false);
 		setSelectionWithoutUndo(savedSelection);
+		treeWidgetModel->setRevealOnSelect(true);
+	}
+	ImportDiagnostics::checkpoint("tree.contextmenu-end");
 }
 
 void ModelViewer::centerScreen()
@@ -4343,7 +4381,15 @@ void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot, bool automati
 			if (!camera.nodeName.isEmpty())
 				cameraHostNames.insert(camera.nodeName);
 	}
-	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions, cameraHostNames);
+	ImportDiagnostics::checkpoint("viewer.purge-scan-begin");
+	{
+		// Every promotion edits the scene graph three times; without a batch each edit rebuilt the whole tree and re-ran the
+		// validators, which is quadratic in the part count (hours for an assembly of tens of thousands of parts).
+		SceneGraph::StructureBatch batch(*_sceneGraph);
+		purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions, cameraHostNames);
+		ImportDiagnostics::checkpoint("viewer.purge-edits-done", -1, static_cast<quint64>(promotions.size()), 0);
+	} // the single deferred structureChanged() (tree rebuild and validators) runs when the batch closes
+	ImportDiagnostics::checkpoint("viewer.purge-scan-end", -1, static_cast<quint64>(promotions.size()), 0);
 
 	if (promotions.isEmpty())
 	{
@@ -5210,8 +5256,26 @@ void ModelViewer::deleteSceneState(const QUuid& stateId)
 	_undoStack->push(new DeleteSceneStateCommand(this, _viewportWidget, stateId));
 }
 
+namespace {
+// Logs how long a visibility step took (only steps slower than 20 ms) so a slow Show All / Hide on a large model can be traced.
+struct VisibilityLap
+{
+	const char* label;
+	QElapsedTimer clock;
+	explicit VisibilityLap(const char* l) : label(l) { clock.start(); }
+	~VisibilityLap()
+	{
+		const qint64 ms = clock.elapsed();
+		if (ms >= 20)
+			Logger::instance().info(QStringLiteral("[VisibilityDiagnostics] %1 took %2 ms").arg(QLatin1String(label)).arg(ms),
+				QStringLiteral("Performance"));
+	}
+};
+}
+
 void ModelViewer::showAllItems()
 {
+	VisibilityLap lapShowAll("showAllItems total");
 	// Show All is one coherent action across every content type - see
 	// hideAllItems()'s identical reasoning.
 	if (_undoStack)
@@ -5306,13 +5370,16 @@ std::vector<int> ModelViewer::getSelectedIDs() const
 
 QSet<QUuid> ModelViewer::getSelectedUuids() const
 {
-	std::vector<int> selectedIds = getSelectedIDs();
+	// The tree already holds the selection as mesh uuids; round-tripping them through viewport indices
+	// and back (as this used to) only repeated a hash lookup per mesh. Meshes the viewport no longer
+	// has are still dropped.
+	const QList<QUuid> meshUuids = treeWidgetModel->selectedMeshUuids();
 	QSet<QUuid> selectedUuids;
+	selectedUuids.reserve(meshUuids.size());
 
-	for (int id : selectedIds)
+	for (const QUuid& uuid : meshUuids)
 	{
-		QUuid uuid = _viewportWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
+		if (!uuid.isNull() && _viewportWidget->getIndexByUuid(uuid) >= 0)
 			selectedUuids.insert(uuid);
 	}
 
@@ -5321,63 +5388,23 @@ QSet<QUuid> ModelViewer::getSelectedUuids() const
 
 void ModelViewer::displaySelectedMeshInfo()
 {
-	// Trimmed to mesh statistics only (points/triangles/memory) - a quick
-	// glance stat from the tree's context menu. Mass properties (volume,
-	// surface area, mass, center of mass, bounding box) moved to the
-	// purpose-built Tools -> Mass Properties... dialog (MassPropertiesDialog),
-	// which has room for the "N/A + reason" nuance those values need (an
-	// open mesh has no valid volume, a material with no assigned density has
-	// no valid mass, etc.) that a single QMessageBox string dump doesn't.
-	std::vector<int> selected = getSelectedIDs();
-	if (selected.size() != 0)
+	// Mesh statistics plus any source properties the importer kept, in a non-modal table (MeshInfoDialog). Mass
+	// properties (volume, surface area, mass, center of mass) stay in the Tools -> Mass Properties... dialog.
+	if (getSelectedIDs().empty())
+		return;
+	MeshInfoDialog* dialog = findChild<MeshInfoDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (dialog)
 	{
-		std::vector<SceneMesh*> meshes = _viewportWidget->getMeshStore();
-		QString name;
-		size_t points = 0, triangles = 0;
-		unsigned long long rawmem = 0;
-		SceneMesh* mesh = nullptr;
-		size_t selectionCount = selected.size();
-		if (selectionCount > 1)
-			name = QString("%1 Meshes\n").arg(selectionCount);
-		else
-			name = meshes.at(selected[0])->getName() + "\n";
-		for (int id : selected)
-		{
-			mesh = meshes.at(id);
-			points += mesh->getPoints().size() / 3;
-			triangles += mesh->getIndices().size() / 3;
-			rawmem += mesh->memorySize();
-		}
-
-		QString strpoints = QString(tr("Points: %1\n")).arg(points);
-		QString strtriangles = QString(tr("Triangles: %1\n")).arg(triangles);
-		unsigned long long mem = 0;
-		QString units;
-		if (rawmem < 1024)
-		{
-			mem = rawmem;
-			units = "bytes";
-		}
-		else if (rawmem < (1024 * 1024))
-		{
-			mem = rawmem / 1024;
-			units = "kb";
-		}
-		else if (rawmem < (1024 * 1024 * 1024))
-		{
-			mem = rawmem / (1024 * 1024);
-			units = "mb";
-		}
-		else
-		{
-			mem = rawmem / (1024 * 1024 * 1024);
-			units = "gb";
-		}
-		QString meshSize = QString(tr("Memory: %1 ")).arg(mem) + units;
-
-		QString info = name + strpoints + strtriangles + meshSize;
-		QMessageBox::information(this, tr("Mesh Info"), info);
+		dialog->seedFromViewportSelection();
 	}
+	else
+	{
+		dialog = new MeshInfoDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
 }
 
 void ModelViewer::showVisualizationModelPage()
@@ -5402,16 +5429,22 @@ void ModelViewer::showEnvironmentPage()
 
 void ModelViewer::handleTreeWidgetVisibilityChanged()
 {
+	ImportDiagnostics::checkpoint("tree.visibility-changed-begin");
 	_visibleMeshUuids = treeWidgetModel->getVisibleUuids();
+	ImportDiagnostics::checkpoint("tree.visibility-uuids-end", -1, _visibleMeshUuids.size());
 	applyVisibleMeshState(false);
+	ImportDiagnostics::checkpoint("tree.visibility-state-end");
 	// Scene-tree checkboxes bypass setVisibilityWithoutUndo(), so they must
 	// explicitly refresh Plot3D's shared axis extent as well.
 	refreshPlot3DAxes();
+	ImportDiagnostics::checkpoint("tree.visibility-changed-end");
 }
 
 void ModelViewer::handleTreeWidgetSelectionChanged()
 {
+	ImportDiagnostics::checkpoint("tree.selection-changed-begin");
 	const std::vector<int> selectedVec = treeWidgetModel->getSelectedIndices();
+	ImportDiagnostics::checkpoint("tree.selection-indices-end", -1, selectedVec.size());
 	const QList<int> selectedIds(selectedVec.begin(), selectedVec.end());
 
 	// Tree-initiated selection: sync SelectionManager silently (no signal) to avoid
@@ -5422,9 +5455,11 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 
 	_viewportWidget->update();
 	updateSelectionStatusMessage();
+	ImportDiagnostics::checkpoint("tree.selection-visual-end");
 
 	// Notify panels connected to ViewportWidget::selectionChanged (e.g. TextureDebugPanel).
 	emit _viewportWidget->selectionChanged(selectedIds);
+	ImportDiagnostics::checkpoint("tree.selection-panels-end");
 
 	if (selectedVec.empty())
 	{
@@ -5455,6 +5490,19 @@ void ModelViewer::handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& 
 	    this, _viewportWidget, treeWidgetModel,
 	    uuid, oldName, finalName,
 	    tr("Rename \"%1\" to \"%2\"").arg(oldName, finalName)));
+}
+
+void ModelViewer::handleTreeWidgetNodeRenamed(const QUuid& nodeUuid, const QString& newName)
+{
+	if (!_sceneGraph) return;
+	const SceneNode* node = _sceneGraph->findNodeByUuid(nodeUuid);
+	if (!node || node->name == newName) return;
+
+	const QString oldName = node->name;
+	_undoStack->push(new RenameNodeCommand(
+	    this, _viewportWidget, treeWidgetModel,
+	    nodeUuid, oldName, newName,
+	    tr("Rename \"%1\" to \"%2\"").arg(oldName, newName)));
 }
 
 void ModelViewer::checkAndRenameModel(SceneMesh* mesh, const QString& name)
@@ -6230,12 +6278,15 @@ bool ModelViewer::loadFile(const QString& fileName)
 		success = _viewportWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
 	}
 
+	ImportDiagnostics::checkpoint("viewer.load-returned", -1, success ? 1 : 0, 0);
 	if (success && !_viewportWidget->getMeshStore().empty())
 	{
 		if (!isNativeSession)
 		{
 			updateDisplayList();
+			ImportDiagnostics::checkpoint("viewer.post-load-display-list-end");
 			markNonUndoDocumentModified();
+			ImportDiagnostics::checkpoint("viewer.post-load-modified-end");
 		}
 
 		treeWidgetModel->scrollToTop();
@@ -6541,6 +6592,21 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			m.offsetReferenceDir = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetReferenceDir")].toArray());
 			m.offsetDistance = static_cast<float>(measurementObj[QStringLiteral("offsetDistance")].toDouble());
 			m.offsetVector = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetVector")].toArray());
+			m.reflexAngle = measurementObj[QStringLiteral("reflexAngle")].toBool(false);
+			m.orientation = static_cast<LabelOrientation>(measurementObj[QStringLiteral("labelOrientation")].toInt(
+				static_cast<int>(LabelOrientation::FaceCamera)));  // sessions from before the setting looked screen-facing
+			if (measurementObj[QStringLiteral("origin")].toString() == QLatin1String("recorded"))
+			{
+				m.origin = MeasurementOrigin::Recorded;
+				m.recordedValue = measurementObj[QStringLiteral("recordedValue")].toDouble();
+				m.recordedUnit = measurementObj[QStringLiteral("recordedUnit")].toString();
+				m.recordedPrecision = qBound(0, measurementObj[QStringLiteral("recordedPrecision")].toInt(2), 8);
+				m.recordedSource = measurementObj[QStringLiteral("recordedSource")].toString();
+				const int kind = measurementObj[QStringLiteral("recordedKind")].toInt(0);
+				m.recordedKind = (kind >= 0 && kind <= static_cast<int>(RecordedKind::Angle)) ? static_cast<RecordedKind>(kind) : RecordedKind::Distance;
+				m.recordedTextInside = measurementObj[QStringLiteral("recordedTextInside")].toBool(false);
+				m.recordedDrawing = RecordedPmi::drawingFromJson(measurementObj[QStringLiteral("drawing")].toObject());
+			}
 
 			const QJsonArray anchorsArr = measurementObj[QStringLiteral("anchors")].toArray();
 			m.anchors.reserve(anchorsArr.size());
@@ -6573,6 +6639,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			a.visible = annotationObj[QStringLiteral("visible")].toBool(true);
 			a.offsetReferenceDir = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("offsetReferenceDir")].toArray());
 			a.leaderOffset = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("leaderOffset")].toArray());
+			a.orientation = static_cast<LabelOrientation>(annotationObj[QStringLiteral("labelOrientation")].toInt(
+				static_cast<int>(LabelOrientation::FaceCamera)));  // sessions from before the setting looked screen-facing
+			a.recordedKind = annotationObj[QStringLiteral("recordedKind")].toString();
+			a.recordedSource = annotationObj[QStringLiteral("recordedSource")].toString();
+			a.recordedDrawing = RecordedPmi::drawingFromJson(annotationObj[QStringLiteral("drawing")].toObject());
 
 			const QJsonObject anchorObj = annotationObj[QStringLiteral("anchor")].toObject();
 			a.anchor.meshUuid = QUuid(anchorObj[QStringLiteral("meshUuid")].toString());
@@ -7649,6 +7720,23 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			measurementObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(m.offsetReferenceDir));
 			measurementObj.insert(QStringLiteral("offsetDistance"), static_cast<double>(m.offsetDistance));
 			measurementObj.insert(QStringLiteral("offsetVector"), vec3ToJson(m.offsetVector));
+			measurementObj.insert(QStringLiteral("labelOrientation"), static_cast<int>(m.orientation));
+			if (m.reflexAngle)
+				measurementObj.insert(QStringLiteral("reflexAngle"), true);
+			if (m.origin == MeasurementOrigin::Recorded)
+			{
+				// Only recorded ones carry these; files written before them (or without any) read back as measured.
+				measurementObj.insert(QStringLiteral("origin"), QStringLiteral("recorded"));
+				measurementObj.insert(QStringLiteral("recordedValue"), m.recordedValue);
+				measurementObj.insert(QStringLiteral("recordedUnit"), m.recordedUnit);
+				measurementObj.insert(QStringLiteral("recordedPrecision"), m.recordedPrecision);
+				measurementObj.insert(QStringLiteral("recordedSource"), m.recordedSource);
+				measurementObj.insert(QStringLiteral("recordedKind"), static_cast<int>(m.recordedKind));
+				if (m.recordedTextInside)
+					measurementObj.insert(QStringLiteral("recordedTextInside"), true);
+				if (m.recordedDrawing)
+					measurementObj.insert(QStringLiteral("drawing"), RecordedPmi::drawingToJson(*m.recordedDrawing));
+			}
 			measurementObj.insert(QStringLiteral("anchors"), anchorsJson);
 			measurementsJson.append(measurementObj);
 		}
@@ -7683,6 +7771,14 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			annotationObj.insert(QStringLiteral("visible"), a.visible);
 			annotationObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(a.offsetReferenceDir));
 			annotationObj.insert(QStringLiteral("leaderOffset"), vec3ToJson(a.leaderOffset));
+			annotationObj.insert(QStringLiteral("labelOrientation"), static_cast<int>(a.orientation));
+			if (a.isRecorded())
+			{
+				annotationObj.insert(QStringLiteral("recordedKind"), a.recordedKind);
+				annotationObj.insert(QStringLiteral("recordedSource"), a.recordedSource);
+				if (a.recordedDrawing)
+					annotationObj.insert(QStringLiteral("drawing"), RecordedPmi::drawingToJson(*a.recordedDrawing));
+			}
 			annotationsJson.append(annotationObj);
 		}
 		package.document.mvfSession.insert(QStringLiteral("annotations"), annotationsJson);
@@ -8442,8 +8538,20 @@ void ModelViewer::applyVisibleMeshState(bool syncTree,
 	if (!_viewportWidget)
 		return;
 
-	_viewportWidget->setDisplayList(visibleIndicesFromState());
-	updateVisibilityUiFromState();
+	VisibilityLap lapApply("applyVisibleMeshState total");
+	{
+		std::vector<int> ids;
+		{
+			VisibilityLap lap("visibleIndicesFromState");
+			ids = visibleIndicesFromState();
+		}
+		VisibilityLap lap("setDisplayList");
+		_viewportWidget->setDisplayList(ids);
+	}
+	{
+		VisibilityLap lap("updateVisibilityUiFromState");
+		updateVisibilityUiFromState();
+	}
 
 	if (syncTree)
 	{
@@ -8516,6 +8624,7 @@ void ModelViewer::scheduleTreeVisibilitySync(int delayMs)
 void ModelViewer::syncTreeVisibilityFromModel()
 {
 	_treeVisibilityDirty = false;
+	VisibilityLap lap("tree setVisibilityByUuids");
 	treeWidgetModel->setVisibilityByUuids(_visibleMeshUuids);
 }
 

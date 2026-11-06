@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <climits>
+#include <optional>
 
 DeleteMeshCommand::DeleteMeshCommand(ModelViewer* viewer,
     ViewportWidget* viewportWidget,
@@ -59,23 +60,43 @@ void DeleteMeshCommand::undo()
             return _originalIndices.value(a, INT_MAX) < _originalIndices.value(b, INT_MAX);
         });
 
-    for (const QUuid& uuid : orderedUuids)
     {
-        // Restore mesh in the renderer's store
-        if (_viewportWidget->isInRecycleBin(uuid))
+        // Same reasoning as redo(): one structure notification, not one per restored mesh.
+        std::optional<SceneGraph::StructureBatch> batch;
+        if (sg)
+            batch.emplace(*sg);
+
+        // Restore the meshes in the renderer's store in one pass (ascending original index, as above)
+        std::vector<QUuid> toRestore;
+        toRestore.reserve(static_cast<size_t>(orderedUuids.size()));
+        for (const QUuid& uuid : orderedUuids)
         {
-            _viewportWidget->restoreFromRecycleBin(uuid);
+            if (_viewportWidget->isInRecycleBin(uuid))
+                toRestore.push_back(uuid);
+            else
+                qWarning() << "DeleteMeshCommand::undo - Mesh not in bin:" << uuid;
         }
-        else
+        _viewportWidget->restoreFromRecycleBinBatch(toRestore);
+
+        // A mesh goes to the bin still flagged as selected, but the live selection no longer
+        // contains it, so it came back highlighted with nothing able to deselect it.
+        for (const QUuid& uuid : toRestore)
         {
-            qWarning() << "DeleteMeshCommand::undo - Mesh not in bin:" << uuid;
+            if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid))
+            {
+                if (mesh->isSelected())
+                    mesh->deselect();
+            }
         }
 
-        // Restore UUID in the SceneGraph at its original node and position
+        // Restore UUIDs in the SceneGraph at their original nodes and positions
         if (sg)
         {
-            const SceneRemovalRecord& rec = _sceneRecords.value(uuid);
-            sg->restoreMeshUuid(rec.node, uuid, rec.position);
+            for (const QUuid& uuid : orderedUuids)
+            {
+                const SceneRemovalRecord& rec = _sceneRecords.value(uuid);
+                sg->restoreMeshUuid(rec.node, uuid, rec.position);
+            }
         }
     }
 
@@ -187,19 +208,30 @@ void DeleteMeshCommand::redo()
         }
     }
 
-    for (const QUuid& uuid : _meshUuids)
     {
-        // Remove UUID from SceneGraph and record where it was for undo
+        // removeMeshUuid() notifies per mesh; unbatched, deleting a large selection restarted the
+        // tree rebuild and ran every structure validator once per mesh. One notification at the end.
+        std::optional<SceneGraph::StructureBatch> batch;
         if (sg)
+            batch.emplace(*sg);
+
+        std::vector<std::pair<QUuid, int>> toRecycle;
+        toRecycle.reserve(static_cast<size_t>(_meshUuids.size()));
+        for (const QUuid& uuid : _meshUuids)
         {
-            SceneRemovalRecord rec;
-            rec.node = sg->removeMeshUuid(uuid, rec.position);
-            _sceneRecords[uuid] = rec;
+            // Remove UUID from SceneGraph and record where it was for undo
+            if (sg)
+            {
+                SceneRemovalRecord rec;
+                rec.node = sg->removeMeshUuid(uuid, rec.position);
+                _sceneRecords[uuid] = rec;
+            }
+
+            toRecycle.emplace_back(uuid, _originalIndices.value(uuid, -1));
         }
 
-        // Move mesh to recycle bin in the renderer's store
-        int originalIndex = _originalIndices.value(uuid, -1);
-        _viewportWidget->moveToRecycleBin(uuid, originalIndex);
+        // Move the meshes to the recycle bin in the renderer's store in one pass
+        _viewportWidget->moveToRecycleBinBatch(toRecycle);
     }
 
     // Prune file-level nodes whose subtree lost its last mesh.  A stale empty

@@ -19,6 +19,12 @@ public:
 
     // Static utility method for supported extensions
     static QStringList supportedImportExtensions();
+
+    // Profile-rendering aid: while on, any single event that takes 8 ms or more to deliver is logged ("[SlowEvent]") with
+    // its type and receiver, which shows what the GUI thread does between frames.
+    static void setSlowEventTraceEnabled(bool enabled) { _slowEventTrace = enabled; }
+    static bool slowEventTraceEnabled() { return _slowEventTrace; }
+    bool notify(QObject* receiver, QEvent* event) override;
 	
     static void setSupportedMSAASamples(int samples) {
         _supportedMSAASamples = samples;
@@ -43,6 +49,7 @@ public:
 
 private:
     static QStringList _supportedExtensions;
+    static bool _slowEventTrace;
 	static int _supportedMSAASamples;
 	static int _supportedAnisotropicFilteringLevel;
 };

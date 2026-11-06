@@ -28,6 +28,8 @@ public:
 
 public slots:
     void appendLine(const QString& line);
+    // One queued call for a whole batch of lines (see Logger::processQueue()).
+    void appendLines(const QString& lines);
 
 protected:
     void closeEvent(QCloseEvent* event) override;

@@ -304,7 +304,7 @@ struct RtOptixSceneParams
 };
 
 // Device-side counterpart of RtTextureSample - see CpuPathTracer.cpp's
-// sampleTexture()/applyChannelPacking() for the exact bilinear + KHR_texture_
+// sampleTexture()/applyChannelPacking() for the authored filter + KHR_texture_
 // transform + wrap + channel-packing pipeline RtOptixScene.cu's own
 // sampleTexture2D()/applyChannelPacking() port verbatim from. width<=0 means
 // "absent" (same convention as RtOptixEnvironment::faceSize<=0) - baseColor/
@@ -339,8 +339,10 @@ struct RtOptixTexture
 
 	unsigned int wrapS; // raw GL wrap enum (GL_REPEAT/GL_CLAMP_TO_EDGE/GL_MIRRORED_REPEAT) - see RtTextureSample::wrapS's doc comment
 	unsigned int wrapT;
+	unsigned int magFilter;
+	unsigned int minFilter;
 
-	// Box-filtered mip pyramid - device counterpart of RtTextureSample::mips,
+	// Authored or generated mip pyramid - device counterpart of RtTextureSample::mips,
 	// same ordering (mips[0] duplicates the base rgba8/width/height above,
 	// for uniform indexing). nullptr/0 if the upload failed or the source
 	// RtTextureSample had no mips (RtOptixScene.cu's sampleTexture2D() then
@@ -382,14 +384,11 @@ struct RtOptixSceneHitGroupData
 	// tangent data" (matches RtVertex::tangent's own zero-length convention).
 	float4* tangents;
 
-	// COLOR_0-style per-vertex RGB (RtVertex::color.rgb - already linear, no
-	// sRGB decode needed, unlike textures - see RtVertex::color's doc
-	// comment). Always (1,1,1) when the source mesh has no vertex color
-	// attribute, so it's always safe to unconditionally multiply into
-	// baseColor, matching CpuPathTracer::evaluateSurface()'s "apply vertex
-	// color last (in linear)". Alpha is intentionally not carried - nothing
-	// in this backend consumes opacity/alpha yet.
-	float3* vertexColors;
+	// COLOR_0-style linear RGBA, identity (1,1,1,1) without source colours.
+	// RGB modulates shading; interpolated alpha modulates MASK/BLEND coverage
+	// in any-hit for both camera and shadow rays. Host uploads and refits use
+	// the same float4 layout.
+	float4* vertexColors;
 
 	float3 baseColor;
 	float metalness;

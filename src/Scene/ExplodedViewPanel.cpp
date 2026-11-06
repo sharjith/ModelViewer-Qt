@@ -293,11 +293,12 @@ ExplodedViewManager::Mode modeFromComboIndex(int index)
 {
     switch (index)
     {
-    case 1: return ExplodedViewManager::Mode::AxisX;
-    case 2: return ExplodedViewManager::Mode::AxisY;
-    case 3: return ExplodedViewManager::Mode::AxisZ;
-    case 4: return ExplodedViewManager::Mode::Vector;
-    default: return ExplodedViewManager::Mode::Auto;
+    case 1: return ExplodedViewManager::Mode::Auto;          // Auto (Radial)
+    case 2: return ExplodedViewManager::Mode::AxisX;
+    case 3: return ExplodedViewManager::Mode::AxisY;
+    case 4: return ExplodedViewManager::Mode::AxisZ;
+    case 5: return ExplodedViewManager::Mode::Vector;
+    default: return ExplodedViewManager::Mode::AutoMating;   // index 0: Auto (Mating), the default
     }
 }
 
@@ -305,11 +306,12 @@ int comboIndexFromMode(ExplodedViewManager::Mode mode)
 {
     switch (mode)
     {
-    case ExplodedViewManager::Mode::AxisX: return 1;
-    case ExplodedViewManager::Mode::AxisY: return 2;
-    case ExplodedViewManager::Mode::AxisZ: return 3;
-    case ExplodedViewManager::Mode::Vector: return 4;
-    case ExplodedViewManager::Mode::Auto:
+    case ExplodedViewManager::Mode::Auto: return 1;
+    case ExplodedViewManager::Mode::AxisX: return 2;
+    case ExplodedViewManager::Mode::AxisY: return 3;
+    case ExplodedViewManager::Mode::AxisZ: return 4;
+    case ExplodedViewManager::Mode::Vector: return 5;
+    case ExplodedViewManager::Mode::AutoMating:
     default:
         return 0;
     }
@@ -323,6 +325,7 @@ QString modeToString(ExplodedViewManager::Mode mode)
     case ExplodedViewManager::Mode::AxisY: return QStringLiteral("AxisY");
     case ExplodedViewManager::Mode::AxisZ: return QStringLiteral("AxisZ");
     case ExplodedViewManager::Mode::Vector: return QStringLiteral("Vector");
+    case ExplodedViewManager::Mode::AutoMating: return QStringLiteral("AutoMating");
     case ExplodedViewManager::Mode::Auto:
     default:
         return QStringLiteral("Auto");
@@ -339,6 +342,8 @@ ExplodedViewManager::Mode modeFromString(const QString& mode)
         return ExplodedViewManager::Mode::AxisZ;
     if (mode == QLatin1String("Vector"))
         return ExplodedViewManager::Mode::Vector;
+    if (mode == QLatin1String("AutoMating"))
+        return ExplodedViewManager::Mode::AutoMating;
     return ExplodedViewManager::Mode::Auto;
 }
 
@@ -409,7 +414,36 @@ ExplodedViewManager::Mode ExplodedViewPanel::mode() const
         return modeFromComboIndex(comboBoxMode->currentIndex());
     if (const ExplodedViewPreset* preset = activePreset())
         return preset->mode;
-    return ExplodedViewManager::Mode::Auto;
+    return ExplodedViewManager::Mode::AutoMating;
+}
+
+int ExplodedViewPanel::explodeDepth() const
+{
+    if (comboBoxExplodeDepth)
+        return comboBoxExplodeDepth->currentIndex();   // item index == depth, 0 = All
+    if (const ExplodedViewPreset* preset = activePreset())
+        return preset->explodeDepth;
+    return 0;
+}
+
+void ExplodedViewPanel::setAvailableExplodeLevels(int levels)
+{
+    if (!comboBoxExplodeDepth)
+        return;
+    levels = qBound(1, levels, 64);
+    if (comboBoxExplodeDepth->count() == levels + 1)
+        return;
+
+    const ExplodedViewPreset* preset = activePreset();
+    const int wanted = preset ? preset->explodeDepth : comboBoxExplodeDepth->currentIndex();
+    {
+        QSignalBlocker blocker(comboBoxExplodeDepth);
+        comboBoxExplodeDepth->clear();
+        comboBoxExplodeDepth->addItem(tr("All"));
+        for (int level = 1; level <= levels; ++level)
+            comboBoxExplodeDepth->addItem(QString::number(level));
+        comboBoxExplodeDepth->setCurrentIndex(wanted > 0 && wanted <= levels ? wanted : 0);
+    }
 }
 
 ExplodedViewPanel::AutoStrategy ExplodedViewPanel::autoStrategy() const
@@ -540,6 +574,7 @@ QJsonArray ExplodedViewPanel::presetsToJson()
         presetObj.insert(QStringLiteral("loopBack"), preset.loopBack);
         presetObj.insert(QStringLiteral("useCombinedPose"), preset.useCombinedPose);
         presetObj.insert(QStringLiteral("autoStrategy"), comboIndexFromAutoStrategy(preset.autoStrategy));
+        presetObj.insert(QStringLiteral("explodeDepth"), preset.explodeDepth);
 
         const std::function<QJsonObject(const CapturedExplosionStep&)> serializeStep =
             [&](const CapturedExplosionStep& step) -> QJsonObject
@@ -665,6 +700,7 @@ void ExplodedViewPanel::restorePresetsFromJson(const QJsonArray& presetsJson,
         preset.autoStrategy = autoStrategyFromComboIndex(
             presetObj.value(QStringLiteral("autoStrategy")).toInt(
                 comboIndexFromAutoStrategy(AutoStrategy::AssemblyAware)));
+        preset.explodeDepth = qBound(0, presetObj.value(QStringLiteral("explodeDepth")).toInt(0), 32);
 
         const std::function<CapturedExplosionStep(const QJsonObject&, int)> deserializeStep =
             [&](const QJsonObject& stepObj, int fallbackIndex) -> CapturedExplosionStep
@@ -812,8 +848,10 @@ void ExplodedViewPanel::syncActivePresetFromUi()
     const bool oldLoopBack = preset.loopBack;
     const bool oldUseCombinedPose = preset.useCombinedPose;
     const AutoStrategy oldAutoStrategy = preset.autoStrategy;
+    const int oldExplodeDepth = preset.explodeDepth;
     preset.mode = modeFromComboIndex(comboBoxMode ? comboBoxMode->currentIndex() : 0);
     preset.autoStrategy = autoStrategyFromComboIndex(comboBoxAutoStrategy ? comboBoxAutoStrategy->currentIndex() : 0);
+    preset.explodeDepth = comboBoxExplodeDepth ? comboBoxExplodeDepth->currentIndex() : 0;
     preset.userVector = QVector3D(
         static_cast<float>(doubleSpinBoxVectorX ? doubleSpinBoxVectorX->value() : 1.0),
         static_cast<float>(doubleSpinBoxVectorY ? doubleSpinBoxVectorY->value() : 0.0),
@@ -831,7 +869,8 @@ void ExplodedViewPanel::syncActivePresetFromUi()
         || !qFuzzyCompare(1.0 + preset.durationSeconds, 1.0 + oldDurationSeconds)
         || preset.loopBack != oldLoopBack
         || preset.useCombinedPose != oldUseCombinedPose
-        || preset.autoStrategy != oldAutoStrategy;
+        || preset.autoStrategy != oldAutoStrategy
+        || preset.explodeDepth != oldExplodeDepth;
     if (changed)
         markDocumentModified();
 
@@ -929,12 +968,14 @@ void ExplodedViewPanel::loadPresetIntoUi(int index)
             checkBoxCombinedPose->setChecked(preset.useCombinedPose);
         if (comboBoxAutoStrategy)
             comboBoxAutoStrategy->setCurrentIndex(comboIndexFromAutoStrategy(preset.autoStrategy));
+        if (comboBoxExplodeDepth)
+            comboBoxExplodeDepth->setCurrentIndex(qBound(0, preset.explodeDepth, comboBoxExplodeDepth->count() - 1));
     }
     _syncingPresetUi = false;
 
     labelDistancePercent->setText(QString("%1%").arg(qRound(preset.factor * 100.0f)));
     if (frameVector)
-        frameVector->setVisible((!radioButtonModeManual || !radioButtonModeManual->isChecked()) && comboBoxMode && comboBoxMode->currentIndex() == 4);
+        frameVector->setVisible((!radioButtonModeManual || !radioButtonModeManual->isChecked()) && comboBoxMode && comboBoxMode->currentIndex() == 5);
 
     QList<int> selectionIds;
     selectionIds.reserve(preset.assemblyUuids.size());
@@ -1253,6 +1294,14 @@ ExplodedViewPanel::ExplodedViewPanel(ViewportWidget* parent)
     if (comboBoxAutoStrategy)
     {
         connect(comboBoxAutoStrategy, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
+            _hasUncapturedAutoPose = true;
+            syncActivePresetFromUi();
+            emit explosionParametersChanged();
+        });
+    }
+    if (comboBoxExplodeDepth)
+    {
+        connect(comboBoxExplodeDepth, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](int) {
             _hasUncapturedAutoPose = true;
             syncActivePresetFromUi();
             emit explosionParametersChanged();
@@ -3068,7 +3117,7 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
 void ExplodedViewPanel::on_comboBoxMode_currentIndexChanged(int index)
 {
     const bool autoMode = !radioButtonModeManual || !radioButtonModeManual->isChecked();
-    frameVector->setVisible(autoMode && index == 4);
+    frameVector->setVisible(autoMode && index == 5);
     syncActivePresetFromUi();
     emit explosionParametersChanged();
 }
@@ -3100,6 +3149,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
             || !qFuzzyCompare(doubleSpinBoxVectorY->value(), 0.0)
             || !qFuzzyCompare(doubleSpinBoxVectorZ->value(), 0.0)
             || comboBoxAutoStrategy->currentIndex() != comboIndexFromAutoStrategy(AutoStrategy::AssemblyAware)
+            || (comboBoxExplodeDepth && comboBoxExplodeDepth->currentIndex() != 0)
             || comboBoxAnimationMode->currentIndex() != 0
             || !qFuzzyCompare(doubleSpinBoxAnimationDuration->value(), 3.0)
             || !checkBoxLoopBack->isChecked());
@@ -3136,6 +3186,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     QSignalBlocker b5(doubleSpinBoxVectorZ);
     QSignalBlocker b6(checkBoxCombinedPose);
     QSignalBlocker b7(comboBoxAutoStrategy);
+    QSignalBlocker bDepth(comboBoxExplodeDepth);
 
     clearAssemblySelection();
 
@@ -3159,7 +3210,7 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     doubleSpinBoxVectorY->setValue(0.0);
     doubleSpinBoxVectorZ->setValue(0.0);
     ExplodedViewPreset& active = ensureActivePreset();
-    active.mode = ExplodedViewManager::Mode::Auto;
+    active.mode = ExplodedViewManager::Mode::AutoMating;
     active.userVector = QVector3D(1.0f, 0.0f, 0.0f);
     active.factor = 1.0f;
     active.manualSelectionUuids.clear();
@@ -3172,6 +3223,9 @@ void ExplodedViewPanel::on_pushButtonReset_clicked()
     active.loopBack = true;
     active.useCombinedPose = true;
     active.autoStrategy = AutoStrategy::AssemblyAware;
+    active.explodeDepth = 0;
+    if (comboBoxExplodeDepth)
+        comboBoxExplodeDepth->setCurrentIndex(0);
     comboBoxAnimationMode->setCurrentIndex(active.outputMode);
     doubleSpinBoxAnimationDuration->setValue(active.durationSeconds);
     checkBoxLoopBack->setChecked(active.loopBack);
@@ -3202,13 +3256,14 @@ void ExplodedViewPanel::on_pushButtonPresetNew_clicked()
     ExplodedViewPreset preset;
     preset.id = QUuid::createUuid();
     preset.name = nextPresetName();
-    preset.mode = ExplodedViewManager::Mode::Auto;
+    preset.mode = ExplodedViewManager::Mode::AutoMating;
     preset.userVector = QVector3D(1.0f, 0.0f, 0.0f);
     preset.factor = 1.0f;
     preset.outputMode = 0;
     preset.durationSeconds = 3.0;
     preset.loopBack = true;
     preset.autoStrategy = AutoStrategy::AssemblyAware;
+    preset.explodeDepth = 0;
 
     _presets.append(preset);
     _activePresetIndex = _presets.size() - 1;
@@ -3412,11 +3467,15 @@ void ExplodedViewPanel::updateAuthoringModeUi()
         stackedWidgetAuthoring->setCurrentWidget(autoMode ? pageAutoExplode : pageManualPlacement);
 
     if (frameVector)
-        frameVector->setVisible(autoMode && comboBoxMode && comboBoxMode->currentIndex() == 4);
+        frameVector->setVisible(autoMode && comboBoxMode && comboBoxMode->currentIndex() == 5);
     if (labelModeAutoStrategy)
         labelModeAutoStrategy->setVisible(autoMode);
     if (comboBoxAutoStrategy)
         comboBoxAutoStrategy->setVisible(autoMode);
+    if (labelExplodeDepth)
+        labelExplodeDepth->setVisible(autoMode);
+    if (comboBoxExplodeDepth)
+        comboBoxExplodeDepth->setVisible(autoMode);
 
     updateManualPlacementUi();
     updateCaptureButton();
@@ -3581,6 +3640,7 @@ bool ExplodedViewPanel::ensureDraftPreviewSession()
     _draftPreviewCurrentTime = 0.0;
     _draftPreviewActive = true;
     _draftPreviewPlaying = false;
+    _draftPreviewPoseSignatureValid = false; // the first pose touches every mesh
     applyDraftPreviewPose(0.0);
     return true;
 }
@@ -3896,17 +3956,31 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
         }
     }
 
+    // Only meshes under an animated node, or animated themselves, change between ticks. The rest were posed by the first (full) pass,
+    // and rewriting them each tick invalidated every mesh's transform and bounds. The full pass repeats whenever the animated set
+    // differs from the previous tick's (another step selected, a step edited), so a mesh that stops moving is still reset.
+    quint64 poseSignature = 1469598103934665603ull;
+    for (auto it = sampledByNode.cbegin(); it != sampledByNode.cend(); ++it)
+        poseSignature += static_cast<quint64>(qHash(it.key(), 0x9e3779b9u)) * 0x100000001b3ull;
+    for (auto it = sampledByMesh.cbegin(); it != sampledByMesh.cend(); ++it)
+        poseSignature += static_cast<quint64>(qHash(it.key(), 0x85ebca6bu)) * 0xff51afd7ed558ccdull;
+    poseSignature ^= (static_cast<quint64>(sampledByNode.size()) << 32) ^ static_cast<quint64>(sampledByMesh.size());
+    const bool fullPass = !_draftPreviewPoseSignatureValid || poseSignature != _draftPreviewPoseSignature;
+    _draftPreviewPoseSignature = poseSignature;
+    _draftPreviewPoseSignatureValid = true;
+
     for (const QString& sourceFile : std::as_const(_draftPreviewFiles))
     {
         SceneNode* fileNode = _sceneGraph->findFileNode(sourceFile);
         if (!fileNode)
             continue;
 
-        std::function<void(SceneNode*, const QMatrix4x4&)> applyNode =
-            [&](SceneNode* node, const QMatrix4x4& parentWorld)
+        std::function<void(SceneNode*, const QMatrix4x4&, bool)> applyNode =
+            [&](SceneNode* node, const QMatrix4x4& parentWorld, bool ancestorAnimated)
         {
             if (!node)
                 return;
+            const bool nodeAnimated = ancestorAnimated || sampledByNode.contains(node->nodeUuid);
 
             QMatrix4x4 localMatrix = aiToQMatrix(node->localTransform);
             if (sampledByNode.contains(node->nodeUuid))
@@ -3922,6 +3996,8 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
             const QMatrix4x4 world = parentWorld * localMatrix;
             for (const QUuid& meshUuid : node->meshUuids)
             {
+                if (!fullPass && !nodeAnimated && !sampledByMesh.contains(meshUuid))
+                    continue;
                 if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(meshUuid))
                 {
                     mesh->setExplosionOffset(QVector3D());
@@ -3941,14 +4017,16 @@ void ExplodedViewPanel::applyDraftPreviewPose(double timeSeconds)
             }
 
             for (SceneNode* child : node->children)
-                applyNode(child, world);
+                applyNode(child, world, nodeAnimated);
         };
 
         for (SceneNode* child : fileNode->children)
-            applyNode(child, QMatrix4x4());
+            applyNode(child, QMatrix4x4(), false);
     }
 
     _draftPreviewCurrentTime = clampedTime;
+    // Same fast path as the factor slider: coarse LODs, small-part culling, single sample, no shadows while the pose changes.
+    _viewportWidget->noteExplodedViewPoseChanged();
     _viewportWidget->update();
 }
 
@@ -4637,12 +4715,38 @@ QVector<ExplodedViewPanel::PresetPose> ExplodedViewPanel::computePresetPoses()
             }
             if (!assembly.isEmpty())
             {
-                AssemblyRelationGraph::AutoPlacementHints hints;
+                // the same branching as ViewportWidget::updateExplosion(): Auto / Auto-mating lay the assembly out level by level
+                // (the scene tree for the assembly-aware strategy, a spatial hierarchy for Classic), the other modes stay flat
+                QHash<QUuid, QVector3D> presetCentroids;
+                QHash<QUuid, QPair<QVector3D, QVector3D>> presetBoxes;
+                for (const QUuid& uuid : std::as_const(assembly))
+                {
+                    presetCentroids.insert(uuid, centroids.value(uuid));
+                    presetBoxes.insert(uuid, boxes.value(uuid));
+                }
                 const bool useHints = (preset.autoStrategy == AutoStrategy::AssemblyAware);
+                static const bool forceFlatExplosion = qEnvironmentVariableIntValue("MODELVIEWER_EXPLODED_FLAT") != 0;
+                const bool hierarchical = !forceFlatExplosion
+                    && (preset.mode == ExplodedViewManager::Mode::Auto || preset.mode == ExplodedViewManager::Mode::AutoMating)
+                    && (!useHints || _sceneGraph);
+                ExplodedGroupTree::Tree groupTree;
+                if (hierarchical)
+                {
+                    groupTree = useHints ? AssemblyRelationGraph::buildSceneGroupTree(assembly, _sceneGraph)
+                                         : ExplodedGroupTree::fromBoxes(assembly, presetBoxes);
+                }
+                AssemblyRelationGraph::AutoPlacementHints hints;
                 if (useHints)
-                    hints = AssemblyRelationGraph::buildAutoPlacementHints(assembly, _viewportWidget, _sceneGraph);
-                manager.recompute(assembly, preset.anchorUuid, preset.mode, preset.userVector, preset.factor, centroids, boxes,
-                                  useHints ? &hints : nullptr);
+                {
+                    hints = hierarchical ? AssemblyRelationGraph::buildSiblingPlacementHints(groupTree, _viewportWidget, _sceneGraph)
+                                         : AssemblyRelationGraph::buildAutoPlacementHints(assembly, _viewportWidget, _sceneGraph);
+                }
+                if (hierarchical)
+                    manager.recomputeHierarchical(groupTree, preset.anchorUuid, preset.factor, presetCentroids, presetBoxes,
+                                                  useHints ? &hints : nullptr, preset.explodeDepth, preset.mode);
+                else
+                    manager.recompute(assembly, preset.anchorUuid, preset.mode, preset.userVector, preset.factor, presetCentroids,
+                                      presetBoxes, useHints ? &hints : nullptr);
                 for (const QUuid& uuid : std::as_const(assembly))
                 {
                     const QVector3D offset = manager.offsetForMesh(uuid);

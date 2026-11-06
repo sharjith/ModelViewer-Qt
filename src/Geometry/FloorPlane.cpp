@@ -48,7 +48,7 @@ void FloorPlane::render()
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_LINE_SMOOTH);
-		glEnable(GL_POLYGON_SMOOTH);
+		// No GL_POLYGON_SMOOTH: it draws seams along shared triangle edges when blending (see SceneMesh::setRenderStateOptimized).
 	}
 	else
 	{

@@ -3,6 +3,16 @@ cmake_minimum_required(VERSION 3.18)
 project(ModelViewer)
 
 find_package(assimp REQUIRED)
+find_package(minizip CONFIG QUIET)
+if(TARGET MINIZIP::minizip)
+    set(MV_MINIZIP_TARGET MINIZIP::minizip)
+elseif(TARGET MINIZIP::minizipstatic)
+    set(MV_MINIZIP_TARGET MINIZIP::minizipstatic)
+else()
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(MINIZIP REQUIRED IMPORTED_TARGET minizip)
+    set(MV_MINIZIP_TARGET PkgConfig::MINIZIP)
+endif()
 
 # aiTextureType_ANISOTROPY (KHR_materials_anisotropy) was only added in a
 # later Assimp release than some system-package Ubuntu versions ship, and
@@ -387,6 +397,9 @@ qt6_wrap_ui(ui_wrapped ${ui_sources})
 # CREATE THE TARGET - This must come before any target_* commands
 # ============================================================================
 add_executable(ModelViewer)
+add_subdirectory(src/ThirdParty/occt-jt)
+target_link_libraries(ModelViewer PRIVATE mv_jt_codec)
+target_link_libraries(ModelViewer PRIVATE ${MV_MINIZIP_TARGET})
 
 set(APP_VERSION_MAJOR 2026)
 set(APP_VERSION_MINOR 11)
@@ -413,6 +426,9 @@ configure_file(
 # depth, e.g. src/Simulation/Core/, include/Simulation/UI/). Headers are still included as "Foo.h": every directory that
 # holds at least one header is added to the include path below, so a new module needs no CMake change to compile.
 file(GLOB_RECURSE sources CONFIGURE_DEPENDS src/*.cpp src/*.cxx src/*.c include/*.h include/*.hxx)
+# The vendored JT library owns these sources and headers; avoid compiling its
+# implementation again as part of the application's recursive source scan.
+list(FILTER sources EXCLUDE REGEX "/(src|include)/ThirdParty/occt-jt/")
 file(GLOB_RECURSE ui_sources CONFIGURE_DEPENDS ui/*.ui)
 
 # Create translations directory if it doesn't exist
@@ -667,6 +683,7 @@ if(MODELVIEWER_HAVE_OPTIX)
                 "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}"
                 -o "${ptx_file}"
             DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/${CU_FILE}" "${CMAKE_CURRENT_SOURCE_DIR}/include/${PARAMS_HEADER}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/include/RayTracing/RtTextureFilter.h"
             COMMENT "Compiling ${CU_FILE} to PTX"
             COMMAND_EXPAND_LISTS
             VERBATIM
@@ -992,8 +1009,12 @@ install(DIRECTORY fonts shaders themes data
 
 # Third-party credits and texture sources. Several shipped assets are CC BY (attribution required), so the installer and the .deb carry the credit
 # files alongside the data they describe (the About dialog points here as well).
-install(FILES CREDITS.md
+install(FILES CREDITS.md THIRD_PARTY_NOTICES.md gpl-3.0.txt
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}"
+)
+install(FILES src/ThirdParty/occt-jt/LICENSE.txt src/ThirdParty/occt-jt/README.md
+              src/ThirdParty/occt-jt/MODIFICATIONS.md src/ThirdParty/occt-jt/PROVENANCE.json
+        DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/licenses/occt-jt"
 )
 install(FILES textures/LICENSES.md
         DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/${PROJECT_NAME}/textures"
@@ -1281,5 +1302,13 @@ endif()
 # GUI-free unit tests (simulation result readers/boundary extraction). Off by default; see tests/CMakeLists.txt.
 option(MV_BUILD_TESTS "Build the GUI-free unit tests" OFF)
 if(MV_BUILD_TESTS)
+    enable_testing()
     add_subdirectory(tests)
+endif()
+
+# Native OpenGL checks are opt-in and separate from the GUI-free core tests.
+option(MV_BUILD_RENDER_TESTS "Build optional desktop OpenGL rendering tests" OFF)
+if(MV_BUILD_RENDER_TESTS)
+    enable_testing()
+    add_subdirectory(tests/render)
 endif()

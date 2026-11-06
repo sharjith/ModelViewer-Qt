@@ -103,6 +103,9 @@ public:
 	bool openFile(const QString& fileName);
 
 	static void showStatusMessage(const QString& message, int timeout = 0);
+	// Remembers the warnings an importer reported for `fileName`, tells the user in the status bar and enables
+	// Help > Last Import Warnings. An empty list clears the previous report. Safe to call from any thread.
+	static void setImportWarnings(const QString& fileName, const QStringList& warnings);
 	// A longer explanation as a small wrapped pop-up above the status bar (click it to dismiss; it hides itself after `timeout` ms).
 	static void showStatusBalloon(const QString& message, int timeout = 12000);
 	static void showProgressBar(const bool showCancelButton = true);
@@ -361,6 +364,10 @@ private:
 	static int _viewerCount;
 	static MainWindow* _mainWindow;
 	StatusBalloon* _statusBalloon = nullptr;
+	QAction* _importWarningsAction = nullptr;
+	QString _importWarningsFile;
+	QStringList _importWarnings;
+	void showImportWarningsDialog();
 	static bool _fileLoadCancelRequested;
 
 	static QuickHelpDialog* _helpDialog;

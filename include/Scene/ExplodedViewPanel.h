@@ -70,6 +70,9 @@ public:
     QUuid               anchorUuid()   const;
     ExplodedViewManager::Mode mode()   const;
     AutoStrategy        autoStrategy() const;
+    int                 explodeDepth() const;  // 0 = every level
+    //! Offers Levels = All plus 1..levels (the depth of the current strategy's hierarchy). Keeps the preset's choice when it still fits.
+    void                setAvailableExplodeLevels(int levels);
     QVector3D           userVector()   const;
     float               factor()       const;  // sliderValue / 100.0f
 
@@ -130,7 +133,7 @@ private:
         QString name;
         QSet<QUuid> assemblyUuids;
         QUuid anchorUuid;
-        ExplodedViewManager::Mode mode = ExplodedViewManager::Mode::Auto;
+        ExplodedViewManager::Mode mode = ExplodedViewManager::Mode::AutoMating;
         QVector3D userVector = QVector3D(1.0f, 0.0f, 0.0f);
         float factor = 1.0f;
         QVector<QUuid> manualSelectionUuids;
@@ -143,6 +146,7 @@ private:
         bool loopBack = true;
         bool useCombinedPose = true;
         AutoStrategy autoStrategy = AutoStrategy::AssemblyAware;
+        int explodeDepth = 0;   // levels of the hierarchy that explode, 0 = all
     };
 
     struct PreviewMeshState
@@ -286,6 +290,9 @@ private:
     QElapsedTimer _draftPreviewElapsed;
     QTimer* _draftPreviewTimer = nullptr;
     QSet<QString> _draftPreviewFiles;
+    // Which nodes and meshes the previous preview pose animated. While it stays the same, a tick only touches meshes that move.
+    quint64 _draftPreviewPoseSignature = 0;
+    bool _draftPreviewPoseSignatureValid = false;
     QHash<QUuid, PreviewMeshState> _draftPreviewMeshStates;
     SuspendedAnimationState _draftPreviewSuspendedAnimation;
     QSet<QUuid> _emptyAssemblyUuids;

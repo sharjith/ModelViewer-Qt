@@ -1,4 +1,5 @@
 #include "XCAFBREPProcessor.hxx"
+#include "ImportDiagnostics.h"
 #include "MainWindow.h"
 #include "BRepToAssimpConverter.h"
 #include <BRep_Builder.hxx>
@@ -36,7 +37,10 @@ aiScene* XCAFBREPProcessor::processBREPFile(const std::string& path)
 		TopoDS_Shape shape;
 		BRep_Builder builder;
 
-		if (!BRepTools::Read(shape, path.c_str(), builder))
+		ImportDiagnostics::checkpoint("brep.read-begin");
+		const bool brepRead = BRepTools::Read(shape, path.c_str(), builder);
+		ImportDiagnostics::checkpoint("brep.read-end");
+		if (!brepRead)
 		{
 			qCritical("Failed to read BREP file: %s", path.c_str());
 			MainWindow::resetProgressBar();
@@ -108,11 +112,15 @@ aiScene* XCAFBREPProcessor::processBREPFile(const std::string& path)
 
 		// Tessellate the whole shape in one parallel pass first (as the STEP and IGES readers do)
 		MainWindow::showStatusMessage(tr("Pre-tessellating geometry (parallel)..."));
+		ImportDiagnostics::checkpoint("brep.pretessellate-begin");
 		BRepToAssimpConverter::preTessellate(shape);
+		ImportDiagnostics::checkpoint("brep.pretessellate-end");
 
 		// Convert to Assimp scene
 		MainWindow::showStatusMessage(tr("Converting shape to mesh..."));
+		ImportDiagnostics::checkpoint("brep.convert-begin");
 		aiScene* scene = BRepToAssimpConverter::convert(shapeTuples);
+		ImportDiagnostics::checkpoint("brep.convert-end", -1, scene ? scene->mNumMeshes : 0, 0);
 
 #ifdef __DEBUG__
 		QFileInfo fi(QString::fromStdString(path));

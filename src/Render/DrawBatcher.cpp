@@ -1,0 +1,930 @@
+#include "DrawBatcher.h"
+
+#include "Logger.h"
+#include "RenderableMesh.h"
+#include "SceneMesh.h"
+#include "ScopedSelectionDepthBias.h"
+
+#include <QMatrix4x4>
+#include <QOpenGLContext>
+#include <QOpenGLShaderProgram>
+#include <QSettings>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <cstring>
+
+namespace
+{
+constexpr qint64 kMaxChunkVertices = 1000000;          // one group buffer never grows past this, so a build slice stays short
+constexpr qint64 kMaxTotalVertices = 64000000;         // safety valve on the extra GPU memory a batch set may take
+constexpr qint64 kBuildBudgetMicros = 6000;            // per frame, while building
+constexpr qint64 kScanBudgetMicros = 4000;             // per frame, while scanning
+constexpr qint64 kMissingMillisBeforeRebuild = 2000;   // ...or this long, whichever comes first: frames can take 0.5 s each
+constexpr double kBuildShareOfFrame = 0.4;             // while the batches are behind the frame is slow anyway; spend this share of it building
+constexpr qint64 kMaxBuildSliceMicros = 250000;
+constexpr int    kMissingFramesBeforeRebuild = 30;     // frames in a row with many meshes outside the batches before rebuilding
+constexpr qint64 kMinMillisBetweenBuilds = 1500;
+constexpr qint64 kMaxMillisBetweenBuilds = 30000;
+constexpr qint64 kRebuildStormWindowMs = 15000;       // a rebuild this soon after the last one doubles the wait
+
+// Parts are baked into the group, so the baked normals/tangents only match what the vertex shader would have
+// produced for the part if the transform is a similarity (rotation, translation, uniform scale). CAD assembly
+// placements are; anything else stays an individual draw.
+bool isSimilarityTransform(const QMatrix4x4& m)
+{
+	const float* a = m.constData(); // column-major
+	if (a[3] != 0.0f || a[7] != 0.0f || a[11] != 0.0f || std::fabs(a[15] - 1.0f) > 1e-6f)
+		return false;
+	const float l0 = std::sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2]);
+	const float l1 = std::sqrt(a[4] * a[4] + a[5] * a[5] + a[6] * a[6]);
+	const float l2 = std::sqrt(a[8] * a[8] + a[9] * a[9] + a[10] * a[10]);
+	if (l0 <= 0.0f || l1 <= 0.0f || l2 <= 0.0f)
+		return false;
+	const float tol = 1e-3f;
+	if (std::fabs(l0 - l1) > tol * l0 || std::fabs(l0 - l2) > tol * l0)
+		return false;
+	const float d01 = (a[0] * a[4] + a[1] * a[5] + a[2] * a[6]) / (l0 * l1);
+	const float d02 = (a[0] * a[8] + a[1] * a[9] + a[2] * a[10]) / (l0 * l2);
+	const float d12 = (a[4] * a[8] + a[5] * a[9] + a[6] * a[10]) / (l1 * l2);
+	return std::fabs(d01) < tol && std::fabs(d02) < tol && std::fabs(d12) < tol;
+}
+
+bool sameTransform(const float* a, const QMatrix4x4& m)
+{
+	return std::memcmp(a, m.constData(), 16 * sizeof(float)) == 0;
+}
+
+quint64 specKey(quint64 key, bool col, bool tex, bool tan, bool bitan, bool transparent)
+{
+	const quint64 layout = (col ? 1u : 0u) | (tex ? 2u : 0u) | (tan ? 4u : 0u) | (bitan ? 8u : 0u) | (transparent ? 16u : 0u);
+	return key ^ ((layout + 1) * 0x9E3779B97F4A7C15ULL);
+}
+} // namespace
+
+DrawBatcher::DrawBatcher() = default;
+
+DrawBatcher::~DrawBatcher()
+{
+	// The owner releases GL while its context is current (releaseGl()). If it did not, there is nothing safe to do
+	// here: deleting names without the right context current could free another context's objects.
+}
+
+DrawBatcher::Settings DrawBatcher::readSettings()
+{
+	static QElapsedTimer clock;
+	static Settings cached;
+	if (!clock.isValid() || clock.elapsed() > 1000)
+	{
+		QSettings settings;
+		cached.enabled = settings.value(QStringLiteral("batchedDrawing"), true).toBool();
+		cached.minDisplayedMeshes = std::max(0, settings.value(QStringLiteral("batchMinMeshes"), 3000).toInt());
+		cached.minGroupSize = std::max(2, settings.value(QStringLiteral("batchMinGroupSize"), 6).toInt());
+		cached.fastValidation = settings.value(QStringLiteral("batchFastValidation"), true).toBool();
+		cached.fastValidation = settings.value(QStringLiteral("batchFastValidation"), true).toBool();
+		cached.fastValidation = settings.value(QStringLiteral("batchFastValidation"), true).toBool();
+		clock.restart();
+	}
+	return cached;
+}
+
+void DrawBatcher::ensureGlFunctions()
+{
+	if (!_glReady)
+	{
+		initializeOpenGLFunctions();
+		_glReady = true;
+	}
+}
+
+void DrawBatcher::destroyGroup(Group& g)
+{
+	if (!_glReady)
+		return;
+	const unsigned buffers[] = { g.positionVbo, g.normalVbo, g.colorVbo, g.texCoordVbo, g.tangentVbo,
+	                             g.bitangentVbo, g.indexBuffer, g.lodIndexBuffer };
+	for (unsigned b : buffers)
+		if (b)
+			glDeleteBuffers(1, &b);
+	if (g.vao)
+		glDeleteVertexArrays(1, &g.vao);
+	g = Group{};
+}
+
+void DrawBatcher::releaseGl()
+{
+	for (Group& g : _groups)
+		destroyGroup(g);
+	_groups.clear();
+	_entries.clear();
+	_scanIds.clear();
+	_scanSpecs.clear();
+	_buildQueue.clear();
+	_scanPos = _buildPos = 0;
+	_phase = Phase::Idle;
+	_missingLastFrame = 0;
+	_candidatesLastFrame = 0;
+}
+
+void DrawBatcher::invalidate()
+{
+	releaseGl();
+	_sinceBuild.invalidate();
+	_needsInitialBuild = true;
+}
+
+void DrawBatcher::startScan(const std::vector<int>& visibleIds)
+{
+	releaseGl();
+	_scanIds = visibleIds;
+	_scanPos = 0;
+	_scanSpecs.clear();
+	_buildVertices = _buildMeshes = _buildBytes = 0;
+	_buildClock.start();
+	_phase = Phase::Scanning;
+}
+
+bool DrawBatcher::advanceScan(const MeshLookup& meshAt, const Settings& settings, qint64 budgetMicros)
+{
+	QElapsedTimer slice;
+	slice.start();
+	while (_scanPos < _scanIds.size())
+	{
+		const int id = _scanIds[_scanPos++];
+		SceneMesh* mesh = meshAt(id);
+		const bool opaqueCandidate = mesh && mesh->isStaticBatchCandidate();
+		const bool transparentCandidate = mesh && !opaqueCandidate && mesh->isBatchCandidate(true);
+		if (opaqueCandidate || transparentCandidate)
+		{
+			// Remember every candidate, so one that is deliberately left out (group too small, transform not a
+			// similarity) is not mistaken for a new or changed mesh on every later frame.
+			if (static_cast<size_t>(id) >= _entries.size())
+				_entries.resize(static_cast<size_t>(id) + 1);
+			Entry& known = _entries[static_cast<size_t>(id)];
+			known = Entry{};
+			known.mesh = mesh;
+			known.geometryRevision = mesh->geometryRevision();
+			known.key = mesh->drawGroupKey();
+			known.group = -2;
+			known.transparent = transparentCandidate;
+		}
+		if ((opaqueCandidate || transparentCandidate) && mesh->cpuIndices().size() >= 3
+			&& isSimilarityTransform(mesh->combinedRenderTransform())
+			&& mesh->cpuPoints().size() == mesh->cpuNormals().size() && !mesh->cpuPoints().empty())
+		{
+			const size_t vertexCount = mesh->cpuPoints().size() / 3;
+			const bool col = !mesh->cpuColors().empty();
+			const bool tex = !mesh->cpuTexCoords().empty();
+			const bool tan = !mesh->cpuTangents().empty();
+			const bool bitan = !mesh->cpuBitangents().empty();
+			const bool sizesOk = (!col || mesh->cpuColors().size() == vertexCount * 4)
+				&& (!tex || mesh->cpuTexCoords().size() == vertexCount * 8)
+				&& (!tan || mesh->cpuTangents().size() == vertexCount * 3)
+				&& (!bitan || mesh->cpuBitangents().size() == vertexCount * 3);
+			if (sizesOk)
+			{
+				Spec& spec = _scanSpecs[specKey(mesh->drawGroupKey(), col, tex, tan, bitan, transparentCandidate)];
+				if (spec.ids.empty())
+				{
+					spec.transparent = transparentCandidate;
+					spec.hasColors = col;
+					spec.hasTexCoords = tex;
+					spec.hasTangents = tan;
+					spec.hasBitangents = bitan;
+				}
+				spec.ids.push_back(id);
+			}
+		}
+		if ((_scanPos & 255u) == 0 && slice.nsecsElapsed() / 1000 > budgetMicros)
+			return false;
+	}
+
+	// Scan finished: keep the groups big enough to be worth a buffer, split into chunks of bounded size.
+	_buildQueue.clear();
+	for (auto& [key, spec] : _scanSpecs)
+	{
+		if (static_cast<int>(spec.ids.size()) < settings.minGroupSize)
+			continue;
+		Spec chunk;
+		chunk.transparent = spec.transparent;
+		chunk.hasColors = spec.hasColors;
+		chunk.hasTexCoords = spec.hasTexCoords;
+		chunk.hasTangents = spec.hasTangents;
+		chunk.hasBitangents = spec.hasBitangents;
+		qint64 chunkVertices = 0;
+		for (int id : spec.ids)
+		{
+			const SceneMesh* mesh = meshAt(id);
+			const qint64 v = mesh ? static_cast<qint64>(mesh->cpuPoints().size() / 3) : 0;
+			if (!chunk.ids.empty() && chunkVertices + v > kMaxChunkVertices)
+			{
+				_buildQueue.push_back(std::move(chunk));
+				chunk = Spec{};
+				chunk.transparent = spec.transparent;
+				chunk.hasColors = spec.hasColors;
+				chunk.hasTexCoords = spec.hasTexCoords;
+				chunk.hasTangents = spec.hasTangents;
+				chunk.hasBitangents = spec.hasBitangents;
+				chunkVertices = 0;
+			}
+			chunk.ids.push_back(id);
+			chunkVertices += v;
+		}
+		if (!chunk.ids.empty())
+			_buildQueue.push_back(std::move(chunk));
+	}
+	_scanSpecs.clear();
+	_scanIds.clear();
+	_scanIds.shrink_to_fit();
+	// Biggest groups first: they save the most draws.
+	std::sort(_buildQueue.begin(), _buildQueue.end(),
+		[](const Spec& a, const Spec& b) { return a.ids.size() > b.ids.size(); });
+	_buildPos = 0;
+	_phase = Phase::Building;
+	return true;
+}
+
+bool DrawBatcher::buildSpec(const Spec& spec, const MeshLookup& meshAt)
+{
+	struct Part { int id; SceneMesh* mesh; };
+	std::vector<Part> parts;
+	parts.reserve(spec.ids.size());
+	qint64 totalVertices = 0, totalIndices = 0, totalLodIndices = 0;
+	for (int id : spec.ids)
+	{
+		SceneMesh* mesh = meshAt(id);
+		if (!mesh)
+			continue;
+		parts.push_back({ id, mesh });
+		totalVertices += static_cast<qint64>(mesh->cpuPoints().size() / 3);
+		totalIndices += static_cast<qint64>(mesh->cpuIndices().size());
+		if (mesh->hasLod1())
+			totalLodIndices += mesh->cpuIndices().size(); // upper bound; the real count is smaller
+	}
+	if (parts.empty() || totalVertices <= 0 || totalVertices > kMaxChunkVertices * 2)
+		return false;
+	if (_buildVertices + totalVertices > kMaxTotalVertices)
+		return false;
+
+	std::vector<float> pos, nrm, col, tex, tan, bitan;
+	std::vector<unsigned int> idx, lodIdx;
+	pos.reserve(static_cast<size_t>(totalVertices) * 3);
+	nrm.reserve(static_cast<size_t>(totalVertices) * 3);
+	if (spec.hasColors)    col.reserve(static_cast<size_t>(totalVertices) * 4);
+	if (spec.hasTexCoords) tex.reserve(static_cast<size_t>(totalVertices) * 8);
+	if (spec.hasTangents)  tan.reserve(static_cast<size_t>(totalVertices) * 3);
+	if (spec.hasBitangents) bitan.reserve(static_cast<size_t>(totalVertices) * 3);
+	idx.reserve(static_cast<size_t>(totalIndices));
+	lodIdx.reserve(static_cast<size_t>(totalLodIndices / 2));
+
+	const int groupIndex = static_cast<int>(_groups.size());
+	unsigned int vertexBase = 0;
+	std::vector<unsigned int> lodTmp;
+	qint64 meshesBuilt = 0;
+
+	for (const Part& part : parts)
+	{
+		SceneMesh* mesh = part.mesh;
+		const QMatrix4x4 transform = mesh->combinedRenderTransform();
+		if (!isSimilarityTransform(transform))
+			continue;
+		const QMatrix3x3 normalMatrix = transform.normalMatrix();
+		const float* m = transform.constData();
+		const float* n = normalMatrix.constData();
+		const std::vector<float>& p = mesh->cpuPoints();
+		const std::vector<float>& nr = mesh->cpuNormals();
+		const size_t vertexCount = p.size() / 3;
+
+		for (size_t v = 0; v < vertexCount; ++v)
+		{
+			const float x = p[v * 3], y = p[v * 3 + 1], z = p[v * 3 + 2];
+			pos.push_back(m[0] * x + m[4] * y + m[8] * z + m[12]);
+			pos.push_back(m[1] * x + m[5] * y + m[9] * z + m[13]);
+			pos.push_back(m[2] * x + m[6] * y + m[10] * z + m[14]);
+			const float nx = nr[v * 3], ny = nr[v * 3 + 1], nz = nr[v * 3 + 2];
+			nrm.push_back(n[0] * nx + n[3] * ny + n[6] * nz);
+			nrm.push_back(n[1] * nx + n[4] * ny + n[7] * nz);
+			nrm.push_back(n[2] * nx + n[5] * ny + n[8] * nz);
+		}
+		auto bakeDirections = [&](const std::vector<float>& src, std::vector<float>& dst)
+		{
+			for (size_t v = 0; v < vertexCount; ++v)
+			{
+				const float x = src[v * 3], y = src[v * 3 + 1], z = src[v * 3 + 2];
+				dst.push_back(n[0] * x + n[3] * y + n[6] * z);
+				dst.push_back(n[1] * x + n[4] * y + n[7] * z);
+				dst.push_back(n[2] * x + n[5] * y + n[8] * z);
+			}
+		};
+		if (spec.hasColors)
+			col.insert(col.end(), mesh->cpuColors().begin(), mesh->cpuColors().end());
+		if (spec.hasTexCoords)
+			tex.insert(tex.end(), mesh->cpuTexCoords().begin(), mesh->cpuTexCoords().end());
+		if (spec.hasTangents)
+			bakeDirections(mesh->cpuTangents(), tan);
+		if (spec.hasBitangents)
+			bakeDirections(mesh->cpuBitangents(), bitan);
+
+		Entry entry;
+		entry.mesh = mesh;
+		entry.geometryRevision = mesh->geometryRevision();
+		entry.key = mesh->drawGroupKey();
+		std::memcpy(entry.transform, transform.constData(), sizeof(entry.transform));
+		entry.group = groupIndex;
+		entry.transparent = spec.transparent;
+		entry.firstIndex = static_cast<quint32>(idx.size());
+		entry.indexCount = static_cast<quint32>(mesh->cpuIndices().size());
+		for (unsigned int i : mesh->cpuIndices())
+			idx.push_back(i + vertexBase);
+		if (mesh->hasLod1() && mesh->readLod1Indices(lodTmp) && !lodTmp.empty())
+		{
+			entry.lodFirst = static_cast<quint32>(lodIdx.size());
+			entry.lodCount = static_cast<quint32>(lodTmp.size());
+			for (unsigned int i : lodTmp)
+				lodIdx.push_back(i + vertexBase);
+		}
+		vertexBase += static_cast<unsigned int>(vertexCount);
+
+		if (static_cast<size_t>(part.id) >= _entries.size())
+			_entries.resize(static_cast<size_t>(part.id) + 1);
+		_entries[static_cast<size_t>(part.id)] = entry;
+		++meshesBuilt;
+	}
+	if (meshesBuilt == 0)
+		return false;
+
+	Group g;
+	g.hasColors = spec.hasColors;
+	g.hasTexCoords = spec.hasTexCoords;
+	g.hasTangents = spec.hasTangents;
+	g.hasBitangents = spec.hasBitangents;
+	auto upload = [&](unsigned& name, unsigned target, const void* data, size_t bytes)
+	{
+		glGenBuffers(1, &name);
+		glBindBuffer(target, name);
+		glBufferData(target, static_cast<GLsizeiptr>(bytes), data, GL_STATIC_DRAW);
+		g.bytes += static_cast<qint64>(bytes);
+	};
+	glGenVertexArrays(1, &g.vao);
+	glBindVertexArray(g.vao);
+	upload(g.positionVbo, GL_ARRAY_BUFFER, pos.data(), pos.size() * sizeof(float));
+	upload(g.normalVbo, GL_ARRAY_BUFFER, nrm.data(), nrm.size() * sizeof(float));
+	if (spec.hasColors)    upload(g.colorVbo, GL_ARRAY_BUFFER, col.data(), col.size() * sizeof(float));
+	if (spec.hasTexCoords) upload(g.texCoordVbo, GL_ARRAY_BUFFER, tex.data(), tex.size() * sizeof(float));
+	if (spec.hasTangents)  upload(g.tangentVbo, GL_ARRAY_BUFFER, tan.data(), tan.size() * sizeof(float));
+	if (spec.hasBitangents) upload(g.bitangentVbo, GL_ARRAY_BUFFER, bitan.data(), bitan.size() * sizeof(float));
+	upload(g.indexBuffer, GL_ELEMENT_ARRAY_BUFFER, idx.data(), idx.size() * sizeof(unsigned int));
+	if (!lodIdx.empty())
+		upload(g.lodIndexBuffer, GL_ELEMENT_ARRAY_BUFFER, lodIdx.data(), lodIdx.size() * sizeof(unsigned int));
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	_buildVertices += vertexBase;
+	_buildMeshes += meshesBuilt;
+	_buildBytes += g.bytes;
+	_groups.push_back(std::move(g));
+	return true;
+}
+
+void DrawBatcher::configureVao(Group& g, QOpenGLShaderProgram* prog)
+{
+	glBindVertexArray(g.vao);
+	for (int location = 0; location < 12; ++location)
+		glDisableVertexAttribArray(location);
+
+	auto attach = [&](const char* name, unsigned vbo, int components, int strideFloats, int offsetFloats)
+	{
+		const int location = prog->attributeLocation(name);
+		if (location < 0 || vbo == 0)
+			return;
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glEnableVertexAttribArray(location);
+		glVertexAttribPointer(location, components, GL_FLOAT, GL_FALSE,
+			static_cast<GLsizei>(strideFloats * sizeof(float)),
+			reinterpret_cast<const void*>(static_cast<quintptr>(offsetFloats * sizeof(float))));
+	};
+	attach("vertexPosition", g.positionVbo, 3, 0, 0);
+	attach("vertexNormal", g.normalVbo, 3, 0, 0);
+	if (g.hasColors)
+		attach("vertexColor", g.colorVbo, 4, 0, 0);
+	if (g.hasTexCoords)
+	{
+		attach("texCoord0", g.texCoordVbo, 2, 8, 0);
+		attach("texCoord1", g.texCoordVbo, 2, 8, 2);
+		attach("texCoord2", g.texCoordVbo, 2, 8, 4);
+		attach("texCoord3", g.texCoordVbo, 2, 8, 6);
+	}
+	if (g.hasTangents)
+		attach("vertexTangent", g.tangentVbo, 3, 0, 0);
+	if (g.hasBitangents)
+		attach("vertexBitangent", g.bitangentVbo, 3, 0, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.indexBuffer);
+	glBindVertexArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	g.configuredProgram = prog;
+}
+
+// "sources: transform=12 uniforms=3 ..." since the last call: which kinds of change keep moving the render-state epoch.
+static QString epochSiteSummary()
+{
+	static const char* names[MeshInstanceState::SiteCount] = { "other", "transform", "uniforms", "textures", "primitiveMode",
+		"negativeScale", "geometry", "debugOverride", "skin", "morph", "indexRemap" };
+	static quint64 last[MeshInstanceState::SiteCount] = {};
+	QString text = QStringLiteral(" sources:");
+	for (int i = 0; i < MeshInstanceState::SiteCount; ++i)
+	{
+		const quint64 now = MeshInstanceState::renderStateEpochSiteCount(i);
+		if (now != last[i])
+			text += QStringLiteral(" %1=%2").arg(QLatin1String(names[i])).arg(now - last[i]);
+		last[i] = now;
+	}
+	return text;
+}
+
+void DrawBatcher::update(const std::vector<int>& visibleIds, const MeshLookup& meshAt, const Settings& settings)
+{
+	const bool wanted = settings.enabled && static_cast<int>(visibleIds.size()) >= settings.minDisplayedMeshes;
+	if (!wanted)
+	{
+		if (visibleIds.size() >= 1000 && (!_stateLogClock.isValid() || _stateLogClock.elapsed() > 5000))
+		{
+			_stateLogClock.restart();
+			Logger::instance().info(
+				QStringLiteral("[DrawBatcher] not used: enabled=%1 visible=%2 minimum=%3")
+					.arg(settings.enabled).arg(visibleIds.size()).arg(settings.minDisplayedMeshes),
+				QStringLiteral("Performance"));
+		}
+		if (_enabledLastFrame)
+		{
+			releaseGl(); // setting turned off, or the model shrank below the threshold: give the memory back
+			_needsInitialBuild = true;
+		}
+		_enabledLastFrame = false;
+		return;
+	}
+	if (!_enabledLastFrame)
+		_wantedSince.start();
+	_enabledLastFrame = true;
+	ensureGlFunctions();
+
+	// A fixed 6 ms slice per frame made a rebuild after a large visibility change take minutes on a very heavy model, whose
+	// frames last 0.3-0.5 s while meshes outside the batches draw one by one: scale the slice with the frame interval.
+	const qint64 frameIntervalMs = _updateClock.isValid() ? _updateClock.restart() : (_updateClock.start(), 0);
+	const qint64 scaledSlice = std::min<qint64>(kMaxBuildSliceMicros, static_cast<qint64>(frameIntervalMs * 1000.0 * kBuildShareOfFrame));
+
+	const quint64 revision = RenderableMesh::currentRuntimeBoundsRevision();
+	if (revision == _lastRuntimeRevision)
+		++_stableFrames;
+	else
+	{
+		_stableFrames = 0;
+		_lastRuntimeRevision = revision;
+	}
+
+	if (!_stateLogClock.isValid() || _stateLogClock.elapsed() > 5000)
+	{
+		_stateLogClock.restart();
+		Logger::instance().info(
+			QStringLiteral("[DrawBatcher] state visible=%1 phase=%2 stableFrames=%3 needsInitialBuild=%4 groups=%5 "
+				"candidates=%6 missing=%7 fastHits=%8 rechecked=%9 epoch=%10 verifyMismatches=%11 fastDisabled=%12 "
+				"individual: hovered=%13 notCandidate=%14 missing=%15 leftOut=%16 batchGpuMB=%17 evictedMB=%18 restores=%19")
+				.arg(visibleIds.size()).arg(static_cast<int>(_phase)).arg(_stableFrames).arg(_needsInitialBuild)
+				.arg(_groups.size()).arg(_candidatesLastFrame).arg(_missingLastFrame)
+				.arg(_fastHitsLastFrame).arg(_slowChecksLastFrame).arg(RenderableMesh::renderStateEpoch())
+				.arg(_verifyMismatches).arg(_fastDisabled).arg(_indHovered).arg(_indNotCandidate).arg(_indMissing).arg(_indLeftOut)
+			.arg(static_cast<double>(gpuBytes()) / (1024.0 * 1024.0), 0, 'f', 0)
+				.arg(static_cast<double>(_evictedBytes) / (1024.0 * 1024.0), 0, 'f', 0).arg(RenderableMesh::gpuRestoreCount()) + epochSiteSummary(),
+			QStringLiteral("Performance"));
+	}
+
+	if (_phase == Phase::Idle && _evictPos < _evictQueue.size())
+	{
+		// Debug trigger of the residency API (MODELVIEWER_DEBUG_EVICT_BATCHED=1): free the per-mesh buffers of the meshes the
+		// batches now draw, a few milliseconds per frame. The policy proper is phase 2 of BATCH_GPU_RESIDENCY_DESIGN.md.
+		QElapsedTimer evictSlice;
+		evictSlice.start();
+		while (_evictPos < _evictQueue.size() && evictSlice.nsecsElapsed() < 8000000)
+		{
+			const int id = _evictQueue[_evictPos++];
+			SceneMesh* mesh = meshAt(id);
+			if (!mesh || static_cast<size_t>(id) >= _entries.size() || _entries[static_cast<size_t>(id)].mesh != mesh)
+				continue;
+			const qint64 bytes = mesh->evictGpuBuffers();
+			if (bytes > 0)
+			{
+				_evictedBytes += bytes;
+				++_evictedMeshes;
+			}
+		}
+		if (_evictPos >= _evictQueue.size())
+		{
+			Logger::instance().info(QStringLiteral("[DrawBatcher] evicted the per-mesh GPU buffers of %1 meshes (%2 MB)")
+				.arg(_evictedMeshes).arg(static_cast<double>(_evictedBytes) / (1024.0 * 1024.0), 0, 'f', 0), QStringLiteral("Performance"));
+			_evictQueue.clear();
+			_evictPos = 0;
+		}
+	}
+
+	if (_phase == Phase::Idle)
+	{
+		// First build, or a rebuild: the batch has fallen behind (new meshes, moved parts, changed materials)
+		// and the scene has been still for a while.
+		const bool neverBuilt = _needsInitialBuild;
+		const bool tooManyMissing = _candidatesLastFrame > 0
+			&& _missingLastFrame > std::max(200, _candidatesLastFrame / 20);
+		_missingStreak = tooManyMissing ? _missingStreak + 1 : 0;
+		if (!tooManyMissing)
+			_missingSince.invalidate();
+		else if (!_missingSince.isValid())
+			_missingSince.start();
+		const bool cooledDown = !_sinceBuild.isValid() || _sinceBuild.elapsed() > _cooldownMs;
+		// The first build does not wait for a perfectly still scene (something touches the scene's bounds revision
+		// every frame, so it is never still): it starts after 2 stable frames or 1.5 s. A rebuild starts once many
+		// meshes have been missing from the batches for a while; the wait between builds backs off if they keep recurring.
+		const bool immediate = neverBuilt && settings.immediateInitialBuild;
+		const bool settled = neverBuilt
+			? (immediate || _stableFrames >= 2 || (_wantedSince.isValid() && _wantedSince.elapsed() > 1500))
+			: (_missingStreak >= kMissingFramesBeforeRebuild
+				|| (_missingSince.isValid() && _missingSince.elapsed() >= kMissingMillisBeforeRebuild));
+		if ((neverBuilt || tooManyMissing) && settled && cooledDown)
+		{
+			if (!neverBuilt)
+				_cooldownMs = (_sinceBuild.isValid() && _sinceBuild.elapsed() < kRebuildStormWindowMs)
+					? std::min(_cooldownMs * 2, kMaxMillisBetweenBuilds) : kMinMillisBetweenBuilds;
+			_missingStreak = 0;
+			startScan(visibleIds);
+			_needsInitialBuild = false;
+			_buildSynchronously = immediate;
+		}
+		if (_phase == Phase::Idle)
+			return;
+	}
+
+	if (_phase == Phase::Scanning)
+	{
+		if (!advanceScan(meshAt, settings, _buildSynchronously ? std::numeric_limits<qint64>::max() / 4 : std::max(kScanBudgetMicros, scaledSlice)))
+			return;
+	}
+
+	if (_phase == Phase::Building)
+	{
+		QElapsedTimer slice;
+		slice.start();
+		const qint64 buildBudget = _buildSynchronously ? std::numeric_limits<qint64>::max() / 4 : std::max(kBuildBudgetMicros, scaledSlice);
+		while (_buildPos < _buildQueue.size() && slice.nsecsElapsed() / 1000 < buildBudget)
+			buildSpec(_buildQueue[_buildPos++], meshAt);
+		if (_buildPos >= _buildQueue.size())
+		{
+			Logger::instance().info(
+				QStringLiteral("[DrawBatcher] built groups=%1 meshes=%2 vertices=%3 extraGpuMB=%4 in %5 ms")
+					.arg(_groups.size()).arg(_buildMeshes).arg(_buildVertices)
+					.arg(static_cast<double>(_buildBytes) / (1024.0 * 1024.0), 0, 'f', 1)
+					.arg(_buildClock.elapsed()),
+				QStringLiteral("Performance"));
+			_buildQueue.clear();
+			_buildQueue.shrink_to_fit();
+			static const bool debugEvict = qEnvironmentVariableIntValue("MODELVIEWER_DEBUG_EVICT_BATCHED") != 0;
+			if (debugEvict)
+			{
+				_evictQueue.clear();
+				_evictPos = 0;
+				_evictedBytes = 0;
+				_evictedMeshes = 0;
+				for (size_t id = 0; id < _entries.size(); ++id)
+					if (_entries[id].mesh && _entries[id].group >= 0)
+						_evictQueue.push_back(static_cast<int>(id));
+			}
+			_phase = Phase::Idle;
+			_buildSynchronously = false;
+			_sinceBuild.restart();
+			_missingLastFrame = 0;
+		}
+	}
+}
+
+int DrawBatcher::drawBatches(QOpenGLShaderProgram* prog, const std::vector<int>& ids, int hoveredId,
+                             const MeshLookup& meshAt, std::vector<int>& individual, const WireDraw* wire)
+{
+	individual.clear();
+	individual.reserve(ids.size());
+	if (_groups.empty() || !_glReady)
+	{
+		individual.assign(ids.begin(), ids.end());
+		return 0;
+	}
+
+	for (Group& g : _groups)
+	{
+		g.counts.clear();
+		g.offsets.clear();
+		g.lodCounts.clear();
+		g.lodOffsets.clear();
+		g.frameRep = nullptr;
+		g.frameTriangles = 0;
+		g.selCounts.clear();
+		g.selOffsets.clear();
+		g.selLodCounts.clear();
+		g.selLodOffsets.clear();
+		g.frameRepSelected = nullptr;
+		g.frameTrianglesSelected = 0;
+	}
+
+	const bool lodActive = RenderableMesh::lodPolicyActive();
+	int missing = 0;
+	int candidates = 0;
+	int batched = 0;
+	int fastHits = 0;
+	int slowChecks = 0;
+	int indHovered = 0, indNotCandidate = 0, indMissing = 0, indLeftOut = 0;
+
+	// A mesh's answer depends on state that is spread over several kilobytes of the mesh object, so re-checking all
+	// of them every frame is dominated by cache misses. The answer is cached in the mesh's Entry together with the
+	// render-state epoch (RenderableMesh::renderStateEpoch(): bumped by every transform, material/uniform, geometry,
+	// selection, overlay, skin and morph change) and reused while the epoch is unchanged. The hovered mesh is handled
+	// per frame. A rotating slice of the visible meshes is re-checked from scratch every frame; if that ever disagrees
+	// with the cache, some change did not bump the epoch: the epoch is bumped to repair it, and after 3 such findings
+	// the cache is switched off for the session. Setting: batchFastValidation (QSettings, default on).
+	const bool fastAllowed = readSettings().fastValidation && !_fastDisabled;
+	const quint64 epoch = RenderableMesh::renderStateEpoch();
+	constexpr size_t kVerifyPerFrame = 256;
+	const size_t idCount = ids.size();
+	const size_t verifyBegin = idCount ? (_verifyCursor % idCount) : 0;
+	const size_t verifyEnd = verifyBegin + kVerifyPerFrame;
+	_verifyCursor += kVerifyPerFrame;
+
+	for (size_t position = 0; position < idCount; ++position)
+	{
+		const int id = ids[position];
+		SceneMesh* mesh = meshAt(id);
+		if (!mesh)
+			continue; // the unbatched loop skips these too
+
+		Entry* entry = (static_cast<size_t>(id) < _entries.size()) ? &_entries[static_cast<size_t>(id)] : nullptr;
+		const bool verifyThis = fastAllowed
+			&& ((position >= verifyBegin && position < verifyEnd) || (verifyEnd > idCount && position < verifyEnd - idCount));
+
+		bool candidate = false;
+		bool missingIfNotHovered = false;
+		bool okIgnoringHover = false;
+		bool selectedNow = false;
+		const bool cacheUsable = fastAllowed && entry && entry->checkedEpoch == epoch && entry->mesh == mesh;
+		if (cacheUsable && !verifyThis)
+		{
+			candidate = entry->cachedCandidate;
+			missingIfNotHovered = entry->cachedMissing;
+			okIgnoringHover = entry->cachedOk;
+			selectedNow = entry->cachedSelected;
+			++fastHits;
+		}
+		else
+		{
+			candidate = mesh->isStaticBatchCandidate();
+			const bool known = entry && entry->group == -2 && entry->mesh == mesh && !entry->transparent
+				&& mesh->geometryRevision() == entry->geometryRevision && mesh->drawGroupKey() == entry->key;
+			okIgnoringHover = entry && entry->group >= 0 && entry->mesh == mesh && !entry->transparent && candidate
+				&& mesh->geometryRevision() == entry->geometryRevision
+				&& mesh->drawGroupKey() == entry->key
+				&& sameTransform(entry->transform, mesh->combinedRenderTransformRef());
+			missingIfNotHovered = candidate && !known;
+			selectedNow = mesh->isSelected();
+			++slowChecks;
+			if (cacheUsable && (entry->cachedOk != okIgnoringHover || entry->cachedCandidate != candidate
+				|| entry->cachedMissing != missingIfNotHovered || entry->cachedSelected != selectedNow))
+			{
+				// A change that did not bump the epoch. Use the fresh answer and re-check everything next frame.
+				MeshInstanceState::bumpRenderStateEpoch();
+				if (++_verifyMismatches <= 5)
+					Logger::instance().warning(
+						QStringLiteral("[DrawBatcher] fast validation disagreed with a full check for mesh %1 (cached ok=%2 candidate=%3, "
+							"now ok=%4 candidate=%5); re-checking all meshes").arg(id).arg(entry->cachedOk).arg(entry->cachedCandidate)
+							.arg(okIgnoringHover).arg(candidate),
+						QStringLiteral("Performance"));
+				if (_verifyMismatches >= 3 && !_fastDisabled)
+				{
+					_fastDisabled = true;
+					Logger::instance().warning(QStringLiteral("[DrawBatcher] fast validation switched off after repeated disagreements"),
+						QStringLiteral("Performance"));
+				}
+			}
+			if (fastAllowed && entry)
+			{
+				entry->checkedEpoch = epoch;
+				entry->cachedOk = okIgnoringHover;
+				entry->cachedCandidate = candidate;
+				entry->cachedMissing = missingIfNotHovered;
+				entry->cachedSelected = selectedNow;
+			}
+		}
+
+		if (candidate)
+			++candidates;
+		const bool ok = okIgnoringHover && id != hoveredId;
+		if (!ok)
+		{
+			if (missingIfNotHovered && id != hoveredId)
+				++missing;
+			// Why this mesh draws on its own (diagnostics only): hovered; not a batch candidate at all (selected transparent,
+			// skinned, wireframe material, ...); new or changed since the build; or a candidate the build left out on purpose
+			// (group too small, transform not a similarity, vertex cap).
+			if (id == hoveredId)
+				++indHovered;
+			else if (!candidate)
+				++indNotCandidate;
+			else if (missingIfNotHovered)
+				++indMissing;
+			else
+				++indLeftOut;
+			individual.push_back(id);
+			continue;
+		}
+
+		Group& g = _groups[static_cast<size_t>(entry->group)];
+		// A selected mesh stays in its group but is drawn in the group's second, selected pass.
+		SceneMesh*& rep = selectedNow ? g.frameRepSelected : g.frameRep;
+		if (!rep)
+			rep = mesh;
+		qint64& triangles = selectedNow ? g.frameTrianglesSelected : g.frameTriangles;
+		if (lodActive && entry->lodCount > 0)
+		{
+			(selectedNow ? g.selLodCounts : g.lodCounts).push_back(static_cast<int>(entry->lodCount));
+			(selectedNow ? g.selLodOffsets : g.lodOffsets).push_back(
+				reinterpret_cast<const void*>(static_cast<quintptr>(entry->lodFirst) * sizeof(unsigned int)));
+			triangles += entry->lodCount / 3;
+		}
+		else
+		{
+			(selectedNow ? g.selCounts : g.counts).push_back(static_cast<int>(entry->indexCount));
+			(selectedNow ? g.selOffsets : g.offsets).push_back(
+				reinterpret_cast<const void*>(static_cast<quintptr>(entry->firstIndex) * sizeof(unsigned int)));
+			triangles += entry->indexCount / 3;
+		}
+		++batched;
+	}
+	_missingLastFrame = missing;
+	_indHovered = indHovered;
+	_indNotCandidate = indNotCandidate;
+	_indMissing = indMissing;
+	_indLeftOut = indLeftOut;
+	_candidatesLastFrame = candidates;
+	_fastHitsLastFrame = fastHits;
+	_slowChecksLastFrame = slowChecks;
+
+	const auto drawSet = [&](Group& g, SceneMesh* rep, const std::vector<int>& counts, const std::vector<const void*>& offsets,
+	                         const std::vector<int>& lodCounts, const std::vector<const void*>& lodOffsets, qint64 triangles,
+	                         bool selectedSet)
+	{
+		if (!rep || (counts.empty() && lodCounts.empty()))
+			return;
+		if (wire)
+		{
+			rep->prepareWireBatchDraw(prog, selectedSet && wire->highlightSelected);
+			if (!g.configuredProgram)
+				configureVao(g, prog);
+		}
+		else
+		{
+			rep->prepareBatchDraw(prog); // the representative's own selection state supplies the "selected" uniform
+			if (g.configuredProgram != prog)
+				configureVao(g, prog);
+		}
+
+		glBindVertexArray(g.vao);
+		// The selected pass is drawn after the unselected one, so against coincident meshes it would lose every depth tie.
+		const ScopedSelectionDepthBias selectionDepthBias(*this, selectedSet && !wire);
+		if (!counts.empty())
+		{
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.indexBuffer);
+			glMultiDrawElements(GL_TRIANGLES, counts.data(), GL_UNSIGNED_INT, offsets.data(), static_cast<GLsizei>(counts.size()));
+		}
+		if (!lodCounts.empty() && g.lodIndexBuffer)
+		{
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, g.lodIndexBuffer);
+			glMultiDrawElements(GL_TRIANGLES, lodCounts.data(), GL_UNSIGNED_INT, lodOffsets.data(), static_cast<GLsizei>(lodCounts.size()));
+		}
+		glBindVertexArray(0);
+		RenderableMesh::recordDrawCall(true, false, triangles);
+		RenderableMesh::recordBatchedDraw(static_cast<qint64>(counts.size() + lodCounts.size()));
+	};
+
+	for (Group& g : _groups)
+	{
+		drawSet(g, g.frameRep, g.counts, g.offsets, g.lodCounts, g.lodOffsets, g.frameTriangles, false);
+		drawSet(g, g.frameRepSelected, g.selCounts, g.selOffsets, g.selLodCounts, g.selLodOffsets, g.frameTrianglesSelected, true);
+	}
+	return batched;
+}
+
+void DrawBatcher::drawTransparentSequence(QOpenGLShaderProgram* prog, const std::vector<int>& orderedIds, int hoveredId,
+                                          const MeshLookup& meshAt, const DrawOne& drawIndividual, const WireDraw* wire)
+{
+	if (_groups.empty() || !_glReady)
+	{
+		for (int id : orderedIds)
+			drawIndividual(id);
+		return;
+	}
+
+	const bool lodActive = RenderableMesh::lodPolicyActive();
+	int runGroup = -1;
+	bool runLod = false;
+	SceneMesh* runRep = nullptr;
+	qint64 runTriangles = 0;
+	_runCounts.clear();
+	_runOffsets.clear();
+
+	const auto flush = [&]()
+	{
+		if (runGroup >= 0 && runRep && !_runCounts.empty())
+		{
+			Group& g = _groups[static_cast<size_t>(runGroup)];
+			if (wire)
+			{
+				runRep->prepareWireBatchDraw(prog, false);
+					// Same as below: prepareWireBatchDraw() sets "selected" but not "hovered", and the hovered mesh drawn in between
+					// leaves it true, which paints every later wire run gold in Hollow Mesh mode.
+					if (hoveredId >= 0)
+						prog->setUniformValue("hovered", false);
+				if (!g.configuredProgram)
+					configureVao(g, prog);
+			}
+			else
+			{
+				runRep->prepareBatchDraw(prog);
+				// "hovered" is a program uniform, not part of the batch. The hovered mesh is kept out of every run and drawn on its
+				// own, which leaves it true; without this reset every later run, and the transparent pass that follows an opaque
+				// pass ending on the hovered mesh, would be painted in the hover colour.
+				if (hoveredId >= 0)
+					prog->setUniformValue("hovered", false);
+				if (g.configuredProgram != prog)
+					configureVao(g, prog);
+			}
+			// Same depth-write rule SceneMesh::render() applies to a transparent mesh; the meshes of a run share a material.
+			// The wire passes never changed the depth mask per mesh, so they leave it alone.
+			const bool depthWritesOff = !wire && runRep->isTransparent() && runRep->needsDepthMaskOff();
+			if (depthWritesOff)
+				glDepthMask(GL_FALSE);
+			glBindVertexArray(g.vao);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, runLod ? g.lodIndexBuffer : g.indexBuffer);
+			glMultiDrawElements(GL_TRIANGLES, _runCounts.data(), GL_UNSIGNED_INT, _runOffsets.data(),
+				static_cast<GLsizei>(_runCounts.size()));
+			glBindVertexArray(0);
+			if (depthWritesOff)
+				glDepthMask(GL_TRUE);
+			RenderableMesh::recordDrawCall(true, true, runTriangles);
+			RenderableMesh::recordBatchedDraw(static_cast<qint64>(_runCounts.size()));
+			if (wire)
+				runRep->finishWireBatchDraw(prog); // the meshes drawn one by one in between expect the pass defaults
+		}
+		runGroup = -1;
+		runRep = nullptr;
+		runTriangles = 0;
+		_runCounts.clear();
+		_runOffsets.clear();
+	};
+
+	for (int id : orderedIds)
+	{
+		SceneMesh* mesh = meshAt(id);
+		if (!mesh)
+			continue; // the unbatched loop skips these too
+
+		const Entry* entry = (static_cast<size_t>(id) < _entries.size()) ? &_entries[static_cast<size_t>(id)] : nullptr;
+		const bool valid = entry && entry->group >= 0 && entry->transparent && entry->mesh == mesh && id != hoveredId
+			&& mesh->isBatchCandidate(true)
+			&& (!wire || mesh->isWireBatchable())
+			&& mesh->geometryRevision() == entry->geometryRevision
+			&& mesh->drawGroupKey() == entry->key
+			&& sameTransform(entry->transform, mesh->combinedRenderTransformRef());
+		if (!valid)
+		{
+			flush();
+			drawIndividual(id);
+			continue;
+		}
+
+		const bool useLod = lodActive && entry->lodCount > 0;
+		if (entry->group != runGroup || useLod != runLod)
+		{
+			flush();
+			runGroup = entry->group;
+			runLod = useLod;
+			runRep = mesh;
+		}
+		if (useLod)
+		{
+			_runCounts.push_back(static_cast<int>(entry->lodCount));
+			_runOffsets.push_back(reinterpret_cast<const void*>(static_cast<quintptr>(entry->lodFirst) * sizeof(unsigned int)));
+			runTriangles += entry->lodCount / 3;
+		}
+		else
+		{
+			_runCounts.push_back(static_cast<int>(entry->indexCount));
+			_runOffsets.push_back(reinterpret_cast<const void*>(static_cast<quintptr>(entry->firstIndex) * sizeof(unsigned int)));
+			runTriangles += entry->indexCount / 3;
+		}
+	}
+	flush();
+}

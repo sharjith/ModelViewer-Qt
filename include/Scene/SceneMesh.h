@@ -57,9 +57,29 @@ public:
 	// (empty) by every call site except SceneMesh::mergeMeshes() and clone()
 	// (when cloning an already-merged mesh) - stored BEFORE optimizeMesh() runs
 	// so its vertex-fetch reorder can permute this array in lockstep with
-	// _vertices, the same way _baseVertices is kept in sync.
-	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES, std::vector<quint64> initialSourceMeshIds = {});
+	// _vertices. Morph-target meshes keep a separate rest-pose array after
+	// construction; rigid and skin-only meshes use _vertices directly.
+	SceneMesh(QOpenGLShaderProgram* shader, QString name, std::vector<Vertex> vertices, std::vector<unsigned int> indices, std::vector<Material::Texture> textures, Material material, bool skipOptimization = false, GLenum primitiveMode = GL_TRIANGLES, std::vector<quint64> initialSourceMeshIds = {},
+		std::vector<unsigned int> preparedLod1Indices = {}, bool geometryPrepared = false,
+		std::vector<uint32_t> preparedFeatureEdges = {}, bool featureEdgesPrepared = false);
 	~SceneMesh();
+
+	// The vertex-cache / overdraw / LOD1 / vertex-fetch reordering optimizeMesh() applies, on caller-owned arrays. It touches no GL
+	// state and no shared data, so importers run it for many meshes in parallel on worker threads, then pass the result to the
+	// constructor (geometryPrepared = true) so the GUI thread only uploads. Returns false, leaving the arrays untouched, for a mesh
+	// too small to benefit. outRemap is the vertex permutation (parallel per-vertex arrays must follow it); outLod1Indices is the
+	// coarse tier, already remapped, empty when none was worth generating. If it throws, (vertices, indices) is still a
+	// valid pair (the triangles may have been reordered, the vertices not yet).
+	static bool optimizeGeometry(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices, bool allowLod,
+		std::vector<unsigned int>& outLod1Indices, std::vector<unsigned int>& outRemap);
+
+	// Feature (hard/boundary/crease) edges of an indexed triangle list as pairs of vertex indices: the classification half of
+	// buildAndUploadFeatureEdges(), with no GL and no shared state, so importers can run it on worker threads for the arrays the
+	// constructor will receive and pass the result in (featureEdgesPrepared = true). 15 degrees is the value setupMesh() uses.
+	static std::vector<uint32_t> computeFeatureEdges(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, float thresholdDegrees = 15.0f);
+
+	// Whether feature edges are built at all (the 'show wireframe' setting); read once by importers before they fan out.
+	static bool featureEdgesEnabledInSettings();
 	virtual SceneMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;
 	void render();
@@ -71,13 +91,13 @@ public:
 
     std::vector<Vertex> vertices() const;
 
-    // True unmorphed rest pose, snapshotted once at load (see applyMorphWeights()'s
-    // own doc comment) - distinct from vertices(), which reflects the current
-    // morph-blended (but not yet skinned) pose. Needed by RtSceneBuilder to feed
-    // GPU morph-blending its bind-pose input.
+	// True unmorphed rest pose for morph-target meshes (see
+	// applyMorphWeights()). Rigid and skin-only meshes do not allocate a second
+	// vertex array, so this returns their live vertices.
     std::vector<Vertex> baseVertices() const;
 
-    std::vector<unsigned int> indices() const;
+    // By reference: callers test .empty()/.size() per mesh over tens of thousands of meshes; a by-value return copied the whole array each time.
+    const std::vector<unsigned int>& indices() const;
 
     std::vector<Material::Texture> textures() const;
 
@@ -150,7 +170,7 @@ public:
 	// is consumed.
 	void setPrecomputedSourceMeshIds(const std::vector<quint64>& ids)
 	{
-		if (ids.size() == _vertices.size())
+		if (ids.size() == vertexCount())
 			_importState.setSourceMeshIds(ids);
 	}
 	// True when Repair Mesh deliberately split non-manifold vertices to make this mesh a valid polygon
@@ -195,6 +215,13 @@ public:
 		const std::vector<Vertex>& srcVertices, const std::vector<unsigned int>& srcIndices,
 		const std::vector<int>& srcTriangleIndices, const std::vector<int>& srcFaceIndices,
 		SceneMesh* dst, std::vector<int>& outTriangleIndices, std::vector<int>& outFaceIndices);
+	// The same matching on plain arrays (source positions and indices, destination vertices and indices), with no SceneMesh and no
+	// shared state, so an importer can run it on a worker thread against the arrays the constructor will receive.
+	static void remapOccFaceTriangleIndicesFromArrays(
+		const std::vector<glm::vec3>& srcPositions, const std::vector<unsigned int>& srcIndices,
+		const std::vector<int>& srcTriangleIndices, const std::vector<int>& srcFaceIndices,
+		const std::vector<Vertex>& dstVertices, const std::vector<unsigned int>& dstIndices,
+		std::vector<int>& outTriangleIndices, std::vector<int>& outFaceIndices);
 
 	// Heuristic feature-edge list (dihedral-angle/seam-aware classifier,
 	// see buildAndUploadFeatureEdges()) - flat pairs of indices into THIS
@@ -475,10 +502,40 @@ public:
 	QString getSourceFile() const                  { return _importState.sourceFile(); }
 	void    setSourceNodeName(const QString& name) { _importState.setSourceNodeName(name); }
 	QString getSourceNodeName() const              { return _importState.sourceNodeName(); }
+	size_t pointCount() const { return vertexCount(); }
+	void setNodeProperties(NodePropertyChainPtr chain) { _importState.setNodeProperties(std::move(chain)); }
+	const NodePropertyChainPtr& getNodeProperties() const { return _importState.nodeProperties(); }
 
-	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _importState.setSkinJoints(joints); }
+	void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _importState.setSkinJoints(joints); noteRenderStateChanged(MeshInstanceState::SiteSkin); }
 	const QVector<GltfSkinJoint>& skinJoints() const         { return _importState.skinJoints(); }
 	bool hasSkinning() const override                        { return _importState.hasSkinning(); }
+
+	// Draw-batching study (research/rendering/DRAW_BATCHING_DESIGN.md): meshes sharing this key need identical
+	// program, material and texture state, so they could be merged; candidates exclude everything that must stay
+	// an individual draw. Diagnostics only - nothing renders from these yet.
+	quint64 drawGroupKey() const;
+	// Opaque meshes only (batched in the opaque pass).
+	bool isStaticBatchCandidate() const;
+	// transparent == true: a mesh that is drawn in the sorted transparent pass but could still share a batch with
+	// neighbours in the sort order (see DrawBatcher::drawTransparentSequence()).
+	bool isBatchCandidate(bool transparent) const;
+
+	// Adds this mesh's CPU-side array capacities to `usage` (diagnostics: the "[MemoryAudit]" log line).
+	void addMemoryUsage(struct MeshMemoryUsage& usage) const;
+
+	// Everything render() does before its draw call, for a DrawBatcher batch: binds `prog`, uploads the transform
+	// uniforms (the mesh's own transform is already baked into the batch geometry, so modelMatrix is just the
+	// global model matrix), then the material state, textures and render state of this mesh, which stands for every
+	// mesh in the batch (they share a drawGroupKey()).
+	void prepareBatchDraw(QOpenGLShaderProgram* prog);
+	// The same for a batch drawn with the lightweight wireframe shader (Hollow Mesh, and the line pass of Mesh Edges): the
+	// per-mesh uniforms renderWireframeFast() would upload, for the whole batch. `selected` is the batch's selection pass.
+	// Sets hasVertexColors, hasAlbedoMap and selected; the caller restores them to false after the batch pass.
+	void prepareWireBatchDraw(QOpenGLShaderProgram* wireProg, bool selected);
+	// Puts hasVertexColors / hasAlbedoMap back to false after a wire batch (see prepareWireBatchDraw).
+	void finishWireBatchDraw(QOpenGLShaderProgram* wireProg);
+	// False for a mesh whose wire drawing needs the per-mesh BLEND vertex-alpha handling of renderWireframeFast().
+	bool isWireBatchable() const { return !(_hasVertexColors && _material.blendMode() == Material::BlendMode::Alpha); }
 
 	// ---- Animation state (moved from RenderableMesh) ------------------------
 	MeshAnimationState&        animationState()       { return _animState; }
@@ -550,6 +607,28 @@ public:
 	
 private:
 	void optimizeMesh();
+	// The unmorphed rest pose when one exists, otherwise the live array. When the vertex structs were dropped (see
+	// dropVertexStructsIfLarge()) the array is rebuilt into `scratch` and that is returned.
+	const std::vector<Vertex>& restPoseVertices(std::vector<Vertex>& scratch) const;
+	// --- Vertex structs of very large models (research/rendering/BATCH_GPU_RESIDENCY_DESIGN.md section 6) ---
+	// setupMesh() splits _vertices into the separate CPU arrays RenderableMesh keeps (cpuPoints() etc.), so on a model with
+	// tens of millions of vertices the 128-byte structs are a full second copy. Once the structs held by live meshes pass a
+	// budget (QSettings compactVertexStorageMB, default 1024; 0 turns it off) a mesh frees its structs after setup and
+	// rebuilds them, losslessly, from those arrays whenever vertices() or an editing tool needs them.
+	size_t vertexCount() const { return _vertexStructsDropped ? cpuPoints().size() / 3 : _vertices.size(); }
+	glm::vec3 positionAt(size_t index) const
+	{
+		if (!_vertexStructsDropped)
+			return _vertices[index].Position;
+		const std::vector<float>& p = cpuPoints();
+		return glm::vec3(p[index * 3], p[index * 3 + 1], p[index * 3 + 2]);
+	}
+	std::vector<Vertex> rebuildVertexStructs() const;
+	void restoreVertexStructs();
+	void dropVertexStructsIfLarge();
+	void trackVertexStructBytes();
+	bool _vertexStructsDropped = false;
+	qint64 _vertexStructBytesCounted = 0;
 	/*  Functions    */
 	// Initializes all the buffer objects/arrays
 	void setupMesh();
@@ -563,6 +642,7 @@ private:
 	// here) and buildTriangleAdjacency() - the two need different per-edge
 	// payloads (vertex normals vs. triangle indices) but the same weld.
 	std::vector<uint32_t> buildPositionWeldMap() const;
+	static std::vector<uint32_t> buildPositionWeldMapFor(const std::vector<Vertex>& vertices);
 	// Builds _triangleAdjacencyCache (mutable, safe to call from const
 	// context) - see getTriangleAdjacency()'s doc comment. Split out from
 	// the public accessor so the accessor itself stays a trivial "build
@@ -594,7 +674,14 @@ private:
 	void setRenderStateOptimized();
 	void setupUniformsOptimized();
 	void bindFeatureEdgeVertexState();
+	void afterGpuBuffersRestored() override;
+	// Creates the feature-edge index buffer and vertex array when they are first needed (a draw in a wireframe/edge pass),
+	// not at load: 40,000 parts spent about 5 s and 80,000 driver objects on edges that a shaded view never draws.
+	void ensureFeatureEdgesOnGpu();
 	quint64 uniformStateSignature() const;
+	quint64 computeUniformStateSignature(bool includeSelection) const;
+	mutable bool    _batchKeyDirty = true;
+	mutable quint64 _cachedBatchKey = 0;
 	void removeTexturesByType(std::initializer_list<std::string> types);
 
 	// sync texture path entries into _textures from the material's stored map (if _textures empty)
@@ -615,6 +702,9 @@ protected:
 
 	// ---- Interleaved CPU geometry (owned here until DeformableGeometry* composition) ---
 	std::vector<Vertex> _vertices;
+	// Allocated only for morph-target meshes, whose live vertices can diverge
+	// from the unmorphed rest pose. Empty for ordinary rigid and skin-only
+	// meshes; restPoseVertices() supplies the live-array fallback.
 	std::vector<Vertex> _baseVertices;
 
 	// ---- Interaction-time LOD1 hand-off ------------------------------------------
@@ -625,6 +715,10 @@ protected:
 	std::vector<unsigned int> _pendingLod1Indices;
 	std::vector<unsigned int> _lod1Indices;
 	std::vector<uint32_t> _featureEdgeIndices;
+	bool _featureEdgesGpuPending = false; // _featureEdgeIndices is final but not yet uploaded; see ensureFeatureEdgesOnGpu()
+	// Handed over by an importer, consumed by the first buildAndUploadFeatureEdges() (see computeFeatureEdges()).
+	std::vector<uint32_t> _preparedFeatureEdges;
+	bool                  _featureEdgesPrepared = false;
 
 	// ---- Lazy triangle-adjacency cache (see getTriangleAdjacency()) -------------
 	mutable std::vector<std::array<int, 3>> _triangleAdjacencyCache;

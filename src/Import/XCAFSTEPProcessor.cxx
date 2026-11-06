@@ -1,4 +1,5 @@
 #include "BRepToAssimpConverter.h"
+#include "ImportDiagnostics.h"
 #include "MainWindow.h"
 #include "XCAFSTEPProcessor.hxx"
 #include <assimp/scene.h>
@@ -249,7 +250,9 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 				builder.Add(compound, shape);
 		}
 
+		ImportDiagnostics::checkpoint("step.pretessellate-begin", -1, labels.Length(), 0);
 		BRepToAssimpConverter::preTessellate(compound); // shared by the STEP, IGES and BREP readers
+		ImportDiagnostics::checkpoint("step.pretessellate-end");
 	}
 
 #ifdef __DEBUG__
@@ -282,6 +285,7 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 	scene->mRootNode->mNumChildren = 0;
 
 	MainWindow::showStatusMessage(tr("Traversing assembly and building scene..."));
+	ImportDiagnostics::checkpoint("step.traverse-begin", -1, totalMeshes, 0);
 
 	for (Standard_Integer i = 1; i <= labels.Length(); ++i)
 	{
@@ -293,6 +297,9 @@ aiScene* XCAFSTEPProcessor::processSTEPFile(const std::string& path)
 	std::chrono::duration<double> durationTraverse = endTraverse - startTraverse;
 	std::cout << "TraverseXCAFAssembly and scene creation took " << durationTraverse.count() << " seconds\n";
 #endif
+
+	releaseConvertedParts();
+	ImportDiagnostics::checkpoint("step.traverse-end", -1, scene->mNumMeshes, 0);
 
 	// Finalize the scene
 	if (scene->mNumMeshes == 0)
@@ -361,6 +368,7 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 #endif
 	MainWindow::showIndeterminateProgressBar();
 
+	ImportDiagnostics::checkpoint("step.read-begin");
 	if (!reader.ReadFile(filename.c_str()))
 	{
 		MainWindow::resetProgressBar();
@@ -371,6 +379,7 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 		throw std::runtime_error("Cannot read STEP file");
 	}
 	MainWindow::resetProgressBar();
+	ImportDiagnostics::checkpoint("step.read-end");
 
 #ifdef __DEBUG__
 	auto endCount = std::chrono::high_resolution_clock::now();
@@ -386,6 +395,7 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 	Handle(XCAFReadProgressIndicator) progress = new XCAFReadProgressIndicator();
 	Message_ProgressRange rootRange = progress->Start();
 	Message_ProgressScope transferScope(rootRange, "STEP Transfer", -1);
+	ImportDiagnostics::checkpoint("step.transfer-begin");
 
 	try
 	{
@@ -404,7 +414,9 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 	// Build the shape→colour map directly from STEP entities while the reader
 	// (and its transfer process) is still in scope.  Must happen after Transfer()
 	// so all geometry shapes are registered in the TransientProcess.
+	ImportDiagnostics::checkpoint("step.transfer-end");
 	buildStepColorMap(reader);
+	ImportDiagnostics::checkpoint("step.colour-map-end");
 
 #ifdef __DEBUG__
 	auto endTraverse = std::chrono::high_resolution_clock::now();

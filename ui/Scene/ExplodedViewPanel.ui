@@ -353,11 +353,16 @@ scene or tree</string>
                <string notr="true">background-color: rgba(255, 255, 255, 10%);</string>
               </property>
               <property name="toolTip">
-               <string>Direction meshes explode away from each other</string>
+               <string>&lt;p&gt;Direction meshes explode away from each other.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Auto&lt;/b&gt;: each part leaves along the direction it comes off the part it touches, and spreads from the centre where the contact is unclear.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Radial&lt;/b&gt;: every part spreads from the centre in proportion to its distance.&lt;/p&gt;</string>
               </property>
               <item>
                <property name="text">
-                <string>Auto (Radial)</string>
+                <string>Auto</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>Radial</string>
                </property>
               </item>
               <item>
@@ -596,6 +601,77 @@ Classic explodes every part independently</string>
               <item>
                <property name="text">
                 <string>Classic</string>
+               </property>
+              </item>
+             </widget>
+            </item>
+            <item>
+             <widget class="QLabel" name="labelExplodeDepth">
+              <property name="text">
+               <string>Levels</string>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QComboBox" name="comboBoxExplodeDepth">
+              <property name="toolTip">
+               <string>How many levels of the hierarchy explode (Auto mode).
+All explodes every level; 1 moves only the top-level groups,
+each as one block</string>
+              </property>
+              <item>
+               <property name="text">
+                <string>All</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>1</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>2</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>3</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>4</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>5</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>6</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>7</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>8</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>9</string>
+               </property>
+              </item>
+              <item>
+               <property name="text">
+                <string>10</string>
                </property>
               </item>
              </widget>

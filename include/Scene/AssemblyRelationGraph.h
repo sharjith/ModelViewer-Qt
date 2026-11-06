@@ -6,6 +6,8 @@
 #include <QSet>
 #include <QUuid>
 
+#include "ExplodedGroupTree.h"
+
 class ViewportWidget;
 class SceneGraph;
 
@@ -39,6 +41,17 @@ QString makeMeshPairKey(const QUuid& a, const QUuid& b);
 AutoPlacementHints buildAutoPlacementHints(const QSet<QUuid>& assemblyUuids,
                                            const ViewportWidget* viewportWidget,
                                            const SceneGraph* sceneGraph);
+
+// Assembly-aware hierarchy: the scene tree restricted to the given parts, wrapper nodes collapsed (see ExplodedGroupTree::fromDraft).
+// Parts the scene graph does not know sit in the root. A null scene graph gives a flat tree.
+ExplodedGroupTree::Tree buildSceneGroupTree(const QSet<QUuid>& assemblyUuids, const SceneGraph* sceneGraph);
+
+// The placement hints of buildAutoPlacementHints, computed only among the parts of one group at a time, so the cost is the sum of
+// the squares of the group sizes instead of the square of the part count. Groups above kMaxHintGroupParts get none.
+constexpr int kMaxHintGroupParts = 300;
+AutoPlacementHints buildSiblingPlacementHints(const ExplodedGroupTree::Tree& tree,
+                                              const ViewportWidget* viewportWidget,
+                                              const SceneGraph* sceneGraph);
 
 QJsonObject buildInspectionJson(const QSet<QUuid>& assemblyUuids,
                                 const ViewportWidget* viewportWidget,

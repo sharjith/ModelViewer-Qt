@@ -214,7 +214,7 @@ struct RtOptixSceneTracer::Impl
 		CUdeviceptr normals = 0;
 		CUdeviceptr texCoords = 0; // float2, 4 per vertex - see RtOptixSceneHitGroupData::texCoords
 		CUdeviceptr tangents = 0;  // float4 (xyz=tangent, w=handedness) - see RtOptixSceneHitGroupData::tangents
-		CUdeviceptr vertexColors = 0; // float3 - see RtOptixSceneHitGroupData::vertexColors
+		CUdeviceptr vertexColors = 0; // float4 - see RtOptixSceneHitGroupData::vertexColors
 		CUdeviceptr gasOutputBuffer = 0;
 		OptixTraversableHandle handle = 0;
 	};
@@ -366,11 +366,13 @@ struct RtOptixSceneTracer::Impl
 	struct TextureUploadKey
 	{
 		int64_t imageCacheKey = 0;
+        uint64_t authoredMipHash = 0;
 		float uvScaleX = 1.0f, uvScaleY = 1.0f;
 		float uvOffsetX = 0.0f, uvOffsetY = 0.0f;
 		float uvRotation = 0.0f;
 		int texCoordIndex = 0;
 		unsigned int wrapS = 0, wrapT = 0;
+		unsigned int magFilter = 0x2601, minFilter = 0x2703;
 		int packingChannel = -1;
 		bool packingInvert = false;
 		float packingScale = 1.0f;
@@ -378,11 +380,12 @@ struct RtOptixSceneTracer::Impl
 
 		bool operator==(const TextureUploadKey& o) const
 		{
-			return imageCacheKey == o.imageCacheKey &&
+			return imageCacheKey == o.imageCacheKey && authoredMipHash == o.authoredMipHash &&
 				uvScaleX == o.uvScaleX && uvScaleY == o.uvScaleY &&
 				uvOffsetX == o.uvOffsetX && uvOffsetY == o.uvOffsetY &&
 				uvRotation == o.uvRotation && texCoordIndex == o.texCoordIndex &&
 				wrapS == o.wrapS && wrapT == o.wrapT &&
+				magFilter == o.magFilter && minFilter == o.minFilter &&
 				packingChannel == o.packingChannel && packingInvert == o.packingInvert &&
 				packingScale == o.packingScale && packingBias == o.packingBias;
 		}
@@ -392,6 +395,7 @@ struct RtOptixSceneTracer::Impl
 		size_t operator()(const TextureUploadKey& k) const
 		{
 			size_t h = std::hash<int64_t>{}(k.imageCacheKey);
+            h ^= std::hash<uint64_t>{}(k.authoredMipHash);
 			auto mix = [&h](size_t v) { h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2); };
 			mix(std::hash<float>{}(k.uvScaleX));
 			mix(std::hash<float>{}(k.uvScaleY));
@@ -401,6 +405,8 @@ struct RtOptixSceneTracer::Impl
 			mix(std::hash<int>{}(k.texCoordIndex));
 			mix(std::hash<unsigned int>{}(k.wrapS));
 			mix(std::hash<unsigned int>{}(k.wrapT));
+			mix(std::hash<unsigned int>{}(k.magFilter));
+			mix(std::hash<unsigned int>{}(k.minFilter));
 			mix(std::hash<int>{}(k.packingChannel));
 			mix(std::hash<bool>{}(k.packingInvert));
 			mix(std::hash<float>{}(k.packingScale));
@@ -1659,7 +1665,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		// never rebuilt from scratch again until something invalidates the
 		// cache entirely, e.g. a vertex/index count change or app restart).
 		std::vector<float2> earlyTexCoords;
-		std::vector<float3> earlyVertexColors;
+		std::vector<float4> earlyVertexColors;
 		if (refitEligible && (mesh.hasSkinningData || mesh.hasMorphData))
 		{
 			earlyTexCoords.resize(mesh.vertices.size() * 4);
@@ -1667,13 +1673,13 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 			for (size_t i = 0; i < mesh.vertices.size(); ++i)
 			{
 				const RtVertex& v = mesh.vertices[i];
-				earlyVertexColors[i] = make_float3(v.color.x, v.color.y, v.color.z);
+				earlyVertexColors[i] = make_float4(v.color.x, v.color.y, v.color.z, v.color.w);
 				for (int ch = 0; ch < 4; ++ch)
 					earlyTexCoords[i * 4 + ch] = make_float2(v.texCoords[ch].x, v.texCoords[ch].y);
 			}
 		}
 		const size_t earlyTexCoordsBytes = earlyTexCoords.size() * sizeof(float2);
-		const size_t earlyVertexColorsBytes = earlyVertexColors.size() * sizeof(float3);
+		const size_t earlyVertexColorsBytes = earlyVertexColors.size() * sizeof(float4);
 
 		// GPU-skin fast path - attempted BEFORE building any host-side POSITION/
 		// NORMAL/TANGENT arrays, not after: this mesh's positions/normals/
@@ -1849,13 +1855,13 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		std::vector<float3> normals(mesh.vertices.size());
 		std::vector<float2> texCoords(mesh.vertices.size() * 4);
 		std::vector<float4> tangents(mesh.vertices.size());
-		std::vector<float3> vertexColors(mesh.vertices.size());
+		std::vector<float4> vertexColors(mesh.vertices.size());
 		for (size_t i = 0; i < mesh.vertices.size(); ++i)
 		{
 			const RtVertex& v = mesh.vertices[i];
 			positions[i] = make_float3(v.position.x, v.position.y, v.position.z);
 			normals[i] = make_float3(v.normal.x, v.normal.y, v.normal.z);
-			vertexColors[i] = make_float3(v.color.x, v.color.y, v.color.z);
+			vertexColors[i] = make_float4(v.color.x, v.color.y, v.color.z, v.color.w);
 			for (int ch = 0; ch < 4; ++ch)
 				texCoords[i * 4 + ch] = make_float2(v.texCoords[ch].x, v.texCoords[ch].y);
 
@@ -1880,7 +1886,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		const size_t normalsBytes = normals.size() * sizeof(float3);
 		const size_t texCoordsBytes = texCoords.size() * sizeof(float2);
 		const size_t tangentsBytes = tangents.size() * sizeof(float4);
-		const size_t vertexColorsBytes = vertexColors.size() * sizeof(float3);
+		const size_t vertexColorsBytes = vertexColors.size() * sizeof(float4);
 		const size_t indicesBytes = mesh.indices.size() * sizeof(uint32_t); // uint3[] and uint32_t[3*N] share the same binary layout
 
 		if (refitEligible && !refitSucceeded)
@@ -2164,6 +2170,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		out.packingBias = tex.packingBias;
 		out.wrapS = tex.wrapS;
 		out.wrapT = tex.wrapT;
+		out.magFilter = tex.magFilter;
+		out.minFilter = tex.minFilter;
 	};
 
 	// Uploads (or reuses, from Impl::persistentTextureCache - see its own doc
@@ -2186,6 +2194,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 
 		Impl::TextureUploadKey key;
 		key.imageCacheKey  = tex->imageCacheKey;
+        key.authoredMipHash=tex->authoredMipHash;
 		key.uvScaleX       = tex->uvScale.x;
 		key.uvScaleY       = tex->uvScale.y;
 		key.uvOffsetX      = tex->uvOffset.x;
@@ -2194,6 +2203,8 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		key.texCoordIndex  = tex->texCoordIndex;
 		key.wrapS          = tex->wrapS;
 		key.wrapT          = tex->wrapT;
+		key.magFilter      = tex->magFilter;
+		key.minFilter      = tex->minFilter;
 		key.packingChannel = tex->packingChannel;
 		key.packingInvert  = tex->packingInvert;
 		key.packingScale   = tex->packingScale;
@@ -2405,7 +2416,7 @@ bool RtOptixSceneTracer::buildScene(const RtSceneSnapshot& snapshot)
 		hgSbt.data.indices = reinterpret_cast<uint3*>(_impl->meshGasEntries[inst.meshIndex].indices);
 		hgSbt.data.texCoords = reinterpret_cast<float2*>(_impl->meshGasEntries[inst.meshIndex].texCoords);
 		hgSbt.data.tangents = reinterpret_cast<float4*>(_impl->meshGasEntries[inst.meshIndex].tangents);
-		hgSbt.data.vertexColors = reinterpret_cast<float3*>(_impl->meshGasEntries[inst.meshIndex].vertexColors);
+		hgSbt.data.vertexColors = reinterpret_cast<float4*>(_impl->meshGasEntries[inst.meshIndex].vertexColors);
 
 		if (inst.materialIndex < snapshot.materials.size())
 		{

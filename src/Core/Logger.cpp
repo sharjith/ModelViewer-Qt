@@ -312,6 +312,13 @@ void Logger::processQueue()
     // Set flag to prevent recursive logging during output
     g_isLoggingMessage = true;
 
+    // Console lines of this round, sent to the GUI thread in ONE queued call below. One queued call per line left the
+    // GUI thread draining ~480,000 appendPlainText() calls (minutes) after a 40,000-part import, delaying everything
+    // queued behind them. Only the newest lines of a burst are shown; the log file always gets every line.
+    constexpr int kMaxConsoleLinesPerRound = 1000;
+    QStringList consoleLines;
+    qint64 consoleLinesSkipped = 0;
+
     // Process all messages currently in queue
     while (true)
     {
@@ -346,8 +353,12 @@ void Logger::processQueue()
         // a queued call rather than touched directly.
         if (consoleEnabled && consolePanel)
         {
-            QMetaObject::invokeMethod(consolePanel, "appendLine",
-                Qt::QueuedConnection, Q_ARG(QString, formatted));
+            consoleLines.append(formatted);
+            if (consoleLines.size() > kMaxConsoleLinesPerRound)
+            {
+                consoleLines.removeFirst();
+                ++consoleLinesSkipped;
+            }
         }
 
 #ifdef _WIN32
@@ -370,6 +381,15 @@ void Logger::processQueue()
             rotateLogFileIfNeeded();
             writeToFile(formatted);
         }
+    }
+
+    if (consolePanel && !consoleLines.isEmpty())
+    {
+        if (consoleLinesSkipped > 0)
+            consoleLines.prepend(QStringLiteral("... %1 earlier log lines not shown here (they are in the log file)")
+                .arg(consoleLinesSkipped));
+        QMetaObject::invokeMethod(consolePanel, "appendLines",
+            Qt::QueuedConnection, Q_ARG(QString, consoleLines.join(QLatin1Char('\n'))));
     }
 
     // Clear the flag before clearing pending

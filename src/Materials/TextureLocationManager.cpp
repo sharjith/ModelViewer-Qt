@@ -1,6 +1,7 @@
 #include "TextureLocationManager.h"
 #include "SceneMesh.h"
 #include "Material.h"
+#include "EmbeddedTextureImage.h"
 
 #include <QFile>
 #include <QDir>
@@ -8,6 +9,7 @@
 #include <QCryptographicHash>
 #include <QDebug>
 #include <QUrl>
+#include <QSaveFile>
 #include <set>
 #include <map>
 
@@ -141,12 +143,64 @@ TexturePackage TextureLocationManager::packageTextures(
     std::set<QString> processedPaths;      // Track processed original paths
     std::map<QByteArray, QString> hashMap; // Hash -> output filename mapping
 
+    // An embedded:// path is an identity, not a file to resolve. The decoded
+    // payload may live on the mesh texture entry rather than its typed material
+    // slot. Feed the ordinary package mapping/GLB embed path a real PNG.
+    auto packageResident = [&](const Material::Texture& texture,
+                               const std::vector<Material::Texture>& resident) {
+        const QString path = QString::fromStdString(texture.path);
+        if (!path.startsWith("embedded://")) return false;
+        if (processedPaths.count(path)) return true;
+        const QImage* image = &texture.imageData;
+        if (image->isNull())
+            for (const auto& candidate : resident)
+                if (candidate.path == texture.path && !candidate.imageData.isNull())
+                { image = &candidate.imageData; break; }
+        try
+        {
+            const QByteArray bytes = EmbeddedTextureImage::png(*image);
+            TextureMetadata meta;
+            meta.originalPath = path;
+            meta.isEmbedded = true;
+            meta.hash = QCryptographicHash::hash(bytes, QCryptographicHash::Sha256);
+            meta.fileSize = static_cast<uint64_t>(bytes.size());
+            const auto duplicate = hashMap.find(meta.hash);
+            if (duplicate != hashMap.end())
+            {
+                meta.outputName = duplicate->second;
+                ++package.duplicatesRemoved;
+            }
+            else
+            {
+                meta.outputName = generateUniqueFilename(package.textureDirectory,
+                    "embedded_" + QString::fromLatin1(meta.hash.toHex()) + ".png");
+                QSaveFile file(QDir(package.textureDirectory).filePath(meta.outputName));
+                if (!file.open(QIODevice::WriteOnly) || file.write(bytes) != bytes.size() || !file.commit())
+                    throw std::runtime_error("Cannot write packaged resident texture");
+                hashMap[meta.hash] = meta.outputName;
+                package.totalSize += meta.fileSize;
+            }
+            meta.relativePath = textureSubfolder + "/" + meta.outputName;
+            meta.resolvedPath = QDir(package.textureDirectory).absoluteFilePath(meta.outputName);
+            package.pathMapping[path] = meta.relativePath;
+            package.textures.push_back(meta);
+            processedPaths.insert(path);
+        }
+        catch (const std::exception& error)
+        {
+            qWarning() << "[TextureLocationManager] Cannot package resident texture:"
+                       << path << error.what();
+        }
+        return true;
+    };
+
     // Collect all textures from all meshes
     for (const auto* mesh : meshes)
     {
         if (!mesh) continue;
 
         const auto& material = mesh->getMaterial();
+        const auto resident = mesh->textures();
 
         // Iterate through all texture types (25 total)
         for (int i = 0; i < static_cast<int>(Material::TextureType::Count); ++i)
@@ -157,6 +211,7 @@ TexturePackage TextureLocationManager::packageTextures(
             if (tex.path.empty()) continue;
 
             QString texPath = QString::fromStdString(tex.path);
+            if (packageResident(tex, resident)) continue;
 
             // Skip if already processed
             if (processedPaths.count(texPath))
@@ -232,6 +287,7 @@ TexturePackage TextureLocationManager::packageTextures(
                     if (tex.path.empty()) continue;
 
                     QString texPath = QString::fromStdString(tex.path);
+                    if (packageResident(tex, resident)) continue;
                     if (processedPaths.count(texPath)) continue;
 
                     TextureMetadata meta = resolveTexture(texPath);

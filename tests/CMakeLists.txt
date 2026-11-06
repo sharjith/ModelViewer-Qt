@@ -1,6 +1,12 @@
 # GUI-free unit tests. Enabled with -DMV_BUILD_TESTS=ON (see the root CMakeLists.txt). The sources under
 # test depend only on QtCore + the standard library, so they are compiled directly into the test
 # executable instead of linking the whole application.
+add_executable(import_trace_tests import_trace_tests.cpp ${CMAKE_SOURCE_DIR}/src/Import/ImportDiagnostics.cpp)
+target_include_directories(import_trace_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Import)
+target_link_libraries(import_trace_tests PRIVATE Qt6::Core)
+target_compile_features(import_trace_tests PRIVATE cxx_std_17)
+add_test(NAME import_trace_tests COMMAND import_trace_tests)
+
 add_executable(result_tests
     result_tests.cpp
     ${CMAKE_SOURCE_DIR}/src/Simulation/Core/ResultDataset.cpp
@@ -119,3 +125,18 @@ if(WIN32)
     )
 endif()
 add_test(NAME pdf3d_tests COMMAND pdf3d_tests)
+
+# Hierarchical exploded view: group tree builders and the level-by-level layout (QtCore + QtGui, no GL).
+add_executable(exploded_view_tests
+    exploded_view_tests.cpp
+    ${CMAKE_SOURCE_DIR}/src/Scene/ExplodedGroupTree.cpp
+    ${CMAKE_SOURCE_DIR}/src/Scene/ExplodedViewManager.cpp
+)
+target_include_directories(exploded_view_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Scene)
+target_link_libraries(exploded_view_tests PRIVATE Qt6::Core Qt6::Gui)
+set_target_properties(exploded_view_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
+add_test(NAME exploded_view_tests COMMAND exploded_view_tests)
+
+# Native 3DXML codec and scene parity checks (QtCore, Assimp and ZIP; no GL).
+add_subdirectory(3dxml)
+add_subdirectory(jt)

@@ -13,6 +13,38 @@
 
 namespace
 {
+// Index of the highest entry whose value (item data) does not exceed `limit`: the default for MSAA and anisotropic
+// filtering is 4x, or the best the GPU offers below that. The lists only hold supported levels, so "None"/"1x" is
+// the fallback when nothing else qualifies.
+int defaultLevelIndex(const QComboBox* combo, double limit)
+{
+    int best = 0;
+    double bestValue = -1.0;
+    for (int i = 0; i < combo->count(); ++i)
+    {
+        const double value = combo->itemData(i).toDouble();
+        if (value <= limit && value > bestValue)
+        {
+            best = i;
+            bestValue = value;
+        }
+    }
+    return best;
+}
+
+// A stored index counts only while it still points at an entry of the (GPU-dependent) list.
+int storedOrDefaultIndex(const QSettings& settings, const char* key, const QComboBox* combo, double defaultLimit)
+{
+    const int fallback = defaultLevelIndex(combo, defaultLimit);
+    if (!settings.contains(key))
+        return fallback;
+    const int stored = settings.value(key).toInt();
+    return (stored >= 0 && stored < combo->count()) ? stored : fallback;
+}
+} // namespace
+
+namespace
+{
 constexpr int kCornerTrihedronTopLeft = 0;
 constexpr int kCornerTrihedronTopRight = 1;
 constexpr int kCornerTrihedronBottomLeft = 2;
@@ -202,8 +234,7 @@ void SettingsDialog::setMaxMSAASamples(int maxSamples)
     if (maxSamples >= 32) ui->msaaComboBox->addItem("32x", 32);
 
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    int val = settings.value("msaaComboBox", ui->msaaComboBox->currentIndex()).toInt();
-    ui->msaaComboBox->setCurrentIndex(val);
+    ui->msaaComboBox->setCurrentIndex(storedOrDefaultIndex(settings, "msaaComboBox", ui->msaaComboBox, 4.0));
     ui->msaaComboBox->blockSignals(oldState);
 }
 
@@ -217,8 +248,7 @@ void SettingsDialog::setMaxAnisotropy(int maxAnisotropy)
     if (maxAnisotropy >= 8) ui->anisotropyComboBox->addItem("8x", 8.0f);
     if (maxAnisotropy >= 16) ui->anisotropyComboBox->addItem("16x", 16.0f);
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-    int val = settings.value("anisotropyComboBox", ui->anisotropyComboBox->currentIndex()).toInt();
-    ui->anisotropyComboBox->setCurrentIndex(val);
+    ui->anisotropyComboBox->setCurrentIndex(storedOrDefaultIndex(settings, "anisotropyComboBox", ui->anisotropyComboBox, 4.0));
     ui->anisotropyComboBox->blockSignals(oldState);
 }
 
@@ -352,8 +382,13 @@ void SettingsDialog::applySettings()
     settings.setValue("sectionCappingMode", sectionCapping_modeIndex);
     settings.setValue("sectionCappingHatchPattern", sectionCapping_hatchPatternIndex);
     settings.setValue("sectionCappingHatchTiling", sectionCapping_hatchTiling);
-    settings.setValue("sectionCappingHatchThickness", sectionCapping_hatchThickness);
+    settings.setValue("sectionCappingHatchSpacingMode", sectionCapping_hatchSpacingModeIndex);
+    settings.setValue("sectionCappingHatchSpacingPx", sectionCapping_hatchSpacingPx);
+    settings.setValue("sectionCappingHatchSpacingModelUnits", sectionCapping_hatchSpacingModel);
+    settings.setValue("sectionCappingHatchWidthPx", sectionCapping_hatchWidth);
     settings.setValue("sectionCappingHatchIntensity", sectionCapping_hatchIntensity);
+    settings.setValue("sectionCappingTextureTiling", sectionCapping_textureTiling);
+    settings.setValue("sectionCappingTextureBlend", sectionCapping_textureBlend);
     settings.setValue("sectionCappingHatchLineColor", sectionCapping_hatchLineColor);
 
     // Lighting
@@ -402,6 +437,26 @@ void SettingsDialog::applySettings()
     settings.setValue("consoleBufferLinesSpinBox", debug_consoleBufferLines);
     settings.setValue("profileRenderingCheckBox", debug_profileRendering);
     settings.setValue("showTextureDebugPanelCheckBox", debug_showTextureDebugPanel);
+
+    // Debug Tab - performance, import diagnostics and importer tuning. These are read where they are used
+    // (ViewportWidget, ImportDiagnostics, JT/3DXML importers) with the same keys; an environment variable of
+    // the same purpose still takes precedence there.
+    settings.setValue("importDiagnostics", ui->importDiagnosticsCheckBox->isChecked());
+    settings.setValue("importDiagnosticsMaxMB", ui->importDiagnosticsMaxMbSpinBox->value());
+    settings.setValue("interactionFastPathMB", ui->interactionFastPathMbSpinBox->value());
+    settings.setValue("smallPartCullPixels", ui->smallPartCullSpinBox->value());
+    settings.setValue("batchedDrawing", ui->batchedDrawingCheckBox->isChecked());
+    settings.setValue("batchMinMeshes", ui->batchMinMeshesSpinBox->value());
+    settings.setValue("lodMinTriangles", ui->lodMinTrianglesSpinBox->value());
+    settings.setValue("jtMergePartMeshes", ui->jtMergePartMeshesCheckBox->isChecked());
+    settings.setValue("jtDecodeThreads", ui->jtDecodeThreadsSpinBox->value());
+    settings.setValue("jtBudgetGiB", ui->jtBudgetGibSpinBox->value());
+    settings.setValue("jtPrefetchMin", ui->jtPrefetchMinSpinBox->value());
+    settings.setValue("jtDetailLevel", ui->jtDetailLevelComboBox->currentIndex());
+    settings.setValue("jtLodMaterialVariants", ui->jtLodMaterialVariantsCheckBox->isChecked());
+    settings.setValue("threeDxmlStrict", ui->threeDxmlStrictCheckBox->isChecked());
+    settings.setValue("threeDxmlThreads", ui->threeDxmlThreadsSpinBox->value());
+    settings.setValue("threeDxmlParallelMin", ui->threeDxmlParallelMinSpinBox->value());
 
     if (general_showTutorialLauncher)
     {
@@ -507,17 +562,9 @@ void SettingsDialog::setDefaultValues()
     ui->shaderModelComboBox->setCurrentIndex(0);             // "Blinn-Phong (ADS)"
     ui->shadingNormalComboBox->setCurrentIndex(0);           // "Smooth"
     	
-	int maxSamples = ModelViewerApplication::supportedMSAASamples();
-	if(maxSamples >= 4)
-        ui->msaaComboBox->setCurrentIndex(3);                    // "4x"    
-    else
-        ui->msaaComboBox->setCurrentIndex(0);                    // "1 (No MSAA)"
-    
-	int maxAnisotropy = ModelViewerApplication::supportedAnisotropicFilteringLevel();
-    if(maxAnisotropy >= 4)
-        ui->anisotropyComboBox->setCurrentIndex(3);              // "4x"
-	else
-        ui->anisotropyComboBox->setCurrentIndex(0);              // "1x (Off)"
+    // 4x, or the best the GPU supports below that (the lists only hold supported levels).
+    ui->msaaComboBox->setCurrentIndex(defaultLevelIndex(ui->msaaComboBox, 4.0));
+    ui->anisotropyComboBox->setCurrentIndex(defaultLevelIndex(ui->anisotropyComboBox, 4.0));
 
     // Section Capping - same hardcoded defaults SceneRenderController's own
     // member initializers used before this tab existed (PROCEDURAL,
@@ -525,8 +572,14 @@ void SettingsDialog::setDefaultValues()
     ui->comboBoxSectionCappingMode->setCurrentIndex(0);          // "Procedural"
     ui->comboBoxSectionCappingHatchPattern->setCurrentIndex(0);  // "Diagonal 45"
     ui->spinBoxSectionCappingHatchTiling->setValue(100);
-    ui->doubleSpinBoxSectionCappingHatchThickness->setValue(0.05);
+    ui->comboBoxSectionCappingHatchSpacingMode->setCurrentIndex(0);  // "Screen-constant"
+    ui->doubleSpinBoxSectionCappingHatchSpacingPx->setValue(11.0);
+    ui->doubleSpinBoxSectionCappingHatchSpacingModel->setValue(2.0);
+    ui->doubleSpinBoxSectionCappingHatchWidth->setValue(1.0);
+    on_comboBoxSectionCappingHatchSpacingMode_currentIndexChanged(); // refresh which spacing value is editable
     ui->doubleSpinBoxSectionCappingHatchIntensity->setValue(1.0);
+    ui->spinBoxSectionCappingTextureTiling->setValue(3);
+    ui->doubleSpinBoxSectionCappingTextureBlend->setValue(0.25);
     {
         const QColor hatchColorDefault(0, 0, 0);
         ui->pushButtonSectionCappingHatchColor->setProperty("color", hatchColorDefault);
@@ -578,6 +631,22 @@ void SettingsDialog::setDefaultValues()
     ui->consoleBufferLinesSpinBox->setValue(20000);
     ui->profileRenderingCheckBox->setChecked(false);
     ui->showTextureDebugPanelCheckBox->setChecked(false);
+    ui->importDiagnosticsCheckBox->setChecked(false);
+    ui->importDiagnosticsMaxMbSpinBox->setValue(32);
+    ui->interactionFastPathMbSpinBox->setValue(50);
+    ui->smallPartCullSpinBox->setValue(4.0);
+    ui->batchedDrawingCheckBox->setChecked(true);
+    ui->batchMinMeshesSpinBox->setValue(3000);
+    ui->lodMinTrianglesSpinBox->setValue(2000);
+    ui->jtMergePartMeshesCheckBox->setChecked(true);
+    ui->jtDecodeThreadsSpinBox->setValue(0);
+    ui->jtBudgetGibSpinBox->setValue(16);
+    ui->jtPrefetchMinSpinBox->setValue(16);
+    ui->jtDetailLevelComboBox->setCurrentIndex(0);
+    ui->jtLodMaterialVariantsCheckBox->setChecked(true);
+    ui->threeDxmlStrictCheckBox->setChecked(false);
+    ui->threeDxmlThreadsSpinBox->setValue(0);
+    ui->threeDxmlParallelMinSpinBox->setValue(8);
 }
 
 void SettingsDialog::captureAppliedState()
@@ -691,8 +760,13 @@ void SettingsDialog::syncStateFromUi()
     sectionCapping_modeIndex = ui->comboBoxSectionCappingMode->currentIndex();
     sectionCapping_hatchPatternIndex = ui->comboBoxSectionCappingHatchPattern->currentIndex();
     sectionCapping_hatchTiling = ui->spinBoxSectionCappingHatchTiling->value();
-    sectionCapping_hatchThickness = ui->doubleSpinBoxSectionCappingHatchThickness->value();
+    sectionCapping_hatchSpacingModeIndex = ui->comboBoxSectionCappingHatchSpacingMode->currentIndex();
+    sectionCapping_hatchSpacingPx = ui->doubleSpinBoxSectionCappingHatchSpacingPx->value();
+    sectionCapping_hatchSpacingModel = ui->doubleSpinBoxSectionCappingHatchSpacingModel->value();
+    sectionCapping_hatchWidth = ui->doubleSpinBoxSectionCappingHatchWidth->value();
     sectionCapping_hatchIntensity = ui->doubleSpinBoxSectionCappingHatchIntensity->value();
+    sectionCapping_textureTiling = ui->spinBoxSectionCappingTextureTiling->value();
+    sectionCapping_textureBlend = ui->doubleSpinBoxSectionCappingTextureBlend->value();
     sectionCapping_hatchLineColor = ui->pushButtonSectionCappingHatchColor->property("color").value<QColor>();
 
     // Lighting
@@ -864,10 +938,21 @@ void SettingsDialog::loadSettings()
     iVal = settings.value("sectionCappingHatchTiling", ui->spinBoxSectionCappingHatchTiling->value()).toInt();
     ui->spinBoxSectionCappingHatchTiling->setValue(iVal);
     {
-        const double hatchThickness = settings.value("sectionCappingHatchThickness", ui->doubleSpinBoxSectionCappingHatchThickness->value()).toDouble();
-        ui->doubleSpinBoxSectionCappingHatchThickness->setValue(hatchThickness);
+        ui->comboBoxSectionCappingHatchSpacingMode->setCurrentIndex(
+            settings.value("sectionCappingHatchSpacingMode", ui->comboBoxSectionCappingHatchSpacingMode->currentIndex()).toInt());
+        ui->doubleSpinBoxSectionCappingHatchSpacingPx->setValue(
+            settings.value("sectionCappingHatchSpacingPx", ui->doubleSpinBoxSectionCappingHatchSpacingPx->value()).toDouble());
+        ui->doubleSpinBoxSectionCappingHatchSpacingModel->setValue(
+            settings.value("sectionCappingHatchSpacingModelUnits", ui->doubleSpinBoxSectionCappingHatchSpacingModel->value()).toDouble());
+        ui->doubleSpinBoxSectionCappingHatchWidth->setValue(
+            settings.value("sectionCappingHatchWidthPx", ui->doubleSpinBoxSectionCappingHatchWidth->value()).toDouble());
+        on_comboBoxSectionCappingHatchSpacingMode_currentIndexChanged();
         const double hatchIntensity = settings.value("sectionCappingHatchIntensity", ui->doubleSpinBoxSectionCappingHatchIntensity->value()).toDouble();
         ui->doubleSpinBoxSectionCappingHatchIntensity->setValue(hatchIntensity);
+        ui->spinBoxSectionCappingTextureTiling->setValue(
+            settings.value("sectionCappingTextureTiling", ui->spinBoxSectionCappingTextureTiling->value()).toInt());
+        ui->doubleSpinBoxSectionCappingTextureBlend->setValue(
+            settings.value("sectionCappingTextureBlend", ui->doubleSpinBoxSectionCappingTextureBlend->value()).toDouble());
         const QColor hatchColor = settings.value("sectionCappingHatchLineColor", QColor(0, 0, 0)).value<QColor>();
         ui->pushButtonSectionCappingHatchColor->setProperty("color", hatchColor);
         ui->pushButtonSectionCappingHatchColor->setStyleSheet(QString("background-color: %1").arg(hatchColor.name()));
@@ -937,6 +1022,22 @@ void SettingsDialog::loadSettings()
     ui->profileRenderingCheckBox->setChecked(bVal);
     bVal = settings.value("showTextureDebugPanelCheckBox", ui->showTextureDebugPanelCheckBox->isChecked()).toBool();
     ui->showTextureDebugPanelCheckBox->setChecked(bVal);
+    ui->importDiagnosticsCheckBox->setChecked(settings.value("importDiagnostics", false).toBool());
+    ui->importDiagnosticsMaxMbSpinBox->setValue(settings.value("importDiagnosticsMaxMB", 32).toInt());
+    ui->interactionFastPathMbSpinBox->setValue(settings.value("interactionFastPathMB", 50).toInt());
+    ui->smallPartCullSpinBox->setValue(settings.value("smallPartCullPixels", 4.0).toDouble());
+    ui->batchedDrawingCheckBox->setChecked(settings.value("batchedDrawing", true).toBool());
+    ui->batchMinMeshesSpinBox->setValue(settings.value("batchMinMeshes", 3000).toInt());
+    ui->lodMinTrianglesSpinBox->setValue(settings.value("lodMinTriangles", 2000).toInt());
+    ui->jtMergePartMeshesCheckBox->setChecked(settings.value("jtMergePartMeshes", true).toBool());
+    ui->jtDecodeThreadsSpinBox->setValue(settings.value("jtDecodeThreads", 0).toInt());
+    ui->jtBudgetGibSpinBox->setValue(settings.value("jtBudgetGiB", 16).toInt());
+    ui->jtPrefetchMinSpinBox->setValue(settings.value("jtPrefetchMin", 16).toInt());
+    ui->jtDetailLevelComboBox->setCurrentIndex(qBound(0, settings.value("jtDetailLevel", 0).toInt(), 2));
+    ui->jtLodMaterialVariantsCheckBox->setChecked(settings.value("jtLodMaterialVariants", true).toBool());
+    ui->threeDxmlStrictCheckBox->setChecked(settings.value("threeDxmlStrict", false).toBool());
+    ui->threeDxmlThreadsSpinBox->setValue(settings.value("threeDxmlThreads", 0).toInt());
+    ui->threeDxmlParallelMinSpinBox->setValue(settings.value("threeDxmlParallelMin", 8).toInt());
 
     blockAllChildWidgetSignals(false);
     syncStateFromUi();
@@ -1030,6 +1131,10 @@ void SettingsDialog::restoreDefaults()
         ui->consoleBufferLinesSpinBox,
         ui->profileRenderingCheckBox,
         ui->showTextureDebugPanelCheckBox,
+        ui->importDiagnosticsCheckBox, ui->importDiagnosticsMaxMbSpinBox, ui->interactionFastPathMbSpinBox,
+        ui->smallPartCullSpinBox, ui->batchedDrawingCheckBox, ui->batchMinMeshesSpinBox, ui->lodMinTrianglesSpinBox, ui->jtMergePartMeshesCheckBox, ui->jtDecodeThreadsSpinBox,
+        ui->jtBudgetGibSpinBox, ui->jtPrefetchMinSpinBox, ui->jtDetailLevelComboBox, ui->jtLodMaterialVariantsCheckBox, ui->threeDxmlStrictCheckBox,
+        ui->threeDxmlThreadsSpinBox, ui->threeDxmlParallelMinSpinBox,
         ui->clearCacheButton
     };
 
@@ -1252,6 +1357,7 @@ void SettingsDialog::on_anisotropyComboBox_currentIndexChanged()
 void SettingsDialog::on_comboBoxSectionCappingMode_currentIndexChanged()
 {
     sectionCapping_modeIndex = ui->comboBoxSectionCappingMode->currentIndex();
+    on_comboBoxSectionCappingHatchSpacingMode_currentIndexChanged(); // refresh which hatch controls apply
 }
 
 void SettingsDialog::on_comboBoxSectionCappingHatchPattern_currentIndexChanged()
@@ -1264,9 +1370,55 @@ void SettingsDialog::on_spinBoxSectionCappingHatchTiling_valueChanged()
     sectionCapping_hatchTiling = ui->spinBoxSectionCappingHatchTiling->value();
 }
 
-void SettingsDialog::on_doubleSpinBoxSectionCappingHatchThickness_valueChanged()
+void SettingsDialog::on_comboBoxSectionCappingHatchSpacingMode_currentIndexChanged()
 {
-    sectionCapping_hatchThickness = ui->doubleSpinBoxSectionCappingHatchThickness->value();
+    sectionCapping_hatchSpacingModeIndex = ui->comboBoxSectionCappingHatchSpacingMode->currentIndex();
+    // The hatch controls only apply to the Procedural cap fill and the texture controls to the Textured one; within the
+    // procedural fill only the spacing value that the chosen spacing mode uses is shown. Inapplicable rows are hidden.
+    const bool procedural = ui->comboBoxSectionCappingMode->currentIndex() == 0;
+    const auto show = [](QWidget* label, QWidget* field, bool visible)
+    {
+        label->setVisible(visible);
+        field->setVisible(visible);
+    };
+    show(ui->labelSectionCappingHatchPattern, ui->comboBoxSectionCappingHatchPattern, procedural);
+    show(ui->labelSectionCappingHatchSpacingMode, ui->comboBoxSectionCappingHatchSpacingMode, procedural);
+    show(ui->labelSectionCappingHatchSpacingPx, ui->doubleSpinBoxSectionCappingHatchSpacingPx,
+        procedural && sectionCapping_hatchSpacingModeIndex == 0);
+    show(ui->labelSectionCappingHatchSpacingModel, ui->doubleSpinBoxSectionCappingHatchSpacingModel,
+        procedural && sectionCapping_hatchSpacingModeIndex == 1);
+    show(ui->labelSectionCappingHatchTiling, ui->spinBoxSectionCappingHatchTiling,
+        procedural && sectionCapping_hatchSpacingModeIndex == 2);
+    show(ui->labelSectionCappingHatchWidth, ui->doubleSpinBoxSectionCappingHatchWidth, procedural);
+    show(ui->labelSectionCappingHatchIntensity, ui->doubleSpinBoxSectionCappingHatchIntensity, procedural);
+    show(ui->labelSectionCappingHatchColor, ui->pushButtonSectionCappingHatchColor, procedural);
+    show(ui->labelSectionCappingTextureTiling, ui->spinBoxSectionCappingTextureTiling, !procedural);
+    show(ui->labelSectionCappingTextureBlend, ui->doubleSpinBoxSectionCappingTextureBlend, !procedural);
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingHatchSpacingPx_valueChanged()
+{
+    sectionCapping_hatchSpacingPx = ui->doubleSpinBoxSectionCappingHatchSpacingPx->value();
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingHatchSpacingModel_valueChanged()
+{
+    sectionCapping_hatchSpacingModel = ui->doubleSpinBoxSectionCappingHatchSpacingModel->value();
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingHatchWidth_valueChanged()
+{
+    sectionCapping_hatchWidth = ui->doubleSpinBoxSectionCappingHatchWidth->value();
+}
+
+void SettingsDialog::on_spinBoxSectionCappingTextureTiling_valueChanged()
+{
+    sectionCapping_textureTiling = ui->spinBoxSectionCappingTextureTiling->value();
+}
+
+void SettingsDialog::on_doubleSpinBoxSectionCappingTextureBlend_valueChanged()
+{
+    sectionCapping_textureBlend = ui->doubleSpinBoxSectionCappingTextureBlend->value();
 }
 
 void SettingsDialog::on_doubleSpinBoxSectionCappingHatchIntensity_valueChanged()

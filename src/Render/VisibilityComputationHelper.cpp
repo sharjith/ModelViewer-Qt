@@ -1,6 +1,8 @@
 #include "VisibilityComputationHelper.h"
 #include "SceneMesh.h"
 
+#include <cmath>
+
 namespace VisibilityComputationHelper {
 
 // ---- Frustum tests ---------------------------------------------------------
@@ -39,6 +41,37 @@ bool isMeshFullyInside(const SceneMesh* mesh, const FrustumContext& ctx)
             return false;
     }
     return true;
+}
+
+bool isBoundingBoxTooSmall(const BoundingBox& bb, const ScreenSizeContext& ctx)
+{
+    if (!ctx.enabled)
+        return false;
+
+    const float cx = static_cast<float>(bb.xMin() + bb.xMax()) * 0.5f;
+    const float cy = static_cast<float>(bb.yMin() + bb.yMax()) * 0.5f;
+    const float cz = static_cast<float>(bb.zMin() + bb.zMax()) * 0.5f;
+    const float hx = static_cast<float>(bb.xMax() - bb.xMin()) * 0.5f;
+    const float hy = static_cast<float>(bb.yMax() - bb.yMin()) * 0.5f;
+    const float hz = static_cast<float>(bb.zMax() - bb.zMin()) * 0.5f;
+    const float radius = std::sqrt(hx * hx + hy * hy + hz * hz);
+
+    // Projected diameter in pixels is radius * pixelScale / depth (perspective) or radius * pixelScale (ortho).
+    float pixels = radius * ctx.pixelScale;
+    if (ctx.perspective)
+    {
+        const float viewZ = ctx.viewZRow[0] * cx + ctx.viewZRow[1] * cy + ctx.viewZRow[2] * cz + ctx.viewZRow[3];
+        const float nearestDepth = -viewZ - radius;
+        if (nearestDepth <= 1e-4f)
+            return false; // reaches the eye plane: it can be large on screen
+        pixels /= nearestDepth;
+    }
+    return pixels < ctx.minPixels;
+}
+
+bool isMeshTooSmall(const SceneMesh* mesh, const ScreenSizeContext& ctx)
+{
+    return mesh && isBoundingBoxTooSmall(mesh->getBoundingBox(), ctx);
 }
 
 // ---- Clip-plane tests (per axis) ------------------------------------------

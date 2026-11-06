@@ -7,6 +7,7 @@
 #include "ViewportWidget.h"
 
 #include <QCloseEvent>
+#include <QComboBox>
 #include <QFocusEvent>
 #include <QItemSelectionModel>
 #include <QKeyEvent>
@@ -131,6 +132,8 @@ AnnotationDialog::AnnotationDialog(ModelViewer* modelViewer, QWidget* parent)
     ui->textPaneLayout->replaceWidget(ui->textEdit, textEdit);
     delete ui->textEdit;
     ui->textEdit = textEdit;
+    // A tab in a note is 4 characters wide, instead of the editor's default 80 px, which is far wider than the note's own indent.
+    textEdit->setTabStopDistance(4 * textEdit->fontMetrics().averageCharWidth());
 
     // Equal-weight split by default - not expressible as a plain .ui
     // property, set here same as the original hand-built constructor did.
@@ -141,6 +144,13 @@ AnnotationDialog::AnnotationDialog(ModelViewer* modelViewer, QWidget* parent)
     connect(ui->resultsList, &QListWidget::itemSelectionChanged, this, &AnnotationDialog::onResultsSelectionChanged);
     connect(ui->resultsList, &QListWidget::itemChanged, this, &AnnotationDialog::onResultItemChanged);
     connect(ui->deleteButton, &QPushButton::clicked, this, &AnnotationDialog::onDeleteClicked);
+
+    // Label orientation: the same three modes for every item; one choice applies to the whole selection.
+    ui->orientationCombo->addItem(tr("Model plane"), static_cast<int>(LabelOrientation::ModelPlane));
+    ui->orientationCombo->addItem(tr("View plane"), static_cast<int>(LabelOrientation::ViewPlane));
+    ui->orientationCombo->addItem(tr("Face camera"), static_cast<int>(LabelOrientation::FaceCamera));
+    ui->orientationCombo->setCurrentIndex(-1);
+    connect(ui->orientationCombo, QOverload<int>::of(&QComboBox::activated), this, &AnnotationDialog::onOrientationActivated);
 
     ViewportWidget* viewport = _modelViewer->getViewportWidget();
     connect(viewport, &ViewportWidget::annotationToolArmedChanged, this, &AnnotationDialog::onAnnotationToolArmedChangedExternally);
@@ -288,6 +298,7 @@ void AnnotationDialog::refreshResultsList()
     _updatingSelectionFromViewport = false;
 
     ui->deleteButton->setEnabled(!selectedIds.isEmpty());
+    syncOrientationFromSelection();
     syncTextEditFromSelection();
 }
 
@@ -322,6 +333,44 @@ void AnnotationDialog::syncTextEditFromSelection()
     ui->textEdit->setEnabled(false);
 }
 
+void AnnotationDialog::syncOrientationFromSelection()
+{
+    ViewportWidget* viewport = _modelViewer->getViewportWidget();
+    SceneGraph* sceneGraph = _modelViewer->sceneGraph();
+    const QSignalBlocker blocker(ui->orientationCombo);
+    ui->orientationCombo->setCurrentIndex(-1);
+    if (!viewport || !sceneGraph)
+    {
+        ui->orientationCombo->setEnabled(false);
+        return;
+    }
+    const QSet<QUuid> selected = viewport->selectedAnnotationIds();
+    int common = -2;  // -2 none yet, -1 mixed
+    for (const QUuid& id : selected)
+    {
+        const int index = sceneGraph->annotationIndexById(id);
+        if (index < 0)
+            continue;
+        const int mode = static_cast<int>(sceneGraph->annotations().at(index).orientation);
+        common = (common == -2 || common == mode) ? mode : -1;
+    }
+    ui->orientationCombo->setEnabled(common != -2);
+    if (common >= 0)
+        ui->orientationCombo->setCurrentIndex(ui->orientationCombo->findData(common));
+}
+
+void AnnotationDialog::onOrientationActivated(int index)
+{
+    ViewportWidget* viewport = _modelViewer->getViewportWidget();
+    SceneGraph* sceneGraph = _modelViewer->sceneGraph();
+    if (!viewport || !sceneGraph || index < 0)
+        return;
+    const LabelOrientation mode = static_cast<LabelOrientation>(ui->orientationCombo->itemData(index).toInt());
+    for (const QUuid& id : viewport->selectedAnnotationIds())
+        sceneGraph->setAnnotationOrientation(id, mode);
+    viewport->update();
+}
+
 void AnnotationDialog::commitTextEdit()
 {
     if (_editingAnnotationId.isNull() || !_modelViewer)
@@ -353,6 +402,7 @@ void AnnotationDialog::onResultsSelectionChanged()
     _updatingSelectionFromViewport = false;
 
     ui->deleteButton->setEnabled(!ids.isEmpty());
+    syncOrientationFromSelection();
     syncTextEditFromSelection();
 }
 
@@ -379,6 +429,7 @@ void AnnotationDialog::onViewportSelectionChanged(const QSet<QUuid>& ids)
     _updatingSelectionFromViewport = false;
 
     ui->deleteButton->setEnabled(!ids.isEmpty());
+    syncOrientationFromSelection();
     syncTextEditFromSelection();
 }
 

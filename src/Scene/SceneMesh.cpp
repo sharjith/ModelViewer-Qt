@@ -1,4 +1,9 @@
 #include "SceneMesh.h"
+#include "MeshBuildProfile.h"
+#include "MeshMemoryUsage.h"
+#include "ImportDiagnostics.h"
+#include "ScopedMaterialWireframe.h"
+#include "ScopedSelectionDepthBias.h"
 #include "TextureLocationManager.h"
 #include "IGpuContextResource.h"
 #include "MeasurementGeometry.h"
@@ -10,7 +15,12 @@
 #include <QVariantMap>
 #include <QDebug>
 #include <QSettings>
+#include <atomic>
+#include "Logger.h"
+#include <mutex>
 #include <QCoreApplication>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 
 #include <algorithm>
 #include <cmath>
@@ -74,6 +84,48 @@
 using namespace std;
 
 namespace {
+
+// Only authored vertex-alpha draws change wire coverage. Preserve the calling
+// pass's blend/depth state, including when a following mesh is opaque.
+class ScopedWireVertexAlpha
+{
+public:
+	ScopedWireVertexAlpha(QOpenGLShaderProgram* program, bool enabled)
+		: _program(program), _gl(enabled ? QOpenGLContext::currentContext()->functions() : nullptr)
+	{
+		if (!_gl) return;
+		_blend = _gl->glIsEnabled(GL_BLEND);
+		_gl->glGetBooleanv(GL_DEPTH_WRITEMASK, &_depthWrite);
+		_gl->glGetIntegerv(GL_BLEND_SRC_RGB, &_srcRgb);
+		_gl->glGetIntegerv(GL_BLEND_DST_RGB, &_dstRgb);
+		_gl->glGetIntegerv(GL_BLEND_SRC_ALPHA, &_srcAlpha);
+		_gl->glGetIntegerv(GL_BLEND_DST_ALPHA, &_dstAlpha);
+		_gl->glGetIntegerv(GL_BLEND_EQUATION_RGB, &_equationRgb);
+		_gl->glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &_equationAlpha);
+		_gl->glEnable(GL_BLEND);
+		_gl->glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+		_gl->glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+		_gl->glDepthMask(GL_FALSE);
+		_program->setUniformValue("vertexAlphaEnabled", true);
+	}
+	~ScopedWireVertexAlpha()
+	{
+		if (!_gl) return;
+		_program->setUniformValue("vertexAlphaEnabled", false);
+		_gl->glBlendFuncSeparate(_srcRgb, _dstRgb, _srcAlpha, _dstAlpha);
+		_gl->glBlendEquationSeparate(_equationRgb, _equationAlpha);
+		_gl->glDepthMask(_depthWrite);
+		if (!_blend) _gl->glDisable(GL_BLEND);
+	}
+	ScopedWireVertexAlpha(const ScopedWireVertexAlpha&) = delete;
+	ScopedWireVertexAlpha& operator=(const ScopedWireVertexAlpha&) = delete;
+private:
+	QOpenGLShaderProgram* _program;
+	QOpenGLFunctions* _gl;
+	GLboolean _blend = GL_FALSE, _depthWrite = GL_TRUE;
+	GLint _srcRgb = GL_ONE, _dstRgb = GL_ZERO, _srcAlpha = GL_ONE, _dstAlpha = GL_ZERO;
+	GLint _equationRgb = GL_FUNC_ADD, _equationAlpha = GL_FUNC_ADD;
+};
 
 // CGAL's stock Loop and Catmull-Clark masks intentionally smooth every
 // interior edge. These variants retain the stock rules except at a geometric
@@ -259,14 +311,30 @@ inline void mixVec3(quint64& hash, const QVector3D& value)
 	mixFloat(hash, value.z());
 }
 
+// Read once a second at most: this is asked for every mesh created, and a QSettings read is a registry read on Windows
+// (about 70 us each, 2.8 s for a 40,000-part assembly). A change in the Settings dialog is picked up within a second.
 inline bool wireframeFeaturesEnabled()
 {
-	return QSettings(QCoreApplication::organizationName(),
-	                 QCoreApplication::applicationName())
-	    .value("showWireframeCheckBox", true)
-	    .toBool();
+	static std::mutex mutex;
+	static QElapsedTimer clock;
+	static bool cached = true;
+	std::lock_guard<std::mutex> lock(mutex);
+	if (!clock.isValid() || clock.elapsed() > 1000)
+	{
+		cached = QSettings(QCoreApplication::organizationName(),
+		                   QCoreApplication::applicationName())
+		    .value("showWireframeCheckBox", true)
+		    .toBool();
+		clock.restart();
+	}
+	return cached;
 }
 
+}
+
+bool SceneMesh::featureEdgesEnabledInSettings()
+{
+	return wireframeFeaturesEnabled();
 }
 
 bool SceneMesh::_currentBlendEnabled;
@@ -277,11 +345,12 @@ bool SceneMesh::_currentUniformStateHadDebugOverrides = false;
 
 /*  Functions  */
 // Constructor
-SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Material::Texture> textures, Material material, bool skipOptimization, GLenum primitiveMode, std::vector<quint64> initialSourceMeshIds)
+SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> vertices, vector<unsigned int> indices, vector<Material::Texture> textures, Material material, bool skipOptimization, GLenum primitiveMode, std::vector<quint64> initialSourceMeshIds, std::vector<unsigned int> preparedLod1Indices, bool geometryPrepared, std::vector<uint32_t> preparedFeatureEdges, bool featureEdgesPrepared)
     : RenderableMesh(shader, "SceneMesh")
     , _textures(_materialState.textures())
     , _currentMorphWeights(_animState.currentMorphWeights())
 {
+	MeshBuildProfile::Lap ctorBodyLap(MeshBuildProfile::CtorBody);
 	_currentBlendEnabled = false;
 	_currentFrontFace = GL_CCW;
 	_importState.setSkipOptimization(skipOptimization);
@@ -293,22 +362,34 @@ SceneMesh::SceneMesh(QOpenGLShaderProgram* shader, QString name, vector<Vertex> 
 	if (!initialSourceMeshIds.empty() && initialSourceMeshIds.size() == vertices.size())
 		_importState.setSourceMeshIds(std::move(initialSourceMeshIds));
 	//setAutoIncrName(name);
-	_name = name;
-	_vertices = vertices;
-	_baseVertices = vertices;
-	_indices = indices;
-	_textures = textures;
-	_material = material;
+	_name = std::move(name);
+	// Transfer the constructor payload into the live arrays. A separate rest
+	// pose is allocated later only if setMorphTargets() receives actual morph
+	// data; ordinary rigid assembly meshes keep a single Vertex array.
+	_vertices = std::move(vertices);
+	trackVertexStructBytes();
+	_indices = std::move(indices);
+	_textures = std::move(textures);
+	_material = std::move(material);
 	cacheBaseVolumeProperties();
 
 	// Set primitive mode before setupMesh() so picking triangles are built (or
 	// correctly skipped) for the right primitive type from the first upload.
 	setPrimitiveMode(primitiveMode);
 
-	// Optimize the mesh (reorder indices and vertices for better vertex cache locality, overdraw, and vertex fetch)
-	optimizeMesh();
+	// Optimize the mesh (reorder indices and vertices for better vertex cache locality, overdraw, and vertex fetch). An importer may
+	// already have done this on a worker thread (optimizeGeometry()); then the arrays arrive reordered, with the LOD1 tier.
+	_preparedFeatureEdges = std::move(preparedFeatureEdges);
+	_featureEdgesPrepared = featureEdgesPrepared;
+	ImportDiagnostics::checkpoint("mesh.ctor-optimize-begin");
+	if (geometryPrepared)
+		_pendingLod1Indices = std::move(preparedLod1Indices);
+	else
+		optimizeMesh();
+	ImportDiagnostics::checkpoint("mesh.ctor-optimize-end");
 
 	// Now that we have all the required data, set the vertex buffers and its attribute pointers.
+	ctorBodyLap.stop();
 	setupMesh();
 }
 
@@ -329,13 +410,18 @@ SceneMesh::~SceneMesh()
 	// but SceneMesh has no further subclass, so this - unlike the base
 	// class's own later call - already reaches the real, only override.
 	deleteTextures(); // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
+	std::vector<Vertex>().swap(_vertices);
+	trackVertexStructBytes();
 }
 
 SceneMesh* SceneMesh::clone()
 {
-	// _baseVertices is exactly the array passed into the new constructor
-	// below, so this mesh's OWN current sourceMeshIds() (already aligned to
-	// _baseVertices' order, same invariant clone() relies on for OCC face
+	std::vector<Vertex> sourceScratch;
+	const std::vector<Vertex>& sourceVertices = restPoseVertices(sourceScratch);
+	// sourceVertices is the unmorphed rest pose when one exists, otherwise the
+	// rigid mesh's live array. It is exactly the array passed into the new
+	// constructor below, so this mesh's OWN current sourceMeshIds() (already aligned to
+	// sourceVertices' order, same invariant clone() relies on for OCC face
 	// data) is the right "pre-optimization" SHAPE for the clone too - its own
 	// optimizeMesh() pass reorders it again in lockstep, same as any other
 	// freshly-constructed mesh. The VALUES, though, must NOT be copied
@@ -361,7 +447,7 @@ SceneMesh* SceneMesh::clone()
 			id = it->second;
 		}
 	}
-	SceneMesh* mesh = new SceneMesh(_prog, _name, _baseVertices, _indices, _textures, _material, _importState.skipOptimization(), getPrimitiveMode(), std::move(clonedSourceIds));
+	SceneMesh* mesh = new SceneMesh(_prog, _name, sourceVertices, _indices, _textures, _material, _importState.skipOptimization(), getPrimitiveMode(), std::move(clonedSourceIds));
 	mesh->setPrimitivePointSize(primitivePointSize());
 	mesh->setPrimitiveLineWidth(primitiveLineWidth());
 	mesh->setMorphTargets(_morphTargets, _defaultMorphWeights);
@@ -377,12 +463,12 @@ SceneMesh* SceneMesh::clone()
 		// same skipOptimization setting) isn't guaranteed to reorder
 		// triangles identically to this mesh's, even given the same input
 		// (see SceneMesh::remapOccFaceTriangleIndicesByPosition()'s doc
-		// comment). _baseVertices/_indices are exactly what was just
+		// comment). sourceVertices/_indices are exactly what was just
 		// passed into the clone's constructor above, so they're the
 		// correct "source" reference to re-match against.
 		std::vector<int> remappedTriangleIndices, remappedFaceIndices;
 		SceneMesh::remapOccFaceTriangleIndicesByPosition(
-			_baseVertices, _indices, _importState.occFaceTriangleIndices(), _importState.occFaceIndexPerTriangle(),
+			sourceVertices, _indices, _importState.occFaceTriangleIndices(), _importState.occFaceIndexPerTriangle(),
 			mesh, remappedTriangleIndices, remappedFaceIndices);
 		mesh->setPrecomputedOccFaceAxes(remappedTriangleIndices, remappedFaceIndices, _importState.occFaceAxes());
 	}
@@ -425,6 +511,8 @@ SceneMesh* SceneMesh::clone()
 
 SceneMesh* SceneMesh::extractFragment(const std::vector<int>& triangleIndices, const QString& fragmentName) const
 {
+	std::vector<Vertex> sourceScratch;
+	const std::vector<Vertex>& sourceVertices = restPoseVertices(sourceScratch);
 	// Morph targets and precomputed OCC edge/face data are keyed to THIS
 	// mesh's FULL vertex/triangle index space (see setMorphTargets()'s and
 	// setPrecomputedOccEdges()'s/setPrecomputedOccFaceAxes()'s own doc
@@ -452,7 +540,7 @@ SceneMesh* SceneMesh::extractFragment(const std::vector<int>& triangleIndices, c
 			if (it == oldToNew.end())
 			{
 				newIdx = static_cast<unsigned int>(fragVertices.size());
-				fragVertices.push_back(_baseVertices[oldIdx]);
+				fragVertices.push_back(sourceVertices[oldIdx]);
 				oldToNew.emplace(oldIdx, newIdx);
 			}
 			else
@@ -1129,6 +1217,7 @@ quint64 SceneMesh::getRenderMaterialSortKey() const
 void SceneMesh::markUniformsDirty()
 {
 	_uniformStateSignatureDirty = true;
+	_batchKeyDirty = true;
 	RenderableMesh::markUniformsDirty();
 }
 
@@ -1159,6 +1248,18 @@ void SceneMesh::render()
 	const bool profiling = renderDiagnosticsEnabled();
 	if (profiling)
 		renderTimer.start();
+	QElapsedTimer probeTimer;
+	int probeSlot = 0;
+	auto probeLap = [&]()
+	{
+		if (profiling)
+		{
+			recordRenderProbeMs(probeSlot++, static_cast<double>(probeTimer.nsecsElapsed()) / 1000000.0);
+			probeTimer.restart();
+		}
+	};
+	if (profiling)
+		probeTimer.start();
 
 	const QMatrix4x4& globalModelMatrix = currentGlobalModelMatrix();
 	const QMatrix4x4 modelMatrix = globalModelMatrix * combinedRenderTransform();
@@ -1170,6 +1271,7 @@ void SceneMesh::render()
 	// (re-)binds the correct program before calling render(), so the cached
 	// value is authoritative at this point.
 	bindProgramCached(_prog);
+	probeLap(); // 0: matrix prep + program bind
 
 	QElapsedTimer stageTimer;
 	if (profiling)
@@ -1177,6 +1279,7 @@ void SceneMesh::render()
 	cacheTextureBindings();
 	if (profiling)
 		recordTextureCacheCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+	probeLap(); // 1: texture binding cache
 
 	// Always upload the per-mesh transform state. Skipping identity meshes lets
 	// them inherit the previous draw's model matrix from shader state, which
@@ -1184,34 +1287,35 @@ void SceneMesh::render()
 	if (profiling)
 		stageTimer.restart();
 	int transformUniformUploads = 0;
-	if (uniformLocationCached("modelMatrix") >= 0)
+	const DrawUniformLocations& drawLoc = drawUniformLocations();
+	if (drawLoc.modelMatrix >= 0)
 	{
-		_prog->setUniformValue("modelMatrix", modelMatrix);
+		_prog->setUniformValue(drawLoc.modelMatrix, modelMatrix);
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("modelViewMatrix") >= 0)
+	if (drawLoc.modelViewMatrix >= 0)
 	{
-		_prog->setUniformValue("modelViewMatrix", modelViewMatrix);
+		_prog->setUniformValue(drawLoc.modelViewMatrix, modelViewMatrix);
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("normalMatrix") >= 0)
+	if (drawLoc.normalMatrix >= 0)
 	{
-		_prog->setUniformValue("normalMatrix", modelViewMatrix.normalMatrix());
+		_prog->setUniformValue(drawLoc.normalMatrix, modelViewMatrix.normalMatrix());
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("worldNormalMatrix") >= 0)
+	if (drawLoc.worldNormalMatrix >= 0)
 	{
-		_prog->setUniformValue("worldNormalMatrix", modelMatrix.normalMatrix());
+		_prog->setUniformValue(drawLoc.worldNormalMatrix, modelMatrix.normalMatrix());
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("hasSkinning") >= 0)
+	if (drawLoc.hasSkinning >= 0)
 	{
-		_prog->setUniformValue("hasSkinning", hasSkinning());
+		_prog->setUniformValue(drawLoc.hasSkinning, hasSkinning());
 		++transformUniformUploads;
 	}
-	if (uniformLocationCached("jointCount") >= 0)
+	if (drawLoc.jointCount >= 0)
 	{
-		_prog->setUniformValue("jointCount", static_cast<int>(jointPalette().size()));
+		_prog->setUniformValue(drawLoc.jointCount, static_cast<int>(jointPalette().size()));
 		++transformUniformUploads;
 	}
 	if (hasSkinning() && !jointPalette().isEmpty())
@@ -1229,6 +1333,7 @@ void SceneMesh::render()
 	recordTransformUniformUploads(transformUniformUploads);
 	if (profiling)
 		recordTransformUniformCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+	probeLap(); // 2: transform uniforms
 
 	const bool hasDebugUniformOverrides = !_debugUniformOverrides.isEmpty();
 	const quint64 uniformSignature = uniformStateSignature();
@@ -1263,14 +1368,20 @@ void SceneMesh::render()
 	_currentUniformStateShader = _prog;
 	_currentUniformStateSignature = uniformSignature;
 	_currentUniformStateHadDebugOverrides = hasDebugUniformOverrides;
+	probeLap(); // 3: material signature + uniform refresh
 
+	if (profiling)
+		stageTimer.restart();
 	uploadAnalysisOverlayUniforms(); // every draw - see its definition
+	if (profiling)
+		recordTransformUniformCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 
 	// Apply debug uniform overrides (TextureDebugPanel extension toggles).
 	// Called unconditionally — NOT inside the _uniformsDirty gate — so the
 	// shader reflects the user's toggle state every frame even when the
 	// uniform cache is clean.
 	applyDebugUniformOverrides();
+	probeLap(); // 4: analysis overlay + debug overrides
 
 	// Bind textures efficiently
 	if (profiling)
@@ -1279,6 +1390,7 @@ void SceneMesh::render()
 	applyDebugTextureOverrides();  // TextureDebugPanel per-unit overrides
 	if (profiling)
 		recordTextureBindCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+	probeLap(); // 5: texture binds
 
 	// Set render state efficiently
 	if (profiling)
@@ -1286,10 +1398,22 @@ void SceneMesh::render()
 	setRenderStateOptimized();
 	if (profiling)
 		recordRenderStateCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
+	probeLap(); // 6: render state
 	
 	// Transparent draws must NOT write depth, but should still depth-test.	
 	constexpr GLboolean prevDepthMask = GL_TRUE;
 	if (isTransparent() && needsDepthMaskOff()) glDepthMask(GL_FALSE);
+
+	// A selected opaque mesh is pulled slightly toward the camera so its selection colour is not hidden by meshes that occupy
+	// the same place (see ScopedSelectionDepthBias). Transparent meshes are blended and do not write depth, so they are left alone.
+	ScopedSelectionDepthBias selectionDepthBias(*this,
+		isSelected() && _primitiveMode == GL_TRIANGLES && !isTransparent());
+
+	// Imported/material-authored wireframe applies to triangle color draws.
+	// Analysis overlays retain the viewport mode; points/lines and shadow/pick
+	// paths keep their existing primitive and visibility behavior.
+	ScopedMaterialWireframe materialWireframe(*this,
+		_material.wireframe() && _primitiveMode == GL_TRIANGLES && !hasAnalysisOverlay());
 
 	// Surface Analysis overlay (draft-angle-style flat colormap) - REPLACES
 	// the normal draw entirely, not an extra pass (same surface/depth, would
@@ -1315,6 +1439,7 @@ void SceneMesh::render()
 	}
 	else
 	{
+		ensureResident();
 		_vertexArrayObject.bind();
 
 		// Adjust vertex count based on primitive mode
@@ -1337,6 +1462,7 @@ void SceneMesh::render()
 
 		// Draw indexed primitives when an element buffer exists, otherwise fall
 		// back to array drawing for glTF point/line primitives that omit indices.
+		probeLap(); // 7: wireframe scope, VAO bind, per-draw GL state
 		if (profiling)
 			stageTimer.restart();
 		if (_indices.empty())
@@ -1360,7 +1486,10 @@ void SceneMesh::render()
 				glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
 			glDrawElements(_primitiveMode, drawLod1 ? static_cast<GLsizei>(_nVertsLod1) : drawCount, GL_UNSIGNED_INT, nullptr);
 		}
-		recordDrawCall(!_indices.empty(), isTransparent());
+		recordDrawCall(!_indices.empty(), isTransparent(),
+			_primitiveMode == GL_TRIANGLES
+				? static_cast<qint64>((_hasLod1 && !_indices.empty() && RenderableMesh::lodPolicyActive() ? _nVertsLod1 : drawCount) / 3)
+				: 0);
 		if (profiling)
 			recordDrawCpuMs(static_cast<double>(stageTimer.nsecsElapsed()) / 1000000.0);
 		if (_primitiveMode == GL_POINTS)
@@ -1371,9 +1500,91 @@ void SceneMesh::render()
 		_vertexArrayObject.release();
 	}
 
+	probeLap(); // 8: draw + VAO release (plus mesh-wireframe scope exit)
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
 	if (profiling)
 		recordAssImpRenderCpuMs(static_cast<double>(renderTimer.nsecsElapsed()) / 1000000.0);
+}
+
+void SceneMesh::prepareBatchDraw(QOpenGLShaderProgram* prog)
+{
+	setProg(prog);
+	bindProgramCached(_prog);
+	cacheTextureBindings();
+
+	// The batch geometry already carries each part's own transform, so only the global model matrix remains.
+	const QMatrix4x4 modelMatrix = currentGlobalModelMatrix();
+	const QMatrix4x4 modelViewMatrix = currentViewMatrix() * modelMatrix;
+	const DrawUniformLocations& drawLoc = drawUniformLocations();
+	int transformUniformUploads = 0;
+	if (drawLoc.modelMatrix >= 0)
+	{
+		_prog->setUniformValue(drawLoc.modelMatrix, modelMatrix);
+		++transformUniformUploads;
+	}
+	if (drawLoc.modelViewMatrix >= 0)
+	{
+		_prog->setUniformValue(drawLoc.modelViewMatrix, modelViewMatrix);
+		++transformUniformUploads;
+	}
+	if (drawLoc.normalMatrix >= 0)
+	{
+		_prog->setUniformValue(drawLoc.normalMatrix, modelViewMatrix.normalMatrix());
+		++transformUniformUploads;
+	}
+	if (drawLoc.worldNormalMatrix >= 0)
+	{
+		_prog->setUniformValue(drawLoc.worldNormalMatrix, modelMatrix.normalMatrix());
+		++transformUniformUploads;
+	}
+	if (drawLoc.hasSkinning >= 0)
+	{
+		_prog->setUniformValue(drawLoc.hasSkinning, false);
+		++transformUniformUploads;
+	}
+	if (drawLoc.jointCount >= 0)
+	{
+		_prog->setUniformValue(drawLoc.jointCount, 0);
+		++transformUniformUploads;
+	}
+	recordTransformUniformUploads(transformUniformUploads);
+
+	// Same uniform-state reuse as render(): meshes of one batch share a signature, so this normally refreshes
+	// only when the batch's material differs from the previous draw.
+	const bool hasDebugUniformOverrides = !_debugUniformOverrides.isEmpty();
+	const quint64 uniformSignature = uniformStateSignature();
+	const bool sameUniformShader = (_currentUniformStateShader == _prog);
+	const bool signatureMatches = sameUniformShader && (_currentUniformStateSignature == uniformSignature);
+	const bool canReuseUniformState =
+		sameUniformShader &&
+		signatureMatches &&
+		!hasDebugUniformOverrides &&
+		!_currentUniformStateHadDebugOverrides;
+	if (!canReuseUniformState || _uniformsDirty)
+	{
+		const bool explicitDirty = _uniformsDirty;
+		const bool shaderSwitch = !sameUniformShader;
+		const bool signatureMismatch = sameUniformShader && !signatureMatches;
+		const bool debugBlocked = hasDebugUniformOverrides || _currentUniformStateHadDebugOverrides;
+		if (!_uniformsDirty)
+			_uniformsDirty = true;
+		setupUniformsOptimized();
+		recordMaterialUniformRefresh(explicitDirty);
+		recordMaterialRefreshReason(explicitDirty, shaderSwitch, signatureMismatch, debugBlocked);
+	}
+	else
+	{
+		recordMaterialUniformReuse();
+	}
+	_currentUniformStateShader = _prog;
+	_currentUniformStateSignature = uniformSignature;
+	_currentUniformStateHadDebugOverrides = hasDebugUniformOverrides;
+
+	uploadAnalysisOverlayUniforms();
+	applyDebugUniformOverrides();
+	bindTexturesOptimized();
+	applyDebugTextureOverrides();
+	setRenderStateOptimized();
 }
 
 void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
@@ -1381,8 +1592,8 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 	if (!_vertexArrayObject.isCreated() || !wireProg)
 		return;
 
-	// Wireframe is a geometry-only visualisation: material alpha, transmission, and
-	// blending properties are intentionally ignored — all meshes show their geometry shape.
+	// Wireframe retains its geometry-first appearance except for authored BLEND
+	// vertex alpha. Material-only opacity/transmission keep the existing contract.
 	// Skinned meshes are fully supported: joint matrices are uploaded below.
 	// Clip planes are handled by the caller (useWireShader gated on activeClipPlaneIndex < 0),
 	// so we never reach here while a clip plane is active.
@@ -1396,9 +1607,25 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 	// uniform when it differs from that default, and restore it immediately after the draw.
 	// For a pure CAD assembly this reduces to 2 GL calls per mesh: modelMatrix + baseColor.
 
+	// The two per-mesh uniforms are looked up once per program, not by name for every mesh of every frame.
+	static const QOpenGLShaderProgram* cachedProgram = nullptr;
+	static GLuint cachedProgramId = 0;
+	static int modelMatrixLocation = -1;
+	static int baseColorLocation = -1;
+	if (cachedProgram != wireProg || cachedProgramId != wireProg->programId())
+	{
+		cachedProgram = wireProg;
+		cachedProgramId = wireProg->programId();
+		modelMatrixLocation = wireProg->uniformLocation("modelMatrix");
+		baseColorLocation = wireProg->uniformLocation("baseColor");
+	}
 	const QMatrix4x4 modelMatrix = currentGlobalModelMatrix() * combinedRenderTransform();
-	wireProg->setUniformValue("modelMatrix", modelMatrix);
-	wireProg->setUniformValue("baseColor",   _material.albedoColor());
+	if (modelMatrixLocation >= 0)
+		wireProg->setUniformValue(modelMatrixLocation, modelMatrix);
+	if (baseColorLocation >= 0)
+		wireProg->setUniformValue(baseColorLocation, _material.albedoColor());
+	ScopedWireVertexAlpha vertexAlpha(wireProg,
+		_hasVertexColors && _material.blendMode() == Material::BlendMode::Alpha);
 
 	if (_hasVertexColors)
 		wireProg->setUniformValue("hasVertexColors", true);
@@ -1427,11 +1654,19 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 				glUniformMatrix4fv(baseLoc + i, 1, GL_FALSE, jointPalette()[i].constData());
 	}
 
+	ensureResident();
 	_vertexArrayObject.bind();
 	if (_indices.empty())
 		glDrawArrays(_primitiveMode, 0, _nVerts);
 	else
-		glDrawElements(_primitiveMode, _nVerts, GL_UNSIGNED_INT, nullptr);
+	{
+		// Same interaction-time tier as render(), with the same explicit element-buffer rebind: the VAO is shared by both
+		// tiers and by render(), so its element-buffer binding may be left on either one by an earlier draw. Hollow Mesh
+		// and the wire pass of Mesh Edges otherwise drew every triangle of a large model while the camera moved.
+		const bool drawLod1 = _hasLod1 && RenderableMesh::lodPolicyActive();
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, drawLod1 ? _lodIndexBuffer.bufferId() : _indexBuffer.bufferId());
+		glDrawElements(_primitiveMode, drawLod1 ? static_cast<GLsizei>(_nVertsLod1) : static_cast<GLsizei>(_nVerts), GL_UNSIGNED_INT, nullptr);
+	}
 	_vertexArrayObject.release();
 
 	// Restore any non-default uniforms so the next mesh starts clean.
@@ -1446,17 +1681,109 @@ void SceneMesh::renderWireframeFast(QOpenGLShaderProgram* wireProg)
 	}
 }
 
+void SceneMesh::prepareWireBatchDraw(QOpenGLShaderProgram* wireProg, bool selected)
+{
+	if (!wireProg)
+		return;
+	// The batch geometry already carries each part's own transform, so only the global model matrix remains.
+	wireProg->setUniformValue("modelMatrix", currentGlobalModelMatrix());
+	wireProg->setUniformValue("baseColor", _material.albedoColor());
+	wireProg->setUniformValue("hasVertexColors", _hasVertexColors);
+	wireProg->setUniformValue("selected", selected);
+	const bool hasAlbedo = _material.hasAlbedoMap() && _material.albedoTextureId() != 0;
+	wireProg->setUniformValue("hasAlbedoMap", hasAlbedo);
+	if (hasAlbedo)
+		bindTextureUnitCached(GL_TEXTURE0, static_cast<GLuint>(_material.albedoTextureId()));
+}
+
+void SceneMesh::finishWireBatchDraw(QOpenGLShaderProgram* wireProg)
+{
+	if (!wireProg)
+		return;
+	if (_hasVertexColors)
+		wireProg->setUniformValue("hasVertexColors", false);
+	if (_material.hasAlbedoMap() && _material.albedoTextureId() != 0)
+		wireProg->setUniformValue("hasAlbedoMap", false);
+}
+
+quint64 SceneMesh::drawGroupKey() const
+{
+	// The program is deliberately not part of the key: a batch is drawn with whichever program the pass uses, and
+	// the caller only batches while that is a single program. Selection is deliberately not part of it either: a
+	// selected mesh stays in its group and the group is drawn in an unselected and a selected pass (the only thing
+	// selection changes for an opaque mesh is the "selected" uniform), so selecting does not move meshes between batches.
+	if (_batchKeyDirty)
+	{
+		_cachedBatchKey = computeUniformStateSignature(false);
+		_batchKeyDirty = false;
+	}
+	return _cachedBatchKey;
+}
+
+void SceneMesh::addMemoryUsage(MeshMemoryUsage& u) const
+{
+	const auto bytes = [](const auto& v) { return static_cast<qint64>(v.capacity()) * static_cast<qint64>(sizeof(typename std::decay_t<decltype(v)>::value_type)); };
+	++u.meshes;
+	u.vertices += static_cast<qint64>(_points.size() / 3);
+	u.triangles += static_cast<qint64>(_indices.size() / 3);
+	u.vertexStructs += bytes(_vertices) + bytes(_baseVertices);
+	u.points += bytes(_points);
+	u.normals += bytes(_normals);
+	u.colors += bytes(_colors);
+	u.texCoords += bytes(_texCoords);
+	u.tangents += bytes(_tangents) + bytes(_bitangents);
+	u.joints += bytes(_jointIndices) + bytes(_jointWeights);
+	u.indices += bytes(_indices);
+	u.worldPoints += bytes(getTrsfPoints());
+	u.lodIndices += bytes(_pendingLod1Indices) + bytes(_lod1Indices);
+	u.edges += bytes(_featureEdgeIndices) + bytes(_preparedFeatureEdges) + _importState.occDataBytes();
+	u.caches += bytes(_triangleAdjacencyCache) + bytes(_detectedCircularLoopsCache)
+		+ static_cast<qint64>(_occTriangleFaceLookup.size()) * 40;
+	u.morph += static_cast<qint64>(_morphTargets.size()) * 64;
+}
+
+bool SceneMesh::isStaticBatchCandidate() const
+{
+	return isBatchCandidate(false);
+}
+
+bool SceneMesh::isBatchCandidate(bool transparent) const
+{
+	return _primitiveMode == GL_TRIANGLES
+		&& !_indices.empty()
+		&& isTransparent() == transparent
+		&& !hasSkinning()
+		&& !hasMorphTargets()
+		&& !hasAnalysisOverlay()
+		&& (!transparent || !isSelected()) // a transparent run is drawn in sort order under one set of uniforms
+		&& !hasNegativeScale()
+		&& !_material.wireframe()
+		&& !_material.hasVolumeScattering()
+		&& !_material.hasTransmission()
+		&& _material.diffuseTransmissionFactor() <= 0.0f
+		&& !_zebraStripeActive
+		&& _debugUniformOverrides.isEmpty();
+}
+
 quint64 SceneMesh::uniformStateSignature() const
 {
 	if (!_uniformStateSignatureDirty)
 		return _cachedUniformStateSignature;
 
+	_cachedUniformStateSignature = computeUniformStateSignature(true);
+	_uniformStateSignatureDirty = false;
+	return _cachedUniformStateSignature;
+}
+
+quint64 SceneMesh::computeUniformStateSignature(bool includeSelection) const
+{
 	quint64 hash = kFnvOffset;
 
 	mixInt(hash, static_cast<int>(_primitiveMode));
 	mixBool(hash, _hasVertexColors);
 	mixBool(hash, hasNegativeScale());
-	mixBool(hash, isSelected());
+	if (includeSelection)
+		mixBool(hash, isSelected());
 
 	mixVec3(hash, _material.ambient());
 	mixVec3(hash, _material.diffuse());
@@ -1596,9 +1923,7 @@ quint64 SceneMesh::uniformStateSignature() const
 	mixFloat(hash, opacityPacking.scale);
 	mixFloat(hash, opacityPacking.bias);
 
-	_cachedUniformStateSignature = hash;
-	_uniformStateSignatureDirty = false;
-	return _cachedUniformStateSignature;
+	return hash;
 }
 
 namespace
@@ -1620,7 +1945,120 @@ namespace
 	// once at load time - small parts (fasteners, brackets) that appear by
 	// the hundreds in mechanical assemblies dominate mesh COUNT but not
 	// triangle cost.
-	constexpr size_t kLodMinTriangleCount = 5000;
+	// Default only: QSettings "lodMinTriangles" overrides it (read once per session, see lodMinTriangleCount()).
+	constexpr size_t kLodMinTriangleCountDefault = 2000;
+
+	// Smallest mesh that gets an interaction-time LOD1 tier. 5000 left the typical part of a 40,000-part assembly (a few
+	// thousand triangles) at full cost while the model was being orbited, so the default is lower; a part this small costs
+	// about a millisecond to simplify once at load.
+	size_t lodMinTriangleCount()
+	{
+		static const size_t value = static_cast<size_t>(
+			qBound(300, QSettings().value(QStringLiteral("lodMinTriangles"), static_cast<int>(kLodMinTriangleCountDefault)).toInt(), 1000000));
+		return value;
+	}
+}
+
+bool SceneMesh::optimizeGeometry(std::vector<Vertex>& vertices, std::vector<unsigned int>& indices, bool allowLod,
+	std::vector<unsigned int>& outLod1Indices, std::vector<unsigned int>& outRemap)
+{
+	outLod1Indices.clear();
+	outRemap.clear();
+	if (!(indices.size() > 300 && vertices.size() > 100))
+		return false;
+
+	const size_t vertexCount = vertices.size();
+
+	// Extract positions temporarily for overdraw optimization
+	std::vector<float> tempPositions(vertexCount * 3);
+	for (size_t i = 0; i < vertexCount; i++)
+	{
+		tempPositions[i * 3 + 0] = vertices[i].Position.x;
+		tempPositions[i * 3 + 1] = vertices[i].Position.y;
+		tempPositions[i * 3 + 2] = vertices[i].Position.z;
+	}
+
+	// Step 1: Vertex Cache Optimization
+	meshopt_optimizeVertexCache(indices.data(), indices.data(), indices.size(), vertexCount);
+
+	// Step 2: Overdraw Optimization
+	meshopt_optimizeOverdraw(indices.data(), indices.data(), indices.size(), tempPositions.data(), vertexCount, sizeof(float) * 3, 1.05f);
+
+	// Step 3: interaction-time LOD1 (coarse) tier - generated BEFORE vertex-fetch reordering below, since meshopt_simplify needs
+	// an index array still referencing the CURRENT (pre-reorder) vertex layout, and the vertex-fetch remap computed after this
+	// must be applied to both LOD0 and LOD1 consistently (see Step 4). The caller decides eligibility (rigid meshes only:
+	// skinning/morph data isn't remapped by this pass, and a simplified skinned mesh's weights would no longer correspond to the
+	// simplified topology).
+	std::vector<unsigned int> lod1Indices;
+	if (allowLod && indices.size() >= lodMinTriangleCount() * 3)
+	{
+		const size_t targetIndexCount = (static_cast<size_t>(indices.size() * kLod1TriangleRatio) / 3) * 3;
+		float resultError = 0.0f;
+		lod1Indices.resize(indices.size());
+		size_t lod1Count = meshopt_simplify(
+			lod1Indices.data(),
+			indices.data(),
+			indices.size(),
+			tempPositions.data(),
+			vertexCount,
+			sizeof(float) * 3,
+			targetIndexCount,
+			kLod1TargetError,
+			meshopt_SimplifyLockBorder,
+			&resultError
+		);
+		lod1Indices.resize(lod1Count);
+
+		// meshopt_simplify can stop early due to topology constraints and return close to the original count for some meshes -
+		// only keep LOD1 if it's a meaningful reduction.
+		if (lod1Count > 0 && lod1Count < indices.size() * 0.9)
+		{
+			meshopt_optimizeVertexCache(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(), vertexCount);
+			meshopt_optimizeOverdraw(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(),
+				tempPositions.data(), vertexCount, sizeof(float) * 3, 1.05f);
+		}
+		else
+		{
+			lod1Indices.clear();
+		}
+	}
+
+	// Step 4: Vertex Fetch Optimization - ONE shared remap computed from LOD0's access pattern (it's the tier drawn almost always),
+	// then applied to the vertex buffer AND to every index array that references it (LOD0 always, LOD1 if generated above).
+	std::vector<unsigned int> remap(vertexCount);
+	const size_t uniqueVertexCount = meshopt_optimizeVertexFetchRemap(remap.data(), indices.data(), indices.size(), vertexCount);
+
+	// meshopt_optimizeVertexFetchRemap only assigns a destination slot to vertices actually referenced by the indices - orphaned
+	// vertices are left as the ~0u sentinel, which meshopt_remapVertexBuffer would silently skip, leaving a default-constructed
+	// (zero/origin) Vertex in that slot. CAD-tessellated STEP/IGES/BREP meshes genuinely have orphaned vertices
+	// (convertFaceGroupToMesh() keeps a face's vertices even when some of its triangles are filtered out as degenerate), so each
+	// orphan gets a real tail slot instead of rotting into a phantom (0,0,0) vertex that corrupts the bounding box.
+	unsigned int nextOrphanSlot = static_cast<unsigned int>(uniqueVertexCount);
+	for (size_t i = 0; i < vertexCount; ++i)
+	{
+		if (remap[i] == ~0u)
+			remap[i] = nextOrphanSlot++;
+	}
+
+	// Build every result first and only then commit, so a failed allocation leaves the caller's arrays exactly as they were.
+	std::vector<Vertex> remappedVertices(vertexCount);
+	meshopt_remapVertexBuffer(remappedVertices.data(), vertices.data(), vertexCount, sizeof(Vertex), remap.data());
+
+	std::vector<unsigned int> remappedLod0(indices.size());
+	meshopt_remapIndexBuffer(remappedLod0.data(), indices.data(), indices.size(), remap.data());
+
+	std::vector<unsigned int> remappedLod1;
+	if (!lod1Indices.empty())
+	{
+		remappedLod1.resize(lod1Indices.size());
+		meshopt_remapIndexBuffer(remappedLod1.data(), lod1Indices.data(), lod1Indices.size(), remap.data());
+	}
+
+	vertices = std::move(remappedVertices);
+	indices = std::move(remappedLod0);
+	outLod1Indices = std::move(remappedLod1);
+	outRemap = std::move(remap);
+	return true;
 }
 
 void SceneMesh::optimizeMesh()
@@ -1631,192 +2069,60 @@ void SceneMesh::optimizeMesh()
 	if (_importState.skipOptimization())
 		return;
 
-	// Check if this is a valid triangle mesh
-	if (_indices.empty() || (_indices.size() % 3 != 0))
+	// Check if this is a valid triangle mesh. A line mesh whose index count happens to be a multiple of 3
+	// must not be reordered as triangles: that scrambles its segment pairs.
+	if (_indices.empty() || (_indices.size() % 3 != 0) || _primitiveMode != GL_TRIANGLES)
 	{
 		// Not a triangle mesh - skip meshoptimizer
 		return;
 	}
-	if (_indices.size() > 300 && _vertices.size() > 100)
+
+	// False positive: this runs from optimizeMesh(), called from SceneMesh's own constructor (not a base class ctor), so
+	// SceneMesh's own vtable is already active here - SceneMesh has no further subclass, so its own hasSkinning()/
+	// hasMorphTargets() overrides ARE what's being called, not a "wrong" base version.
+	const bool eligibleForLod = !hasSkinning() && !hasMorphTargets() // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
+		&& _primitiveMode == GL_TRIANGLES
+		&& _indices.size() >= lodMinTriangleCount() * 3;
+
+	const size_t vertexCount = _vertices.size();
+	std::vector<unsigned int> lod1Indices, remap;
+	if (!optimizeGeometry(_vertices, _indices, eligibleForLod, lod1Indices, remap))
+		return;
+
+	if (!lod1Indices.empty())
+		_pendingLod1Indices = std::move(lod1Indices);
+
+	// Same reorder applied to source-mesh provenance (if any was passed into the constructor) - exact same `remap` permutation as
+	// _vertices, so getSourceMeshIds()[i] stays aligned with vertices()[i] after this reorder. No orphan-slot special-casing
+	// needed: remap[] already has a valid destination for every ORIGINAL vertex index, and _sourceMeshIds is exactly vertexCount
+	// long (constructor guarantees this or leaves it empty) - see MeshImportAdaptor::sourceMeshIds().
+	if (_importState.hasSourceMeshIds())
 	{
-		size_t vertexCount = _vertices.size();
-
-		// Extract positions temporarily for overdraw optimization
-		std::vector<float> tempPositions(vertexCount * 3);
-		for (size_t i = 0; i < vertexCount; i++)
-		{
-			tempPositions[i * 3 + 0] = _vertices[i].Position.x;
-			tempPositions[i * 3 + 1] = _vertices[i].Position.y;
-			tempPositions[i * 3 + 2] = _vertices[i].Position.z;
-		}
-
-		// Step 1: Vertex Cache Optimization
-		meshopt_optimizeVertexCache(
-			_indices.data(),
-			_indices.data(),
-			_indices.size(),
-			vertexCount
-		);
-
-		// Step 2: Overdraw Optimization
-		meshopt_optimizeOverdraw(
-			_indices.data(),
-			_indices.data(),
-			_indices.size(),
-			tempPositions.data(),
-			vertexCount,
-			sizeof(float) * 3,
-			1.05f
-		);
-
-		// Step 3: interaction-time LOD1 (coarse) tier - generated here, BEFORE
-		// vertex-fetch reordering below, since meshopt_simplify needs an index
-		// array still referencing the CURRENT (pre-reorder) vertex layout, and
-		// the vertex-fetch remap computed after this must be applied to both
-		// LOD0 and LOD1 consistently (see Step 4). Restricted to rigid meshes
-		// only - skinning/morph target data isn't remapped by this pass, and a
-		// simplified skinned mesh's weights would no longer correspond to the
-		// simplified topology.
-		std::vector<unsigned int> lod1Indices;
-		// False positive: this runs from optimizeMesh(), called from
-		// SceneMesh's own constructor (not a base class ctor), so
-		// SceneMesh's own vtable is already active here - SceneMesh has no
-		// further subclass, so its own hasSkinning()/hasMorphTargets()
-		// overrides ARE what's being called, not a "wrong" base version.
-		const bool eligibleForLod = !hasSkinning() && !hasMorphTargets() // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
-			&& _primitiveMode == GL_TRIANGLES
-			&& _indices.size() >= kLodMinTriangleCount * 3;
-		if (eligibleForLod)
-		{
-			const size_t targetIndexCount = (static_cast<size_t>(_indices.size() * kLod1TriangleRatio) / 3) * 3;
-			float resultError = 0.0f;
-			lod1Indices.resize(_indices.size());
-			size_t lod1Count = meshopt_simplify(
-				lod1Indices.data(),
-				_indices.data(),
-				_indices.size(),
-				tempPositions.data(),
-				vertexCount,
-				sizeof(float) * 3,
-				targetIndexCount,
-				kLod1TargetError,
-				meshopt_SimplifyLockBorder,
-				&resultError
-			);
-			lod1Indices.resize(lod1Count);
-
-			// meshopt_simplify can stop early due to topology constraints and
-			// return close to the original count for some meshes - only keep
-			// LOD1 if it's a meaningful reduction.
-			if (lod1Count > 0 && lod1Count < _indices.size() * 0.9)
-			{
-				meshopt_optimizeVertexCache(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(), vertexCount);
-				meshopt_optimizeOverdraw(lod1Indices.data(), lod1Indices.data(), lod1Indices.size(),
-					tempPositions.data(), vertexCount, sizeof(float) * 3, 1.05f);
-			}
-			else
-			{
-				lod1Indices.clear();
-			}
-		}
-
-		// Step 4: Vertex Fetch Optimization - ONE shared remap computed from
-		// LOD0's access pattern (it's the tier drawn almost always), then
-		// applied to the vertex buffer AND to every index array that
-		// references it (LOD0 always, LOD1 if generated above). Using
-		// meshopt_optimizeVertexFetch directly (as before this LOD feature
-		// existed) only remaps the single index array passed to it - fine
-		// when there was only ever one, but it would silently desync LOD1
-		// from the reordered vertex buffer, so the remap has to be computed
-		// once and applied explicitly to both.
-		std::vector<unsigned int> remap(vertexCount);
-		const size_t uniqueVertexCount = meshopt_optimizeVertexFetchRemap(remap.data(), _indices.data(), _indices.size(), vertexCount);
-
-		// meshopt_optimizeVertexFetchRemap only assigns a destination slot to
-		// vertices actually referenced by _indices - vertices never referenced
-		// by any surviving triangle (orphaned) are left as the ~0u sentinel,
-		// which meshopt_remapVertexBuffer below then silently skips writing,
-		// leaving that destination slot as a default-constructed (zero/origin)
-		// Vertex. CAD-tessellated STEP/IGES/BREP meshes genuinely have orphaned
-		// vertices - convertFaceGroupToMesh() keeps a face's vertices even when
-		// some of its triangles are filtered out as degenerate - so give every
-		// orphaned vertex a real tail slot instead of letting it rot into a
-		// phantom (0,0,0) vertex that silently corrupts the mesh's bounding box.
-		unsigned int nextOrphanSlot = static_cast<unsigned int>(uniqueVertexCount);
+		const std::vector<quint64>& srcIds = _importState.sourceMeshIds();
+		std::vector<quint64> remappedIds(vertexCount, 0);
 		for (size_t i = 0; i < vertexCount; ++i)
+			remappedIds[remap[i]] = srcIds[i];
+		_importState.setSourceMeshIds(std::move(remappedIds));
+	}
+
+	// Morph target position/normal/tangent deltas (MorphTargetData) are separate parallel arrays indexed the same way as
+	// _vertices, NOT part of the Vertex struct the remap above just reordered - each delta[i] must land at the SAME destination
+	// slot remap[i] its corresponding _vertices[i] did, or morph displacement ends up applied to the wrong vertex entirely
+	// (found via a glTF-Sample-Assets regression sweep: MorphPrimitivesTest). eligibleForLod already excludes morph-targeted
+	// meshes from the topology-changing simplification; this vertex-FETCH remap only reorders, so it was never gated on them.
+	for (MorphTargetData& target : _morphTargets)
+	{
+		auto remapDeltas = [&remap, vertexCount](std::vector<glm::vec3>& deltas)
 		{
-			if (remap[i] == ~0u)
-				remap[i] = nextOrphanSlot++;
-		}
-
-		std::vector<Vertex> remappedVertices(vertexCount);
-		meshopt_remapVertexBuffer(remappedVertices.data(), _vertices.data(), vertexCount, sizeof(Vertex), remap.data());
-		_vertices = std::move(remappedVertices);
-
-		std::vector<unsigned int> remappedLod0(_indices.size());
-		meshopt_remapIndexBuffer(remappedLod0.data(), _indices.data(), _indices.size(), remap.data());
-		_indices = std::move(remappedLod0);
-
-		if (!lod1Indices.empty())
-		{
-			std::vector<unsigned int> remappedLod1(lod1Indices.size());
-			meshopt_remapIndexBuffer(remappedLod1.data(), lod1Indices.data(), lod1Indices.size(), remap.data());
-			_pendingLod1Indices = std::move(remappedLod1);
-		}
-
-		// Keep _baseVertices in sync with the reordered _vertices so that
-		// clone() can safely pass _baseVertices + _indices to a new constructor
-		// without index/vertex order mismatch.
-		_baseVertices = _vertices;
-
-		// Same reorder applied to source-mesh provenance (if any was passed
-		// into the constructor) - exact same `remap` permutation as _vertices
-		// above, so getSourceMeshIds()[i] stays aligned with vertices()[i]
-		// after this reorder. No orphan-slot special-casing needed: remap[]
-		// already has a valid destination for every ORIGINAL vertex index
-		// (assigned either by meshopt or the orphan-slot loop above), and
-		// _sourceMeshIds is exactly vertexCount long (constructor guarantees
-		// this or leaves it empty) - see MeshImportAdaptor::sourceMeshIds().
-		if (_importState.hasSourceMeshIds())
-		{
-			const std::vector<quint64>& srcIds = _importState.sourceMeshIds();
-			std::vector<quint64> remappedIds(vertexCount, 0);
-			for (size_t i = 0; i < vertexCount; ++i)
-				remappedIds[remap[i]] = srcIds[i];
-			_importState.setSourceMeshIds(std::move(remappedIds));
-		}
-
-		// Morph target position/normal/tangent deltas (MorphTargetData) are
-		// separate parallel arrays indexed the same way as _vertices, NOT
-		// part of the Vertex struct the remap above just reordered - each
-		// delta[i] must land at the SAME destination slot remap[i] its
-		// corresponding _vertices[i] did, or morph displacement ends up
-		// applied to the wrong vertex entirely once _vertices is reordered.
-		// eligibleForLod above already excludes morph-targeted meshes from
-		// Step 3's topology-changing SIMPLIFICATION (vertex COUNT changes
-		// there, genuinely incompatible with a fixed-size delta array), but
-		// that exclusion never covered this vertex-FETCH remap - an
-		// orthogonal concern that only REORDERS the existing vertices
-		// without changing how many there are, so it was never gated on
-		// hasMorphTargets() and silently desynced every sufficiently large
-		// morph-targeted mesh's deltas from their vertices. Found via a
-		// glTF-Sample-Assets regression sweep (MorphPrimitivesTest, whose
-		// two morph-displaced primitives showed the wrong proportion of
-		// each primitive's material visible after this pass ran).
-		for (MorphTargetData& target : _morphTargets)
-		{
-			auto remapDeltas = [&remap, vertexCount](std::vector<glm::vec3>& deltas)
-			{
-				if (deltas.size() != vertexCount)
-					return;
-				std::vector<glm::vec3> remappedDeltas(vertexCount);
-				meshopt_remapVertexBuffer(remappedDeltas.data(), deltas.data(), vertexCount, sizeof(glm::vec3), remap.data());
-				deltas = std::move(remappedDeltas);
-			};
-			remapDeltas(target.positionDeltas);
-			remapDeltas(target.normalDeltas);
-			remapDeltas(target.tangentDeltas);
-		}
+			if (deltas.size() != vertexCount)
+				return;
+			std::vector<glm::vec3> remappedDeltas(vertexCount);
+			meshopt_remapVertexBuffer(remappedDeltas.data(), deltas.data(), vertexCount, sizeof(glm::vec3), remap.data());
+			deltas = std::move(remappedDeltas);
+		};
+		remapDeltas(target.positionDeltas);
+		remapDeltas(target.normalDeltas);
+		remapDeltas(target.tangentDeltas);
 	}
 }
 
@@ -1824,6 +2130,8 @@ void SceneMesh::optimizeMesh()
 // Initializes all the buffer objects/arrays
 void SceneMesh::setupMesh()
 {
+	restoreVertexStructs(); // a repeat setup (setMeshData(), texture changes) works from the structs
+	MeshBuildProfile::Lap arraysLap(MeshBuildProfile::SetupArrays);
 	// ============================================
 	// Extract to separate arrays
 	// ============================================
@@ -1835,6 +2143,43 @@ void SceneMesh::setupMesh()
 	std::vector<float> bitangents;
 	std::vector<float> jointIndices;
 	std::vector<float> jointWeights;
+
+	// Sized up front: growing eight arrays push_back by push_back reallocates them over and over for a large mesh.
+	const size_t vertexTotal = _vertices.size();
+	points.reserve(vertexTotal * 3);
+	normals.reserve(vertexTotal * 3);
+	colors.reserve(vertexTotal * 4);
+
+	// Texture coordinates and skinning data that are all zero are not uploaded: a disabled vertex attribute reads as zero
+	// in the shader, which is what the zeros would have been, and a mesh that is later given a UV set or skinned goes
+	// through setMeshData() and this function again. For a CAD part (no UVs, no skin) that is 64 of the 128 bytes a
+	// vertex took in each of the CPU copy and the GPU buffers. MODELVIEWER_FULL_VERTEX_ATTRIBUTES=1 uploads everything.
+	static const bool fullAttributes = qEnvironmentVariableIntValue("MODELVIEWER_FULL_VERTEX_ATTRIBUTES") != 0;
+	bool hasUvs = fullAttributes, hasSkin = fullAttributes;
+	if (!fullAttributes)
+	{
+		for (const Vertex& v : _vertices)
+		{
+			for (int i = 0; i < 4 && !hasUvs; ++i)
+				hasUvs = v.TexCoords[i].x != 0.0f || v.TexCoords[i].y != 0.0f;
+			hasSkin = hasSkin || v.JointWeights != glm::vec4(0.0f) || v.JointIndices != glm::vec4(0.0f);
+			if (hasUvs && hasSkin)
+				break;
+		}
+	}
+	// Tangents and bitangents only matter to normal, height and anisotropy sampling, none of which can happen without a UV
+	// set, and the shader already treats a (zero) tangent shorter than 0.01 as absent. Another 24 bytes a vertex saved.
+	if (hasUvs)
+	{
+		texCoords.reserve(vertexTotal * 8);
+		tangents.reserve(vertexTotal * 3);
+		bitangents.reserve(vertexTotal * 3);
+	}
+	if (hasSkin)
+	{
+		jointIndices.reserve(vertexTotal * 4);
+		jointWeights.reserve(vertexTotal * 4);
+	}
 
 	for (const Vertex& v : _vertices)
 	{
@@ -1853,36 +2198,55 @@ void SceneMesh::setupMesh()
 		colors.push_back(v.Color.a);
 		
 		// Extract all 4 texCoord sets
-		for (int i = 0; i < 4; i++)
+		if (hasUvs)
+			for (int i = 0; i < 4; i++)
+			{
+				texCoords.push_back(v.TexCoords[i].x);
+				texCoords.push_back(v.TexCoords[i].y);
+			}
+
+		if (hasUvs)
 		{
-			texCoords.push_back(v.TexCoords[i].x);
-			texCoords.push_back(v.TexCoords[i].y);
+			tangents.push_back(v.Tangent.x);
+			tangents.push_back(v.Tangent.y);
+			tangents.push_back(v.Tangent.z);
+
+			bitangents.push_back(v.Bitangent.x);
+			bitangents.push_back(v.Bitangent.y);
+			bitangents.push_back(v.Bitangent.z);
 		}
 
-		tangents.push_back(v.Tangent.x);
-		tangents.push_back(v.Tangent.y);
-		tangents.push_back(v.Tangent.z);
+		if (hasSkin)
+		{
+			jointIndices.push_back(v.JointIndices.x);
+			jointIndices.push_back(v.JointIndices.y);
+			jointIndices.push_back(v.JointIndices.z);
+			jointIndices.push_back(v.JointIndices.w);
 
-		bitangents.push_back(v.Bitangent.x);
-		bitangents.push_back(v.Bitangent.y);
-		bitangents.push_back(v.Bitangent.z);
-
-		jointIndices.push_back(v.JointIndices.x);
-		jointIndices.push_back(v.JointIndices.y);
-		jointIndices.push_back(v.JointIndices.z);
-		jointIndices.push_back(v.JointIndices.w);
-
-		jointWeights.push_back(v.JointWeights.x);
-		jointWeights.push_back(v.JointWeights.y);
-		jointWeights.push_back(v.JointWeights.z);
-		jointWeights.push_back(v.JointWeights.w);
+			jointWeights.push_back(v.JointWeights.x);
+			jointWeights.push_back(v.JointWeights.y);
+			jointWeights.push_back(v.JointWeights.z);
+			jointWeights.push_back(v.JointWeights.w);
+		}
 	}
 
-	initBuffers(&_indices, &points, &normals, &colors, &texCoords, &tangents, &bitangents, &jointIndices, &jointWeights);
+	ImportDiagnostics::checkpoint("mesh.setup-arrays-end", -1, _vertices.size(), _indices.size());
+	arraysLap.stop();
+	MeshBuildProfile::Lap glLap(MeshBuildProfile::GlUpload);
+	initBuffers(&_indices, &points, &normals, &colors, hasUvs ? &texCoords : nullptr, &tangents, &bitangents, hasSkin ? &jointIndices : nullptr,
+		hasSkin ? &jointWeights : nullptr);
+	ImportDiagnostics::checkpoint("mesh.setup-gl-upload-end");
+	glLap.stop();
+	MeshBuildProfile::Lap boundsLap(MeshBuildProfile::LodAndBounds);
 	uploadLodTier();
 	computeBounds();
+	ImportDiagnostics::checkpoint("mesh.setup-bounds-end");
+	boundsLap.stop();
+	MeshBuildProfile::Lap edgesLap(MeshBuildProfile::FeatureEdges);
 	if (wireframeFeaturesEnabled())
 		buildAndUploadFeatureEdges(15.0f);
+	ImportDiagnostics::checkpoint("mesh.setup-edges-end");
+	dropVertexStructsIfLarge();
 }
 
 void SceneMesh::uploadLodTier()
@@ -1894,7 +2258,7 @@ void SceneMesh::uploadLodTier()
 	if (!_lodIndexBuffer.isCreated())
 		_lodIndexBuffer.create();
 	_lodIndexBuffer.bind();
-	_lodIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_lodIndexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 	const std::vector<unsigned int>& lodIndices =
 		_pendingLod1Indices.empty() ? _lod1Indices : _pendingLod1Indices;
 	_lodIndexBuffer.allocate(lodIndices.data(),
@@ -1908,9 +2272,9 @@ void SceneMesh::uploadLodTier()
 	_pendingLod1Indices.clear();
 }
 
-std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
+std::vector<uint32_t> SceneMesh::buildPositionWeldMapFor(const std::vector<Vertex>& vertices)
 {
-	const uint32_t vertCount = static_cast<uint32_t>(_vertices.size());
+	const uint32_t vertCount = static_cast<uint32_t>(vertices.size());
 	std::vector<uint32_t> weld(vertCount);
 	if (vertCount == 0)
 		return weld;
@@ -1933,7 +2297,7 @@ std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
 	posMap.reserve(vertCount);
 	for (uint32_t i = 0; i < vertCount; ++i)
 	{
-		const glm::vec3& p = _vertices[i].Position;
+		const glm::vec3& p = vertices[i].Position;
 		QPos q{ static_cast<int32_t>(std::round(p.x / eps)),
 		        static_cast<int32_t>(std::round(p.y / eps)),
 		        static_cast<int32_t>(std::round(p.z / eps)) };
@@ -1943,20 +2307,27 @@ std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
 	return weld;
 }
 
-void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
+std::vector<uint32_t> SceneMesh::buildPositionWeldMap() const
 {
-	// Only valid for indexed triangle meshes.
-	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
-		return;
+	if (_vertexStructsDropped)
+		return buildPositionWeldMapFor(rebuildVertexStructs());
+	return buildPositionWeldMapFor(_vertices);
+}
 
-	const uint32_t vertCount = static_cast<uint32_t>(_vertices.size());
-	const uint32_t triCount  = static_cast<uint32_t>(_indices.size() / 3);
+std::vector<uint32_t> SceneMesh::computeFeatureEdges(const std::vector<Vertex>& vertices, const std::vector<unsigned int>& indices, float thresholdDegrees)
+{
+	// Only valid for indexed triangle lists.
+	if (vertices.empty() || indices.size() % 3 != 0)
+		return {};
+
+	const uint32_t vertCount = static_cast<uint32_t>(vertices.size());
+	const uint32_t triCount  = static_cast<uint32_t>(indices.size() / 3);
 
 	// --- Step 1: Position weld ---
 	// Vertices at UV seams or hard-edge splits share the same 3D position but have
 	// different indices. Quantizing by a small epsilon groups them so adjacency is
 	// correctly detected across the seam.
-	const std::vector<uint32_t> weld = buildPositionWeldMap();
+	const std::vector<uint32_t> weld = buildPositionWeldMapFor(vertices);
 
 	// --- Step 2: Build edge adjacency storing vertex normals at each endpoint ---
 	// Key: packed sorted pair of welded vertex indices.
@@ -1978,7 +2349,7 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 	bool useVertexNormals = false;
 	for (uint32_t i = 0; i < std::min(vertCount, 16u); ++i)
 	{
-		const glm::vec3& vn = _vertices[i].Normal;
+		const glm::vec3& vn = vertices[i].Normal;
 		if (glm::dot(vn, vn) > 1e-6f)
 		{ useVertexNormals = true; break; }
 	}
@@ -1993,16 +2364,16 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		uint8_t   triCount   = 0;
 	};
 	std::unordered_map<uint64_t, EdgeData> edgeMap;
-	edgeMap.reserve(_indices.size());
+	edgeMap.reserve(indices.size());
 
 	for (uint32_t t = 0; t < triCount; ++t)
 	{
-		const uint32_t oi[3] = { _indices[t*3], _indices[t*3+1], _indices[t*3+2] };
+		const uint32_t oi[3] = { indices[t*3], indices[t*3+1], indices[t*3+2] };
 		const uint32_t wi[3] = { weld[oi[0]], weld[oi[1]], weld[oi[2]] };
 
-		const glm::vec3& p0 = _vertices[oi[0]].Position;
-		const glm::vec3& p1 = _vertices[oi[1]].Position;
-		const glm::vec3& p2 = _vertices[oi[2]].Position;
+		const glm::vec3& p0 = vertices[oi[0]].Position;
+		const glm::vec3& p1 = vertices[oi[1]].Position;
+		const glm::vec3& p2 = vertices[oi[2]].Position;
 		glm::vec3 fn = glm::cross(p1 - p0, p2 - p0);
 		float fnLen = glm::length(fn);
 		const glm::vec3 faceNorm = fnLen > 1e-12f ? fn / fnLen : glm::vec3(0.f, 0.f, 1.f);
@@ -2025,8 +2396,8 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 				ed.faceN[slot] = faceNorm;
 				if (useVertexNormals)
 				{
-					ed.vNormMin[slot] = _vertices[oA].Normal;
-					ed.vNormMax[slot] = _vertices[oB].Normal;
+					ed.vNormMin[slot] = vertices[oA].Normal;
+					ed.vNormMax[slot] = vertices[oB].Normal;
 				}
 			}
 			// When the second triangle arrives, detect split-vertex seams.
@@ -2121,22 +2492,54 @@ void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
 		featureEdges.push_back(entry.orig1);
 	}
 
-	_featureEdgeIndices = std::move(featureEdges);
+	return featureEdges;
+}
+
+void SceneMesh::buildAndUploadFeatureEdges(float thresholdDegrees)
+{
+	// Only valid for indexed triangle meshes.
+	if (vertexCount() == 0 || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
+		return;
+
+	// An importer may already have computed the edges on a worker thread, against these very arrays (first build only).
+	if (_featureEdgesPrepared)
+	{
+		_featureEdgeIndices = std::move(_preparedFeatureEdges);
+		_preparedFeatureEdges.clear();
+		_featureEdgesPrepared = false;
+	}
+	else
+	{
+		_featureEdgeIndices = _vertexStructsDropped ? computeFeatureEdges(rebuildVertexStructs(), _indices, thresholdDegrees)
+			: computeFeatureEdges(_vertices, _indices, thresholdDegrees);
+	}
 
 	_featureEdgeCount = static_cast<GLsizei>(_featureEdgeIndices.size());
 	if (_featureEdgeCount == 0)
 		return;
 
-	// --- Step 4: Upload index buffer ---
+	// The GPU objects are created by the first draw that needs them (ensureFeatureEdgesOnGpu()).
+	_featureEdgesGpuPending = true;
+}
+
+void SceneMesh::ensureFeatureEdgesOnGpu()
+{
+	if (!_featureEdgesGpuPending)
+		return;
+	_featureEdgesGpuPending = false;
+	if (_featureEdgeIndices.empty())
+		return;
+
+	// --- Upload index buffer ---
 	if (!_featureEdgeIndexBuffer.isCreated())
 		_featureEdgeIndexBuffer.create();
 	_featureEdgeIndexBuffer.bind();
-	_featureEdgeIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_featureEdgeIndexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 	_featureEdgeIndexBuffer.allocate(_featureEdgeIndices.data(),
 	                                 static_cast<int>(_featureEdgeIndices.size() * sizeof(uint32_t)));
 	_featureEdgeIndexBuffer.release();
 
-	// --- Step 5: Create feature edge VAO ---
+	// --- Create feature edge VAO ---
 	// Reuses the same vertex VBOs as the main VAO; only the index buffer differs.
 	// Attribute locations (0=pos, 1=norm, 2=color, 9=jointIdx, 10=jointWgt) are
 	// fixed by layout(location=N) in wireframe.vert, so _prog's locations match.
@@ -3214,11 +3617,11 @@ bool SceneMesh::resolveEdgeMarkLocalEndpoints(int edgeIndex, glm::vec3& outStart
 	const size_t base = static_cast<size_t>(edgeIndex) * 2;
 	if (base + 1 >= featureEdges.size())
 		return false;
-	if (featureEdges[base] >= _vertices.size() || featureEdges[base + 1] >= _vertices.size())
+	if (featureEdges[base] >= vertexCount() || featureEdges[base + 1] >= vertexCount())
 		return false;
 
-	outStart = _vertices[featureEdges[base]].Position;
-	outEnd = _vertices[featureEdges[base + 1]].Position;
+	outStart = positionAt(featureEdges[base]);
+	outEnd = positionAt(featureEdges[base + 1]);
 	return true;
 }
 
@@ -3304,9 +3707,9 @@ void SceneMesh::buildDetectedCircularLoops() const
 		restPosePoints.reserve(static_cast<int>(loop.size()));
 		for (uint32_t v : loop)
 		{
-			if (v >= _vertices.size())
+			if (v >= vertexCount())
 				continue;
-			const glm::vec3& p = _vertices[v].Position;
+			const glm::vec3 p = positionAt(v);
 			restPosePoints.append(QVector3D(p.x, p.y, p.z));
 		}
 		if (restPosePoints.size() < static_cast<int>(kMinLoopSize))
@@ -3465,6 +3868,63 @@ void SceneMesh::remapOccFaceTriangleIndicesByPosition(
 	}
 }
 
+void SceneMesh::remapOccFaceTriangleIndicesFromArrays(
+	const std::vector<glm::vec3>& srcPositions, const std::vector<unsigned int>& srcIndices,
+	const std::vector<int>& srcTriangleIndices, const std::vector<int>& srcFaceIndices,
+	const std::vector<Vertex>& dstVertices, const std::vector<unsigned int>& dstIndices,
+	std::vector<int>& outTriangleIndices, std::vector<int>& outFaceIndices)
+{
+	outTriangleIndices.clear();
+	outFaceIndices.clear();
+	if (srcTriangleIndices.empty())
+		return;
+
+	// Same quantized, winding-independent triangle signature as remapOccFaceTriangleIndicesByPosition().
+	auto quantize = [](float v) -> int64_t { return static_cast<int64_t>(std::lround(v * 100000.0f)); };
+	auto triangleKey = [&](const glm::vec3& a, const glm::vec3& b, const glm::vec3& c) -> uint64_t {
+		std::array<std::array<int64_t, 3>, 3> pts = { {
+			{ quantize(a.x), quantize(a.y), quantize(a.z) },
+			{ quantize(b.x), quantize(b.y), quantize(b.z) },
+			{ quantize(c.x), quantize(c.y), quantize(c.z) }
+		} };
+		std::sort(pts.begin(), pts.end());
+		uint64_t h = 1469598103934665603ull;  // FNV-1a offset basis
+		for (const auto& p : pts)
+		{
+			for (int64_t v : p)
+			{
+				h ^= static_cast<uint64_t>(v);
+				h *= 1099511628211ull;  // FNV-1a prime
+			}
+		}
+		return h;
+	};
+
+	std::unordered_map<uint64_t, int> signatureToFace;
+	signatureToFace.reserve(srcTriangleIndices.size());
+	for (size_t i = 0; i < srcTriangleIndices.size(); ++i)
+	{
+		const size_t base = static_cast<size_t>(srcTriangleIndices[i]) * 3;
+		if (base + 2 >= srcIndices.size())
+			continue;
+		signatureToFace[triangleKey(srcPositions[srcIndices[base]], srcPositions[srcIndices[base + 1]], srcPositions[srcIndices[base + 2]])] = srcFaceIndices[i];
+	}
+
+	const size_t dstTriCount = dstIndices.size() / 3;
+	outTriangleIndices.reserve(signatureToFace.size());
+	outFaceIndices.reserve(signatureToFace.size());
+	for (size_t t = 0; t < dstTriCount; ++t)
+	{
+		const size_t base = t * 3;
+		const auto it = signatureToFace.find(triangleKey(dstVertices[dstIndices[base]].Position, dstVertices[dstIndices[base + 1]].Position, dstVertices[dstIndices[base + 2]].Position));
+		if (it != signatureToFace.end())
+		{
+			outTriangleIndices.push_back(static_cast<int>(t));
+			outFaceIndices.push_back(it->second);
+		}
+	}
+}
+
 void SceneMesh::buildTriangleAdjacency() const
 {
 	_triangleAdjacencyCacheBuilt = true;  // set even below's early-returns, so an invalid mesh isn't retried on every call
@@ -3472,7 +3932,7 @@ void SceneMesh::buildTriangleAdjacency() const
 
 	// Only valid for indexed triangle meshes - same guard as
 	// buildAndUploadFeatureEdges().
-	if (_vertices.empty() || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
+	if (vertexCount() == 0 || _indices.size() % 3 != 0 || _primitiveMode != GL_TRIANGLES)
 		return;
 
 	const uint32_t triCount = static_cast<uint32_t>(_indices.size() / 3);
@@ -3541,7 +4001,7 @@ void SceneMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 	if (!_occEdgeVertexBuffer.isCreated())
 		_occEdgeVertexBuffer.create();
 	_occEdgeVertexBuffer.bind();
-	_occEdgeVertexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_occEdgeVertexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 	_occEdgeVertexBuffer.allocate(edgeVerts.data(),
 	                              static_cast<int>(edgeVerts.size() * sizeof(float)));
 	_occEdgeVertexBuffer.release();
@@ -3556,8 +4016,16 @@ void SceneMesh::setPrecomputedOccEdges(const std::vector<float>& edgeVerts,
 	_occEdgeVertexBuffer.release();
 }
 
+// The feature-edge VAO points at the mesh's position/normal/colour buffers; a restore gives those new GL names.
+void SceneMesh::afterGpuBuffersRestored()
+{
+	if (_featureEdgeVAO.isCreated() && _featureEdgeCount > 0)
+		bindFeatureEdgeVertexState();
+}
+
 void SceneMesh::bindFeatureEdgeVertexState()
 {
+	ensureResident(); // shares the position, normal and colour buffers
 	if (!_featureEdgeVAO.isCreated())
 		_featureEdgeVAO.create();
 	_featureEdgeVAO.bind();
@@ -3611,8 +4079,13 @@ void SceneMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 		return;
 	}
 
-	if (!_featureEdgeVAO.isCreated() || _featureEdgeCount == 0)
+	if (_featureEdgeCount == 0)
 		return;
+	ensureFeatureEdgesOnGpu();
+	if (!_featureEdgeVAO.isCreated())
+		return;
+	ScopedWireVertexAlpha vertexAlpha(wireProg,
+		_hasVertexColors && _material.blendMode() == Material::BlendMode::Alpha);
 
 	// Feature edges never use albedo textures — the edge line colour is the material
 	// base colour, potentially modulated by vertex colour if present.
@@ -3631,6 +4104,7 @@ void SceneMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 				glUniformMatrix4fv(baseLoc + i, 1, GL_FALSE, jointPalette()[i].constData());
 	}
 
+	ensureResident(); // the feature-edge VAO reads the mesh's position and normal buffers
 	_featureEdgeVAO.bind();
 	glDrawElements(GL_LINES, _featureEdgeCount, GL_UNSIGNED_INT, nullptr);
 	_featureEdgeVAO.release();
@@ -3887,9 +4361,15 @@ void SceneMesh::setRenderStateOptimized()
 		if (shouldBlend)
 		{
 			glEnable(GL_BLEND);
-			glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+			// main_scene.frag premultiplies complete coverage, including
+			// vertex alpha. Keep the viewport's premultiplied blend contract
+			// when a mesh changes blend state after an opaque draw.
+			glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
+				GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 			glEnable(GL_LINE_SMOOTH);
-			glEnable(GL_POLYGON_SMOOTH);
+			// GL_POLYGON_SMOOTH deliberately not enabled: it antialiases every triangle's edges by coverage, so with blending
+			// on, the shared edges between neighbouring triangles let the background show through as faint seams (visible
+			// as a wireframe overlay whenever MSAA is off; the driver ignores it with MSAA on).
 		}
 		else
 		{
@@ -4102,15 +4582,126 @@ GLuint SceneMesh::createGLTextureFromFile(const QString& fullPath, bool& outHasA
 
 vector<Vertex> SceneMesh::vertices() const
 {
+    if (_vertexStructsDropped)
+        return rebuildVertexStructs();
     return _vertices;
 }
 
 vector<Vertex> SceneMesh::baseVertices() const
 {
-    return _baseVertices;
+    std::vector<Vertex> scratch;
+    const std::vector<Vertex>& rest = restPoseVertices(scratch);
+    if (&rest == &scratch)
+        return scratch;
+    return rest;
 }
 
-vector<unsigned int> SceneMesh::indices() const
+const std::vector<Vertex>& SceneMesh::restPoseVertices(std::vector<Vertex>& scratch) const
+{
+	if (!_baseVertices.empty())
+		return _baseVertices;
+	if (!_vertexStructsDropped)
+		return _vertices;
+	scratch = rebuildVertexStructs();
+	return scratch;
+}
+
+// Rebuilds the interleaved structs from the separate CPU arrays setupMesh() filled them into. Lossless: texture coordinates
+// and skinning data that were all zero were never stored, and read back as zero here.
+std::vector<Vertex> SceneMesh::rebuildVertexStructs() const
+{
+	const std::vector<float>& points = cpuPoints();
+	const std::vector<float>& normals = cpuNormals();
+	const std::vector<float>& colors = cpuColors();
+	const std::vector<float>& texCoords = cpuTexCoords();
+	const std::vector<float>& tangents = cpuTangents();
+	const std::vector<float>& bitangents = cpuBitangents();
+	const std::vector<float>& jointIndices = cpuJointIndices();
+	const std::vector<float>& jointWeights = cpuJointWeights();
+	const size_t count = points.size() / 3;
+	const bool hasUvs = texCoords.size() == count * 8;
+	const bool hasJoints = jointIndices.size() == count * 4 && jointWeights.size() == count * 4;
+
+	std::vector<Vertex> out(count);
+	for (size_t i = 0; i < count; ++i)
+	{
+		Vertex& v = out[i];
+		v.Position = glm::vec3(points[i * 3], points[i * 3 + 1], points[i * 3 + 2]);
+		if (normals.size() == count * 3)
+			v.Normal = glm::vec3(normals[i * 3], normals[i * 3 + 1], normals[i * 3 + 2]);
+		if (colors.size() == count * 4)
+			v.Color = glm::vec4(colors[i * 4], colors[i * 4 + 1], colors[i * 4 + 2], colors[i * 4 + 3]);
+		if (tangents.size() == count * 3)
+			v.Tangent = glm::vec3(tangents[i * 3], tangents[i * 3 + 1], tangents[i * 3 + 2]);
+		if (bitangents.size() == count * 3)
+			v.Bitangent = glm::vec3(bitangents[i * 3], bitangents[i * 3 + 1], bitangents[i * 3 + 2]);
+		for (int k = 0; k < 4; ++k)
+			v.TexCoords[k] = hasUvs ? glm::vec2(texCoords[i * 8 + k * 2], texCoords[i * 8 + k * 2 + 1]) : glm::vec2(0.0f);
+		if (hasJoints)
+		{
+			v.JointIndices = glm::vec4(jointIndices[i * 4], jointIndices[i * 4 + 1], jointIndices[i * 4 + 2], jointIndices[i * 4 + 3]);
+			v.JointWeights = glm::vec4(jointWeights[i * 4], jointWeights[i * 4 + 1], jointWeights[i * 4 + 2], jointWeights[i * 4 + 3]);
+		}
+	}
+	return out;
+}
+
+void SceneMesh::restoreVertexStructs()
+{
+	if (!_vertexStructsDropped)
+		return;
+	_vertices = rebuildVertexStructs();
+	_vertexStructsDropped = false;
+	trackVertexStructBytes();
+}
+
+namespace
+{
+std::atomic<qint64> s_liveVertexStructBytes{0};
+
+qint64 compactVertexStorageBudgetBytes()
+{
+	static const qint64 bytes = static_cast<qint64>(qBound(0, QSettings().value(QStringLiteral("compactVertexStorageMB"), 1024).toInt(), 1048576)) * 1024 * 1024;
+	return bytes;
+}
+}
+
+void SceneMesh::trackVertexStructBytes()
+{
+	const qint64 now = static_cast<qint64>(_vertices.capacity() * sizeof(Vertex));
+	s_liveVertexStructBytes += now - _vertexStructBytesCounted;
+	_vertexStructBytesCounted = now;
+}
+
+// Called at the end of setupMesh(), when the separate arrays hold everything the structs do.
+void SceneMesh::dropVertexStructsIfLarge()
+{
+	trackVertexStructBytes();
+	const qint64 budget = compactVertexStorageBudgetBytes();
+	if (budget <= 0 || s_liveVertexStructBytes.load() <= budget || _vertices.empty())
+		return;
+	// Skinned and morph-target meshes keep their structs: their update paths work on them.
+	if (hasSkinning() || hasMorphTargets() || !_baseVertices.empty()) // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
+		return;
+	const size_t n = _vertices.size();
+	if (cpuPoints().size() != n * 3 || cpuNormals().size() != n * 3 || cpuColors().size() != n * 4
+		|| cpuTangents().size() != n * 3 || cpuBitangents().size() != n * 3)
+		return;
+	// MODELVIEWER_VERIFY_VERTEX_DROP=1: prove the rebuild is bit-exact before the originals are freed (logged once per mesh on a miss).
+	static const bool verify = qEnvironmentVariableIntValue("MODELVIEWER_VERIFY_VERTEX_DROP") != 0;
+	if (verify)
+	{
+		const std::vector<Vertex> rebuilt = rebuildVertexStructs();
+		if (rebuilt.size() != n || std::memcmp(rebuilt.data(), _vertices.data(), n * sizeof(Vertex)) != 0)
+			Logger::instance().warning(QStringLiteral("[VertexDrop] rebuild differs from the original for mesh '%1' (%2 vertices)")
+				.arg(_name).arg(n), QStringLiteral("Performance"));
+	}
+	std::vector<Vertex>().swap(_vertices);
+	_vertexStructsDropped = true;
+	trackVertexStructBytes();
+}
+
+const vector<unsigned int>& SceneMesh::indices() const
 {
     return _indices;
 }
@@ -4123,7 +4714,7 @@ vector<Material::Texture> SceneMesh::textures() const
 void SceneMesh::getMeshData(std::vector<Vertex>& vertices,
 	std::vector<unsigned int>& indices) const
 {
-	vertices = _vertices;
+	vertices = _vertexStructsDropped ? rebuildVertexStructs() : _vertices;
 	indices = _indices;
 }
 
@@ -4203,10 +4794,16 @@ void SceneMesh::setMeshData(const std::vector<Vertex>& vertices,
 	}
 
 	_vertices = vertices;
-	_baseVertices = vertices;
+	_vertexStructsDropped = false;
+	trackVertexStructBytes();
 	_indices = indices;
+	noteRenderStateChanged(MeshInstanceState::SiteIndexRemap);
 	if (!remappedMorphTargets.isEmpty())
 		_morphTargets = std::move(remappedMorphTargets);
+	if (!_morphTargets.isEmpty())
+		_baseVertices = vertices;
+	else
+		std::vector<Vertex>().swap(_baseVertices);
 
 	// Re-upload to GPU (no optimization)
 	setupMesh();
@@ -4229,8 +4826,15 @@ void SceneMesh::setMorphTargets(const QVector<MorphTargetData>& targets,
 	const QVector<float>& defaultWeights)
 {
 	_morphTargets = targets;
+	noteRenderStateChanged(MeshInstanceState::SiteMorph);
 	_defaultMorphWeights = defaultWeights;
 	_currentMorphWeights.clear();
+	if (_morphTargets.isEmpty())
+	{
+		std::vector<Vertex>().swap(_baseVertices);
+		return;
+	}
+	restoreVertexStructs();
 	if (_baseVertices.empty())
 		_baseVertices = _vertices;
 
@@ -4263,6 +4867,8 @@ void SceneMesh::applyMorphWeights(const QVector<float>& weights)
 		return;
 
 	_vertices = _baseVertices;
+	_vertexStructsDropped = false;
+	trackVertexStructBytes();
 	for (size_t vertexIndex = 0; vertexIndex < _vertices.size(); ++vertexIndex)
 	{
 		glm::vec3 position = _baseVertices[vertexIndex].Position;
@@ -4830,9 +5436,9 @@ void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 
 	if (!shareContexts)
 	{
-		_lodIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
-		_featureEdgeIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
-		_occEdgeVertexBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+		_lodIndexBuffer = FastGlBuffer(FastGlBuffer::IndexBuffer);
+		_featureEdgeIndexBuffer = FastGlBuffer(FastGlBuffer::IndexBuffer);
+		_occEdgeVertexBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
 	}
 	if (_featureEdgeVAO.isCreated())
 		_featureEdgeVAO.destroy();
@@ -4869,7 +5475,7 @@ void SceneMesh::restoreContextBoundGpuResources(QOpenGLShaderProgram* prog)
 			if (!_featureEdgeIndexBuffer.isCreated())
 				_featureEdgeIndexBuffer.create();
 			_featureEdgeIndexBuffer.bind();
-			_featureEdgeIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+			_featureEdgeIndexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 			_featureEdgeIndexBuffer.allocate(_featureEdgeIndices.data(),
 				static_cast<int>(_featureEdgeIndices.size() * sizeof(uint32_t)));
 			_featureEdgeIndexBuffer.release();

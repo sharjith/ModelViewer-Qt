@@ -3,6 +3,7 @@
 #include "IXCAFDocProcessor.hxx"
 #include <assimp/scene.h>
 #include <string>
+#include <unordered_map>
 #include <vector>
 #include <tuple>
 #include <TopLoc_Location.hxx>
@@ -24,7 +25,7 @@ class XCAFDocProcessor : public QObject, public IXCAFDocProcessor
 
 public:
     XCAFDocProcessor() = default;
-    ~XCAFDocProcessor() override = default;
+    ~XCAFDocProcessor() override { releaseConvertedParts(); }
 
 protected:
     using ShapeWithNameAndTrsf = std::tuple<TopoDS_Shape, std::string, TopLoc_Location, Quantity_Color>;
@@ -61,6 +62,9 @@ protected:
 
     aiMatrix4x4 convertLocationToMatrix(const TopLoc_Location& loc);
 
+    // Drops the cache of converted part definitions (see traverseXCAFAssembly()); call when the scene is built.
+    void releaseConvertedParts();
+
 private:
     // Per-document cache mapping each instance label to its resolved definition label.
     // Populated by countMeshes() on the first (counting) tree walk; consumed by
@@ -68,4 +72,9 @@ private:
     // is called at most once per unique instance label across both passes.
     // Cleared at the start of every file load in initializeDocumentProcessing().
     TDF_LabelDataMap myRefCache;
+    // Converted parts by definition label entry. Many instances share one definition (a screw used 36 times is converted
+    // once and copied); the geometry, edges and colours of a part do not depend on the instance, only its location, which
+    // the node carries. A null entry records a definition that cannot be meshed.
+    std::unordered_map<std::string, aiScene*> myConvertedParts;
+    unsigned myConvertedHits = 0, myConvertedMisses = 0;
 };

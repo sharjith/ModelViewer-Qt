@@ -1,5 +1,8 @@
 #include "XCAFDocProcessor.hxx"
 #include "BRepToAssimpConverter.h"
+#include "ImportDiagnostics.h"
+#include <TDF_Tool.hxx>
+#include <TCollection_AsciiString.hxx>
 #include "MainWindow.h"
 #include <algorithm>
 #include <map>
@@ -70,6 +73,17 @@ void XCAFDocProcessor::initializeDocumentProcessing()
     // Clear all per-document caches so stale data from a previous file never leaks in.
     BRepToAssimpConverter::clearColorCache();
     myRefCache.Clear();
+    releaseConvertedParts();
+}
+
+void XCAFDocProcessor::releaseConvertedParts()
+{
+    if (myConvertedHits || myConvertedMisses)
+        ImportDiagnostics::checkpoint("xcaf.part-cache", -1, myConvertedHits, myConvertedMisses);
+    for (auto& entry : myConvertedParts)
+        BRepToAssimpConverter::discardConverted(entry.second);
+    myConvertedParts.clear();
+    myConvertedHits = myConvertedMisses = 0;
 }
 
 // Traverse the STEP assembly structure and extract shapes and names
@@ -265,7 +279,45 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     std::string leafNodeName = resolvedLabelName(defLabel, label, "Part");
 
     // 8) Convert the shape into a sub-scene with enhanced color extraction
-    aiScene* subScene = BRepToAssimpConverter::convert(shape, colorTool, shapeTool, defLabel, label, meshIndex, nodeName);
+    aiScene* subScene = nullptr;
+    // Serve a definition that has been converted already from a copy. Only when the colours cannot depend on the instance:
+    // with the STEP colour map they never do; otherwise an instance with a colour of its own is converted by itself.
+    static const bool partCacheEnabled = qEnvironmentVariableIntValue("MODELVIEWER_NO_XCAF_CACHE") == 0;
+    bool cacheable = partCacheEnabled && !defLabel.IsNull();
+    if (cacheable && !BRepToAssimpConverter::stepColourMapActive() && !label.IsEqual(defLabel) && !colorTool.IsNull())
+    {
+        Quantity_Color instanceColour;
+        for (XCAFDoc_ColorType type : { XCAFDoc_ColorSurf, XCAFDoc_ColorCurv, XCAFDoc_ColorGen })
+            if (colorTool->GetColor(label, type, instanceColour))
+                cacheable = false;
+    }
+    std::string cacheKey;
+    if (cacheable)
+    {
+        TCollection_AsciiString entry;
+        TDF_Tool::Entry(defLabel, entry);
+        cacheKey = entry.ToCString();
+    }
+    const auto cached = cacheable ? myConvertedParts.find(cacheKey) : myConvertedParts.end();
+    if (cacheable && cached != myConvertedParts.end())
+    {
+        ++myConvertedHits;
+        if (cached->second)
+        {
+            subScene = BRepToAssimpConverter::cloneConverted(cached->second);
+            BRepToAssimpConverter::nameConvertedScene(subScene, defLabel, label, nodeName);
+            meshIndex += static_cast<int>(cached->second->mNumMeshes);
+        }
+    }
+    else
+    {
+        subScene = BRepToAssimpConverter::convert(shape, colorTool, shapeTool, defLabel, label, meshIndex, nodeName);
+        if (cacheable)
+        {
+            ++myConvertedMisses;
+            myConvertedParts[cacheKey] = subScene ? BRepToAssimpConverter::cloneConverted(subScene) : nullptr;
+        }
+    }
 
     if (subScene == nullptr)
         return;

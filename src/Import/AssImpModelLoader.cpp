@@ -1,6 +1,21 @@
 ﻿#include "AssImpModelLoader.h"
+#include "Jt/JtLengthUnit.h"
 
 #include "BRepToAssimpConverter.h"
+#include "ImportDiagnostics.h"
+#include <QElapsedTimer>
+#include "Logger.h"
+#include <QSettings>
+#include <algorithm>
+#include <atomic>
+#include <functional>
+#include <chrono>
+#include <thread>
+#include <Standard_Failure.hxx>
+#include <new>
+#include "ThreeDXml/Importer.h"
+#include "MeshImportAdaptor.h"
+#include "SceneImportCounts.h"
 #include "IXCAFDocProcessor.hxx"
 #include "XCAFDocProcessorFactory.hxx"
 #include "XCAFSTEPProcessor.hxx"
@@ -29,6 +44,9 @@
 #include <cmath>
 #include <limits>
 #include <unordered_set>
+#include <mutex>
+#include <memory>
+#include <unordered_map>
 
 using namespace std;
 
@@ -876,8 +894,394 @@ AssImpModelLoader::AssImpModelLoader() : QObject(),
 		.value("assimpAutoOrientCheckBox", true).toBool();
 }
 
+namespace
+{
+	// Trace aid (only computed when MODELVIEWER_IMPORT_DIAGNOSTICS is set): an FNV-1a hash of everything in an imported scene, in a
+	// fixed order, so two runs - say with and without an optimisation - can be compared for an identical result.
+	quint64 hashImportedScene(const aiScene& scene)
+	{
+		quint64 hash = 1469598103934665603ULL;
+		const auto bytes = [&hash](const void* data, size_t size) {
+			const auto* p = static_cast<const unsigned char*>(data);
+			for (size_t i = 0; i < size; ++i) { hash ^= p[i]; hash *= 1099511628211ULL; }
+		};
+		bytes(&scene.mNumMeshes, sizeof(scene.mNumMeshes)); bytes(&scene.mNumMaterials, sizeof(scene.mNumMaterials));
+		for (unsigned i = 0; i < scene.mNumMeshes; ++i)
+		{
+			const aiMesh& mesh = *scene.mMeshes[i];
+			bytes(mesh.mName.C_Str(), mesh.mName.length); bytes(&mesh.mMaterialIndex, sizeof(unsigned)); bytes(&mesh.mNumVertices, sizeof(unsigned)); bytes(&mesh.mNumFaces, sizeof(unsigned));
+			if (mesh.mVertices) bytes(mesh.mVertices, sizeof(aiVector3D) * mesh.mNumVertices);
+			if (mesh.mNormals) bytes(mesh.mNormals, sizeof(aiVector3D) * mesh.mNumVertices);
+			if (mesh.HasVertexColors(0)) bytes(mesh.mColors[0], sizeof(aiColor4D) * mesh.mNumVertices);
+			for (unsigned f = 0; f < mesh.mNumFaces; ++f) bytes(mesh.mFaces[f].mIndices, sizeof(unsigned) * mesh.mFaces[f].mNumIndices);
+		}
+		for (unsigned i = 0; i < scene.mNumMaterials; ++i)
+		{
+			aiString name; scene.mMaterials[i]->Get(AI_MATKEY_NAME, name); bytes(name.C_Str(), name.length);
+			aiColor4D colour; if (scene.mMaterials[i]->Get(AI_MATKEY_BASE_COLOR, colour) == AI_SUCCESS) bytes(&colour, sizeof(colour));
+			if (scene.mMaterials[i]->Get(AI_MATKEY_COLOR_DIFFUSE, colour) == AI_SUCCESS) bytes(&colour, sizeof(colour));
+		}
+		const std::function<void(const aiNode*)> walk = [&](const aiNode* node) {
+			bytes(node->mName.C_Str(), node->mName.length); bytes(&node->mTransformation, sizeof(aiMatrix4x4));
+			bytes(&node->mNumMeshes, sizeof(unsigned)); bytes(node->mMeshes, sizeof(unsigned) * node->mNumMeshes);
+			bytes(&node->mNumChildren, sizeof(unsigned));
+			for (unsigned c = 0; c < node->mNumChildren; ++c) walk(node->mChildren[c]);
+		};
+		if (scene.mRootNode) walk(scene.mRootNode);
+		return hash;
+	}
+}
+
+namespace
+{
+	// Repeat occurrences of one part (the same aiMesh referenced by several nodes) are prepared once. The first occurrence runs the
+	// full optimisation; later ones - same source mesh, same pre-optimisation index array, same extents - take its vertex remap,
+	// optimised indices, LOD1 indices and feature edges instead of repeating meshopt. MODELVIEWER_NO_DEFINITION_PREP=1 turns this off.
+	// The overdraw pass is tuned to the first occurrence's orientation; only the triangle draw order within the mesh is affected.
+	struct DefinitionPrep
+	{
+		std::mutex mutex; // held while the first occurrence computes, so a concurrent repeat waits for it instead of redoing the work
+		bool ready = false;
+		quint64 indexHash = 0;
+		size_t vertexCount = 0, indexCount = 0;
+		float extents[3] = { 0.0f, 0.0f, 0.0f };
+		std::vector<unsigned int> remap, indices, lod1;
+		std::vector<uint32_t> featureEdges;
+		bool hasFeatureEdges = false;
+	};
+
+	std::mutex g_definitionPrepMutex;
+	std::unordered_map<int, std::shared_ptr<DefinitionPrep>> g_definitionPrep;
+	std::atomic<int> g_definitionPrepHits{ 0 }, g_definitionPrepMisses{ 0 };
+
+	std::shared_ptr<DefinitionPrep> definitionPrepFor(int sceneIndex)
+	{
+		std::lock_guard<std::mutex> lock(g_definitionPrepMutex);
+		std::shared_ptr<DefinitionPrep>& entry = g_definitionPrep[sceneIndex];
+		if (!entry)
+			entry = std::make_shared<DefinitionPrep>();
+		return entry;
+	}
+
+	void releaseDefinitionPrep()
+	{
+		{
+			std::lock_guard<std::mutex> lock(g_definitionPrepMutex);
+			g_definitionPrep.clear();
+		}
+		const int hits = g_definitionPrepHits.exchange(0), misses = g_definitionPrepMisses.exchange(0);
+		if (hits + misses > 0)
+			ImportDiagnostics::checkpoint("worker.definition-prep", -1, hits, misses);
+	}
+
+	quint64 hashIndices(const std::vector<unsigned int>& indices)
+	{
+		quint64 hash = 1469598103934665603ULL;
+		for (const unsigned int index : indices)
+		{
+			hash ^= index;
+			hash *= 1099511628211ULL;
+		}
+		return hash;
+	}
+
+	void sortedExtents(const std::vector<Vertex>& vertices, float out[3])
+	{
+		glm::vec3 lo(std::numeric_limits<float>::max()), hi(-std::numeric_limits<float>::max());
+		for (const Vertex& vertex : vertices)
+		{
+			lo = glm::min(lo, vertex.Position);
+			hi = glm::max(hi, vertex.Position);
+		}
+		const glm::vec3 size = hi - lo;
+		out[0] = size.x; out[1] = size.y; out[2] = size.z;
+		std::sort(out, out + 3);
+	}
+
+	bool sameExtents(const float a[3], const float b[3])
+	{
+		const float tolerance = 1.0e-4f * std::max(1.0f, a[2]);
+		return std::fabs(a[0] - b[0]) <= tolerance && std::fabs(a[1] - b[1]) <= tolerance && std::fabs(a[2] - b[2]) <= tolerance;
+	}
+}
+
+namespace
+{
+	void optimizeMeshData(AssImpMeshData& mesh, bool computeEdges)
+	{
+		if (mesh.geometryPrepared || mesh.featureEdgesPrepared || mesh.occFaceRemapPrepared)
+			return;
+		// Same conditions SceneMesh's constructor applies before optimizeMesh(), plus per-vertex data this pass does not remap
+		// (skin, morph targets).
+		if (!mesh.morphTargets.isEmpty() || !mesh.skinJoints.isEmpty())
+			return;
+		if (mesh.primitiveMode != GL_TRIANGLES || mesh.indices.empty() || (mesh.indices.size() % 3) != 0)
+			return;
+		try
+		{
+			// OCC meshes carry a per-face triangle table whose indices are valid against the PRE-optimisation triangle order; keep
+			// the positions and indices to re-identify each face's triangles by position afterwards (what AssImpMeshBuilder did on
+			// the GUI thread, after the constructor's own optimisation).
+			const bool hasOccFaces = !mesh.precomputedOccFaceTriangleBounds.empty();
+			// MODELVIEWER_NO_OCC_PREPARE=1 leaves OCC meshes to the constructor and the builder, as before (to compare the two paths).
+			static const bool occPrepare = qEnvironmentVariableIntValue("MODELVIEWER_NO_OCC_PREPARE") == 0;
+			if (hasOccFaces && !occPrepare)
+				return;
+			std::vector<glm::vec3> occSourcePositions;
+			std::vector<unsigned int> occSourceIndices;
+			if (hasOccFaces)
+			{
+				occSourcePositions.reserve(mesh.vertices.size());
+				for (const Vertex& vertex : mesh.vertices)
+					occSourcePositions.push_back(vertex.Position);
+				occSourceIndices = mesh.indices;
+			}
+			static const bool definitionPrep = qEnvironmentVariableIntValue("MODELVIEWER_NO_DEFINITION_PREP") == 0;
+			std::shared_ptr<DefinitionPrep> definition;
+			std::unique_lock<std::mutex> definitionLock;
+			float extents[3] = { 0.0f, 0.0f, 0.0f };
+			quint64 indexHash = 0;
+			if (definitionPrep && !hasOccFaces && mesh.sceneIndex >= 0)
+			{
+				definition = definitionPrepFor(mesh.sceneIndex);
+				definitionLock = std::unique_lock<std::mutex>(definition->mutex);
+				indexHash = hashIndices(mesh.indices);
+				sortedExtents(mesh.vertices, extents);
+				if (definition->ready && definition->vertexCount == mesh.vertices.size() && definition->indexCount == mesh.indices.size()
+					&& definition->indexHash == indexHash && sameExtents(extents, definition->extents)
+					&& (!computeEdges || definition->hasFeatureEdges))
+				{
+					std::vector<Vertex> remapped(mesh.vertices.size());
+					for (size_t i = 0; i < mesh.vertices.size(); ++i)
+						remapped[definition->remap[i]] = mesh.vertices[i];
+					mesh.vertices = std::move(remapped);
+					if (!mesh.sourceMeshIds.empty() && mesh.sourceMeshIds.size() == mesh.vertices.size())
+					{
+						std::vector<quint64> remappedIds(mesh.vertices.size(), 0);
+						for (size_t i = 0; i < mesh.vertices.size(); ++i)
+							remappedIds[definition->remap[i]] = mesh.sourceMeshIds[i];
+						mesh.sourceMeshIds = std::move(remappedIds);
+					}
+					mesh.indices = definition->indices;
+					mesh.preparedLod1Indices = definition->lod1;
+					mesh.geometryPrepared = true;
+					if (computeEdges)
+					{
+						mesh.preparedFeatureEdges = definition->featureEdges;
+						mesh.featureEdgesPrepared = true;
+					}
+					++g_definitionPrepHits;
+					return;
+				}
+			}
+			std::vector<unsigned int> lod1, remap;
+			if (SceneMesh::optimizeGeometry(mesh.vertices, mesh.indices, true, lod1, remap))
+			{
+				const size_t vertexCount = mesh.vertices.size();
+				if (!mesh.sourceMeshIds.empty() && mesh.sourceMeshIds.size() == vertexCount)
+				{
+					std::vector<quint64> remappedIds(vertexCount, 0);
+					for (size_t i = 0; i < vertexCount; ++i)
+						remappedIds[remap[i]] = mesh.sourceMeshIds[i];
+					mesh.sourceMeshIds = std::move(remappedIds);
+				}
+				mesh.preparedLod1Indices = std::move(lod1);
+				mesh.geometryPrepared = true;
+			}
+			// Too small to optimise: the constructor leaves such arrays alone too, so they are final already.
+			if (hasOccFaces)
+			{
+				// Cylindrical and conical faces only, in the original triangle order, exactly as the builder expanded them.
+				std::vector<int> srcTriangleIndices, srcFaceIndices;
+				const std::vector<int>& faceBounds = mesh.precomputedOccFaceTriangleBounds;
+				for (size_t f = 0; f + 1 < faceBounds.size(); ++f)
+				{
+					if (f >= mesh.precomputedOccFaceAxes.size() || (!mesh.precomputedOccFaceAxes[f].isCylinder && !mesh.precomputedOccFaceAxes[f].isCone))
+						continue;
+					for (int t = faceBounds[f]; t < faceBounds[f + 1]; ++t)
+					{
+						srcTriangleIndices.push_back(t);
+						srcFaceIndices.push_back(static_cast<int>(f));
+					}
+				}
+				if (!srcTriangleIndices.empty())
+					SceneMesh::remapOccFaceTriangleIndicesFromArrays(occSourcePositions, occSourceIndices, srcTriangleIndices, srcFaceIndices,
+						mesh.vertices, mesh.indices, mesh.preparedOccTriangleIndices, mesh.preparedOccFaceIndices);
+				mesh.occFaceRemapPrepared = true;
+			}
+			if (computeEdges)
+			{
+				mesh.preparedFeatureEdges = SceneMesh::computeFeatureEdges(mesh.vertices, mesh.indices, 15.0f);
+				mesh.featureEdgesPrepared = true;
+			}
+			if (definition && mesh.geometryPrepared && !definition->ready)
+			{
+				// Remember this occurrence's result for the repeats (the lock is still held, so waiting repeats see it complete).
+				definition->indexHash = indexHash;
+				definition->vertexCount = mesh.vertices.size();
+				definition->indexCount = mesh.indices.size();
+				std::copy(extents, extents + 3, definition->extents);
+				definition->remap = std::move(remap);
+				definition->indices = mesh.indices;
+				definition->lod1 = mesh.preparedLod1Indices;
+				definition->hasFeatureEdges = mesh.featureEdgesPrepared;
+				if (mesh.featureEdgesPrepared)
+					definition->featureEdges = mesh.preparedFeatureEdges;
+				definition->ready = true;
+				++g_definitionPrepMisses;
+			}
+		}
+		catch (...)
+		{
+			// optimizeGeometry() leaves the arrays untouched when it throws; the constructor then does this mesh itself.
+		}
+	}
+}
+
+void AssImpModelLoader::optimizeBatch(std::vector<AssImpMeshData>& batch)
+{
+	if (batch.empty())
+		return;
+	// Largest meshes first, so the pool is not left waiting on one big mesh that started last.
+	std::vector<size_t> order(batch.size());
+	for (size_t i = 0; i < order.size(); ++i)
+		order[i] = i;
+	std::sort(order.begin(), order.end(), [&batch](size_t a, size_t b) { return batch[a].indices.size() > batch[b].indices.size(); });
+
+	// Read once here (QSettings), not per mesh on the pool threads.
+	const bool computeEdges = SceneMesh::featureEdgesEnabledInSettings();
+	const size_t hardware = std::max<size_t>(1, std::thread::hardware_concurrency());
+	// One core is left to the GUI thread (it is uploading the previous batch's meshes meanwhile).
+	const size_t workers = std::min(order.size(), hardware > 1 ? hardware - 1 : size_t(1));
+	std::atomic<size_t> next{ 0 };
+	auto run = [&]()
+	{
+		for (;;)
+		{
+			const size_t slot = next.fetch_add(1);
+			if (slot >= order.size())
+				break;
+			optimizeMeshData(batch[order[slot]], computeEdges);
+		}
+	};
+	if (workers <= 1)
+	{
+		run();
+		return;
+	}
+	std::vector<std::thread> threads;
+	threads.reserve(workers - 1);
+	for (size_t t = 1; t < workers; ++t)
+		threads.emplace_back(run);
+	run();
+	for (std::thread& thread : threads)
+		thread.join();
+}
+
+void AssImpModelLoader::publishBatch(AssImpMeshDataBatch&& batch)
+{
+	size_t queued = 0;
+	int waitedMs = 0;
+	{
+		std::unique_lock<std::mutex> lock(_batchMutex);
+		// Bounded: the viewer creates meshes for earlier batches on the GUI thread while this thread converts the next one.
+		// Cancelling releases the wait; the batch is then dropped, as the import is being abandoned.
+		QElapsedTimer waited;
+		waited.start();
+		while (_readyBatches.size() >= kMaxQueuedBatches)
+		{
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+				return;
+			_batchSpace.wait_for(lock, std::chrono::milliseconds(50));
+		}
+		waitedMs = int(waited.elapsed());
+		_readyBatches.push_back(std::move(batch));
+		queued = _readyBatches.size();
+	}
+	ImportDiagnostics::checkpoint("worker.batch-published", waitedMs, queued, 0);
+	emit meshBatchAvailable();
+}
+
+void AssImpModelLoader::submitBatch(AssImpMeshDataBatch&& batch)
+{
+	std::unique_lock<std::mutex> lock(_prepMutex);
+	if (!_prepThread.joinable())
+		_prepThread = std::thread([this] { prepareLoop(); });
+	while (_prepQueue.size() >= kMaxPrepBatches)
+	{
+		if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+			return;
+		_prepIdle.wait_for(lock, std::chrono::milliseconds(50));
+	}
+	_prepQueue.push_back(std::move(batch));
+	_prepWake.notify_one();
+}
+
+void AssImpModelLoader::prepareLoop()
+{
+	for (;;)
+	{
+		AssImpMeshDataBatch batch;
+		{
+			std::unique_lock<std::mutex> lock(_prepMutex);
+			_prepWake.wait(lock, [this] { return _prepStop || !_prepQueue.empty(); });
+			if (_prepQueue.empty())
+				return; // stop requested and nothing left
+			batch = std::move(_prepQueue.front());
+			_prepQueue.pop_front();
+			_prepBusy = true;
+		}
+		_prepIdle.notify_all(); // room for the conversion thread
+		try
+		{
+			if (!(_loadingCancelled || MainWindow::isFileLoadCancelRequested()))
+			{
+				optimizeBatch(batch);
+				ImportDiagnostics::checkpoint("worker.batch-optimized", -1, batch.size(), 0);
+				publishBatch(std::move(batch));
+			}
+		}
+		catch (...)
+		{
+			_loadingCancelled = true;
+			_errorMessage = "Model loading failed while preparing meshes (out of memory).";
+		}
+		{
+			std::lock_guard<std::mutex> lock(_prepMutex);
+			_prepBusy = false;
+		}
+		_prepIdle.notify_all();
+	}
+}
+
+void AssImpModelLoader::flushBatches()
+{
+	std::unique_lock<std::mutex> lock(_prepMutex);
+	if (!_prepThread.joinable())
+		return;
+	_prepIdle.wait(lock, [this] { return _prepQueue.empty() && !_prepBusy; });
+	_prepStop = true;
+	_prepWake.notify_all();
+	lock.unlock();
+	_prepThread.join();
+	lock.lock();
+	_prepStop = false;
+}
+
+bool AssImpModelLoader::takeReadyBatch(AssImpMeshDataBatch& out)
+{
+	std::lock_guard<std::mutex> lock(_batchMutex);
+	if (_readyBatches.empty())
+		return false;
+	out = std::move(_readyBatches.front());
+	_readyBatches.pop_front();
+	_batchSpace.notify_all();
+	return true;
+}
+
 AssImpModelLoader::~AssImpModelLoader()
 {
+	flushBatches();
 	disconnect(_progHandler, SIGNAL(fileReadProcessed(float)), this, SLOT(processFileReadProgress(float)));
 	//delete _progHandler; // causes crash
 	_progHandler = nullptr;
@@ -903,28 +1307,40 @@ void AssImpModelLoader::cancelLoading()
 	_loadingCancelled = true;
 }
 
-AssImpMeshDataBatch AssImpModelLoader::getMeshes() const
-{
-	return _meshes;
-}
-
 /*  Functions   */
 // Loads a model with supported ASSIMP extensions from file and stores the resulting meshes in the meshes vector.
 void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
+	try
 {	
+	QElapsedTimer workerClock;
+	workerClock.start();
+	auto workerLap = [&workerClock](const char* what) {
+		Logger::instance().info(QStringLiteral("[WorkerPhases] %1 at %2 ms").arg(QLatin1String(what)).arg(workerClock.elapsed()),
+			QStringLiteral("Performance"));
+	};
+	_importStage = "worker.initialize";
+	_importSceneIndex = -1;
+	ImportDiagnostics::checkpoint(_importStage);
 	_progressiveLoading = progressiveLoading;
 	_loadingCancelled = false;
 	_errorMessage.clear();
 	_path = std::string(path);
-	_meshes.clear();	
+	_meshes.clear();
+	_currentBatch.clear();
 	_totalNodeCount = 0;
 	_processedNodeCount = 0;
 	_processedMeshCount = 0;
+	_preservesNodeTransforms = false;
+	_totalMeshOccurrences = 0;
+	_threeDXml = {};
+	_jt = {};
+	_declaredLengthUnit = LengthUnit::Unknown;
 
 	_materialProcessor.clearGLBCaches();
 	_materialProcessor.clearLoadedTextures();
 
 	_importer.FreeScene(); // Free any previously loaded scene
+	_xcafScene.reset();
 	_scene = nullptr; // Reset scene pointer
 		
 	QFileInfo fi(path.c_str());
@@ -939,7 +1355,81 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	std::unique_ptr<IXCAFDocProcessor> processor = XCAFDocProcessorFactory::createProcessor(fi.suffix().toLower().toStdString());
 	if (processor)
 	{
-		_scene = processor->processFile(path);
+		_xcafScene.reset(processor->processFile(path));
+		_scene = _xcafScene.get();
+	}
+	else if (fi.suffix().compare("3dxml", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			ThreeDXml::Options options;
+			// MODELVIEWER_3DXML_STRICT=1 restores all-or-nothing: an unreadable representation fails the import.
+			// The Settings dialog (Import Export tab, 3DXML Importer group) sets the defaults; the environment variables override them.
+			options.strict = QSettings().value(QStringLiteral("threeDxmlStrict"), false).toBool()
+				|| qEnvironmentVariableIntValue("MODELVIEWER_3DXML_STRICT") != 0;
+			{ const int threads = QSettings().value(QStringLiteral("threeDxmlThreads"), 0).toInt(); if (threads >= 0) options.threads = unsigned(threads); }
+			{ bool ok = false; const int threads = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_THREADS", &ok); if (ok && threads >= 0) options.threads = unsigned(threads); }
+			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			options.progress = [this](const QString&, int done, int total) {
+				emit fileReadProcessed(total ? float(done)/total : 0.0f);
+			};
+			_threeDXml = ThreeDXml::Importer::read(fi.absoluteFilePath(), options);
+			_scene = _threeDXml.scene.get();
+			// The file's own edge polylines take the B-Rep edge path (edge/wireframe display modes). Stale entries from
+			// an earlier load must go first: mesh pointers can be reused.
+			BRepToAssimpConverter::clearEdgeCache();
+			for (auto edge = _threeDXml.meshEdges.cbegin(); edge != _threeDXml.meshEdges.cend(); ++edge)
+				BRepToAssimpConverter::registerPrecomputedEdges(edge.key(), edge.value()->segments, edge.value()->bounds);
+			for (const QString& warning : _threeDXml.warnings) qWarning().noquote() << warning;
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true; _errorMessage = "Model loading cancelled by user."; emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
+	}
+	else if (fi.suffix().compare("jt", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			Jt::Options options=Jt::Options::fromEnvironment();
+			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			options.progress = [this](const QString&, int done, int total) {
+				emit fileReadProcessed(total ? float(done)/total : 0.0f);
+			};
+			_importStage = "worker.jt-read";
+			ImportDiagnostics::checkpoint(_importStage);
+			_jt = Jt::Importer::read(fi.absoluteFilePath(), options);
+			_importStage = "worker.jt-read-complete";
+			ImportDiagnostics::checkpoint(_importStage);
+			_scene = _jt.scene.get();
+			_declaredLengthUnit = Jt::declaredLengthUnit(_jt.measurementUnits, _jt.notes);
+			// LOD material variants: scene meshes whose loaded alternative's own materials differ from their default material.
+			// The prebuilt variant materials and the scene-graph registration are the ones the glTF path uses.
+			_variantData = GltfVariantData();
+			if (!_jt.variantNames.isEmpty())
+			{
+				_variantData.sourceFile = QString::fromStdString(_path);
+				_variantData.variantNames = _jt.variantNames;
+				for (const auto& item : _jt.variantMaterialByMesh)
+				{
+					GltfVariantMapping mapping;
+					mapping.materialIndex = static_cast<int>(item.second);
+					mapping.variantIndices.append(0);
+					_variantData.meshVariantMappings[static_cast<int>(item.first)].append(mapping);
+				}
+			}
+			for (const QString& warning : _jt.warnings + _jt.notes) qWarning().noquote() << warning;
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true;
+				_errorMessage = "Model loading cancelled by user.";
+				emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
 	}
 	else // all Assimp models
 	{
@@ -990,6 +1480,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 		}
 
 		_scene = _importer.ReadFile(path, importFlags);
+		workerLap("assimp ReadFile done");
 	}
 
 	// Check for errors
@@ -1044,16 +1535,21 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 		// Update aiScene materials to match glTF structure (deduplicate, fix references)
 		// This must happen BEFORE processing nodes so meshes get correct material assignments
+		workerLap("before updateAiSceneWithGltfMaterials");
 		updateAiSceneWithGltfMaterials(qPath, const_cast<aiScene*>(_scene));
+		workerLap("updateAiSceneWithGltfMaterials done");
 
 		// Parse primitive modes for rendering
 		parseGltfPrimitiveModes(qPath);
+		workerLap("parseGltfPrimitiveModes done");
 
 		// Parse KHR_materials_variants (after material dedup so indices are stable)
 		_variantData = GltfVariantData();
 		parseGltfVariants(qPath);
+		workerLap("parseGltfVariants done");
 		_animationData = GltfAnimationData();
 		parseSceneAnimations();
+		workerLap("parseSceneAnimations done");
 		// parseSceneCameras() is deferred until after the import-time scale pass
 		// so that findNodeWorldTransform() sees the same scaled root-node matrix
 		// that the runtime meshes use.
@@ -1067,6 +1563,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 	_sceneStats = collectSceneMeshInfo(_scene);
 	_totalNodeCount = countNodes(_scene->mRootNode);
+	_totalMeshOccurrences = countSceneMeshOccurrences(_scene->mRootNode);
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{
@@ -1079,7 +1576,9 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 
 	// Apply any import-time scale normalization. Orientation compensation now
 	// lives in camera space rather than mutating the imported scene graph.
+	workerLap("scene stats done");
 	applyCoordinateSystemTransformations(path);
+	workerLap("applyCoordinateSystemTransformations done");
 
 	// Parse cameras AFTER the scale correction so that findNodeWorldTransform()
 	// accumulates the same scaled root-node matrix that mesh vertices occupy.
@@ -1177,10 +1676,37 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 
 	// Process ASSIMP's root node recursively	
+	_importStage = "worker.reserve-mesh-store";
+	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
+	if (!_progressiveLoading && _totalMeshOccurrences > 0)
+		_meshes.reserve(size_t(_totalMeshOccurrences));
+	if (_progressiveLoading)
+		_currentBatch.reserve(size_t(_batchSize));
+	_gltfHasMorphTargets = -1;
+	_importStage = "worker.process-nodes";
+	ImportDiagnostics::checkpoint(_importStage, -1, 0, _totalMeshOccurrences);
+	// Whatever way processing ends, the preparation stage must be drained and stopped before loadingFinished is emitted.
+	struct BatchFlush { AssImpModelLoader* loader; ~BatchFlush() { loader->flushBatches(); releaseDefinitionPrep(); } } batchFlush{ this };
+	workerLap("before processNode");
 	this->processNode(0, _scene->mRootNode, _scene, aiMatrix4x4());
+	workerLap("processNode done");
+	if (!_progressiveLoading && !_loadingCancelled)
+	{
+		_importStage = "worker.optimize-meshes";
+		ImportDiagnostics::checkpoint(_importStage, -1, _meshes.size(), 0);
+		optimizeBatch(_meshes);
+		workerLap("optimizeBatch done");
+		ImportDiagnostics::checkpoint("worker.optimize-meshes-end", -1, _meshes.size(), 0);
+			ImportDiagnostics::checkpoint("worker.definition-prep", -1, g_definitionPrepHits.load(), g_definitionPrepMisses.load());
+	}
+	_importStage = "worker.nodes-complete";
+	ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
+	if (_scene && ImportDiagnostics::requested())
+		ImportDiagnostics::checkpoint("worker.scene-hash", -1, hashImportedScene(*_scene), _scene->mNumMeshes);
 
 	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{
+		flushBatches();
 		_loadingCancelled = true;
 		_errorMessage = "Model loading cancelled by user.";
 		emit loadingFinished(false, _scene);
@@ -1190,9 +1716,14 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	// Flush any remaining meshes in batch
 	if (!_currentBatch.empty())
 	{
-		emit meshBatchReady(std::move(_currentBatch));
+		_importStage = "worker.final-batch";
+		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
+		submitBatch(std::move(_currentBatch));
 		_currentBatch.clear();
 	}
+	// Every batch is on its way to the viewer before anything that follows (lights, loadingFinished).
+	flushBatches();
+	workerLap("flushBatches done");
 
 	// === Parse KHR_lights_punctual extension ===
 	GltfLightData parsedLights;
@@ -1201,6 +1732,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	if (gltfPath.endsWith(".gltf", Qt::CaseInsensitive) || gltfPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
 		parsedLights = _materialProcessor.parseKHRLightsPunctual(gltfPath);
+		workerLap("parseKHRLightsPunctual done");
 		if (!parsedLights.isEmpty())
 		{
 			qDebug() << "AssImpModelLoader: Loaded" << parsedLights.lights.size() << "KHR lights with transforms";
@@ -1236,16 +1768,38 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	}
 
 	// Emit lights for ViewportWidget to handle
+	_importStage = "worker.publish-result";
+	ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 	emit lightsLoaded(parsedLights);
+	workerLap("emitting loadingFinished");
 	emit loadingFinished(true, _scene);
+}
+catch (const std::bad_alloc&) { failProcessing("Out of memory (std::bad_alloc)"); }
+catch (const Standard_Failure& e) { failProcessing(e.GetMessageString()); }
+catch (const std::exception& e) { failProcessing(e.what()); }
+catch (...) { failProcessing("Unknown C++ exception"); }
+
+void AssImpModelLoader::failProcessing(const char* reason)
+{
+	ImportDiagnostics::failure(_importStage, reason, _importSceneIndex, _processedMeshCount);
+	_currentBatch.clear();
+	_meshes.clear();
+	_errorMessage = QString("Model processing failed at %1; sceneIndex=%2; processed occurrences=%3: %4")
+		.arg(QString::fromLatin1(_importStage))
+		.arg(_importSceneIndex)
+		.arg(_processedMeshCount)
+		.arg(QString::fromUtf8(reason));
+	qCritical().noquote() << _errorMessage;
+	emit loadingFinished(false, nullptr);
 }
 
 
 // Processes a node in a recursive fashion. Processes each individual mesh located at the node and repeats this process on its children nodes (if any).
 void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene* scene, const aiMatrix4x4& parentTransform)
 {
-	if (_loadingCancelled)
+	if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
 	{
+		_loadingCancelled=true;
 		emit loadingCancelled();
 		return;
 	}
@@ -1254,28 +1808,62 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 	aiMatrix4x4 globalTransform = parentTransform * node->mTransformation;
 	++_processedNodeCount;
 
+	if (node == scene->mRootNode)
+	{
+		_nodePath.clear();
+		_nodePropertyCache.clear();
+	}
+	_nodePath.push_back(node);
+	struct PathPop
+	{
+		std::vector<const aiNode*>& path;
+		~PathPop() { path.pop_back(); }
+	} pathPop{ _nodePath };
+	NodePropertyChainPtr nodeProperties;
+	bool nodePropertiesBuilt = false;
+
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
 	{
+		if (_loadingCancelled || MainWindow::isFileLoadCancelRequested())
+		{
+			_loadingCancelled = true;
+			return;
+		}
 		aiMesh* mesh = scene->mMeshes[node->mMeshes[i]];		
+		_importSceneIndex = int(node->mMeshes[i]);
+		_importStage = "worker.mesh-convert";
+		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 		AssImpMeshData myMesh = processMesh(mesh, scene, node->mMeshes[i], scene->mNumMeshes, globalTransform, node->mName.C_Str());
+		if (!nodePropertiesBuilt)
+		{
+			nodeProperties = nodePropertyChain();
+			nodePropertiesBuilt = true;
+		}
+		myMesh.nodeProperties = nodeProperties;
 
-		_meshes.push_back(myMesh);            // full mesh store
+		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
+		_importStage = "worker.mesh-stage";
+		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
+		_preservesNodeTransforms = _preservesNodeTransforms || myMesh.preserveNodeTransform;
+		if (_progressiveLoading)
+			_currentBatch.push_back(std::move(myMesh));
+		else
+			_meshes.push_back(std::move(myMesh));
 		++_processedMeshCount;
-		emit nodeMeshProgressUpdated(
-			_processedNodeCount,
-			_totalNodeCount,
-			_processedMeshCount,
-			_sceneStats.meshCount,
-			_needsUVGeneration && _selectedUVMethod != UVMethod::None);
+		emitNodeMeshProgress(_needsUVGeneration && _selectedUVMethod != UVMethod::None);
 
 
 		if (_progressiveLoading)
 		{
-			_currentBatch.push_back(myMesh);      // batch collection
+			_importStage = "worker.batch-stage";
+			ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 			if (_currentBatch.size() >= _batchSize)
 			{
-				emit meshBatchReady(std::move(_currentBatch));
-				_currentBatch.clear();
+				_importStage = "worker.batch-handoff";
+				ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
+				submitBatch(std::move(_currentBatch));
+				_currentBatch = {};
+				_currentBatch.reserve(size_t(_batchSize));
 			}
 		}
 	}
@@ -1293,7 +1881,34 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 	}
 
 	const bool uvProcessed = _needsUVGeneration && _selectedUVMethod != UVMethod::None;
-	emit nodeMeshProgressUpdated(_processedNodeCount, _totalNodeCount, _processedMeshCount, _sceneStats.meshCount, uvProcessed);
+	emitNodeMeshProgress(uvProcessed, node == scene->mRootNode);
+}
+
+// Chain for the node at the end of _nodePath: its own flattened metadata first, then each ancestor's. Each node is
+// flattened once per load; null when none of them has metadata.
+NodePropertyChainPtr AssImpModelLoader::nodePropertyChain()
+{
+	auto chain = std::make_shared<NodePropertyChain>();
+	for (auto it = _nodePath.rbegin(); it != _nodePath.rend(); ++it)
+	{
+		auto cached = _nodePropertyCache.find(*it);
+		if (cached == _nodePropertyCache.end())
+		{
+			const auto drawings = _jt.pmiGeometry.find(*it);
+			cached = _nodePropertyCache.emplace(*it, NodeProperties::fromNode(**it, drawings != _jt.pmiGeometry.end() ? drawings->second : nullptr)).first;
+		}
+		if (cached->second)
+			chain->push_back(cached->second);
+	}
+	return chain->empty() ? nullptr : NodePropertyChainPtr(chain);
+}
+
+void AssImpModelLoader::emitNodeMeshProgress(bool uvProcessed, bool force)
+{
+	if (!force && _progressClock.isValid() && _progressClock.elapsed() < 50)
+		return;
+	_progressClock.restart();
+	emit nodeMeshProgressUpdated(_processedNodeCount, _totalNodeCount, _processedMeshCount, _totalMeshOccurrences, uvProcessed);
 }
 
 int AssImpModelLoader::countNodes(const aiNode* node) const
@@ -1327,6 +1942,14 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 		isNonTrianglePrimitive = (mode != GL_TRIANGLES &&
 			mode != GL_TRIANGLE_STRIP &&
 			mode != GL_TRIANGLE_FAN);
+	}
+	else if (mesh->mPrimitiveTypes != 0
+		&& (mesh->mPrimitiveTypes & (aiPrimitiveType_TRIANGLE | aiPrimitiveType_POLYGON)) == 0
+		&& (mesh->mPrimitiveTypes & (aiPrimitiveType_POINT | aiPrimitiveType_LINE)) != 0)
+	{
+		// Importers other than glTF (JT polyline and point set shapes) declare line/point meshes through
+		// Assimp's primitive types; they must not take the triangle flat-normal expansion below.
+		isNonTrianglePrimitive = true;
 	}
 
 	// Walk through each of the mesh's vertices
@@ -1450,8 +2073,9 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 
 		vertices.push_back(vertex);
 
-		if (i % 100000 == 0)
+		if (i % 100000 == 0 && (!_vertexProgressClock.isValid() || _vertexProgressClock.elapsed() >= 50))
 		{
+			_vertexProgressClock.restart();
 			emit verticesProcessed(static_cast<float>(i) / nbVertices * 100.0f);
 		}
 	}
@@ -1553,6 +2177,35 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	const QString importPath = QString::fromStdString(_path);
 	if (importPath.endsWith(".gltf", Qt::CaseInsensitive) || importPath.endsWith(".glb", Qt::CaseInsensitive))
 	{
+		// loadMorphTargetsForAiMesh walks the node tree from the root for every call, which is quadratic over a
+		// large assembly. Ask once whether any primitive has morph targets and skip the walk when none does.
+		if (_gltfHasMorphTargets < 0)
+		{
+			_gltfHasMorphTargets = 1; // if the file cannot be inspected, keep the old behaviour
+			QJsonDocument morphDoc;
+			QVector<QByteArray> morphBuffers;
+			if (loadAnimationJsonAndBuffer(importPath, morphDoc, morphBuffers, &_materialProcessor) && morphDoc.isObject())
+			{
+				bool any = false;
+				const QJsonArray jsonMeshes = morphDoc.object().value("meshes").toArray();
+				for (const QJsonValue& meshValue : jsonMeshes)
+				{
+					const QJsonArray primitives = meshValue.toObject().value("primitives").toArray();
+					for (const QJsonValue& primitiveValue : primitives)
+					{
+						if (!primitiveValue.toObject().value("targets").toArray().isEmpty())
+						{
+							any = true;
+							break;
+						}
+					}
+					if (any)
+						break;
+				}
+				_gltfHasMorphTargets = any ? 1 : 0;
+			}
+		}
+		if (_gltfHasMorphTargets != 0)
 		loadMorphTargetsForAiMesh(
 			importPath, scene, meshIndex, mesh->mNumVertices, morphTargets, defaultMorphWeights, &morphBaseBasis,
 			&_materialProcessor);
@@ -1754,7 +2407,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			//Set color and material
 			_materialProcessor.processAssimpColorAndMaterial(material, mat);
 			// ADS and PBR Maps from Assimp
-			_materialProcessor.processAssimpTextureMaps(material, textures, mat);
+			_materialProcessor.processAssimpTextureMaps(material, textures, mat, scene);
 		}
 	}
 
@@ -1762,7 +2415,9 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 	QString meshName = QString::fromStdString(mesh->mName.C_Str());
 	if(meshName.isEmpty())
 	{
-		meshName = QFileInfo(QString(_path.data())).baseName() + " (Unnamed Mesh)";
+		// An unnamed mesh is traced through the node that owns it (the part or instance name) rather than shown anonymously.
+		const QString ownerName = nodeName ? QString::fromUtf8(nodeName) : QString();
+		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + (ownerName.isEmpty() ? QStringLiteral("Unnamed Mesh") : ownerName) + ")";
 	}
 	else
 	{
@@ -1862,7 +2517,7 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			else
 			{
 				_materialProcessor.processAssimpTextureMaps(
-					scene->mMaterials[matIdx], varTextures, varMat);
+					scene->mMaterials[matIdx], varTextures, varMat, scene);
 			}
 
 			meshData.allVariantMaterials[matIdx] = varMat;
@@ -1889,6 +2544,24 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 			pc.axisX = c.axisX;     pc.axisY = c.axisY;     pc.axisZ = c.axisZ;
 			pc.radius = c.radius;
 			meshData.precomputedOccEdgeCircles.push_back(pc);
+		}
+	}
+
+	// A 3DXML mesh that merged several of the file's own bodies carries one body number per vertex. Turn each
+	// number into a process-unique source-mesh id so Curvature Analysis and MVF keep treating them as separate bodies.
+	{
+		const auto leafIds = _threeDXml.meshLeafIds.constFind(mesh);
+		if (leafIds != _threeDXml.meshLeafIds.cend() && leafIds.value() && leafIds.value()->size() == mesh->mNumVertices)
+		{
+			std::unordered_map<unsigned, quint64> freshIds;
+			meshData.sourceMeshIds.reserve(leafIds.value()->size());
+			for (unsigned leaf : *leafIds.value())
+			{
+				auto inserted = freshIds.emplace(leaf, 0);
+				if (inserted.second)
+					inserted.first->second = MeshImportAdaptor::nextSourceMeshId();
+				meshData.sourceMeshIds.push_back(inserted.first->second);
+			}
 		}
 	}
 
@@ -2144,6 +2817,9 @@ bool AssImpModelLoader::regenerateUVs(SceneMesh* mesh,
 void AssImpModelLoader::freeScene()
 {
 	_importer.FreeScene();
+	_xcafScene.reset();
+	_threeDXml = {};
+	_jt = {};
 	_scene = nullptr;
 }
 
@@ -2170,16 +2846,17 @@ SceneMeshInfo AssImpModelLoader::collectSceneMeshInfo(const aiScene* scene)
 		for (unsigned int i = 0; i < node->mNumMeshes; ++i)
 		{
 			unsigned int meshIndex = node->mMeshes[i];
-			if (!processedMeshes.insert(meshIndex).second)
-				continue;
+			const bool firstOccurrence = processedMeshes.insert(meshIndex).second;
 
 			const aiMesh* mesh = scene->mMeshes[meshIndex];
 			int numFaces = static_cast<int>(mesh->mNumFaces);
 			int numVerts = static_cast<int>(mesh->mNumVertices);
 
-			info.totalVertices += numVerts;
-			info.totalTriangles += numFaces;
-			info.meshCount++;
+			if (firstOccurrence) {
+				info.totalVertices += numVerts;
+				info.totalTriangles += numFaces;
+				info.meshCount++;
+			}
 
 			if (numFaces > info.largestMeshTriangles)
 			{
@@ -2475,21 +3152,26 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 	// ===== HANDLE GLB FILES =====
 	if (isGLB)
 	{
-		std::vector<uint8_t> glbBinaryBuffer;
-		QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer);
-
-		if (jsonString.isEmpty())
+		// The material pass has already parsed this GLB's JSON (parsing it again takes about a second on a 40k-mesh file).
+		QVector<QByteArray> cachedBuffers;
+		if (!_materialProcessor.fillAnimDataFromCache(gltfPath, doc, cachedBuffers))
 		{
-			qWarning() << "parseGltfPrimitiveModes: Failed to extract JSON from GLB:" << gltfPath;
-			return;
-		}
+			std::vector<uint8_t> glbBinaryBuffer;
+			QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer, /*readBinaryChunk=*/false);
 
-		QJsonParseError perr;
-		doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
-		if (perr.error != QJsonParseError::NoError)
-		{
-			qWarning() << "parseGltfPrimitiveModes: JSON parse error in GLB:" << perr.errorString();
-			return;
+			if (jsonString.isEmpty())
+			{
+				qWarning() << "parseGltfPrimitiveModes: Failed to extract JSON from GLB:" << gltfPath;
+				return;
+			}
+
+			QJsonParseError perr;
+			doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
+			if (perr.error != QJsonParseError::NoError)
+			{
+				qWarning() << "parseGltfPrimitiveModes: JSON parse error in GLB:" << perr.errorString();
+				return;
+			}
 		}
 	}
 	// ===== HANDLE GLTF FILES =====
@@ -2697,19 +3379,24 @@ void AssImpModelLoader::parseGltfVariants(const QString& gltfPath)
 	QJsonDocument doc;
 	if (isGLB)
 	{
-		std::vector<uint8_t> glbBinaryBuffer;
-		const QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer);
-		if (jsonString.isEmpty())
+		// Parsed once already by the material pass; see parseGltfPrimitiveModes().
+		QVector<QByteArray> cachedBuffers;
+		if (!_materialProcessor.fillAnimDataFromCache(gltfPath, doc, cachedBuffers))
 		{
-			qWarning() << "parseGltfVariants: failed to extract JSON from GLB:" << gltfPath;
-			return;
-		}
-		QJsonParseError perr;
-		doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
-		if (perr.error != QJsonParseError::NoError)
-		{
-			qWarning() << "parseGltfVariants: JSON parse error:" << perr.errorString();
-			return;
+			std::vector<uint8_t> glbBinaryBuffer;
+			const QString jsonString = MaterialProcessor::extractJsonFromGLB(gltfPath, glbBinaryBuffer, /*readBinaryChunk=*/false);
+			if (jsonString.isEmpty())
+			{
+				qWarning() << "parseGltfVariants: failed to extract JSON from GLB:" << gltfPath;
+				return;
+			}
+			QJsonParseError perr;
+			doc = QJsonDocument::fromJson(jsonString.toUtf8(), &perr);
+			if (perr.error != QJsonParseError::NoError)
+			{
+				qWarning() << "parseGltfVariants: JSON parse error:" << perr.errorString();
+				return;
+			}
 		}
 	}
 	else
@@ -3432,6 +4119,24 @@ void AssImpModelLoader::parseSceneAnimations()
 			clip.channels.append(pointerChannel);
 		}
 
+		// The channels taken from Assimp above name their node only by string. A glTF may repeat a node name (instanced
+		// sub-assemblies), and a name resolves to the first node carrying it, so such a channel would pose the wrong node and
+		// overwrite its static translation. The index-based channels read from the JSON cover the same nodes exactly.
+		QHash<QString, int> nodeNameCount;
+		for (const GltfAnimationNodeBinding& nodeBinding : std::as_const(_animationData.nodeBindings))
+			++nodeNameCount[nodeBinding.nodeName];
+		QVector<GltfAnimationChannel> unambiguousChannels;
+		unambiguousChannels.reserve(clip.channels.size());
+		for (const GltfAnimationChannel& animChannel : std::as_const(clip.channels))
+		{
+			const bool nodeTransform = animChannel.targetPath == GltfAnimationTargetPath::Translation ||
+				animChannel.targetPath == GltfAnimationTargetPath::Rotation ||
+				animChannel.targetPath == GltfAnimationTargetPath::Scale;
+			if (nodeTransform && animChannel.targetNodeIndex < 0 && nodeNameCount.value(animChannel.targetNodeName) > 1)
+				continue;
+			unambiguousChannels.append(animChannel);
+		}
+		clip.channels = unambiguousChannels;
 	}
 
 	_animationData.hasNodeAnimations = false;
