@@ -67,7 +67,7 @@ QList<double> numbersAfter(const QByteArray& text, const char* key)
 void testViews()
 {
     const float radius = 10.0f;
-    const double distance = radius / std::sin(15.0 * 3.14159265358979 / 180.0) * 1.25;
+    const double distance = radius / std::sin(15.0 * 3.14159265358979 / 180.0) * 1.05;
 
     const QList<QByteArray> views = Pdf3D::standardViews(QVector3D(0, 0, 0), radius, Pdf3D::UpAxis::Y);
     CHECK(views.size() == 7 && views.size() == Pdf3D::standardViewNames().size());
@@ -148,6 +148,43 @@ aiScene* makeTriangleScene()
     mat->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
     s->mMaterials[0] = mat;
     return s;
+}
+
+void testCameraViews()
+{
+    Pdf3D::CameraViewSpec persp;
+    persp.name = QStringLiteral("Saved");
+    persp.eye = QVector3D(0, -10, 0);
+    persp.direction = QVector3D(0, 2, 0);   // not normalised on purpose
+    persp.up = QVector3D(0, 0, 1);
+    persp.fovDegrees = 45.0f;
+    const QByteArray pv = Pdf3D::makeCameraView(persp, QVector3D(0, 0, 0), 5.0f);
+    CHECK(pv.contains("/XN (Saved)") && pv.contains("/Subtype /P") && pv.contains("/FOV 45") && !pv.contains("/NA"));
+    // the orbit centre is the scene centre projected on the view axis: 10 units ahead of the eye
+    const QRegularExpressionMatch co = QRegularExpression(QStringLiteral("/CO ([0-9.]+)")).match(QString::fromLatin1(pv));
+    CHECK(co.hasMatch() && nearly(co.captured(1).toDouble(), 10.0, 1.0e-3));
+
+    Pdf3D::CameraViewSpec ortho = persp;
+    ortho.name = QStringLiteral("Ortho ") + QChar(0x00e4);   // non-ASCII: written as a UTF-16 text string
+    ortho.orthographic = true;
+    ortho.orthoRange = 2.5f;
+    ortho.nodes = {{QStringLiteral("N0000_a"), true}, {QStringLiteral("N0001_b"), false}};
+    const QByteArray ov = Pdf3D::makeCameraView(ortho, QVector3D(0, 0, 0), 5.0f);
+    // orthographic views are narrow-field perspective views: 2.5 world units across the smaller dimension at a 2 degree field
+    CHECK(ov.contains("/Subtype /P") && ov.contains("/FOV 2") && ov.contains("/XN <FEFF"));
+    {
+        const QRegularExpressionMatch oco = QRegularExpression(QStringLiteral("/CO ([0-9.]+)")).match(QString::fromLatin1(ov));
+        const double expected = 0.5 * 2.5 / std::tan(1.0 * 3.14159265358979 / 180.0);
+        CHECK(oco.hasMatch() && nearly(oco.captured(1).toDouble(), expected, 1.0e-2));
+    }
+    CHECK(ov.contains("/Type /3DNode /N (N0000_a) /V true") && ov.contains("/N (N0001_b) /V false"));
+
+    // a scene centre behind the eye still gives a positive orbit distance
+    Pdf3D::CameraViewSpec behind = persp;
+    behind.direction = QVector3D(0, -1, 0);
+    const QByteArray bv = Pdf3D::makeCameraView(behind, QVector3D(0, 0, 0), 5.0f);
+    const QRegularExpressionMatch bco = QRegularExpression(QStringLiteral("/CO ([0-9.]+)")).match(QString::fromLatin1(bv));
+    CHECK(bco.hasMatch() && bco.captured(1).toDouble() > 0.0);
 }
 
 void testSceneToU3d()
@@ -413,6 +450,7 @@ int main(int argc, char** argv)
     QGuiApplication app(argc, argv);
 
     testViews();
+    testCameraViews();
     testSceneToU3d();
     testVertexColors();
     testAppender();

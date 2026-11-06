@@ -577,7 +577,8 @@ aiScene* SceneGraphExporter::buildExportScene(
     bool flattenTransforms,
     const QStringList& allowedSourceFiles,
     QMap<QString, unsigned int>* outAnimMatRemap,
-    const QHash<QUuid, std::vector<float>>* colorOverrides)
+    const QHash<QUuid, std::vector<float>>* colorOverrides,
+    QHash<QUuid, QString>* outMeshNodeNameByUuid)
 {
     if (!sceneGraph)
         return nullptr;
@@ -1164,6 +1165,9 @@ aiScene* SceneGraphExporter::buildExportScene(
             }
         }
     }
+
+    if (outMeshNodeNameByUuid)
+        *outMeshNodeNameByUuid = exportedMeshNodeNameByUuid;
 
     return scene;
 }

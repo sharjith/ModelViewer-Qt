@@ -42,7 +42,14 @@ QVector3D toYUp(const QVector3D& v)
 
 } // namespace
 
-QByteArray makeView(const QString& name, const QVector3D& eye, const QVector3D& target, const QVector3D& up)
+namespace
+{
+
+constexpr float kOrthoFovDegrees = 2.0f;
+const char* const kPerspective30 = "<< /Type /3DProjection /Subtype /P /PS /Min /FOV 30 >>";
+
+QByteArray buildView(const QString& name, const QVector3D& eye, const QVector3D& target, const QVector3D& up,
+                     const QByteArray& projection, const QByteArray& nodes)
 {
     const QVector3D forward = (target - eye).normalized();
     QVector3D upN = up.normalized();
@@ -65,19 +72,65 @@ QByteArray makeView(const QString& name, const QVector3D& eye, const QVector3D& 
         matrix += PdfAppender::pdfNumber(c2w[i]);
     }
 
-    const QByteArray n = PdfAppender::pdfString(name);
+    const QByteArray n = PdfAppender::pdfTextString(name);
     return "<< /Type /3DView /XN " + n + " /IN " + n + " /MS /M /C2W [" + matrix + "] /CO " +
            PdfAppender::pdfNumber((target - eye).length()) +
-           " /P << /Type /3DProjection /Subtype /P /PS /Min /FOV 30 >>"
+           " /P " + projection +
+           (nodes.isEmpty() ? QByteArray() : " /NA [" + nodes + "]") +
            " /BG << /Type /3DBG /Subtype /SC /C [1 1 1] >>"
            " /RM << /Type /3DRenderMode /Subtype /Solid >>"
            " /LS << /Type /3DLightingScheme /Subtype /CAD >> >>";
 }
 
+} // namespace
+
+QByteArray makeView(const QString& name, const QVector3D& eye, const QVector3D& target, const QVector3D& up)
+{
+    return buildView(name, eye, target, up, kPerspective30, QByteArray());
+}
+
+QByteArray makeCameraView(const CameraViewSpec& spec, const QVector3D& sceneCenter, float sceneRadius)
+{
+    QVector3D dir = spec.direction.normalized();
+    if (dir.isNull())
+        dir = QVector3D(0.0f, 0.0f, -1.0f);
+    const float minDistance = std::max(sceneRadius, 1.0e-6f) * 0.05f;
+    const float distance = std::max(QVector3D::dotProduct(sceneCenter - spec.eye, dir), minDistance);
+    QVector3D target = spec.eye + dir * distance;
+    QVector3D eye = spec.eye;
+
+    QByteArray projection;
+    if (spec.orthographic)
+    {
+        // Acrobat's orthographic scale (/OS) convention is not verified, so an orthographic saved view is written as a
+        // narrow-field perspective view: with a vertical field of kOrthoFovDegrees the eye is moved back along the view axis until
+        // `orthoRange` world units span the smaller viewport dimension, the same extent the viewport shows. The depth distortion
+        // of a 2 degree lens is negligible.
+        const float range = std::max(spec.orthoRange, 1.0e-6f);
+        const float halfFov = 0.5f * kOrthoFovDegrees * 3.14159265f / 180.0f;
+        const float back = 0.5f * range / std::tan(halfFov);
+        eye = target - dir * back;
+        projection = "<< /Type /3DProjection /Subtype /P /PS /Min /FOV " + PdfAppender::pdfNumber(kOrthoFovDegrees) + " >>";
+    }
+    else
+    {
+        projection = "<< /Type /3DProjection /Subtype /P /PS /Min /FOV " + PdfAppender::pdfNumber(spec.fovDegrees) + " >>";
+    }
+
+    QByteArray nodes;
+    for (const NodeVisibility& n : spec.nodes)
+    {
+        if (!nodes.isEmpty())
+            nodes += ' ';
+        nodes += "<< /Type /3DNode /N " + PdfAppender::pdfTextString(n.node) + " /V " + (n.visible ? "true" : "false") + " >>";
+    }
+    return buildView(spec.name, eye, target, spec.up, projection, nodes);
+}
+
 QList<QByteArray> standardViews(const QVector3D& center, float radius, UpAxis upAxis)
 {
-    // distance at which the bounding sphere fits the smaller viewport dimension (FOV 30), with a 25% margin
-    const float distance = std::max(radius, 1.0e-6f) / std::sin(15.0f * 3.14159265f / 180.0f) * 1.25f;
+    // distance at which the bounding sphere fits the smaller viewport dimension (FOV 30), with a 5% margin
+    const float distance = std::max(radius, 1.0e-6f) / std::sin(15.0f * 3.14159265f / 180.0f) * 1.05f;
 
     QList<QByteArray> views;
     int count = 0;

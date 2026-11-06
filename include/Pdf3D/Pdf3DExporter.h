@@ -23,6 +23,8 @@ struct Pdf3DOptions
     QString scale;                     // free text, e.g. "1:2" or "NTS"
     QString notes;                     // short free text under the subtitle
     QString date;                      // empty = today (ISO)
+    QVector<CameraViewSpec> extraViews; // saved camera views and scene states, added after the standard views
+    bool    includeSavedViews = true;   // consumed by the caller (ModelViewer): fill extraViews from saved cameras and scene states
     bool    includePartsList = true;   // extra sheet(s) listing the exported parts (item, name, material, quantity)
     UpAxis  upAxis = UpAxis::Y;        // the viewer's world up axis; decides what Front/Top/... mean
     QImage  poster;                    // optional picture shown on the page where 3D is not available (a viewport grab)

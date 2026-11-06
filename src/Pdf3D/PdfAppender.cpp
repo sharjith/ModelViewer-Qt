@@ -150,6 +150,20 @@ QByteArray PdfAppender::pdfNumber(double value)
     return t;
 }
 
+QByteArray PdfAppender::pdfTextString(const QString& text)
+{
+    bool ascii = true;
+    for (const QChar c : text)
+        ascii = ascii && c.unicode() >= 0x20 && c.unicode() < 0x7f;
+    if (ascii)
+        return pdfString(text);
+    QByteArray out = "<FEFF";
+    for (const QChar c : text)
+        out += QByteArray::number(c.unicode(), 16).rightJustified(4, '0').toUpper();
+    out += ">";
+    return out;
+}
+
 QByteArray PdfAppender::pdfString(const QString& text)
 {
     QByteArray out = "(";

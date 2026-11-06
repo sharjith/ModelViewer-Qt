@@ -20,6 +20,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, QWidget* paren
 	ui->companyEdit->setText(settings.value(QStringLiteral("pdf3d/company")).toString());
 	ui->scaleEdit->setText(settings.value(QStringLiteral("pdf3d/scale")).toString());
 	ui->partsListCheck->setChecked(settings.value(QStringLiteral("pdf3d/partsList"), true).toBool());
+	ui->savedViewsCheck->setChecked(settings.value(QStringLiteral("pdf3d/savedViews"), true).toBool());
 	ui->titleEdit->selectAll();
 }
 
@@ -35,6 +36,7 @@ void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
 	options.scale = ui->scaleEdit->text().trimmed();
 	options.notes = ui->notesEdit->toPlainText().trimmed();
 	options.includePartsList = ui->partsListCheck->isChecked();
+	options.includeSavedViews = ui->savedViewsCheck->isChecked();
 }
 
 void Pdf3DExportDialog::done(int result)
@@ -49,6 +51,7 @@ void Pdf3DExportDialog::done(int result)
 		settings.setValue(QStringLiteral("pdf3d/company"), ui->companyEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/scale"), ui->scaleEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/partsList"), ui->partsListCheck->isChecked());
+		settings.setValue(QStringLiteral("pdf3d/savedViews"), ui->savedViewsCheck->isChecked());
 	}
 	QDialog::done(result);
 }

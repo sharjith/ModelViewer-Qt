@@ -6,8 +6,11 @@
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QDate>
+#include <QFileInfo>
 #include <QFont>
+#include <QStringList>
 #include <QHash>
+#include <QSet>
 #include <QVector>
 #include <QPageLayout>
 #include <QPageSize>
@@ -58,8 +61,24 @@ struct PartRow
 };
 
 // One row per distinct (name, mesh) pair, in first-appearance order; instances of the same part add to the quantity.
-QVector<PartRow> buildPartRows(const U3dScene& scene)
+// The importers name materials "<file base name> (<part>)"; the parts list shows just the part.
+QString shortMaterialName(const QString& name, const QStringList& fileBaseNames)
 {
+    for (const QString& base : fileBaseNames)
+    {
+        const QString prefix = base + QStringLiteral(" (");
+        if (!base.isEmpty() && name.startsWith(prefix) && name.endsWith(QLatin1Char(')')))
+            return name.mid(prefix.size(), name.size() - prefix.size() - 1);
+    }
+    return name;
+}
+
+QVector<PartRow> buildPartRows(const U3dScene& scene, const QString& sourceFiles)
+{
+    QStringList fileBaseNames;
+    for (const QString& file : sourceFiles.split(QStringLiteral(", "), Qt::SkipEmptyParts))
+        fileBaseNames << QFileInfo(file).completeBaseName();
+
     QVector<PartRow> rows;
     QHash<QString, int> index;
     for (const U3dNode& n : scene.nodes)
@@ -76,7 +95,7 @@ QVector<PartRow> buildPartRows(const U3dScene& scene)
         PartRow r;
         r.name = n.displayName;
         const int mat = scene.meshes[n.meshIndex].materialIndex;
-        r.material = (mat >= 0 && mat < scene.materials.size()) ? scene.materials[mat].name : QString();
+        r.material = (mat >= 0 && mat < scene.materials.size()) ? shortMaterialName(scene.materials[mat].name, fileBaseNames) : QString();
         r.quantity = 1;
         index.insert(key, rows.size());
         rows.push_back(r);
@@ -297,7 +316,7 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         layout.titleBlock = QRectF(kMargin, layout.page.bottom() - kMargin - blockHeight, layout.page.width() - 2 * kMargin, blockHeight);
         layout.area3d = QRectF(QPointF(kMargin, kMargin), QPointF(layout.page.right() - kMargin, layout.titleBlock.top() - 12));
         const int partCount = static_cast<int>(scene.nodes.size());
-        const QVector<PartRow> rows = options.includePartsList ? buildPartRows(scene) : QVector<PartRow>();
+        const QVector<PartRow> rows = options.includePartsList ? buildPartRows(scene, options.subtitle) : QVector<PartRow>();
         const int perSheet = partsRowsPerSheet(layout);
         const int listSheets = rows.isEmpty() ? 0 : (static_cast<int>(rows.size()) + perSheet - 1) / perSheet;
         const int sheetCount = 1 + listSheets;
@@ -318,6 +337,22 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     annotation.rect = toPdfRect(layout.area3d, layout.pageHeightPt);
     annotation.u3d = u3d.data;
     annotation.viewDictionaries = standardViews(center, radius, options.upAxis);
+    {
+        // saved views follow the standard ones; names are made unique ("name (2)") so the view list stays unambiguous
+        QSet<QString> used;
+        for (const QString& n : standardViewNames())
+            used.insert(n);
+        for (CameraViewSpec spec : options.extraViews)
+        {
+            const QString base = spec.name.isEmpty() ? QCoreApplication::translate("Pdf3DExporter", "View") : spec.name;
+            QString unique = base;
+            for (int i = 2; used.contains(unique); ++i)
+                unique = QStringLiteral("%1 (%2)").arg(base).arg(i);
+            used.insert(unique);
+            spec.name = unique;
+            annotation.viewDictionaries.append(makeCameraView(spec, center, radius));
+        }
+    }
     annotation.defaultView = 0;
     annotation.description = QStringLiteral("3D model");
     if (layout.notesScroll)

@@ -5939,7 +5939,8 @@ void ModelViewer::exportAs3DPdf()
 		SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
 		return (mesh && _viewportWidget->isMeshShown(uuid)) ? mesh : nullptr;
 	};
-	aiScene* exportScene = SceneGraphExporter::buildExportScene(_sceneGraph, resolver, false);
+	QHash<QUuid, QString> meshNodeNames;   // mesh uuid -> export node name, for the per-scene-state visibility
+	aiScene* exportScene = SceneGraphExporter::buildExportScene(_sceneGraph, resolver, false, QStringList(), nullptr, nullptr, &meshNodeNames);
 	if (!exportScene)
 	{
 		QApplication::restoreOverrideCursor();
@@ -5962,6 +5963,48 @@ void ModelViewer::exportAs3DPdf()
 	delete exportScene;
 
 	options.subtitle = sourceNames.join(QStringLiteral(", "));
+
+	if (options.includeSavedViews)
+	{
+		// Saved camera views (Cameras panel, authored glTF cameras) and scene states become named PDF views. Cameras are in the
+		// space of their file; the viewer-space correction put back above maps them into the exported scene.
+		auto specFromEntry = [](const GltfCameraEntry& cam, const QString& name, const QMatrix4x4& toScene) {
+			Pdf3D::CameraViewSpec spec;
+			spec.name = name;
+			spec.eye = toScene.map(cam.worldPosition);
+			spec.direction = toScene.mapVector(cam.worldDirection);
+			spec.up = toScene.mapVector(cam.worldUp);
+			spec.orthographic = (cam.type == GltfCameraType::Orthographic);
+			spec.fovDegrees = qRadiansToDegrees(cam.fovYRadians);
+			spec.orthoRange = (cam.capturedViewRange >= 0.0f) ? cam.capturedViewRange : std::max(cam.xMag, cam.yMag) * 2.0f;
+			return spec;
+		};
+
+		const QVector<SceneNode*> fileNodes = QVector<SceneNode*>(_sceneGraph->root()->children.begin(), _sceneGraph->root()->children.end());
+		for (int i = 0; i < fileNodes.size() && i < corrections.size(); ++i)
+		{
+			const GltfCameraData data = _sceneGraph->gltfCameraDataForFile(fileNodes[i]->sourceFile);
+			for (const GltfCameraEntry& cam : data.cameras)
+				options.extraViews.append(specFromEntry(cam, cam.name, corrections[i]));
+		}
+		for (const GltfCameraEntry& cam : _sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras)
+			options.extraViews.append(specFromEntry(cam, cam.name, QMatrix4x4()));
+
+		// Scene states: the camera plus the visibility of every exported part (a part the state does not list is hidden).
+		QHash<QString, QUuid> uuidByNodeName;
+		for (auto it = meshNodeNames.constBegin(); it != meshNodeNames.constEnd(); ++it)
+			uuidByNodeName.insert(it.value(), it.key());
+		for (const SceneState& state : _sceneGraph->sceneStates())
+		{
+			Pdf3D::CameraViewSpec spec = specFromEntry(state.camera, tr("State: %1").arg(state.name), QMatrix4x4());
+			for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+			{
+				const QUuid uuid = uuidByNodeName.value(node.displayName);
+				spec.nodes.append({node.name, uuid.isNull() ? true : state.visibleMeshUuids.contains(uuid)});
+			}
+			options.extraViews.append(spec);
+		}
+	}
 	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
 	// standard views (Front/Top/...) use the same convention as the viewport.
 	options.upAxis = _viewportWidget->isCameraUpAxisZUp() ? Pdf3D::UpAxis::Z : Pdf3D::UpAxis::Y;

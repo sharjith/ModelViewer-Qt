@@ -42,6 +42,10 @@ public:
     // PDF literal string for ASCII text ("(...)" with the special characters escaped; non-ASCII becomes '?').
     static QByteArray pdfString(const QString& text);
 
+    // PDF text string: a literal string for ASCII text, otherwise a UTF-16BE hex string with a byte order mark (view names,
+    // field values; Acrobat shows them as Unicode).
+    static QByteArray pdfTextString(const QString& text);
+
     // PDF number without exponent notation.
     static QByteArray pdfNumber(double value);
 };

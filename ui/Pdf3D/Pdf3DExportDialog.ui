@@ -116,6 +116,21 @@
     </layout>
    </item>
    <item>
+    <widget class="QCheckBox" name="savedViewsCheck">
+     <property name="toolTip">
+      <string>Adds your saved camera views, the cameras defined in the model
+and your saved scene states to the PDF's view list.
+A scene state also restores which parts were visible.</string>
+     </property>
+     <property name="text">
+      <string>Add saved views and scene states as PDF views</string>
+     </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QCheckBox" name="partsListCheck">
      <property name="toolTip">
       <string>Adds sheet(s) after the 3D view with a table of the exported parts:
