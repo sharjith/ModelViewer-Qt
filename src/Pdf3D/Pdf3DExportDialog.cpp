@@ -3,11 +3,23 @@
 
 #include "Pdf3DExporter.h"
 
+#include <QDialogButtonBox>
+#include <QFont>
+#include <QPalette>
+#include <QPushButton>
 #include <QSettings>
+#include <QTreeWidgetItem>
+#include <QTreeWidgetItemIterator>
 
-Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, QWidget* parent)
+namespace
+{
+	constexpr int kViewIndexRole = Qt::UserRole;   // the index into the caller's ViewItem list, on the leaf items
+}
+
+Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo, QWidget* parent)
 	: QDialog(parent)
 	, ui(std::make_unique<Ui::Pdf3DExportDialog>())
+	, _viewCount(views.size())
 {
 	ui->setupUi(this);
 
@@ -20,8 +32,52 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, QWidget* paren
 	ui->companyEdit->setText(settings.value(QStringLiteral("pdf3d/company")).toString());
 	ui->scaleEdit->setText(settings.value(QStringLiteral("pdf3d/scale")).toString());
 	ui->partsListCheck->setChecked(settings.value(QStringLiteral("pdf3d/partsList"), true).toBool());
-	ui->savedViewsCheck->setChecked(settings.value(QStringLiteral("pdf3d/savedViews"), true).toBool());
 	ui->titleEdit->selectAll();
+
+	// the views, grouped in the order the groups first appear
+	QTreeWidgetItem* group = nullptr;
+	QString groupName;
+	for (int i = 0; i < views.size(); ++i)
+	{
+		const ViewItem& view = views[i];
+		if (!group || view.group != groupName)
+		{
+			group = new QTreeWidgetItem(ui->viewsTree, QStringList{view.group});
+			group->setFlags(group->flags() | Qt::ItemIsUserCheckable | Qt::ItemIsAutoTristate);
+			group->setCheckState(0, Qt::Checked);
+			QFont f = group->font(0);
+			f.setBold(true);
+			group->setFont(0, f);
+			groupName = view.group;
+		}
+		auto* item = new QTreeWidgetItem(group, QStringList{view.name, view.note});
+		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
+		item->setCheckState(0, Qt::Checked);
+		item->setData(0, kViewIndexRole, i);
+		if (!view.note.isEmpty())
+		{
+			item->setToolTip(1, view.note);
+			if (view.warning)
+				item->setForeground(1, palette().color(QPalette::Link));
+			else
+				item->setForeground(1, palette().color(QPalette::Disabled, QPalette::Text));
+		}
+	}
+	ui->viewsTree->expandAll();
+	ui->viewsTree->resizeColumnToContents(0);
+
+	// the info line is deliberately subtle: a remark, not a warning dialog
+	ui->viewsInfoLabel->setText(viewsInfo);
+	ui->viewsInfoLabel->setVisible(!viewsInfo.isEmpty());
+	QPalette infoPalette = ui->viewsInfoLabel->palette();
+	infoPalette.setColor(QPalette::WindowText, palette().color(QPalette::Disabled, QPalette::Text));
+	ui->viewsInfoLabel->setPalette(infoPalette);
+
+	connect(ui->viewsTree, &QTreeWidget::itemChanged, this, [this]() { updateOkEnabled(); });
+	connect(ui->selectAllButton, &QPushButton::clicked, this, [this]() { setAllViewsChecked(true); });
+	connect(ui->selectNoneButton, &QPushButton::clicked, this, [this]() { setAllViewsChecked(false); });
+	ui->tabWidget->setTabEnabled(1, !views.isEmpty());
+	updateOkEnabled();
 }
 
 Pdf3DExportDialog::~Pdf3DExportDialog() = default;
@@ -36,7 +92,41 @@ void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
 	options.scale = ui->scaleEdit->text().trimmed();
 	options.notes = ui->notesEdit->toPlainText().trimmed();
 	options.includePartsList = ui->partsListCheck->isChecked();
-	options.includeSavedViews = ui->savedViewsCheck->isChecked();
+}
+
+QVector<bool> Pdf3DExportDialog::viewSelection() const
+{
+	QVector<bool> selection(_viewCount, false);
+	for (QTreeWidgetItemIterator it(ui->viewsTree); *it; ++it)
+	{
+		const QVariant index = (*it)->data(0, kViewIndexRole);
+		if (index.isValid())
+			selection[index.toInt()] = ((*it)->checkState(0) == Qt::Checked);
+	}
+	return selection;
+}
+
+void Pdf3DExportDialog::setAllViewsChecked(bool checked)
+{
+	for (QTreeWidgetItemIterator it(ui->viewsTree); *it; ++it)
+	{
+		if ((*it)->data(0, kViewIndexRole).isValid())
+			(*it)->setCheckState(0, checked ? Qt::Checked : Qt::Unchecked);
+	}
+}
+
+void Pdf3DExportDialog::updateOkEnabled()
+{
+	// the PDF needs at least one view
+	const QVector<bool> selection = viewSelection();
+	bool any = false;
+	for (const bool b : selection)
+		any = any || b;
+	if (QPushButton* ok = ui->buttonBox->button(QDialogButtonBox::Ok))
+	{
+		ok->setEnabled(any);
+		ok->setToolTip(any ? QString() : tr("Tick at least one view."));
+	}
 }
 
 void Pdf3DExportDialog::done(int result)
@@ -51,7 +141,6 @@ void Pdf3DExportDialog::done(int result)
 		settings.setValue(QStringLiteral("pdf3d/company"), ui->companyEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/scale"), ui->scaleEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/partsList"), ui->partsListCheck->isChecked());
-		settings.setValue(QStringLiteral("pdf3d/savedViews"), ui->savedViewsCheck->isChecked());
 	}
 	QDialog::done(result);
 }

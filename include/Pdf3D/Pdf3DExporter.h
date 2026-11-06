@@ -4,6 +4,7 @@
 #include "U3dScene.h"
 
 #include <QImage>
+#include <QSet>
 #include <QString>
 
 // Save as 3D PDF: an A4 landscape drawing sheet (border, title block, 3D area), optionally followed by parts list sheets, written with QPdfWriter,
@@ -23,8 +24,8 @@ struct Pdf3DOptions
     QString scale;                     // free text, e.g. "1:2" or "NTS"
     QString notes;                     // short free text under the subtitle
     QString date;                      // empty = today (ISO)
-    QVector<CameraViewSpec> extraViews; // saved camera views and scene states, added after the standard views
-    bool    includeSavedViews = true;   // consumed by the caller (ModelViewer): fill extraViews from saved cameras and scene states
+    QVector<CameraViewSpec> extraViews; // saved camera views, scene states and exploded views, added after the standard views
+    QSet<QString> excludedStandardViews; // names (standardViewNames()) of standard views left out of the PDF
     bool    includePartsList = true;   // extra sheet(s) listing the exported parts (item, name, material, quantity)
     UpAxis  upAxis = UpAxis::Y;        // the viewer's world up axis; decides what Front/Top/... mean
     QImage  poster;                    // optional picture shown on the page where 3D is not available (a viewport grab)

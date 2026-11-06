@@ -5578,7 +5578,6 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "SceneGraphExporter.h"
 #include "Pdf3DExporter.h"
 #include "Pdf3DExportDialog.h"
-#include "Pdf3DSectionChoiceDialog.h"
 #include "SceneToU3d.h"
 #include "U3dWriter.h"
 #include <QDialog>
@@ -5913,26 +5912,8 @@ void ModelViewer::exportAs3DPdf()
 		return;
 	}
 
-	// Title block fields and the parts list option; the title defaults to the first file's name.
-	QString defaultTitle;
-	if (!_sceneGraph->root()->children.isEmpty())
-		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
-	Pdf3DExportDialog optionsDialog(defaultTitle, this);
-	if (optionsDialog.exec() != QDialog::Accepted)
-		return;
-	Pdf3D::Pdf3DOptions options;
-	optionsDialog.applyTo(options);
-
-	QString fileName = QFileDialog::getSaveFileName(this, tr("Save as 3D PDF"),
-		QDir(_lastOpenedDir).filePath(options.title.isEmpty() ? QStringLiteral("model") : options.title),
-		tr("PDF Files (*.pdf)"));
-	if (fileName.isEmpty())
-		return;
-	if (!fileName.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
-		fileName += QLatin1String(".pdf");
-	if (options.title.isEmpty())
-		options.title = QFileInfo(fileName).completeBaseName();
-
+	// The export scene is built first: the views the document can offer (scene states, exploded views, ...) are described in terms
+	// of its parts, and the options dialog lists them all so the user can pick.
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
 	// Visible parts only (the owner's export policy): a mesh is exported only when the viewer displays it.
@@ -5963,171 +5944,218 @@ void ModelViewer::exportAs3DPdf()
 	const Pdf3D::U3dScene u3dScene = Pdf3D::SceneToU3d::build(exportScene, corrections);
 	delete exportScene;
 
-	options.subtitle = sourceNames.join(QStringLiteral(", "));
-
-	QStringList sectionNotes;   // saved section views that could not be carried over completely
-	if (options.includeSavedViews)
+	// ---- the views the document can offer ----------------------------------------------------------------------------------
+	struct ViewEntry
 	{
-		// Saved camera views (Cameras panel, authored glTF cameras) and scene states become named PDF views. Cameras are in the
-		// space of their file; the viewer-space correction put back above maps them into the exported scene.
-		auto specFromEntry = [&sectionNotes](const GltfCameraEntry& cam, const QString& name, const QMatrix4x4& toScene) {
-			Pdf3D::CameraViewSpec spec;
-			spec.name = name;
-			spec.eye = toScene.map(cam.worldPosition);
-			spec.direction = toScene.mapVector(cam.worldDirection);
-			spec.up = toScene.mapVector(cam.worldUp);
-			spec.orthographic = (cam.type == GltfCameraType::Orthographic);
-			spec.fovDegrees = qRadiansToDegrees(cam.fovYRadians);
-			spec.orthoRange = (cam.capturedViewRange >= 0.0f) ? cam.capturedViewRange : std::max(cam.xMag, cam.yMag) * 2.0f;
+		Pdf3DExportDialog::ViewItem item;
+		bool                        standard = false;   // a standard view (named only: the exporter builds it)
+		Pdf3D::CameraViewSpec       spec;               // otherwise
+	};
+	QVector<ViewEntry> entries;
+	bool anySplit = false;     // a saved view with several clipping planes was listed once per plane
+	bool anyBox = false;       // a saved view uses the box clip, which a PDF cannot show
 
-			// A captured section view (Clipping Planes) becomes the view's PDF cross section. The PDF has no box clip, so a box is
-			// reported and the view has no section.
-			if (cam.hasClipping && cam.clipping.isActive())
+	for (const QString& name : Pdf3D::standardViewNames())
+	{
+		ViewEntry entry;
+		entry.standard = true;
+		entry.item.group = tr("Standard views");
+		entry.item.name = name;
+		entries.append(entry);
+	}
+
+	// Saved camera views (Cameras panel, cameras of the model files) and scene states become named PDF views. Cameras are in the
+	// space of their file; the viewer-space correction put back above maps them into the exported scene.
+	const auto specFromEntry = [](const GltfCameraEntry& cam, const QString& name, const QMatrix4x4& toScene, bool* boxClip) {
+		Pdf3D::CameraViewSpec spec;
+		spec.name = name;
+		spec.eye = toScene.map(cam.worldPosition);
+		spec.direction = toScene.mapVector(cam.worldDirection);
+		spec.up = toScene.mapVector(cam.worldUp);
+		spec.orthographic = (cam.type == GltfCameraType::Orthographic);
+		spec.fovDegrees = qRadiansToDegrees(cam.fovYRadians);
+		spec.orthoRange = (cam.capturedViewRange >= 0.0f) ? cam.capturedViewRange : std::max(cam.xMag, cam.yMag) * 2.0f;
+		if (boxClip)
+			*boxClip = false;
+
+		// A captured section view (Clipping Planes) becomes the view's PDF cross section. A PDF has no box clip.
+		if (cam.hasClipping && cam.clipping.isActive())
+		{
+			if (cam.clipping.boxEnabled)
 			{
-				if (cam.clipping.boxEnabled)
-					sectionNotes << tr("%1: the box clip has no PDF equivalent, the view has no section.").arg(name);
-				else
+				if (boxClip)
+					*boxClip = true;
+			}
+			else
+			{
+				for (const ClippingState::Plane& plane : cam.clipping.planes)
 				{
-					// All planes are collected here; Acrobat shows ONE section per view (verified), so views with several planes are
-					// resolved with the user below (Pdf3DSectionChoiceDialog) before the export.
-					for (const ClippingState::Plane& plane : cam.clipping.planes)
-					{
-						Pdf3D::SectionPlane section;
-						section.axis = plane.axis;
-						section.position = plane.position;
-						section.keepPositive = plane.keepPositive;
-						spec.sections.append(section);
-					}
+					Pdf3D::SectionPlane section;
+					section.axis = plane.axis;
+					section.position = plane.position;
+					section.keepPositive = plane.keepPositive;
+					spec.sections.append(section);
 				}
 			}
-			return spec;
-		};
-
-		const QVector<SceneNode*> fileNodes = QVector<SceneNode*>(_sceneGraph->root()->children.begin(), _sceneGraph->root()->children.end());
-		for (int i = 0; i < fileNodes.size() && i < corrections.size(); ++i)
-		{
-			const GltfCameraData data = _sceneGraph->gltfCameraDataForFile(fileNodes[i]->sourceFile);
-			for (const GltfCameraEntry& cam : data.cameras)
-				options.extraViews.append(specFromEntry(cam, cam.name, corrections[i]));
 		}
-		for (const GltfCameraEntry& cam : _sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras)
-			options.extraViews.append(specFromEntry(cam, cam.name, QMatrix4x4()));
+		return spec;
+	};
 
-		// Scene states: the camera plus the visibility of every exported part (a part the state does not list is hidden).
-		QHash<QString, QUuid> uuidByNodeName;
-		for (auto it = meshNodeNames.constBegin(); it != meshNodeNames.constEnd(); ++it)
-			uuidByNodeName.insert(it.value(), it.key());
-		for (const SceneState& state : _sceneGraph->sceneStates())
+	// Adds a view to the list. Acrobat shows ONE section per view (verified), so a view with several planes is listed once per plane
+	// ("<name> (plane 1 of 2)", ...); the user ticks the ones to export.
+	const auto addView = [&entries, &anySplit, &anyBox](const QString& group, const Pdf3D::CameraViewSpec& spec, bool boxClip) {
+		if (spec.sections.size() > 1)
 		{
-			Pdf3D::CameraViewSpec spec = specFromEntry(state.camera, tr("State: %1").arg(state.name), QMatrix4x4());
+			anySplit = true;
+			for (int k = 0; k < spec.sections.size(); ++k)
+			{
+				ViewEntry entry;
+				entry.item.group = group;
+				entry.spec = spec;
+				entry.spec.sections = { spec.sections[k] };
+				entry.spec.name = tr("%1 (plane %2 of %3)").arg(spec.name).arg(k + 1).arg(spec.sections.size());
+				entry.item.name = entry.spec.name;
+				entry.item.note = tr("one section plane");
+				entries.append(entry);
+			}
+			return;
+		}
+		ViewEntry entry;
+		entry.item.group = group;
+		entry.item.name = spec.name;
+		entry.spec = spec;
+		if (!spec.sections.isEmpty())
+			entry.item.note = tr("with section");
+		if (boxClip)
+		{
+			anyBox = true;
+			entry.item.note = tr("box clip not exported");
+			entry.item.warning = true;
+		}
+		entries.append(entry);
+	};
+
+	const QVector<SceneNode*> fileNodes = QVector<SceneNode*>(_sceneGraph->root()->children.begin(), _sceneGraph->root()->children.end());
+	for (int i = 0; i < fileNodes.size() && i < corrections.size(); ++i)
+	{
+		const GltfCameraData data = _sceneGraph->gltfCameraDataForFile(fileNodes[i]->sourceFile);
+		for (const GltfCameraEntry& cam : data.cameras)
+		{
+			bool box = false;
+			const Pdf3D::CameraViewSpec spec = specFromEntry(cam, cam.name, corrections[i], &box);
+			addView(tr("Cameras in the model files"), spec, box);
+		}
+	}
+	for (const GltfCameraEntry& cam : _sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras)
+	{
+		bool box = false;
+		const Pdf3D::CameraViewSpec spec = specFromEntry(cam, cam.name, QMatrix4x4(), &box);
+		addView(tr("Saved camera views"), spec, box);
+	}
+
+	// Scene states: the camera plus the visibility of every exported part (a part the state does not list is hidden).
+	QHash<QString, QUuid> uuidByNodeName;
+	for (auto it = meshNodeNames.constBegin(); it != meshNodeNames.constEnd(); ++it)
+		uuidByNodeName.insert(it.value(), it.key());
+	for (const SceneState& state : _sceneGraph->sceneStates())
+	{
+		bool box = false;
+		Pdf3D::CameraViewSpec spec = specFromEntry(state.camera, tr("State: %1").arg(state.name), QMatrix4x4(), &box);
+		for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+		{
+			const QUuid uuid = uuidByNodeName.value(node.displayName);
+			spec.nodes.append({node.name, uuid.isNull() ? true : state.visibleMeshUuids.contains(uuid)});
+		}
+		addView(tr("Scene states"), spec, box);
+	}
+
+	// Exploded views: the export always holds the assembled model (explosion offsets and manual placement are viewport state, not
+	// part of the scene graph). Every stored exploded view of the Exploded View panel becomes a view with per-part transforms
+	// ("Exploded: <name>"), plus one "Assembled" view with explicit assembled transforms, all from the current camera. The poses are
+	// evaluated without changing the viewport (ExplodedViewPanel::computePresetPoses()).
+	if (ExplodedViewPanel* explodedPanel = _viewportWidget->getExplodedViewPanel())
+	{
+		const QVector<ExplodedViewPanel::PresetPose> poses = explodedPanel->computePresetPoses();
+		if (!poses.isEmpty())
+		{
+			const GltfCameraEntry currentCamera = _viewportWidget->captureCurrentCameraEntry(QString());
+			Pdf3D::CameraViewSpec assembled = specFromEntry(currentCamera, tr("Assembled"), QMatrix4x4(), nullptr);
+			assembled.sections.clear();   // the camera snapshot carries the current clipping; an assembled/exploded view has none
 			for (const Pdf3D::U3dNode& node : u3dScene.nodes)
-			{
-				const QUuid uuid = uuidByNodeName.value(node.displayName);
-				spec.nodes.append({node.name, uuid.isNull() ? true : state.visibleMeshUuids.contains(uuid)});
-			}
-			options.extraViews.append(spec);
-		}
+				assembled.nodes.append({node.name, true, true, node.world});
+			addView(tr("Exploded views"), assembled, false);
 
-		// Exploded views: the export always holds the assembled model (explosion offsets and manual placement are viewport state,
-		// not part of the scene graph). Every stored exploded view of the Exploded View panel becomes a view with per-part
-		// transforms ("Exploded: <name>"), plus one "Assembled" view with explicit assembled transforms, all from the current
-		// camera. The poses are evaluated without changing the viewport (ExplodedViewPanel::computePresetPoses()).
-		if (ExplodedViewPanel* explodedPanel = _viewportWidget->getExplodedViewPanel())
-		{
-			const QVector<ExplodedViewPanel::PresetPose> poses = explodedPanel->computePresetPoses();
-			if (!poses.isEmpty())
+			for (const ExplodedViewPanel::PresetPose& pose : poses)
 			{
-				const GltfCameraEntry currentCamera = _viewportWidget->captureCurrentCameraEntry(QString());
-				Pdf3D::CameraViewSpec assembled = specFromEntry(currentCamera, tr("Assembled"), QMatrix4x4());
+				Pdf3D::CameraViewSpec exploded = specFromEntry(currentCamera, tr("Exploded: %1").arg(pose.name), QMatrix4x4(), nullptr);
+				exploded.sections.clear();
 				for (const Pdf3D::U3dNode& node : u3dScene.nodes)
-					assembled.nodes.append({node.name, true, true, node.world});
-				options.extraViews.append(assembled);
-
-				for (const ExplodedViewPanel::PresetPose& pose : poses)
 				{
-					Pdf3D::CameraViewSpec exploded = specFromEntry(currentCamera, tr("Exploded: %1").arg(pose.name), QMatrix4x4());
-					for (const Pdf3D::U3dNode& node : u3dScene.nodes)
-					{
-						const QUuid uuid = uuidByNodeName.value(node.displayName);
-						const QMatrix4x4 explosion = uuid.isNull() ? QMatrix4x4() : pose.matrices.value(uuid);
-						exploded.nodes.append({node.name, true, true, explosion * node.world});
-					}
-					options.extraViews.append(exploded);
+					const QUuid uuid = uuidByNodeName.value(node.displayName);
+					const QMatrix4x4 explosion = uuid.isNull() ? QMatrix4x4() : pose.matrices.value(uuid);
+					exploded.nodes.append({node.name, true, true, explosion * node.world});
 				}
+				addView(tr("Exploded views"), exploded, false);
 			}
 		}
+	}
+
+	QStringList info;
+	if (anySplit)
+		info << tr("A PDF view can show one section plane only, so a saved view with several clipping planes is listed once per plane.");
+	if (anyBox)
+		info << tr("The box clip has no equivalent in a PDF: those views are exported without a section.");
+
+	QVector<Pdf3DExportDialog::ViewItem> items;
+	for (const ViewEntry& entry : std::as_const(entries))
+		items.append(entry.item);
+
+	// ---- options dialog and file name ----------------------------------------------------------------------------------------
+	QApplication::restoreOverrideCursor();
+	// Title block fields, the parts list option and the views; the title defaults to the first file's name.
+	QString defaultTitle;
+	if (!_sceneGraph->root()->children.isEmpty())
+		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
+	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), this);
+	if (optionsDialog.exec() != QDialog::Accepted)
+		return;
+	Pdf3D::Pdf3DOptions options;
+	optionsDialog.applyTo(options);
+
+	QString fileName = QFileDialog::getSaveFileName(this, tr("Save as 3D PDF"),
+		QDir(_lastOpenedDir).filePath(options.title.isEmpty() ? QStringLiteral("model") : options.title),
+		tr("PDF Files (*.pdf)"));
+	if (fileName.isEmpty())
+		return;
+	if (!fileName.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
+		fileName += QLatin1String(".pdf");
+	if (options.title.isEmpty())
+		options.title = QFileInfo(fileName).completeBaseName();
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	options.subtitle = sourceNames.join(QStringLiteral(", "));
+	const QVector<bool> selection = optionsDialog.viewSelection();
+	for (int i = 0; i < entries.size() && i < selection.size(); ++i)
+	{
+		if (entries[i].standard)
+		{
+			if (!selection[i])
+				options.excludedStandardViews.insert(entries[i].item.name);
+		}
+		else if (selection[i])
+			options.extraViews.append(entries[i].spec);
 	}
 	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
 	// standard views (Front/Top/...) use the same convention as the viewport.
 	options.upAxis = _viewportWidget->isCameraUpAxisZUp() ? Pdf3D::UpAxis::Z : Pdf3D::UpAxis::Y;
 	options.poster = _viewportWidget->grabFramebuffer();
 
-	// Saved views with more than one clipping plane: a PDF view shows one section plane only, so the user decides, per view, which
-	// plane to export or to keep every plane in a view of its own. Cancelling stops the export.
-	{
-		QVector<Pdf3DSectionChoiceDialog::Item> items;
-		for (const Pdf3D::CameraViewSpec& spec : std::as_const(options.extraViews))
-		{
-			if (spec.sections.size() <= 1)
-				continue;
-			Pdf3DSectionChoiceDialog::Item item;
-			item.viewName = spec.name;
-			for (const Pdf3D::SectionPlane& plane : spec.sections)
-			{
-				const QString axis = QString(QChar(u'X' + plane.axis));
-				item.planes << tr("%1 = %2, keep the %3%1 side").arg(axis).arg(plane.position, 0, 'g', 6).arg(plane.keepPositive ? QStringLiteral("+") : QStringLiteral("-"));
-			}
-			items.append(item);
-		}
-		if (!items.isEmpty())
-		{
-			QApplication::restoreOverrideCursor();
-			Pdf3DSectionChoiceDialog choiceDialog(items, this);
-			if (choiceDialog.exec() != QDialog::Accepted)
-				return;
-			QApplication::setOverrideCursor(Qt::WaitCursor);
-
-			const QVector<int> choices = choiceDialog.choices();
-			QVector<Pdf3D::CameraViewSpec> resolved;
-			int itemIndex = 0;
-			for (const Pdf3D::CameraViewSpec& spec : std::as_const(options.extraViews))
-			{
-				if (spec.sections.size() <= 1)
-				{
-					resolved.append(spec);
-					continue;
-				}
-				const int choice = choices.value(itemIndex++, -1);
-				if (choice >= 0 && choice < spec.sections.size())
-				{
-					Pdf3D::CameraViewSpec one = spec;
-					one.sections = { spec.sections[choice] };
-					// keep the elaborate name so the view says which plane it shows
-					one.name = tr("%1 (plane %2 of %3)").arg(spec.name).arg(choice + 1).arg(spec.sections.size());
-					resolved.append(one);
-				}
-				else
-				{
-					for (int k = 0; k < spec.sections.size(); ++k)
-					{
-						Pdf3D::CameraViewSpec one = spec;
-						one.sections = { spec.sections[k] };
-						one.name = tr("%1 (plane %2 of %3)").arg(spec.name).arg(k + 1).arg(spec.sections.size());
-						resolved.append(one);
-					}
-				}
-			}
-			options.extraViews = resolved;
-		}
-	}
-
 	const Pdf3D::Pdf3DResult result = Pdf3D::Pdf3DExporter::exportToFile(u3dScene, options, fileName);
 	QApplication::restoreOverrideCursor();
 
 	if (result.ok)
-		QMessageBox::information(this, tr("Save as 3D PDF"),
-			sectionNotes.isEmpty() ? tr("Saved %1").arg(QFileInfo(fileName).fileName())
-			                       : tr("Saved %1\n\n%2").arg(QFileInfo(fileName).fileName(), sectionNotes.join(QLatin1Char('\n'))));
+		QMessageBox::information(this, tr("Save as 3D PDF"), tr("Saved %1").arg(QFileInfo(fileName).fileName()));
 	else
 		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Saving the 3D PDF failed:\n%1").arg(result.error));
 }

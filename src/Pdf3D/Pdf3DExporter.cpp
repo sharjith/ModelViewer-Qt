@@ -339,9 +339,15 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     {
         // fitted to the bounding box and the shape of the 3D area (falls back to the sphere fit for a degenerate area)
         const float aspect = layout.area3d.height() > 0.0 ? static_cast<float>(layout.area3d.width() / layout.area3d.height()) : 1.0f;
-        annotation.viewDictionaries = standardViewsFitted(lo, hi, aspect, options.upAxis);
-        if (annotation.viewDictionaries.isEmpty())
-            annotation.viewDictionaries = standardViews(center, radius, options.upAxis);
+        QList<QByteArray> standard = standardViewsFitted(lo, hi, aspect, options.upAxis);
+        if (standard.isEmpty())
+            standard = standardViews(center, radius, options.upAxis);
+        const QStringList standardNames = standardViewNames();
+        for (int i = 0; i < standard.size() && i < standardNames.size(); ++i)
+        {
+            if (!options.excludedStandardViews.contains(standardNames[i]))
+                annotation.viewDictionaries.append(standard[i]);
+        }
     }
     {
         // saved views follow the standard ones; names are made unique ("name (2)") so the view list stays unambiguous
@@ -367,6 +373,12 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         annotation.notesField.rect = toPdfRect(notesRectOf(layout.titleBlock), layout.pageHeightPt);
         annotation.notesField.text = options.notes;
         annotation.notesField.fontSize = kNotesPointSize;
+    }
+
+    if (annotation.viewDictionaries.isEmpty())
+    {
+        result.error = QCoreApplication::translate("Pdf3DExporter", "No view is selected: the PDF needs at least one.");
+        return result;
     }
 
     QString error;

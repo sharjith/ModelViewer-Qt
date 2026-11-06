@@ -512,6 +512,23 @@ void testFullExport()
     CHECK(onePage.match(QString::fromLatin1(pdf2)).hasMatch() && pdf2.contains("/Subtype /3D"));
     CHECK(!pdf2.contains("/Subtype /Widget"));   // short notes stay plain text in the title block
 
+    // standard views can be left out: only "Top" remains, and with none left the export is refused
+    Pdf3D::Pdf3DOptions onlyTop = options;
+    onlyTop.notes.clear();
+    for (const QString& name : Pdf3D::standardViewNames())
+    {
+        if (name != QStringLiteral("Top"))
+            onlyTop.excludedStandardViews.insert(name);
+    }
+    const QString pathTop = dir.filePath(QStringLiteral("top.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, onlyTop, pathTop).ok);
+    QFile fTop(pathTop);
+    CHECK(fTop.open(QIODevice::ReadOnly));
+    const QByteArray pdfTop = fTop.readAll();
+    CHECK(pdfTop.count("/Type /3DView") == 1 && pdfTop.contains("/XN (Top)"));
+    onlyTop.excludedStandardViews.insert(QStringLiteral("Top"));
+    CHECK(!Pdf3D::Pdf3DExporter::exportToFile(u, onlyTop, dir.filePath(QStringLiteral("none.pdf"))).ok);
+
     // long notes do not fit the title block: they become a read-only multi-line form field (scrollable in Acrobat)
     options.includePartsList = true;   // two sheets: the notes field must appear on both
     options.notes = QString();
