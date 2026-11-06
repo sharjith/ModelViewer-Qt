@@ -6000,6 +6000,12 @@ void ModelViewer::exportAs3DPdf()
 	for (const OverlayGraphic& graphic : overlayGraphics)
 		overlayItems.append({ graphic.annotation ? tr("Annotations") : tr("Measurements"), graphic.name });
 
+	// The animations of the model (a PDF plays one): the Animations panel's clips with node transforms.
+	const QVector<ViewportWidget::ExportableAnimation> animations = _viewportWidget->exportableAnimations();
+	QVector<Pdf3DExportDialog::AnimationItem> animationItems;
+	for (const ViewportWidget::ExportableAnimation& animation : animations)
+		animationItems.append({ animation.name, animation.durationSeconds });
+
 	// ---- the views the document can offer ----------------------------------------------------------------------------------
 	struct ViewEntry
 	{
@@ -6172,7 +6178,7 @@ void ModelViewer::exportAs3DPdf()
 	QString defaultTitle;
 	if (!_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
-	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, this);
+	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, this);
 	if (optionsDialog.exec() != QDialog::Accepted)
 		return;
 	Pdf3D::Pdf3DOptions options;
@@ -6229,6 +6235,69 @@ void ModelViewer::exportAs3DPdf()
 		}
 	}
 
+	// The chosen animation: sampled from the clip (nothing is applied to the viewport) and written as key frames for the parts that move.
+	// Acrobat applies a key frame BEFORE the node's own transform, so a part that follows the pose rest*delta(t) gets the key
+	// rest^-1 * delta(t) * rest (see U3dScene.h).
+	const int animationIndex = optionsDialog.selectedAnimation();
+	QString animationNote;   // what became of the chosen animation, when it did not make it into the PDF
+	Logger::instance().info(QStringLiteral("[3DPDF] animations offered: %1, chosen index: %2").arg(animations.size()).arg(animationIndex),
+		QStringLiteral("Export"));
+	if (animationIndex >= 0 && animationIndex < animations.size())
+	{
+		ViewportWidget::AnimationPoses poses;
+		if (!_viewportWidget->sampleAnimationPoses(animations[animationIndex].sourceFile, animations[animationIndex].clipIndex, &poses))
+			animationNote = tr("The animation \"%1\" could not be evaluated, so the PDF has no animation.").arg(animations[animationIndex].name);
+		else
+		{
+			Logger::instance().info(QStringLiteral("[3DPDF] animation '%1': %2 samples, %3 meshes with poses")
+				.arg(animations[animationIndex].name).arg(poses.times.size()).arg(poses.worldDeltas.size()), QStringLiteral("Export"));
+			QHash<QString, QStringList> partNodesByExportName;
+			for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+			{
+				if (!node.overlay)
+					partNodesByExportName[node.displayName].append(node.name);
+			}
+			QHash<QString, const Pdf3D::U3dNode*> partByName;
+			for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+				partByName.insert(node.name, &node);
+
+			u3dScene.animation.name = animations[animationIndex].name;
+			for (auto it = poses.worldDeltas.cbegin(); it != poses.worldDeltas.cend(); ++it)
+			{
+				const QVector<QMatrix4x4>& deltas = it.value();
+				if (deltas.size() != poses.times.size())
+					continue;
+				bool moves = false;
+				for (const QMatrix4x4& d : deltas)
+					moves = moves || !d.isIdentity();
+				if (!moves)
+					continue;
+				for (const QString& partName : partNodesByExportName.value(meshNodeNames.value(it.key())))
+				{
+					const Pdf3D::U3dNode* part = partByName.value(partName);
+					bool invertible = false;
+					const QMatrix4x4 worldInverse = part ? part->world.inverted(&invertible) : QMatrix4x4();
+					if (!part || !invertible)
+						continue;
+					Pdf3D::U3dMotionTrack track;
+					track.node = partName;
+					track.times = poses.times;
+					for (const QMatrix4x4& d : deltas)
+						track.keys.append(worldInverse * d * part->world);   // the key, in the part's own frame
+					u3dScene.animation.tracks.append(track);
+				}
+			}
+			Logger::instance().info(QStringLiteral("[3DPDF] animation '%1': %2 tracks written").arg(animations[animationIndex].name)
+				.arg(u3dScene.animation.tracks.size()), QStringLiteral("Export"));
+			if (u3dScene.animation.tracks.isEmpty())
+				animationNote = tr("The animation \"%1\" does not move any part that is in the export (hidden parts are not exported), so the PDF has no animation.")
+					.arg(animations[animationIndex].name);
+			options.animationPlayback = (optionsDialog.playbackIndex() == 1) ? Pdf3D::AnimationPlayback::BackAndForth
+				: (optionsDialog.playbackIndex() == 2) ? Pdf3D::AnimationPlayback::Once : Pdf3D::AnimationPlayback::Loop;
+			options.animationAutoStart = optionsDialog.animationAutoStart();
+		}
+	}
+
 	const QVector<bool> selection = optionsDialog.viewSelection();
 	const QVector<bool> viewOverlays = optionsDialog.viewOverlaySelection();
 	for (int i = 0; i < entries.size() && i < selection.size(); ++i)
@@ -6257,7 +6326,9 @@ void ModelViewer::exportAs3DPdf()
 	QApplication::restoreOverrideCursor();
 
 	if (result.ok)
-		QMessageBox::information(this, tr("Save as 3D PDF"), tr("Saved %1").arg(QFileInfo(fileName).fileName()));
+		QMessageBox::information(this, tr("Save as 3D PDF"),
+			animationNote.isEmpty() ? tr("Saved %1").arg(QFileInfo(fileName).fileName())
+			                        : tr("Saved %1\n\n%2").arg(QFileInfo(fileName).fileName(), animationNote));
 	else
 		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Saving the 3D PDF failed:\n%1").arg(result.error));
 }

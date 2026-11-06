@@ -48,8 +48,15 @@ public:
 		QString name;
 	};
 
+	// An animation of the model that can be played in the PDF (only one can be chosen).
+	struct AnimationItem
+	{
+		QString name;
+		double  durationSeconds = 0.0;
+	};
+
 	Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
-		const QVector<OverlayItem>& overlays, QWidget* parent = nullptr);
+		const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations, QWidget* parent = nullptr);
 	~Pdf3DExportDialog() override;
 
 	// Copies the sheet tab's values into the title block fields of `options` (title, drawing number, revision, author, company,
@@ -64,6 +71,11 @@ public:
 
 	// For each ViewItem, in order: whether the measurements and annotations are shown in that view.
 	QVector<bool> viewOverlaySelection() const;
+
+	// The chosen animation: an index into the AnimationItems passed to the constructor, or -1 for none; and how it plays.
+	int  selectedAnimation() const;
+	int  playbackIndex() const;        // 0 = loop, 1 = back and forth, 2 = once
+	bool animationAutoStart() const;
 
 protected:
 	void done(int result) override;   // saves the remembered fields and the geometry on every way out

@@ -4115,6 +4115,122 @@ QVector<OverlayGraphic> ViewportWidget::captureOverlayGraphics() const
 	return graphics;
 }
 
+QVector<ViewportWidget::ExportableAnimation> ViewportWidget::exportableAnimations() const
+{
+	QVector<ExportableAnimation> animations;
+	if (!_viewer || !_viewer->sceneGraph() || !_viewer->sceneGraph()->root())
+		return animations;
+	const SceneGraph* sceneGraph = _viewer->sceneGraph();
+	for (const SceneNode* fileNode : sceneGraph->root()->children)
+	{
+		if (!fileNode)
+			continue;
+		const GltfAnimationData data = sceneGraph->animationDataForFile(fileNode->sourceFile);
+		if (!data.hasNodeAnimations)
+			continue;
+		for (int i = 0; i < data.clips.size(); ++i)
+		{
+			const GltfAnimationClip& clip = data.clips[i];
+			if (!clip.hasNodeTransforms || clip.durationSeconds <= 0.0)
+				continue;
+			animations.append({ fileNode->sourceFile, i, clip.name.isEmpty() ? tr("Animation %1").arg(i + 1) : clip.name, clip.durationSeconds });
+		}
+	}
+	return animations;
+}
+
+bool ViewportWidget::sampleAnimationPoses(const QString& sourceFile, int clipIndex, AnimationPoses* out)
+{
+	if (!out || !_viewer || !_viewer->sceneGraph())
+		return false;
+	SceneGraph* sceneGraph = _viewer->sceneGraph();
+	SceneNode* fileNode = sceneGraph->findFileNode(sourceFile);
+	if (!fileNode)
+		return false;
+	AnimationRuntimeController::RuntimeAnimationFileState& runtime = _animCtrl.runtimeAnimationsByFile()[sourceFile];
+	if (runtime.data.sourceFile.isEmpty())
+		runtime.data = sceneGraph->animationDataForFile(sourceFile);
+	if (clipIndex < 0 || clipIndex >= runtime.data.clips.size())
+		return false;
+	const GltfAnimationClip clip = runtime.data.clips[clipIndex];
+	if (clip.durationSeconds <= 0.0)
+		return false;
+
+	// the render transform every mesh of the file gets from a sample (null: the rest pose), as applyNodeTransformsToMeshes() derives it
+	const auto evaluate = [&](const AnimationRuntimeController::AnimationSampleResult* sample) {
+		QHash<QUuid, QMatrix4x4> worlds;   // node uuid -> world
+		std::function<void(SceneNode*, const QMatrix4x4&)> eval = [&](SceneNode* node, const QMatrix4x4& parentWorld)
+		{
+			if (!node)
+				return;
+			const AnimationRuntimeController::RuntimeNodeTransform transform = sample
+				? sample->nodeTransforms.value(node->nodeUuid, AnimationRuntimeController::decomposeNodeTransform(node->localTransform))
+				: AnimationRuntimeController::decomposeNodeTransform(node->localTransform);
+			const QMatrix4x4 world = parentWorld * AnimationRuntimeController::composeNodeTransform(transform);
+			worlds.insert(node->nodeUuid, world);
+			for (SceneNode* child : node->children)
+				eval(child, world);
+		};
+		for (SceneNode* child : fileNode->children)
+			eval(child, QMatrix4x4());
+
+		QHash<QUuid, QMatrix4x4> renders;   // mesh uuid -> (user transformation) * (scene render transform)
+		for (SceneMesh* mesh : getMeshStore())
+		{
+			if (!mesh || mesh->getSourceFile() != sourceFile)
+				continue;
+			const SceneNode* owner = sceneGraph->findNodeForMesh(mesh->uuid());
+			if (!owner)
+				continue;
+			QMatrix4x4 ownerWorld = worlds.value(owner->nodeUuid, AnimationRuntimeController::aiToQMatrix(owner->localTransform));
+			if (sample)
+			{
+				const auto meshIt = sample->meshTransforms.constFind(mesh->uuid());
+				if (meshIt != sample->meshTransforms.constEnd())
+				{
+					QMatrix4x4 meshLocal;
+					meshLocal.translate(meshIt->translation);
+					meshLocal.rotate(meshIt->rotation);
+					meshLocal.scale(meshIt->scale);
+					ownerWorld = ownerWorld * meshLocal;
+				}
+			}
+			renders.insert(mesh->uuid(), mesh->getTransformation() * ownerWorld);
+		}
+		return renders;
+	};
+
+	const QHash<QUuid, QMatrix4x4> rest = evaluate(nullptr);
+	QHash<QUuid, QMatrix4x4> restInverse;
+	for (auto it = rest.cbegin(); it != rest.cend(); ++it)
+	{
+		bool invertible = false;
+		const QMatrix4x4 inverse = it.value().inverted(&invertible);
+		if (invertible)
+			restInverse.insert(it.key(), inverse);
+	}
+
+	// about 20 samples a second, at least 2 and at most 121: the U3D player interpolates between them
+	const int count = qBound(2, static_cast<int>(std::ceil(clip.durationSeconds * 20.0)) + 1, 121);
+	out->times.clear();
+	out->worldDeltas.clear();
+	for (int i = 0; i < count; ++i)
+	{
+		const double time = clip.durationSeconds * static_cast<double>(i) / static_cast<double>(count - 1);
+		const AnimationRuntimeController::AnimationSampleResult sample = _animCtrl.sampleClip(runtime, clip, time, sceneGraph);
+		const QHash<QUuid, QMatrix4x4> posed = evaluate(&sample);
+		out->times.append(static_cast<float>(time));
+		for (auto it = posed.cbegin(); it != posed.cend(); ++it)
+		{
+			const auto inverse = restInverse.constFind(it.key());
+			if (inverse == restInverse.constEnd())
+				continue;
+			out->worldDeltas[it.key()].append(it.value() * inverse.value());
+		}
+	}
+	return true;
+}
+
 ClippingState ViewportWidget::currentClippingState() const
 {
 	ClippingState state;

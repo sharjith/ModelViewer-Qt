@@ -1657,6 +1657,24 @@ public:
 	// shows), without any drawing; for exports (Save as 3D PDF). Items that draw nothing are left out.
 	QVector<OverlayGraphic> captureOverlayGraphics() const;
 
+	// Animation clips with node transforms (the Animations panel's clips, including those made from captured exploded view steps),
+	// for exports, and their sampled poses. Sampling does not touch the viewport: the nodes are evaluated from the clip and the rest
+	// transforms, as applyAnimationPose() does, but nothing is applied to the meshes.
+	struct ExportableAnimation
+	{
+		QString sourceFile;
+		int     clipIndex = -1;
+		QString name;
+		double  durationSeconds = 0.0;
+	};
+	struct AnimationPoses
+	{
+		QVector<float>                    times;           // seconds
+		QHash<QUuid, QVector<QMatrix4x4>> worldDeltas;      // per mesh: pose(t) * rest^-1 in the viewer's world space, one per time
+	};
+	QVector<ExportableAnimation> exportableAnimations() const;
+	bool sampleAnimationPoses(const QString& sourceFile, int clipIndex, AnimationPoses* out);
+
 	ClippingState currentClippingState() const;
 	void applyClippingState(const ClippingState& state);
 

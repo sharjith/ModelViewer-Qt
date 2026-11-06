@@ -512,6 +512,17 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     }
     annotation.defaultView = 0;
     annotation.description = QStringLiteral("3D model");
+    if (scene.hasAnimation())
+    {
+        const char* style = "Linear";
+        int playCount = -1;
+        if (options.animationPlayback == AnimationPlayback::BackAndForth)
+            style = "Oscillating";
+        else if (options.animationPlayback == AnimationPlayback::Once)
+            playCount = 1;
+        annotation.animationStyle = "<< /Type /3DAnimationStyle /Subtype /" + QByteArray(style) + " /PC " + QByteArray::number(playCount) + " /TM 1 >>";
+        annotation.startLive = options.animationAutoStart;
+    }
     if (layout.notesScroll)
     {
         annotation.hasNotesField = true;

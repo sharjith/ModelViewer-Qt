@@ -129,6 +129,11 @@ def main():
     ap.add_argument("--det-test", action="store_true", help="add Front views whose camera matrix has det +1 (right row negated, or up row negated)")
     ap.add_argument("--diag", action="store_true", help="add camera-convention diagnostic views (needs --center)")
     ap.add_argument("--node", action="append", default=[], help="U3D node name(s) to list in each view's /NA")
+    ap.add_argument("--anim-style", choices=["None", "Linear", "Oscillating"], help="animation style of the 3D stream (/AN << /Type /3DAnimationStyle >>): how the U3D animation plays")
+    ap.add_argument("--move-node", help="node whose /NA entry in the 'Block moved +Z 40' view carries an /M (tests whether a node transform override disables a U3D animation)")
+    ap.add_argument("--all-m", action="store_true", help="every view lists --move-node with its rest transform as /M (like the exporter's per-view part states)")
+    ap.add_argument("--live", action="store_true", help="3DA /AIS /L /DIS /I: the 3D content starts live (no click needed), as commercial files do")
+    ap.add_argument("--play-count", type=int, default=-1, help="with --anim-style: /PC play count (-1 = forever)")
     a = ap.parse_args()
     u3d = open(a.u3d, "rb").read()
 
@@ -170,13 +175,15 @@ def main():
             n = math.sqrt(dx * dx + dy * dy + dz * dz)
             return [ctr[0] + d * dx / n, ctr[1] + d * dy / n, ctr[2] + d * dz / n]
         names = a.node or []
-        vs = [view_dict("Iso", eye(1, -1, 0.8), ctr, [0, 0, 1], [(n, True) for n in names]),
-              view_dict("Front", eye(0, -1, 0), ctr, [0, 0, 1], [(n, True) for n in names]),
+        def with_m(n):
+            return (n, True, 1.0, (0, 0, 0)) if (a.all_m and n == a.move_node) else (n, True)
+        vs = [view_dict("Iso", eye(1, -1, 0.8), ctr, [0, 0, 1], [with_m(n) for n in names]),
+              view_dict("Front", eye(0, -1, 0), ctr, [0, 0, 1], [with_m(n) for n in names]),
               view_dict("Top", eye(0, 0, 1), ctr, [0, 1, 0], [(n, True) for n in names]),
               view_dict("Right", eye(1, 0, 0), ctr, [0, 0, 1], [(n, True) for n in names]),
               view_dict("First part hidden", eye(1, -1, 0.8), ctr, [0, 0, 1], [(n, i > 0) for i, n in enumerate(names)]),
               # a measurement layer (last node, when there are 3+) can be switched off per view: tests visibility of line sets
-              view_dict("Block moved +Z 40", eye(1, -1, 0.8), ctr, [0, 0, 1], [(n, True, 1.0, (0, 0, 40)) if n == "Block" else (n, True) for n in names]),
+              view_dict("Block moved +Z 40", eye(1, -1, 0.8), ctr, [0, 0, 1], [(n, True, 1.0, (0, 0, 40)) if n == (a.move_node or "Block") else (n, True) for n in names]),
               view_dict("Block 40% opaque", eye(1, -1, 0.8), ctr, [0, 0, 1], [(n, True, 0.4) if n == "Block" else (n, True) for n in names]),
               view_dict("Bracket 40% opaque", eye(1, -1, 0.8), ctr, [0, 0, 1], [(n, True, 0.4) if n == "LBracket" else (n, True) for n in names]),
               view_dict("Last node hidden", eye(1, -1, 0.8), ctr, [0, 0, 1], [(n, i < len(names) - 1) for i, n in enumerate(names)])]
@@ -193,7 +200,8 @@ def main():
         if a.diag:
             vs[1:1] = diag_views(names)
         va = b" /VA [" + b" ".join(vs) + b"]"
-    stream3d = pdf.add(pdf.stream(b"/Type /3D /Subtype /U3D" + va, u3d))
+    an = (b" /AN << /Type /3DAnimationStyle /Subtype /%s /PC %d /TM 1 >>" % (a.anim_style.encode(), a.play_count)) if a.anim_style else b""
+    stream3d = pdf.add(pdf.stream(b"/Type /3D /Subtype /U3D" + an + va, u3d))
     view = 0 if a.center else pdf.add(
         b"<< /Type /3DView /XN (Default) /IN (Default) /MS /M "
         b"/C2W [1 0 0 0 0 1 0 -1 0 0 0 0] /CO 5 "  # placeholder camera: looking along +Y; Acrobat refits with /CO unless /MS /U3D
@@ -212,8 +220,9 @@ def main():
     )
     annot = pdf.add(
         b"<< /Type /Annot /Subtype /3D /Rect [%d %d %d %d] /F 4 /Contents (3D model) "
-        b"/3DD %d 0 R /3DV %s /3DA << /A /PO /D /PC /TB true /NP false >> "
-        b"/AP << /N %d 0 R >> >>" % (area[0], area[1], area[2], area[3], stream3d, (b"0" if a.center else b"%d 0 R" % view), poster)
+        b"/3DD %d 0 R /3DV %s /3DA << /A /PO /D /PC /TB true /NP false %s>> "
+        b"/AP << /N %d 0 R >> >>" % (area[0], area[1], area[2], area[3], stream3d, (b"0" if a.center else b"%d 0 R" % view),
+                 (b"/AIS /L /DIS /I " if a.live else b""), poster)
     )
 
     pdf.set(page, b"<< /Type /Page /Parent %d 0 R /MediaBox [0 0 %d %d] /Contents %d 0 R "

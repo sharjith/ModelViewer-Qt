@@ -29,6 +29,8 @@ struct Annotation3D
     QList<QByteArray>  viewDictionaries;     // complete "<< /Type /3DView ... >>" dictionaries (see Pdf3DViews.h)
     int                defaultView = 0;      // index into viewDictionaries; written as /3DV
     QString            description;          // /Contents of the annotation (alternate text), ASCII
+    QByteArray         animationStyle;       // the 3D stream's /AN value, e.g. "<< /Type /3DAnimationStyle /Subtype /Linear /PC -1 /TM 1 >>" (empty: none)
+    bool               startLive = false;    // 3D activation /AIS /L: the 3D content is live on opening (needed for an animation to start by itself)
     bool               hasNotesField = false;
     NotesField         notesField;           // used when hasNotesField
 };

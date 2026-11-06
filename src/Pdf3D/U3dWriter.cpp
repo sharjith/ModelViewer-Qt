@@ -6,6 +6,7 @@
 #endif
 #endif
 
+#include <algorithm>
 #include <float.h>
 #include <math.h>
 #include <stdio.h>
@@ -24,11 +25,16 @@
 #include "IFXOSUtilities.h"
 #include "File.h"
 #include "Tokens.h"
+#include "AnimationModifier.h"
+#include "MotionResourceList.h"
 
 #include "U3dWriter.h"
 
 #include <QCoreApplication>
 #include <QDir>
+#include <QMatrix3x3>
+#include <QMatrix4x4>
+#include <QQuaternion>
 #include <QFile>
 #include <QStringList>
 #include <QUuid>
@@ -316,6 +322,53 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
                 l->AddResource(r);
             }
 
+            // animation: one motion resource, one track per animated node (key frames are relative to the node's own transform, see U3dScene.h)
+            QStringList animatedNodes;
+            if (scene.hasAnimation())
+            {
+                MotionResourceList* l = static_cast<MotionResourceList*>(res.GetResourceList(IDTF_MOTION));
+                l->SetType(IDTF_MOTION);
+                // One motion resource per animated node, named "M_<node>", with a single track, as the commercial files and the reference
+                // scenes have it: sharing one resource between several animated nodes got Acrobat to disable the animation (verified).
+                for (const U3dMotionTrack& track : scene.animation.tracks)
+                {
+                    if (track.times.isEmpty() || track.times.size() != track.keys.size())
+                        continue;
+                    MotionResource motion;
+                    motion.SetName(wide(QStringLiteral("M_") + track.node).c_str());
+                    MotionTrack t;
+                    t.m_name = wide(track.node).c_str();
+                    QQuaternion previous;
+                    for (int k = 0; k < track.times.size(); ++k)
+                    {
+                        const QMatrix4x4& m = track.keys[k];
+                        const QVector3D c0(m(0, 0), m(1, 0), m(2, 0)), c1(m(0, 1), m(1, 1), m(2, 1)), c2(m(0, 2), m(1, 2), m(2, 2));
+                        const float sx = std::max(c0.length(), 1.0e-9f), sy = std::max(c1.length(), 1.0e-9f), sz = std::max(c2.length(), 1.0e-9f);
+                        QMatrix3x3 rot;
+                        for (int r = 0; r < 3; ++r)
+                        {
+                            rot(r, 0) = m(r, 0) / sx;
+                            rot(r, 1) = m(r, 1) / sy;
+                            rot(r, 2) = m(r, 2) / sz;
+                        }
+                        QQuaternion q = QQuaternion::fromRotationMatrix(rot).normalized();
+                        if (k > 0 && QQuaternion::dotProduct(previous, q) < 0.0f)
+                            q = QQuaternion(-q.scalar(), -q.vector());   // the shorter way round between key frames
+                        previous = q;
+
+                        KeyFrame kf;
+                        kf.m_time = track.times[k];
+                        kf.m_displacement.SetPoint(IFXVector3(f6(m(0, 3)), f6(m(1, 3)), f6(m(2, 3))));
+                        kf.m_rotation.SetQuat(IFXVector4(q.scalar(), q.x(), q.y(), q.z()));   // w x y z
+                        kf.m_scale.SetPoint(IFXVector3(sx, sy, sz));
+                        t.AddKeyFrame(kf);
+                    }
+                    motion.AddMotionTrack(t);
+                    animatedNodes << track.node;
+                    l->AddResource(motion);
+                }
+            }
+
             for (const U3dMesh& m : scene.meshes)
             {
                 QString err;
@@ -363,6 +416,27 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
                     if (n.meshIndex < 0 || n.meshIndex >= scene.meshes.size())
                         continue;
                     const int mi = qBound(0, scene.meshes[n.meshIndex].materialIndex, qMax(0, static_cast<int>(materials.size()) - 1));
+                    if (animatedNodes.contains(n.name))
+                    {
+                        AnimationModifier am;
+                        am.SetName(wide(n.name).c_str());
+                        am.SetType(IDTF_ANIMATION_MODIFIER);
+                        am.SetChainType(IDTF_NODE);
+                        am.m_playing = TRUE;
+                        am.m_rootLock = FALSE;
+                        am.m_singleTrack = TRUE;
+                        am.m_autoBlend = TRUE;
+                        am.SetTimeScale(1.0f);
+                        am.SetBlendTime(0.5f);
+                        MotionInfo info;
+                        info.m_name = wide(QStringLiteral("M_") + n.name).c_str();
+                        info.m_loop = TRUE;
+                        info.m_sync = FALSE;
+                        info.m_timeOffset = 0.0f;
+                        info.m_timeScale = 1.0f;
+                        am.AddMotionInfo(info);
+                        mods.AddModifier(&am);   // before the shading modifier, as in the reference files
+                    }
                     ShadingModifier sm;
                     sm.SetName(wide(n.name).c_str());
                     sm.SetType(IDTF_SHADING_MODIFIER);

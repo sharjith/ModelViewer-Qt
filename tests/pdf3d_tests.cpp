@@ -17,6 +17,7 @@
 
 #include <QBuffer>
 #include <QCoreApplication>
+#include <QDir>
 #include <QFile>
 #include <QGuiApplication>
 #include <QJsonArray>
@@ -540,6 +541,26 @@ void testU3dWriter()
         std::fprintf(stderr, "u3d writer error: %s\n", qPrintable(r.error));
     CHECK(r.data.size() > 100 && r.data.startsWith("U3D"));   // ECMA-363 file header block type 0x00443355
 
+    // an animation (key frames of the part node) makes the stream larger: motion resource + animation modifier
+    {
+        Pdf3D::U3dScene animated = u;
+        Pdf3D::U3dMotionTrack track;
+        track.node = animated.nodes[0].name;
+        track.times = {0.0f, 1.0f, 2.0f};
+        QMatrix4x4 lifted;
+        lifted.translate(0, 0, 5);
+        QMatrix4x4 turned;
+        turned.rotate(90.0f, 0, 0, 1);
+        track.keys = {QMatrix4x4(), lifted, turned};
+        animated.animation.name = QStringLiteral("Lift");
+        animated.animation.tracks.append(track);
+        CHECK(animated.hasAnimation() && !u.hasAnimation());
+        const Pdf3D::U3dWriteResult ra = Pdf3D::U3dWriter::write(animated);
+        CHECK(ra.ok && ra.data.size() > r.data.size());
+        if (!ra.ok)
+            std::fprintf(stderr, "animated u3d writer error: %s\n", qPrintable(ra.error));
+    }
+
     // a second export in the same process works (library initialised and shut down per call)
     CHECK(Pdf3D::U3dWriter::write(u).ok);
 
@@ -651,6 +672,36 @@ void testFullExport()
     CHECK(pdfFollow.count("/N (O0000_m1) /V false") == 1);                               // hidden in the view that asks for it
     CHECK(pdfFollow.count("/N (O0000_m1) /V true /M [1 0 0 0 1 0 0 0 1 0 0 0]") == 7);   // default place elsewhere
 
+    // an animation: the style (/AN) in the 3D stream dictionary, the annotation live on opening; none without an animation
+    Pdf3D::U3dScene animatedScene = u;
+    {
+        Pdf3D::U3dMotionTrack track;
+        track.node = u.nodes[0].name;
+        track.times = {0.0f, 1.0f};
+        QMatrix4x4 lifted;
+        lifted.translate(0, 0, 5);
+        track.keys = {QMatrix4x4(), lifted};
+        animatedScene.animation.tracks.append(track);
+    }
+    Pdf3D::Pdf3DOptions animOptions = options;
+    animOptions.notes.clear();
+    animOptions.animationPlayback = Pdf3D::AnimationPlayback::BackAndForth;
+    const QString pathAnim = dir.filePath(QStringLiteral("anim.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(animatedScene, animOptions, pathAnim).ok);
+    QFile fAnim(pathAnim);
+    CHECK(fAnim.open(QIODevice::ReadOnly));
+    const QByteArray pdfAnim = fAnim.readAll();
+    CHECK(pdfAnim.contains("/AN << /Type /3DAnimationStyle /Subtype /Oscillating /PC -1 /TM 1 >>") && pdfAnim.contains("/AIS /L /DIS /I"));
+    animOptions.animationPlayback = Pdf3D::AnimationPlayback::Once;
+    animOptions.animationAutoStart = false;
+    const QString pathAnim2 = dir.filePath(QStringLiteral("anim_once.pdf"));   // not the first file: it is still open (Windows cannot replace it)
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(animatedScene, animOptions, pathAnim2).ok);
+    QFile fAnim2(pathAnim2);
+    CHECK(fAnim2.open(QIODevice::ReadOnly));
+    const QByteArray pdfAnim2 = fAnim2.readAll();
+    CHECK(pdfAnim2.contains("/Subtype /Linear /PC 1 /TM 1 >>") && !pdfAnim2.contains("/AIS /L"));
+    CHECK(!pdf.contains("/3DAnimationStyle") && !pdf.contains("/AIS /L"));   // no animation, no style
+
     // standard views can be left out: only "Top" remains, and with none left the export is refused
     Pdf3D::Pdf3DOptions onlyTop = options;
     onlyTop.notes.clear();
@@ -683,12 +734,80 @@ void testFullExport()
 }
 }
 
+// ---- Acrobat spikes through the real exporter (run with --spikes <folder>): animated PDFs that differ in one thing each, to open in
+// Acrobat and see which ones get an active play button. Not part of the checks.
+Pdf3D::U3dScene spikeScene(int parts, bool grouped)
+{
+    aiScene* sc = makeTriangleScene();
+    Pdf3D::U3dScene u = Pdf3D::SceneToU3d::build(sc);
+    delete sc;
+    const Pdf3D::U3dNode base = u.nodes[0];
+    u.nodes.clear();
+    if (grouped)
+    {
+        u.groups = QStringList{QStringLiteral("Folder")};
+        u.groupParents = QStringList{QString()};
+    }
+    for (int i = 0; i < parts; ++i)
+    {
+        Pdf3D::U3dNode n = base;
+        n.name = QStringLiteral("N%1_Part").arg(i, 4, 10, QLatin1Char('0'));
+        n.displayName = QStringLiteral("Part %1").arg(i);
+        n.world = QMatrix4x4();
+        n.world.translate(40.0f * i, 0.0f, 0.0f);
+        n.world.scale(30.0f);
+        n.parent = grouped ? QStringLiteral("Folder") : QString();
+        u.nodes.push_back(n);
+    }
+    return u;
+}
+
+void addSpikeTrack(Pdf3D::U3dScene& u, int part, int keys, double duration)
+{
+    Pdf3D::U3dMotionTrack track;
+    track.node = u.nodes[part].name;
+    for (int k = 0; k < keys; ++k)
+    {
+        const double f = static_cast<double>(k) / static_cast<double>(keys - 1);
+        QMatrix4x4 key;                                   // in the part's own frame (the part is scaled by 30): a lift and a turn
+        key.translate(0.0f, 0.0f, static_cast<float>(1.0 * std::sin(3.14159265 * f)));
+        key.rotate(static_cast<float>(90.0 * f), 0.0f, 0.0f, 1.0f);
+        track.times.push_back(static_cast<float>(duration * f));
+        track.keys.push_back(key);
+    }
+    u.animation.name = QStringLiteral("Spike");
+    u.animation.tracks.push_back(track);
+}
+
+void writeSpike(const QString& folder, const QString& name, const Pdf3D::U3dScene& u)
+{
+    Pdf3D::Pdf3DOptions o;
+    o.title = name;
+    o.includePartsList = false;
+    const Pdf3D::Pdf3DResult r = Pdf3D::Pdf3DExporter::exportToFile(u, o, QDir(folder).filePath(name + QStringLiteral(".pdf")));
+    std::printf("%s: %s\n", qPrintable(name), r.ok ? "written" : qPrintable(r.error));
+}
+
+void writeAnimationSpikes(const QString& folder)
+{
+    QDir().mkpath(folder);
+    { Pdf3D::U3dScene u = spikeScene(1, false); addSpikeTrack(u, 0, 3, 3.0);   writeSpike(folder, QStringLiteral("anim_A_one_part_root_3keys"), u); }
+    { Pdf3D::U3dScene u = spikeScene(1, true);  addSpikeTrack(u, 0, 3, 3.0);   writeSpike(folder, QStringLiteral("anim_B_one_part_in_folder_3keys"), u); }
+    { Pdf3D::U3dScene u = spikeScene(1, false); addSpikeTrack(u, 0, 121, 6.0); writeSpike(folder, QStringLiteral("anim_C_one_part_root_121keys"), u); }
+    { Pdf3D::U3dScene u = spikeScene(6, true);  for (int i = 0; i < 6; ++i) addSpikeTrack(u, i, 3, 3.0); writeSpike(folder, QStringLiteral("anim_D_six_parts_in_folder_3keys"), u); }
+}
+
 int main(int argc, char** argv)
 {
     bool full = false;
+    QString spikeFolder;
     for (int i = 1; i < argc; ++i)
+    {
         if (std::strcmp(argv[i], "--full") == 0)
             full = true;
+        else if (std::strcmp(argv[i], "--spikes") == 0 && i + 1 < argc)
+            spikeFolder = QString::fromLocal8Bit(argv[++i]);
+    }
 
     // QPdfWriter/QPainter want a GUI application object. vcpkg's Qt has no "offscreen" platform plugin on Windows, so use the
     // regular "windows" platform there (a desktop session is enough, no window is shown); "offscreen" elsewhere. Set
@@ -702,6 +821,12 @@ int main(int argc, char** argv)
 #endif
     }
     QGuiApplication app(argc, argv);
+
+    if (!spikeFolder.isEmpty())
+    {
+        writeAnimationSpikes(spikeFolder);
+        return 0;
+    }
 
     testViews();
     testCameraViews();

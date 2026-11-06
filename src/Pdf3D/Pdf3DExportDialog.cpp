@@ -4,6 +4,8 @@
 #include "Pdf3DExporter.h"
 
 #include <QDialogButtonBox>
+#include <QListWidget>
+#include <QListWidgetItem>
 #include <QFont>
 #include <QPalette>
 #include <QPushButton>
@@ -17,7 +19,7 @@ namespace
 }
 
 Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
-	const QVector<OverlayItem>& overlays, QWidget* parent)
+	const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations, QWidget* parent)
 	: QDialog(parent)
 	, ui(std::make_unique<Ui::Pdf3DExportDialog>())
 	, _viewCount(views.size())
@@ -108,6 +110,23 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	connect(ui->overlayAllButton, &QPushButton::clicked, this, [this]() { setAllOverlaysChecked(true); });
 	connect(ui->overlayNoneButton, &QPushButton::clicked, this, [this]() { setAllOverlaysChecked(false); });
 	ui->tabWidget->setTabEnabled(2, !overlays.isEmpty());
+
+	// the animations: "No animation" first and selected, then one row per clip
+	auto* none = new QListWidgetItem(tr("No animation"), ui->animationList);
+	none->setData(kViewIndexRole, -1);
+	for (int i = 0; i < animations.size(); ++i)
+	{
+		auto* item = new QListWidgetItem(tr("%1 (%2 s)").arg(animations[i].name).arg(animations[i].durationSeconds, 0, 'f', 1), ui->animationList);
+		item->setData(kViewIndexRole, i);
+	}
+	ui->animationList->setCurrentRow(0);
+	ui->playbackCombo->setCurrentIndex(qBound(0, settings.value(QStringLiteral("pdf3d/animationPlayback"), 0).toInt(), 2));
+	ui->autoStartCheck->setChecked(settings.value(QStringLiteral("pdf3d/animationAutoStart"), true).toBool());
+	// the tab stays available even without clips, saying why there is nothing to pick
+	if (animations.isEmpty())
+		ui->animationIntroLabel->setText(tr("This model has no animation that moves parts. Make one in the Animations panel, or with Create Animation in the Exploded View panel, and it will be listed here."));
+	ui->playbackCombo->setEnabled(!animations.isEmpty());
+	ui->autoStartCheck->setEnabled(!animations.isEmpty());
 	updateOkEnabled();
 }
 
@@ -135,6 +154,22 @@ QVector<bool> Pdf3DExportDialog::viewSelection() const
 			selection[index.toInt()] = ((*it)->checkState(0) == Qt::Checked);
 	}
 	return selection;
+}
+
+int Pdf3DExportDialog::selectedAnimation() const
+{
+	const QListWidgetItem* item = ui->animationList->currentItem();
+	return item ? item->data(kViewIndexRole).toInt() : -1;
+}
+
+int Pdf3DExportDialog::playbackIndex() const
+{
+	return ui->playbackCombo->currentIndex();
+}
+
+bool Pdf3DExportDialog::animationAutoStart() const
+{
+	return ui->autoStartCheck->isChecked();
 }
 
 QVector<bool> Pdf3DExportDialog::viewOverlaySelection() const
@@ -205,6 +240,8 @@ void Pdf3DExportDialog::done(int result)
 		settings.setValue(QStringLiteral("pdf3d/company"), ui->companyEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/scale"), ui->scaleEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/partsList"), ui->partsListCheck->isChecked());
+		settings.setValue(QStringLiteral("pdf3d/animationPlayback"), ui->playbackCombo->currentIndex());
+		settings.setValue(QStringLiteral("pdf3d/animationAutoStart"), ui->autoStartCheck->isChecked());
 	}
 	QDialog::done(result);
 }

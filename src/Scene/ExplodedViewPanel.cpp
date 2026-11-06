@@ -2870,7 +2870,10 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
         }
 
         if (!firstActivatedFile.isEmpty())
+        {
             _viewportWidget->setActiveAnimation(firstActivatedFile, firstActivatedClip);
+            markDocumentModified();   // the new clips are part of the document: Save must be offered and a close must warn
+        }
         return true;
     }
 
@@ -2935,7 +2938,10 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
         }
 
         if (!firstActivatedFile.isEmpty())
+        {
             _viewportWidget->setActiveAnimation(firstActivatedFile, firstActivatedClip);
+            markDocumentModified();   // the new clips are part of the document: Save must be offered and a close must warn
+        }
         return true;
     }
 
@@ -3107,7 +3113,10 @@ bool ExplodedViewPanel::createAnimationsFromCapturedSteps()
     }
 
     if (!firstActivatedFile.isEmpty())
+    {
         _viewportWidget->setActiveAnimation(firstActivatedFile, firstActivatedClip);
+        markDocumentModified();   // the new clip is part of the document: Save must be offered and a close must warn
+    }
     return !firstActivatedFile.isEmpty();
 }
 

@@ -46,6 +46,24 @@ struct U3dNode
     QMatrix4x4 world;                // local-to-world; Qt layout, written as the row-vector matrix u3d expects
 };
 
+// A key frame animation of part nodes (U3D motion). Verified in Acrobat (research doc, animations): a key frame is NOT an absolute
+// transform. It is a transform in the node's own frame that Acrobat applies BEFORE the node's own (rest) transform, so the node's
+// resulting world matrix is  world = rest * key  in column-vector terms (p_world = rest * key * p_local). To make a node follow a pose
+// M(t), the key at time t is  rest^-1 * M(t). `keys` holds those key matrices (Qt layout, column vectors); the writer decomposes them
+// into displacement, rotation quaternion and scale.
+struct U3dMotionTrack
+{
+    QString             node;      // the part node (U3dNode::name)
+    QVector<float>      times;     // seconds, ascending
+    QVector<QMatrix4x4> keys;      // one key matrix per time
+};
+
+struct U3dAnimation
+{
+    QString               name;
+    QVector<U3dMotionTrack> tracks;
+};
+
 struct U3dScene
 {
     QVector<U3dMaterial> materials;
@@ -56,6 +74,9 @@ struct U3dScene
     QStringList          groups;
     QStringList          groupParents;
     int                  overlayItems = 0;   // how many measurement/annotation items were added (OverlayToU3d)
+    U3dAnimation         animation;          // at most one: Acrobat plays one animation per 3D annotation; no tracks = none
+
+    bool hasAnimation() const { return !animation.tracks.isEmpty(); }
 
     bool isEmpty() const { return nodes.isEmpty() || meshes.isEmpty(); }
 

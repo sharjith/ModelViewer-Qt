@@ -291,6 +291,70 @@ item number, part name, material and quantity.</string>
        </item>
       </layout>
      </widget>
+     <widget class="QWidget" name="animationTab">
+      <attribute name="title">
+       <string>Animation</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="animationLayout">
+       <item>
+        <widget class="QLabel" name="animationIntroLabel">
+         <property name="text">
+          <string>A PDF can play one animation. Pick the animation of the model to include; it plays in Adobe Acrobat and Reader with the 3D toolbar's play, pause and time controls.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QListWidget" name="animationList"/>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="animationForm">
+         <item row="0" column="0">
+          <widget class="QLabel" name="playbackLabel">
+           <property name="text">
+            <string>Playback:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="playbackCombo">
+           <item>
+            <property name="text">
+             <string>Loop</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Back and forth</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Once</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="autoStartCheck">
+         <property name="toolTip">
+          <string>The 3D area is live when the file opens and the animation starts by itself.
+Unticked: the reader clicks the 3D area and presses play.</string>
+         </property>
+         <property name="text">
+          <string>Start playing when the file opens</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
     </widget>
    </item>
    <item>

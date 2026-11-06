@@ -232,7 +232,9 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
 
     const double w = a.rect.width(), h = a.rect.height();
     QMap<int, QByteArray> objects;   // object number -> full body (without "N 0 obj"/"endobj"); ordered by number
-    objects.insert(num3d, streamObject("/Type /3D /Subtype /U3D /VA " + views, a.u3d));
+    // the animation style (/AN) belongs in the 3D stream dictionary, as commercial files have it (verified in Acrobat)
+    objects.insert(num3d, streamObject("/Type /3D /Subtype /U3D" + (a.animationStyle.isEmpty() ? QByteArray() : " /AN " + a.animationStyle) +
+                                       " /VA " + views, a.u3d));
     // An empty appearance: the page content drawn by Qt under the annotation shows until the 3D content is activated.
     objects.insert(numAppearance, streamObject("/Type /XObject /Subtype /Form /BBox [0 0 " + pdfNumber(w) + " " + pdfNumber(h) + "]", QByteArray()));
     objects.insert(numAnnot,
@@ -240,7 +242,7 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
         pdfNumber(a.rect.top() > a.rect.bottom() ? a.rect.bottom() : a.rect.top()) + " " + pdfNumber(a.rect.right()) + " " +
         pdfNumber(a.rect.top() > a.rect.bottom() ? a.rect.top() : a.rect.bottom()) + "] /F 4 /Contents " + pdfString(a.description) +
         " /3DD " + QByteArray::number(num3d) + " 0 R /3DV " + QByteArray::number(a.defaultView) +
-        " /3DA << /A /PO /D /PC /TB true /NP false >> /AP << /N " + QByteArray::number(numAppearance) + " 0 R >> >>");
+        " /3DA << /A /PO /D /PC /TB true /NP false" + (a.startLive ? " /AIS /L /DIS /I" : "") + " >> /AP << /N " + QByteArray::number(numAppearance) + " 0 R >> >>");
 
     // refs to add to each page's /Annots (parallel to pageNums)
     QVector<QByteArray> pageRefs(pageNums.size());
