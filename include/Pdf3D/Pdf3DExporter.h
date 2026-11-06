@@ -6,7 +6,7 @@
 #include <QImage>
 #include <QString>
 
-// Save as 3D PDF, first version: a one-page A4 landscape drawing sheet (border, title block, 3D area) written with QPdfWriter,
+// Save as 3D PDF: an A4 landscape drawing sheet (border, title block, 3D area), optionally followed by parts list sheets, written with QPdfWriter,
 // with the model embedded as a Universal 3D stream in a 3D annotation (appended as a PDF incremental update, see
 // PdfAppender.h) and the standard named views. Design and decisions: research/3dpdf/3D_PDF_EXPORT_RESEARCH.md, section 9.
 namespace Pdf3D
@@ -16,6 +16,14 @@ struct Pdf3DOptions
 {
     QString title;                     // sheet title (title block, PDF document title)
     QString subtitle;                  // second title block line, e.g. the source file name
+    QString author;                    // title block fields; empty ones are left blank on the sheet
+    QString company;
+    QString drawingNumber;
+    QString revision;
+    QString scale;                     // free text, e.g. "1:2" or "NTS"
+    QString notes;                     // short free text under the subtitle
+    QString date;                      // empty = today (ISO)
+    bool    includePartsList = true;   // extra sheet(s) listing the exported parts (item, name, material, quantity)
     UpAxis  upAxis = UpAxis::Y;        // the viewer's world up axis; decides what Front/Top/... mean
     QImage  poster;                    // optional picture shown on the page where 3D is not available (a viewport grab)
 };

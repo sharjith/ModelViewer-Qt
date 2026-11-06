@@ -173,25 +173,39 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
     if (!parseDocument(pdf, &doc, error))
         return false;
 
-    // ---- find the (single) page: catalog -> /Pages -> first /Kids entry -------------------------------------------------
+    // ---- find the pages: catalog -> /Pages -> /Kids (Qt writes a flat page tree) -----------------------------------------------
     const QString catalog = QString::fromLatin1(doc.objectBody(doc.root));
     QRegularExpressionMatch m = QRegularExpression(QStringLiteral("/Pages\\s+(\\d+)\\s+0\\s+R")).match(catalog);
     if (!m.hasMatch())
         return fail(error, QStringLiteral("The PDF catalog has no /Pages entry."));
     const QString pagesBody = QString::fromLatin1(doc.objectBody(m.captured(1).toInt()));
-    m = QRegularExpression(QStringLiteral("/Kids\\s*\\[\\s*(\\d+)\\s+0\\s+R")).match(pagesBody);
-    if (!m.hasMatch())
+    const QRegularExpressionMatch kidsMatch = QRegularExpression(QStringLiteral("/Kids\\s*\\[([^\\]]*)\\]")).match(pagesBody);
+    if (!kidsMatch.hasMatch())
         return fail(error, QStringLiteral("The PDF page tree has no pages."));
-    const int pageNum = m.captured(1).toInt();
-    const QByteArray pageBodyBytes = doc.objectBody(pageNum);
-    const QString pageBody = QString::fromLatin1(pageBodyBytes);
-    if (!pageBody.contains(QStringLiteral("/Type /Page")) && !pageBody.contains(QStringLiteral("/Type/Page")))
-        return fail(error, QStringLiteral("The PDF page object could not be read."));
+    QList<int> pageNums;
+    {
+        QRegularExpressionMatchIterator it = QRegularExpression(QStringLiteral("(\\d+)\\s+0\\s+R")).globalMatch(kidsMatch.captured(1));
+        while (it.hasNext())
+            pageNums.append(it.next().captured(1).toInt());
+    }
+    if (pageNums.isEmpty())
+        return fail(error, QStringLiteral("The PDF page tree has no pages."));
+    const int pageNum = pageNums.first();   // the 3D annotation goes on the first page
+    for (const int num : pageNums)
+    {
+        const QString body = QString::fromLatin1(doc.objectBody(num));
+        if (!body.contains(QStringLiteral("/Type /Page")) && !body.contains(QStringLiteral("/Type/Page")))
+            return fail(error, QStringLiteral("The PDF page object could not be read."));
+    }
 
     // ---- new objects --------------------------------------------------------------------------------------------------
     const int num3d = doc.size;
     const int numAnnot = doc.size + 1;
     const int numAppearance = doc.size + 2;
+    const int numField = doc.size + 3;       // only used with a notes field: the field, the font, the form, then one widget per page
+    const int numFont = doc.size + 4;
+    const int numAcroForm = doc.size + 5;
+    const int numFirstWidget = doc.size + 6;
 
     QByteArray views = "[";
     for (int i = 0; i < a.viewDictionaries.size(); ++i)
@@ -214,38 +228,93 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
         " /3DD " + QByteArray::number(num3d) + " 0 R /3DV " + QByteArray::number(a.defaultView) +
         " /3DA << /A /PO /D /PC /TB true /NP false >> /AP << /N " + QByteArray::number(numAppearance) + " 0 R >> >>");
 
-    // ---- hook the annotation into the page's /Annots --------------------------------------------------------------------
-    const QByteArray newRef = QByteArray::number(numAnnot) + " 0 R";
-    QRegularExpressionMatch annotsRef = QRegularExpression(QStringLiteral("/Annots\\s+(\\d+)\\s+0\\s+R")).match(pageBody);
-    if (annotsRef.hasMatch())
+    // refs to add to each page's /Annots (parallel to pageNums)
+    QVector<QByteArray> pageRefs(pageNums.size());
+    pageRefs[0] = QByteArray::number(numAnnot) + " 0 R";
+    int newObjectCount = 3;
+    if (a.hasNotesField)
     {
-        const int arrayNum = annotsRef.captured(1).toInt();
-        QByteArray arr = doc.objectBody(arrayNum);
-        const int open = arr.indexOf('['), close = arr.lastIndexOf(']');
-        if (open < 0 || close < open)
-            return fail(error, QStringLiteral("The page's /Annots array could not be read."));
-        const QByteArray inner = arr.mid(open + 1, close - open - 1).trimmed();
-        objects.insert(arrayNum, "[ " + (inner.isEmpty() ? QByteArray() : inner + " ") + newRef + " ]");
-    }
-    else
-    {
-        // inline /Annots [...] or none: rewrite the page object itself
-        QByteArray page = pageBodyBytes;
-        QRegularExpressionMatch inlineAnnots = QRegularExpression(QStringLiteral("/Annots\\s*\\[([^\\]]*)\\]")).match(pageBody);
-        if (inlineAnnots.hasMatch())
+        // The catalog is rewritten to point at a new /AcroForm; refuse files that already have one.
+        if (catalog.contains(QStringLiteral("/AcroForm")))
+            return fail(error, QStringLiteral("The PDF already has an interactive form."));
+        QByteArray utf16 = "<FEFF";
+        for (const QChar c : a.notesField.text)
+            utf16 += QByteArray::number(c.unicode(), 16).rightJustified(4, '0').toUpper();
+        utf16 += ">";
+        const QByteArray da = "(/Helv " + pdfNumber(a.notesField.fontSize) + " Tf 0 g)";
+        const QRectF r = a.notesField.rect;
+        const double lo = qMin(r.top(), r.bottom()), hi = qMax(r.top(), r.bottom());
+        const QByteArray rect = "[" + pdfNumber(r.left()) + " " + pdfNumber(lo) + " " + pdfNumber(r.right()) + " " + pdfNumber(hi) + "]";
+
+        // one field, one widget on every page (same rectangle: the title block is the same on every sheet); the widgets share the
+        // field's value, so scrolling or editing shows the same text everywhere
+        QByteArray kids;
+        for (int i = 0; i < pageNums.size(); ++i)
         {
-            const QString replaced = QString(pageBody).replace(inlineAnnots.capturedStart(0), inlineAnnots.capturedLength(0),
-                QStringLiteral("/Annots [%1 %2]").arg(inlineAnnots.captured(1).trimmed(), QString::fromLatin1(newRef)));
-            page = replaced.toLatin1();
+            const int widget = numFirstWidget + i;
+            if (i)
+                kids += ' ';
+            kids += QByteArray::number(widget) + " 0 R";
+            objects.insert(widget, "<< /Type /Annot /Subtype /Widget /Parent " + QByteArray::number(numField) + " 0 R /P " +
+                QByteArray::number(pageNums[i]) + " 0 R /Rect " + rect + " /F 4 /MK << /BG [1 1 1] >> >>");
+            if (!pageRefs[i].isEmpty())
+                pageRefs[i] += ' ';
+            pageRefs[i] += QByteArray::number(widget) + " 0 R";
+        }
+        objects.insert(numField, "<< /FT /Tx /T (Notes) /TU (Notes) /Ff 4198400 /V " + utf16 + " /DA " + da + " /Kids [" + kids + "] >>");
+        objects.insert(numFont, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+        objects.insert(numAcroForm,
+            "<< /Fields [" + QByteArray::number(numField) + " 0 R] /NeedAppearances true /DA " + da + " /DR << /Font << /Helv " +
+            QByteArray::number(numFont) + " 0 R >> >> >>");
+        QByteArray cat = doc.objectBody(doc.root);
+        const int end = cat.lastIndexOf(">>");
+        if (end < 0)
+            return fail(error, QStringLiteral("The PDF catalog could not be rewritten."));
+        cat.insert(end, "/AcroForm " + QByteArray::number(numAcroForm) + " 0 R\n");
+        objects.insert(doc.root, cat);
+        newObjectCount = 6 + static_cast<int>(pageNums.size());
+    }
+
+    // ---- hook the new annotations into each page's /Annots ------------------------------------------------------------------
+    for (int pi = 0; pi < pageNums.size(); ++pi)
+    {
+        if (pageRefs[pi].isEmpty())
+            continue;
+        const int pageObj = pageNums[pi];
+        const QByteArray newRef = pageRefs[pi];
+        const QByteArray pageBodyBytes = doc.objectBody(pageObj);
+        const QString pageBody = QString::fromLatin1(pageBodyBytes);
+        QRegularExpressionMatch annotsRef = QRegularExpression(QStringLiteral("/Annots\\s+(\\d+)\\s+0\\s+R")).match(pageBody);
+        if (annotsRef.hasMatch())
+        {
+            const int arrayNum = annotsRef.captured(1).toInt();
+            QByteArray arr = doc.objectBody(arrayNum);
+            const int open = arr.indexOf('['), close = arr.lastIndexOf(']');
+            if (open < 0 || close < open)
+                return fail(error, QStringLiteral("The page's /Annots array could not be read."));
+            const QByteArray inner = arr.mid(open + 1, close - open - 1).trimmed();
+            objects.insert(arrayNum, "[ " + (inner.isEmpty() ? QByteArray() : inner + " ") + newRef + " ]");
         }
         else
         {
-            const int end = page.lastIndexOf(">>");
-            if (end < 0)
-                return fail(error, QStringLiteral("The page object could not be rewritten."));
-            page.insert(end, "/Annots [" + newRef + "]\n");
+            // inline /Annots [...] or none: rewrite the page object itself
+            QByteArray page = pageBodyBytes;
+            QRegularExpressionMatch inlineAnnots = QRegularExpression(QStringLiteral("/Annots\\s*\\[([^\\]]*)\\]")).match(pageBody);
+            if (inlineAnnots.hasMatch())
+            {
+                const QString replaced = QString(pageBody).replace(inlineAnnots.capturedStart(0), inlineAnnots.capturedLength(0),
+                    QStringLiteral("/Annots [%1 %2]").arg(inlineAnnots.captured(1).trimmed(), QString::fromLatin1(newRef)));
+                page = replaced.toLatin1();
+            }
+            else
+            {
+                const int end = page.lastIndexOf(">>");
+                if (end < 0)
+                    return fail(error, QStringLiteral("The page object could not be rewritten."));
+                page.insert(end, "/Annots [" + newRef + "]\n");
+            }
+            objects.insert(pageObj, page);
         }
-        objects.insert(pageNum, page);
     }
 
     // ---- append: objects, xref section, trailer ---------------------------------------------------------------------------
@@ -266,7 +335,7 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
         out += QByteArray::number(it.key()) + " 1\n";
         out += QByteArray::number(it.value()).rightJustified(10, '0') + " 00000 n \n";
     }
-    const int newSize = qMax(doc.size, numAppearance + 1);
+    const int newSize = qMax(doc.size, doc.size + newObjectCount);
     out += "trailer\n<< /Size " + QByteArray::number(newSize) + " /Root " + QByteArray::number(doc.root) + " 0 R";
     if (doc.info > 0)
         out += " /Info " + QByteArray::number(doc.info) + " 0 R";

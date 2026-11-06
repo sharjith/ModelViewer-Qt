@@ -356,6 +356,39 @@ void testFullExport()
     CHECK(pdf.startsWith("%PDF-1.6") && pdf.size() > 1500);
     CHECK(pdf.contains("/Subtype /3D") && pdf.contains("/Type /3DView") && pdf.endsWith("%%EOF\n"));
     CHECK(pdf.count("/Type /3DView") == 7);
+
+    // title block fields + parts list: the list adds a second page (the 3D annotation stays on page 1); without it one page
+    const QRegularExpression twoPages(QStringLiteral("/Count\\s+2\\b"));
+    const QRegularExpression onePage(QStringLiteral("/Count\\s+1\\b"));
+    CHECK(twoPages.match(QString::fromLatin1(pdf)).hasMatch() && !onePage.match(QString::fromLatin1(pdf)).hasMatch());
+
+    options.author = QStringLiteral("A. Author");
+    options.company = QStringLiteral("ACME");
+    options.drawingNumber = QStringLiteral("DWG-001");
+    options.revision = QStringLiteral("B");
+    options.scale = QStringLiteral("1:2");
+    options.notes = QStringLiteral("note");
+    options.includePartsList = false;
+    const QString path2 = dir.filePath(QStringLiteral("out2.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, options, path2).ok);
+    QFile f2(path2);
+    CHECK(f2.open(QIODevice::ReadOnly));
+    const QByteArray pdf2 = f2.readAll();
+    CHECK(onePage.match(QString::fromLatin1(pdf2)).hasMatch() && pdf2.contains("/Subtype /3D"));
+    CHECK(!pdf2.contains("/Subtype /Widget"));   // short notes stay plain text in the title block
+
+    // long notes do not fit the title block: they become a read-only multi-line form field (scrollable in Acrobat)
+    options.includePartsList = true;   // two sheets: the notes field must appear on both
+    options.notes = QString();
+    for (int i = 0; i < 40; ++i)
+        options.notes += QStringLiteral("Note line %1 with some words to fill the cell. ").arg(i);
+    const QString path3 = dir.filePath(QStringLiteral("out3.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, options, path3).ok);
+    QFile f3(path3);
+    CHECK(f3.open(QIODevice::ReadOnly));
+    const QByteArray pdf3 = f3.readAll();
+    CHECK(pdf3.count("/Subtype /Widget") == 2 && pdf3.contains("/AcroForm") && pdf3.contains("/Ff 4198400") && pdf3.contains("/Subtype /3D"));
+    CHECK(pdf3.endsWith("%%EOF\n"));
 }
 }
 

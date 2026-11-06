@@ -13,6 +13,15 @@
 namespace Pdf3D
 {
 
+// An optional multi-line text field (a PDF form field, scrollable in Acrobat; not read-only because Acrobat cannot focus or scroll read-only fields) added to the page together with the 3D
+// annotation. Used for notes that do not fit the title block.
+struct NotesField
+{
+    QRectF  rect;                    // PDF points, origin at the bottom left
+    QString text;                    // Unicode; written as UTF-16BE
+    double  fontSize = 8.0;
+};
+
 struct Annotation3D
 {
     QRectF             rect;                 // in PDF points, origin at the bottom left of the page
@@ -20,6 +29,8 @@ struct Annotation3D
     QList<QByteArray>  viewDictionaries;     // complete "<< /Type /3DView ... >>" dictionaries (see Pdf3DViews.h)
     int                defaultView = 0;      // index into viewDictionaries; written as /3DV
     QString            description;          // /Contents of the annotation (alternate text), ASCII
+    bool               hasNotesField = false;
+    NotesField         notesField;           // used when hasNotesField
 };
 
 class PdfAppender

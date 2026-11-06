@@ -1524,6 +1524,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 			ui->actionFilterByMaterial->setEnabled(hasMeshes);
 			ui->actionFilterByColor->setEnabled(hasMeshes);
 			ui->actionFilterByBoundingBox->setEnabled(hasMeshes);
+			ui->actionExport3DPdf->setEnabled(hasMeshes);   // nothing to export from an empty scene
 		};
 		refreshFilterActionsEnabled();
 		_hasMeshesSyncConnection = connect(sceneGraph, &SceneGraph::structureChanged, this, refreshFilterActionsEnabled);
@@ -2782,7 +2783,7 @@ void MainWindow::updateMenus()
 	ui->actionSaveSceneState->setEnabled(hasMdiChild);
 	ui->actionAnnotate->setEnabled(hasMdiChild);
 	ui->actionExportReport->setEnabled(hasMdiChild);
-	ui->actionExport3DPdf->setEnabled(hasMdiChild);
+	ui->actionExport3DPdf->setEnabled(hasMeshesForFilters);   // needs an open document that has geometry (kept live by the structureChanged sync)
 	ui->actionBatchRenderViews->setEnabled(hasMdiChild);
 	ui->actionMassProperties->setEnabled(hasMdiChild);
 	ui->actionSurfaceAnalysis->setEnabled(hasMdiChild);

@@ -5577,6 +5577,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "SceneUtils.h"
 #include "SceneGraphExporter.h"
 #include "Pdf3DExporter.h"
+#include "Pdf3DExportDialog.h"
 #include "SceneToU3d.h"
 #include "U3dWriter.h"
 #include <QDialog>
@@ -5911,12 +5912,25 @@ void ModelViewer::exportAs3DPdf()
 		return;
 	}
 
-	QString fileName = QFileDialog::getSaveFileName(this, tr("Save as 3D PDF"), _lastOpenedDir,
+	// Title block fields and the parts list option; the title defaults to the first file's name.
+	QString defaultTitle;
+	if (!_sceneGraph->root()->children.isEmpty())
+		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
+	Pdf3DExportDialog optionsDialog(defaultTitle, this);
+	if (optionsDialog.exec() != QDialog::Accepted)
+		return;
+	Pdf3D::Pdf3DOptions options;
+	optionsDialog.applyTo(options);
+
+	QString fileName = QFileDialog::getSaveFileName(this, tr("Save as 3D PDF"),
+		QDir(_lastOpenedDir).filePath(options.title.isEmpty() ? QStringLiteral("model") : options.title),
 		tr("PDF Files (*.pdf)"));
 	if (fileName.isEmpty())
 		return;
 	if (!fileName.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
 		fileName += QLatin1String(".pdf");
+	if (options.title.isEmpty())
+		options.title = QFileInfo(fileName).completeBaseName();
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
@@ -5947,8 +5961,6 @@ void ModelViewer::exportAs3DPdf()
 	const Pdf3D::U3dScene u3dScene = Pdf3D::SceneToU3d::build(exportScene, corrections);
 	delete exportScene;
 
-	Pdf3D::Pdf3DOptions options;
-	options.title = QFileInfo(fileName).completeBaseName();
 	options.subtitle = sourceNames.join(QStringLiteral(", "));
 	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
 	// standard views (Front/Top/...) use the same convention as the viewport.
