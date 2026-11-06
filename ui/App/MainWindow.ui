@@ -885,6 +885,10 @@
    </property>
   </action>
   <action name="actionExport3DPdf">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/export_3dpdf.png</normaloff>:/icons/res/export_3dpdf.png</iconset>
+   </property>
    <property name="text">
     <string>Save as 3D PDF...</string>
    </property>

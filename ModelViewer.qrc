@@ -128,6 +128,7 @@
         <file>res/measure.png</file>
         <file>res/annotate.png</file>
         <file>res/export_report.png</file>
+        <file>res/export_3dpdf.png</file>
         <file>res/batch_render_views.png</file>
         <file>res/mass_properties.png</file>
         <file>res/shrink_wrap.png</file>
