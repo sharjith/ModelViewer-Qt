@@ -54,6 +54,17 @@ public:
     // field from whatever is already selected in the viewport / tree.
     void captureCurrentSelection();
 
+    // The exploded pose of every stored exploded view (preset), for exports. Computed without activating the presets: the
+    // viewport's own explosion state is left exactly as it was. matrices holds, per mesh the preset moves, the
+    // transform T(explosion offset) * exploded-view transformation that the viewport applies on top of the assembled
+    // model (see MeshInstanceState::combinedRenderTransform()). Captured steps (animations) are not included.
+    struct PresetPose
+    {
+        QString name;
+        QHash<QUuid, QMatrix4x4> matrices;
+    };
+    QVector<PresetPose> computePresetPoses();
+
     // Stored selection state — consumed by ExplodedViewManager.
     const QSet<QUuid>& assemblyUuids() const;
     QUuid               anchorUuid()   const;

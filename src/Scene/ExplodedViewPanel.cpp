@@ -11,6 +11,9 @@
 #include "SelectionManager.h"
 #include "OverlayTextStyle.h"
 #include "RenderableMesh.h"
+#include "AssemblyRelationGraph.h"
+#include "ExplodedViewRuntimeController.h"
+#include "SceneMesh.h"
 
 #include <QAbstractItemModel>
 #include <QCheckBox>
@@ -4426,4 +4429,257 @@ void ExplodedViewPanel::onCapturedViewsContextMenuRequested(const QPoint& pos)
     {
         on_pushButtonRemoveCapture_clicked();
     }
+}
+
+// ---------------------------------------------------------------------------
+// computePresetPoses
+//
+// Evaluates every stored exploded view (preset) for an export, without switching presets: switching would run the panel's whole
+// load path (UI sync, manual placement session, viewport explosion update) and could not be undone exactly. Instead the
+// involved meshes are put into their assembled state for the duration of the evaluation (the explosion offsets are computed
+// from the unexploded bounding boxes, exactly as ViewportWidget::updateExplosion() does), the auto/axis offsets are computed
+// with a private ExplodedViewManager, the manual states are read by applying them to the mesh once, and every mesh's own
+// offset and exploded-view transform are restored afterwards.
+// ---------------------------------------------------------------------------
+QVector<ExplodedViewPanel::PresetPose> ExplodedViewPanel::computePresetPoses()
+{
+    QVector<PresetPose> result;
+    if (!_viewportWidget || _presets.isEmpty())
+        return result;
+
+    // While the panel is open the active preset may hold edits that are not stored in its data yet.
+    if (isVisible() && _activePresetIndex >= 0)
+    {
+        syncActivePresetFromUi();
+        syncActivePresetManualStateFromRuntime();
+    }
+
+    QSet<QUuid> involved;
+    for (const ExplodedViewPreset& preset : std::as_const(_presets))
+    {
+        involved.unite(preset.assemblyUuids);
+        for (auto it = preset.uncapturedManualStates.cbegin(); it != preset.uncapturedManualStates.cend(); ++it)
+            involved.insert(it.key());
+    }
+
+    struct SavedMeshState
+    {
+        QVector3D      offset;
+        TransformState exploded;
+    };
+    QHash<QUuid, SavedMeshState> saved;
+    for (const QUuid& uuid : std::as_const(involved))
+    {
+        if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid))
+            saved.insert(uuid, {mesh->explosionOffset(), ExplodedViewRuntimeController::explodedViewTransformState(mesh)});
+    }
+
+    const auto restoreMeshes = [&]() {
+        for (auto it = saved.cbegin(); it != saved.cend(); ++it)
+        {
+            SceneMesh* mesh = _viewportWidget->getMeshByUuid(it.key());
+            if (!mesh)
+                continue;
+            mesh->setExplosionOffset(it.value().offset);
+            ExplodedViewRuntimeController::applyExplodedViewTransformState(mesh, it.value().exploded, false);
+            mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
+        }
+    };
+
+    // assembled state for the bounding boxes
+    for (auto it = saved.cbegin(); it != saved.cend(); ++it)
+    {
+        SceneMesh* mesh = _viewportWidget->getMeshByUuid(it.key());
+        if (!mesh)
+            continue;
+        mesh->setExplosionOffset(QVector3D());
+        mesh->resetExplodedViewTransformations();
+        mesh->setSceneRenderTransformFast(mesh->getSceneRenderTransform());
+    }
+
+    QHash<QUuid, QVector3D> centroids;
+    QHash<QUuid, QPair<QVector3D, QVector3D>> boxes;
+    for (auto it = saved.cbegin(); it != saved.cend(); ++it)
+    {
+        const SceneMesh* mesh = _viewportWidget->getMeshByUuid(it.key());
+        if (!mesh)
+            continue;
+        const BoundingBox bb = mesh->getBoundingBox();
+        const QVector3D bbMin(static_cast<float>(bb.xMin()), static_cast<float>(bb.yMin()), static_cast<float>(bb.zMin()));
+        const QVector3D bbMax(static_cast<float>(bb.xMax()), static_cast<float>(bb.yMax()), static_cast<float>(bb.zMax()));
+        centroids.insert(it.key(), (bbMin + bbMax) * 0.5f);
+        boxes.insert(it.key(), {bbMin, bbMax});
+    }
+
+    ExplodedViewManager manager;
+    for (const ExplodedViewPreset& preset : std::as_const(_presets))
+    {
+        PresetPose pose;
+        pose.name = preset.name;
+
+        // A stored exploded view with captured steps is the multi-step explosion; its pose is the final one, after the last
+        // step. The steps hold node (or mesh) local transforms that already contain whatever auto or manual displacement was
+        // captured, so (like the draft preview, applyDraftPreviewPose()) they replace the live auto/manual parameters. In
+        // every output mode the end of the last track that targets a node wins.
+        if (!preset.capturedSteps.isEmpty())
+        {
+            struct EndState
+            {
+                QVector3D   translation;
+                QQuaternion rotation;
+                QVector3D   scale = QVector3D(1.0f, 1.0f, 1.0f);
+            };
+            QHash<QUuid, EndState> byNode;
+            QHash<QUuid, EndState> byMesh;
+            for (const CapturedExplosionStep& step : preset.capturedSteps)
+            {
+                QVector<CapturedTransformTrack> leafTracks;
+                collectCapturedLeafTracks(step, leafTracks);
+                for (const CapturedTransformTrack& track : std::as_const(leafTracks))
+                {
+                    EndState end;
+                    end.translation = track.endPosition;
+                    end.rotation = track.endRotation;
+                    if (track.targetKind == GltfAnimationBindingTargetKind::Mesh)
+                    {
+                        byMesh.insert(track.meshUuid, end);
+                        continue;
+                    }
+                    const SceneNode* node = _sceneGraph ? _sceneGraph->findNodeByUuid(track.ownerNodeUuid) : nullptr;
+                    if (!node)
+                        continue;
+                    end.scale = decomposeLocalNodeTransform(aiToQMatrix(node->localTransform)).scale;
+                    byNode.insert(track.ownerNodeUuid, end);
+                }
+            }
+
+            // the scene render transform every mesh gets in the final pose (same traversal as applyDraftPreviewPose())
+            QHash<QUuid, QMatrix4x4> posedRender;
+            std::function<void(const SceneNode*, const QMatrix4x4&)> walk = [&](const SceneNode* node, const QMatrix4x4& parentWorld)
+            {
+                if (!node)
+                    return;
+                QMatrix4x4 local = aiToQMatrix(node->localTransform);
+                const auto nodeEnd = byNode.constFind(node->nodeUuid);
+                if (nodeEnd != byNode.constEnd())
+                {
+                    LocalNodeTransform lt;
+                    lt.translation = nodeEnd->translation;
+                    lt.rotation = nodeEnd->rotation;
+                    lt.scale = nodeEnd->scale;
+                    local = composeLocalNodeTransform(lt);
+                }
+                const QMatrix4x4 world = parentWorld * local;
+                for (const QUuid& meshUuid : node->meshUuids)
+                {
+                    QMatrix4x4 render = world;
+                    const auto meshEnd = byMesh.constFind(meshUuid);
+                    if (meshEnd != byMesh.constEnd())
+                    {
+                        LocalNodeTransform lt;
+                        lt.translation = meshEnd->translation;
+                        lt.rotation = meshEnd->rotation;
+                        lt.scale = meshEnd->scale;
+                        render = world * composeLocalNodeTransform(lt);
+                    }
+                    posedRender.insert(meshUuid, render);
+                }
+                for (const SceneNode* child : node->children)
+                    walk(child, world);
+            };
+            if (_sceneGraph && _sceneGraph->root())
+            {
+                for (const SceneNode* fileNode : _sceneGraph->root()->children)
+                {
+                    if (!fileNode)
+                        continue;
+                    for (const SceneNode* child : fileNode->children)
+                        walk(child, QMatrix4x4());
+                }
+            }
+
+            // Pose matrix = final combined transform * assembled combined transform^-1 (combined = user transformation * scene
+            // render transform; the explosion offset and exploded-view transform are neutral in both states here)
+            for (auto it = posedRender.cbegin(); it != posedRender.cend(); ++it)
+            {
+                const SceneMesh* mesh = _viewportWidget->getMeshByUuid(it.key());
+                if (!mesh)
+                    continue;
+                bool invertible = false;
+                const QMatrix4x4 assembled = mesh->getTransformation() * mesh->getSceneRenderTransform();
+                const QMatrix4x4 assembledInverse = assembled.inverted(&invertible);
+                if (!invertible)
+                    continue;
+                const QMatrix4x4 delta = (mesh->getTransformation() * it.value()) * assembledInverse;
+                bool nearIdentity = true;
+                const float* d = delta.constData();
+                for (int i = 0; i < 16 && nearIdentity; ++i)
+                    nearIdentity = qAbs(d[i] - ((i % 5 == 0) ? 1.0f : 0.0f)) < 1.0e-5f;
+                if (!nearIdentity)
+                    pose.matrices.insert(it.key(), delta);
+            }
+            if (!pose.matrices.isEmpty())
+                result.append(pose);
+            continue;
+        }
+
+        QHash<QUuid, QVector3D> offsets;
+        QHash<QUuid, QMatrix4x4> manualMatrices;
+
+        // auto / axis / vector explosion (same inputs as ViewportWidget::updateExplosion())
+        if (!preset.assemblyUuids.isEmpty() && preset.factor > 0.0f)
+        {
+            QSet<QUuid> assembly;
+            for (const QUuid& uuid : preset.assemblyUuids)
+            {
+                if (centroids.contains(uuid))
+                    assembly.insert(uuid);
+            }
+            if (!assembly.isEmpty())
+            {
+                AssemblyRelationGraph::AutoPlacementHints hints;
+                const bool useHints = (preset.autoStrategy == AutoStrategy::AssemblyAware);
+                if (useHints)
+                    hints = AssemblyRelationGraph::buildAutoPlacementHints(assembly, _viewportWidget, _sceneGraph);
+                manager.recompute(assembly, preset.anchorUuid, preset.mode, preset.userVector, preset.factor, centroids, boxes,
+                                  useHints ? &hints : nullptr);
+                for (const QUuid& uuid : std::as_const(assembly))
+                {
+                    const QVector3D offset = manager.offsetForMesh(uuid);
+                    if (!offset.isNull())
+                        offsets.insert(uuid, offset);
+                }
+            }
+        }
+
+        // manual placement: apply the stored state once to read the resulting transform
+        for (auto it = preset.uncapturedManualStates.cbegin(); it != preset.uncapturedManualStates.cend(); ++it)
+        {
+            SceneMesh* mesh = _viewportWidget->getMeshByUuid(it.key());
+            if (!mesh)
+                continue;
+            ExplodedViewRuntimeController::applyExplodedViewTransformState(mesh, it.value(), false);
+            manualMatrices.insert(it.key(), mesh->getExplodedViewTransformation());
+            mesh->resetExplodedViewTransformations();
+        }
+
+        QSet<QUuid> moved;
+        for (auto it = offsets.cbegin(); it != offsets.cend(); ++it)
+            moved.insert(it.key());
+        for (auto it = manualMatrices.cbegin(); it != manualMatrices.cend(); ++it)
+            moved.insert(it.key());
+        for (const QUuid& uuid : std::as_const(moved))
+        {
+            QMatrix4x4 m;
+            m.translate(offsets.value(uuid));
+            m *= manualMatrices.value(uuid);   // identity when the mesh has no manual state
+            if (!m.isIdentity())
+                pose.matrices.insert(uuid, m);
+        }
+        if (!pose.matrices.isEmpty())
+            result.append(pose);
+    }
+
+    restoreMeshes();
+    return result;
 }

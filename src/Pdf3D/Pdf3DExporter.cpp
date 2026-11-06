@@ -336,7 +336,13 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     Annotation3D annotation;
     annotation.rect = toPdfRect(layout.area3d, layout.pageHeightPt);
     annotation.u3d = u3d.data;
-    annotation.viewDictionaries = standardViews(center, radius, options.upAxis);
+    {
+        // fitted to the bounding box and the shape of the 3D area (falls back to the sphere fit for a degenerate area)
+        const float aspect = layout.area3d.height() > 0.0 ? static_cast<float>(layout.area3d.width() / layout.area3d.height()) : 1.0f;
+        annotation.viewDictionaries = standardViewsFitted(lo, hi, aspect, options.upAxis);
+        if (annotation.viewDictionaries.isEmpty())
+            annotation.viewDictionaries = standardViews(center, radius, options.upAxis);
+    }
     {
         // saved views follow the standard ones; names are made unique ("name (2)") so the view list stays unambiguous
         QSet<QString> used;

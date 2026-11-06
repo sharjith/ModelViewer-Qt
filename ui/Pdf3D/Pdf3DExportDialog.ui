@@ -120,7 +120,9 @@
      <property name="toolTip">
       <string>Adds your saved camera views, the cameras defined in the model
 and your saved scene states to the PDF's view list.
-A scene state also restores which parts were visible.</string>
+A scene state also restores which parts were visible.
+When the model is exploded in the viewport, "Assembled" and
+"Exploded" views are added as well.</string>
      </property>
      <property name="text">
       <string>Add saved views and scene states as PDF views</string>

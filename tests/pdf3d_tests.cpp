@@ -150,6 +150,26 @@ aiScene* makeTriangleScene()
     return s;
 }
 
+void testFittedViews()
+{
+    // a long flat box 10 x 1 x 0.2 (Z up): the fitted Front view (looking along +Y at the 10 x 0.2 face) is closer than the sphere
+    // fit, and every fitted view keeps all corners in front of the eye
+    const QVector3D lo(-5, -0.5f, -0.1f), hi(5, 0.5f, 0.1f);
+    const QList<QByteArray> fitted = Pdf3D::standardViewsFitted(lo, hi, 1.5f, Pdf3D::UpAxis::Z);
+    const QList<QByteArray> sphere = Pdf3D::standardViews((lo + hi) * 0.5f, 0.5f * (hi - lo).length(), Pdf3D::UpAxis::Z);
+    CHECK(fitted.size() == 7 && sphere.size() == 7);
+    if (fitted.size() == 7 && sphere.size() == 7)
+    {
+        const QRegularExpression coRe(QStringLiteral("/CO ([0-9.]+)"));
+        const double front = coRe.match(QString::fromLatin1(fitted[1])).captured(1).toDouble();
+        const double frontSphere = coRe.match(QString::fromLatin1(sphere[1])).captured(1).toDouble();
+        CHECK(front > 0.0 && front < frontSphere);
+        // Front: the 10 wide box must fit the horizontal field: half width 5 * 1.05 over tanX (tan 15 deg * 1.5), plus the
+        // half depth of the box (the near face is 0.5 closer to the eye than the centre): 5.25 / 0.4019 + 0.5
+        CHECK(nearly(front, 5.25 / (std::tan(15.0 * 3.14159265358979 / 180.0) * 1.5) + 0.5, 0.05));
+    }
+}
+
 void testCameraViews()
 {
     Pdf3D::CameraViewSpec persp;
@@ -178,6 +198,16 @@ void testCameraViews()
         CHECK(oco.hasMatch() && nearly(oco.captured(1).toDouble(), expected, 1.0e-2));
     }
     CHECK(ov.contains("/Type /3DNode /N (N0000_a) /V true") && ov.contains("/N (N0001_b) /V false"));
+
+    // per-node transform: translation by (1, 2, 3) is written as the 3x3 rows followed by the translation
+    Pdf3D::CameraViewSpec moved = persp;
+    Pdf3D::NodeVisibility nv;
+    nv.node = QStringLiteral("N0000_a");
+    nv.hasMatrix = true;
+    nv.matrix.translate(1.0f, 2.0f, 3.0f);
+    moved.nodes.append(nv);
+    const QByteArray mv = Pdf3D::makeCameraView(moved, QVector3D(0, 0, 0), 5.0f);
+    CHECK(mv.contains("/N (N0000_a) /V true /M [1 0 0 0 1 0 0 0 1 1 2 3]"));
 
     // a scene centre behind the eye still gives a positive orbit distance
     Pdf3D::CameraViewSpec behind = persp;
@@ -451,6 +481,7 @@ int main(int argc, char** argv)
 
     testViews();
     testCameraViews();
+    testFittedViews();
     testSceneToU3d();
     testVertexColors();
     testAppender();

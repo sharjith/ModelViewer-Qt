@@ -6004,6 +6004,35 @@ void ModelViewer::exportAs3DPdf()
 			}
 			options.extraViews.append(spec);
 		}
+
+		// Exploded views: the export always holds the assembled model (explosion offsets and manual placement are viewport state,
+		// not part of the scene graph). Every stored exploded view of the Exploded View panel becomes a view with per-part
+		// transforms ("Exploded: <name>"), plus one "Assembled" view with explicit assembled transforms, all from the current
+		// camera. The poses are evaluated without changing the viewport (ExplodedViewPanel::computePresetPoses()).
+		if (ExplodedViewPanel* explodedPanel = _viewportWidget->getExplodedViewPanel())
+		{
+			const QVector<ExplodedViewPanel::PresetPose> poses = explodedPanel->computePresetPoses();
+			if (!poses.isEmpty())
+			{
+				const GltfCameraEntry currentCamera = _viewportWidget->captureCurrentCameraEntry(QString());
+				Pdf3D::CameraViewSpec assembled = specFromEntry(currentCamera, tr("Assembled"), QMatrix4x4());
+				for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+					assembled.nodes.append({node.name, true, true, node.world});
+				options.extraViews.append(assembled);
+
+				for (const ExplodedViewPanel::PresetPose& pose : poses)
+				{
+					Pdf3D::CameraViewSpec exploded = specFromEntry(currentCamera, tr("Exploded: %1").arg(pose.name), QMatrix4x4());
+					for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+					{
+						const QUuid uuid = uuidByNodeName.value(node.displayName);
+						const QMatrix4x4 explosion = uuid.isNull() ? QMatrix4x4() : pose.matrices.value(uuid);
+						exploded.nodes.append({node.name, true, true, explosion * node.world});
+					}
+					options.extraViews.append(exploded);
+				}
+			}
+		}
 	}
 	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
 	// standard views (Front/Top/...) use the same convention as the viewport.

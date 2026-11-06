@@ -3,6 +3,7 @@
 #include <QByteArray>
 #include <QList>
 #include <QString>
+#include <QMatrix4x4>
 #include <QStringList>
 #include <QVector>
 #include <QVector3D>
@@ -18,11 +19,13 @@ enum class UpAxis { Y, Z };
 // One /3DView dictionary looking from `eye` at `target` with the given up vector.
 QByteArray makeView(const QString& name, const QVector3D& eye, const QVector3D& target, const QVector3D& up);
 
-// Visibility override for one named node in a view (the /NA array of a /3DView).
+// Override for one named node in a view (the /NA array of a /3DView): its visibility and optionally its transform.
 struct NodeVisibility
 {
-    QString node;            // the U3D node name
-    bool    visible = true;
+    QString    node;               // the U3D node name
+    bool       visible = true;
+    bool       hasMatrix = false;  // write /M: replaces the node's transform (used for exploded layouts)
+    QMatrix4x4 matrix;             // local-to-world, Qt layout; nodes are direct children of the scene root
 };
 
 // A view built from a saved camera (Cameras panel, authored glTF camera, scene state) instead of a standard direction.
@@ -47,6 +50,11 @@ QByteArray makeCameraView(const CameraViewSpec& spec, const QVector3D& sceneCent
 // Bottom. The directions are defined for a Z-up model and mapped to Y-up when upAxis is Y ((x, y, z) -> (x, z, -y)).
 // Front looks at the model from -Y (Z-up) or +Z (Y-up).
 QList<QByteArray> standardViews(const QVector3D& center, float radius, UpAxis upAxis);
+
+// Same views, but each one is fitted to the model's bounding box instead of its bounding sphere: the distance is the smallest
+// at which all eight box corners fit the 3D area (aspect = width / height; the field of view applies to the smaller side),
+// with a 5% margin. A long, flat model then fills the view instead of floating in a sphere-sized frame.
+QList<QByteArray> standardViewsFitted(const QVector3D& boundsMin, const QVector3D& boundsMax, float aspect, UpAxis upAxis);
 
 // Names of the views standardViews() writes, in order (for tests and the document).
 QStringList standardViewNames();
