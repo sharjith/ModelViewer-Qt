@@ -51,6 +51,7 @@ struct CameraViewSpec
     float                   orthoRange = 0.0f;    // world length shown across the smaller viewport dimension (orthographic)
     QVector<NodeVisibility> nodes;                // empty: the view leaves visibility alone
     QVector<SectionPlane>   sections;             // the cross sections of this view (empty: the view has none)
+    bool                    showOverlays = true;  // show the measurement and annotation nodes in this view
 };
 
 // The /3DCrossSection dictionary for `plane` in a scene whose bounding box centre is `sceneCenter`. Verified in Acrobat (research doc,

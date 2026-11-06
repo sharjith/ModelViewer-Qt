@@ -189,6 +189,27 @@ void testClippingStateJson()
     CHECK(clippingStateFromJson(bad).planes.isEmpty());
 }
 
+void testAssemblyFolders()
+{
+    // root -> "Wheel Axle Assy" (no mesh) -> "Part A" (the mesh): the assembly becomes a folder, the part keeps its world matrix
+    aiScene* scene = makeTriangleScene();
+    aiNode* part = scene->mRootNode->mChildren[0];
+    aiNode* assembly = new aiNode;
+    assembly->mName = "Wheel Axle Assy";
+    assembly->mParent = scene->mRootNode;
+    assembly->mNumChildren = 1;
+    assembly->mChildren = new aiNode*[1]{part};
+    part->mParent = assembly;
+    scene->mRootNode->mChildren[0] = assembly;
+    const Pdf3D::U3dScene u = Pdf3D::SceneToU3d::build(scene);
+    delete scene;
+
+    CHECK(u.groups.size() == 1 && u.groupParents.size() == 1 && u.groupParents[0].isEmpty());
+    CHECK(u.groups.size() == 1 && u.groups[0] == QStringLiteral("G0000_Wheel_Axle_Assy"));
+    CHECK(u.nodes.size() == 1 && u.nodes[0].parent == QStringLiteral("G0000_Wheel_Axle_Assy"));
+    CHECK(u.nodes.size() == 1 && nearly(u.nodes[0].world.map(QVector3D(0, 0, 0)).x(), 1) && nearly(u.nodes[0].world.map(QVector3D(0, 0, 0)).z(), 3));   // folders carry no transform
+}
+
 void testOverlayToU3d()
 {
     aiScene* scene = makeTriangleScene();
@@ -200,38 +221,55 @@ void testOverlayToU3d()
     // one dark and one bright triangle (a letter with its halo, coplanar) and one yellow segment
     Pdf3D::OverlayGraphicData g;
     g.name = QStringLiteral("Distance 12.5 mm");
+    g.folder = QStringLiteral("Measurements");
     g.viewDirection = QVector3D(0, 1, 0);
     g.triangles = {0, 0, 0, 0.06f, 0.06f, 0.08f,  1, 0, 0, 0.06f, 0.06f, 0.08f,  0, 0, 1, 0.06f, 0.06f, 0.08f,
                    0, 0, 0, 1.0f, 0.82f, 0.15f,   1, 0, 0, 1.0f, 0.82f, 0.15f,   0, 0, 1, 1.0f, 0.82f, 0.15f};
     g.lines = {0, 0, 0, 1.0f, 0.82f, 0.15f,  0, 0, 5, 1.0f, 0.82f, 0.15f};
     const int added = Pdf3D::OverlayToU3d::append(u, g, 0.1f);
 
-    // two colours -> two nodes, each with its own mesh; the segment joined the bright group as two crossed ribbons (4 triangles)
-    CHECK(added == 2 && u.nodes.size() == nodesBefore + 2 && u.meshes.size() == meshesBefore + 2);
-    if (u.nodes.size() == nodesBefore + 2)
+    // ONE node per item (one entry in the model tree), whatever the number of colours: a single mesh with vertex colours, filed under
+    // the group node of its folder
+    CHECK(added == 1 && u.nodes.size() == nodesBefore + 1 && u.meshes.size() == meshesBefore + 1);
+    CHECK(u.groups == QStringList{QStringLiteral("Measurements")});
+    if (u.nodes.size() == nodesBefore + 1)
     {
-        const Pdf3D::U3dNode& dark = u.nodes[nodesBefore];
-        const Pdf3D::U3dNode& bright = u.nodes[nodesBefore + 1];
-        CHECK(dark.overlay && bright.overlay && !u.nodes[0].overlay);
-        CHECK(dark.name.startsWith(QStringLiteral("O0000_")) && bright.name.startsWith(QStringLiteral("O0001_")));
-        CHECK(dark.displayName == g.name);
-        CHECK(u.meshes[dark.meshIndex].indices.size() == 3);                        // the halo triangle
-        CHECK(u.meshes[bright.meshIndex].indices.size() == 3 + 4 * 3);              // the letter triangle + 4 ribbon triangles
-        // flat colour, materials shared by colour, the brighter group nudged towards the viewer (-view) against z-fighting
-        CHECK(u.materials[u.meshes[bright.meshIndex].materialIndex].emissive.x() > 0.4f);
-        CHECK(u.meshes[bright.meshIndex].positions[1] < u.meshes[dark.meshIndex].positions[1]);
+        const Pdf3D::U3dNode& node = u.nodes[nodesBefore];
+        const Pdf3D::U3dMesh& mesh = u.meshes[node.meshIndex];
+        CHECK(node.overlay && !u.nodes[0].overlay && node.parent == QStringLiteral("Measurements") && u.nodes[0].parent.isEmpty());
+        CHECK(node.name.startsWith(QStringLiteral("O0000_")) && node.overlayItem == 0 && u.overlayItems == 1);
+        CHECK(node.displayName == g.name);
+        // the halo triangle (3 vertices), the letter triangle (3) and the segment as two crossed ribbons (4 triangles, 12)
+        CHECK(mesh.indices.size() == 3 + 3 + 12);
+        CHECK(mesh.colors.size() == mesh.indices.size() * 4);
+        CHECK(u.materials[mesh.materialIndex].vertexColors);
+        // the darker (halo) triangles come first and sit furthest back; the bright ones are nudged towards the viewer (-view)
+        CHECK(mesh.positions[1] == 0.0f && mesh.positions[3 * 3 + 1] < mesh.positions[1]);
+        CHECK(nearly(mesh.colors[0], 0.06f, 0.005) && nearly(mesh.colors[3 * 4], 1.0f, 0.005) && nearly(mesh.colors[3], 1.0f, 1e-6));
     }
 
-    // a second graphic of the same colours reuses the materials
+    // a second item reuses the material; several items share it
     const int materialsAfterFirst = u.materials.size();
     Pdf3D::OverlayGraphicData g2 = g;
     g2.name = QStringLiteral("Note");
+    g2.triangles.clear();   // only the segment remains
+    g2.followsNodes = QStringList{u.nodes[0].name};
     Pdf3D::OverlayToU3d::append(u, g2, 0.1f);
     CHECK(u.materials.size() == materialsAfterFirst);
+    CHECK(u.nodes.last().name.startsWith(QStringLiteral("O0001_")) && u.nodes.last().overlayItem == 1 && u.overlayItems == 2);
+    CHECK(u.nodes.last().follows == QStringList{u.nodes[0].name});
+    CHECK(u.nodes.last().parent == QStringLiteral("Measurements") && u.groups.size() == 1);   // the folder is shared, not repeated
+
+    // an annotation goes to its own folder
+    Pdf3D::OverlayGraphicData g3 = g;
+    g3.name = QStringLiteral("Wooden board");
+    g3.folder = QStringLiteral("Annotations");
+    Pdf3D::OverlayToU3d::append(u, g3, 0.1f);
+    CHECK(u.groups == (QStringList{QStringLiteral("Measurements"), QStringLiteral("Annotations")}) && u.nodes.last().parent == QStringLiteral("Annotations"));
 
     // degenerate input adds nothing
     Pdf3D::OverlayGraphicData empty;
-    CHECK(Pdf3D::OverlayToU3d::append(u, empty, 0.1f) == 0);
+    CHECK(Pdf3D::OverlayToU3d::append(u, empty, 0.1f) == 0 && u.overlayItems == 3);
 }
 
 void testFittedViews()
@@ -579,6 +617,40 @@ void testFullExport()
     const QByteArray pdfMoved = fMoved.readAll();
     CHECK(pdfMoved.count("/Type /3DNode") == 8 && pdfMoved.count("/M [") >= 8);   // 7 standard views + the exploded one
 
+    // an item attached to the moved part follows it in the view that moves it, and sits at its place in every other view; another
+    // view can hide it
+    Pdf3D::U3dScene withOverlay = u;
+    {
+        Pdf3D::OverlayGraphicData og;
+        og.name = QStringLiteral("m1");
+        og.viewDirection = QVector3D(0, 1, 0);
+        og.followsNodes = QStringList{u.nodes[0].name};
+        og.triangles = {0, 0, 0, 1, 1, 1,  1, 0, 0, 1, 1, 1,  0, 0, 1, 1, 1, 1};
+        Pdf3D::OverlayToU3d::append(withOverlay, og, 0.1f);
+    }
+    Pdf3D::Pdf3DOptions followOptions = moved;
+    {
+        // as the app builds an exploded view: the part's matrix is the explosion times its exported world matrix
+        QMatrix4x4 explosion;
+        explosion.translate(5.0f, 0.0f, 0.0f);
+        followOptions.extraViews[0].nodes[0].matrix = explosion * u.nodes[0].world;
+    }
+    Pdf3D::CameraViewSpec hidden = exploded;
+    hidden.name = QStringLiteral("No measurements");
+    hidden.nodes.clear();
+    hidden.showOverlays = false;
+    followOptions.extraViews.append(hidden);
+    const QString pathFollow = dir.filePath(QStringLiteral("follow.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(withOverlay, followOptions, pathFollow).ok);
+    QFile fFollow(pathFollow);
+    CHECK(fFollow.open(QIODevice::ReadOnly));
+    const QByteArray pdfFollow = fFollow.readAll();
+    // 9 views (7 standard + moved + hidden) list the part and the overlay node: 18 node entries
+    CHECK(pdfFollow.count("/Type /3DNode") == 18);
+    CHECK(pdfFollow.count("/N (O0000_m1) /V true /M [1 0 0 0 1 0 0 0 1 5 0 0]") == 1);   // follows the part in the moved view only
+    CHECK(pdfFollow.count("/N (O0000_m1) /V false") == 1);                               // hidden in the view that asks for it
+    CHECK(pdfFollow.count("/N (O0000_m1) /V true /M [1 0 0 0 1 0 0 0 1 0 0 0]") == 7);   // default place elsewhere
+
     // standard views can be left out: only "Top" remains, and with none left the export is refused
     Pdf3D::Pdf3DOptions onlyTop = options;
     onlyTop.notes.clear();
@@ -635,6 +707,7 @@ int main(int argc, char** argv)
     testCameraViews();
     testFittedViews();
     testClippingStateJson();
+    testAssemblyFolders();
     testOverlayToU3d();
     testSceneToU3d();
     testVertexColors();

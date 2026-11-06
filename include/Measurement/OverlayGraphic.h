@@ -2,6 +2,7 @@
 
 #include <QString>
 #include <QUuid>
+#include <QVector>
 #include <QVector3D>
 
 #include <vector>
@@ -24,6 +25,7 @@ struct OverlayGraphic
 	bool                annotation = false;   // an annotation, else a measurement
 	QString             name;                 // what the user sees for it (a measurement's summary, an annotation's text)
 	QVector3D           viewDirection;        // the view the graphic was captured for
+	QVector<QUuid>      meshUuids;            // the meshes the item is attached to (its anchors), so an export can move it with them
 	std::vector<float>  lines;                // x y z r g b per vertex, two per segment
 	std::vector<float>  triangles;            // x y z r g b per vertex, three per triangle
 };

@@ -6199,12 +6199,29 @@ void ModelViewer::exportAs3DPdf()
 		QVector3D lo, hi;
 		const float diagonal = u3dScene.computeBounds(&lo, &hi) ? (hi - lo).length() : 1.0f;
 		const float lineWidth = std::max(diagonal * 0.0015f, 1.0e-6f);
+
+		// the part nodes of each export node name, so an item can name the parts it is attached to
+		QHash<QString, QStringList> partNodesByExportName;
+		for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+		{
+			if (!node.overlay)
+				partNodesByExportName[node.displayName].append(node.name);
+		}
 		for (int i = 0; i < overlayGraphics.size() && i < overlaySelection.size(); ++i)
 		{
 			if (!overlaySelection[i])
 				continue;
 			Pdf3D::OverlayGraphicData data;
+			for (const QUuid& meshUuid : overlayGraphics[i].meshUuids)
+			{
+				for (const QString& partNode : partNodesByExportName.value(meshNodeNames.value(meshUuid)))
+				{
+					if (!data.followsNodes.contains(partNode))
+						data.followsNodes.append(partNode);
+				}
+			}
 			data.name = overlayGraphics[i].name;
+			data.folder = overlayGraphics[i].annotation ? QStringLiteral("Annotations") : QStringLiteral("Measurements");
 			data.viewDirection = overlayGraphics[i].viewDirection;
 			data.lines = overlayGraphics[i].lines;
 			data.triangles = overlayGraphics[i].triangles;
@@ -6213,15 +6230,23 @@ void ModelViewer::exportAs3DPdf()
 	}
 
 	const QVector<bool> selection = optionsDialog.viewSelection();
+	const QVector<bool> viewOverlays = optionsDialog.viewOverlaySelection();
 	for (int i = 0; i < entries.size() && i < selection.size(); ++i)
 	{
+		const bool showOverlays = viewOverlays.value(i, true);
 		if (entries[i].standard)
 		{
 			if (!selection[i])
 				options.excludedStandardViews.insert(entries[i].item.name);
+			else if (!showOverlays)
+				options.standardViewsWithoutOverlays.insert(entries[i].item.name);
 		}
 		else if (selection[i])
-			options.extraViews.append(entries[i].spec);
+		{
+			Pdf3D::CameraViewSpec spec = entries[i].spec;
+			spec.showOverlays = showOverlays;
+			options.extraViews.append(spec);
+		}
 	}
 	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
 	// standard views (Front/Top/...) use the same convention as the viewport.
@@ -7428,6 +7453,12 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			result.explodedViews,
 			QUuid(result.activeExplodedViewId),
 			result.activeExplodedViewStepIndex);
+
+		// An explosion only shows while the Exploded View panel is open (closing it hides the explosion and keeps the manual poses
+		// for when it opens again). Restoring the presets applies the active one to the meshes, so a session that was saved with the
+		// panel closed came back exploded. Put the closed state back: the saved views are all there, the model starts assembled.
+		if (!explodedViewPanel->isVisible())
+			_viewportWidget->showExplodedViewPanel(false);
 	}
 
 	// Refit from the authoritative restored scene-graph state. During MVF load

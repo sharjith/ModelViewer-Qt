@@ -181,6 +181,11 @@ item number, part name, material and quantity.</string>
            <string>Note</string>
           </property>
          </column>
+         <column>
+          <property name="text">
+           <string>Measurements</string>
+          </property>
+         </column>
         </widget>
        </item>
        <item>

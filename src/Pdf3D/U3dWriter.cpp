@@ -54,11 +54,11 @@ float f6(double v)
     return strtof(b, nullptr);
 }
 
-void setParent(Node& node, const float m[16])
+void setParent(Node& node, const float m[16], const std::wstring& parentName = L"<NULL>")
 {
     ParentList parents;
     ParentData parent;
-    parent.SetParentName(L"<NULL>");
+    parent.SetParentName(parentName.c_str());
     parent.SetParentTM(IFXMatrix4x4(m));
     parents.AddParentData(parent);
     node.SetParentList(parents);
@@ -259,6 +259,18 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
                 nodes.AddNode(&view);
             }
 
+            // group nodes (identity transform, children of the root) first: the model tree shows one entry per measurement/annotation
+            for (int gi = 0; gi < scene.groups.size(); ++gi)
+            {
+                Node group;
+                group.SetType(IDTF_GROUP);
+                group.SetName(wide(scene.groups[gi]).c_str());
+                const float identity[16] = {1, 0, 0, 0,   0, 1, 0, 0,   0, 0, 1, 0,   0, 0, 0, 1};
+                const QString groupParent = gi < scene.groupParents.size() ? scene.groupParents[gi] : QString();
+                setParent(group, identity, groupParent.isEmpty() ? std::wstring(L"<NULL>") : wide(groupParent));
+                nodes.AddNode(&group);
+            }
+
             for (const U3dNode& n : scene.nodes)
             {
                 if (n.meshIndex < 0 || n.meshIndex >= scene.meshes.size())
@@ -268,7 +280,8 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
                 node.SetName(wide(n.name).c_str());
                 node.SetResourceName(wide(scene.meshes[n.meshIndex].name).c_str());
                 node.SetVisibility(L"BOTH");   // the default (FRONT) culls back faces; thin or inward-wound shells (tyres) then look see-through
-                setParent(node, n.world.constData());   // Qt column-major == the row-vector layout with translation in the last row
+                // Qt column-major == the row-vector layout with translation in the last row; relative to the group when there is one
+                setParent(node, n.world.constData(), n.parent.isEmpty() ? std::wstring(L"<NULL>") : wide(n.parent));
                 nodes.AddNode(&node);
             }
 

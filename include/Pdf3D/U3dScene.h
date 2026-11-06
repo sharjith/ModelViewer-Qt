@@ -2,6 +2,7 @@
 
 #include <QMatrix4x4>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 #include <QVector3D>
 
@@ -39,6 +40,9 @@ struct U3dNode
     QString    displayName;
     int        meshIndex = -1;
     bool       overlay = false;      // a measurement or annotation graphic, not a part (kept out of the parts list and count)
+    QString    parent;               // name of the group node this node sits in (empty: the scene root); the world matrix is then relative to it
+    int        overlayItem = -1;     // for an overlay node: which measurement/annotation it belongs to (several nodes share one item)
+    QStringList follows;             // for an overlay node: the part nodes (names) its item is attached to, so it can move with them
     QMatrix4x4 world;                // local-to-world; Qt layout, written as the row-vector matrix u3d expects
 };
 
@@ -47,6 +51,11 @@ struct U3dScene
     QVector<U3dMaterial> materials;
     QVector<U3dMesh>     meshes;
     QVector<U3dNode>     nodes;
+    // Group nodes: pure folders of the model tree (identity transform, so the world matrices of the nodes inside stay as they are).
+    // groups[i] is the name, groupParents[i] the name of the group it sits in ("" = the root); a parent comes before its children.
+    QStringList          groups;
+    QStringList          groupParents;
+    int                  overlayItems = 0;   // how many measurement/annotation items were added (OverlayToU3d)
 
     bool isEmpty() const { return nodes.isEmpty() || meshes.isEmpty(); }
 

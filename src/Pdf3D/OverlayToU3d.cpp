@@ -118,66 +118,83 @@ int OverlayToU3d::append(U3dScene& scene, const OverlayGraphicData& graphic, flo
     const auto luminance = [&](int gi) { const ColorKey& k = groups[static_cast<size_t>(gi)].key; return 0.3f * k.r + 0.59f * k.g + 0.11f * k.b; };
     std::sort(order.begin(), order.end(), [&](int x, int y) { return luminance(x) < luminance(y); });
 
-    int added = 0;
-    int overlayNodes = 0;
-    for (const U3dNode& n : scene.nodes)
-        overlayNodes += n.overlay ? 1 : 0;
+    int usedGroups = 0;
+    for (const Group& g : groups)
+        usedGroups += g.positions.empty() ? 0 : 1;
+    if (usedGroups == 0)
+        return 0;
 
+    // One node per item (one entry in the model tree): every colour goes into the same mesh as per-vertex colours.
+    const int item = scene.overlayItems++;
+
+    // material shared by all items: the colours come from the vertices; a little emission keeps text and lines readable from any side
+    // without washing out the dark halo behind letters
+    const QString matName = QStringLiteral("Overlay (vertex colours)");
+    int material = -1;
+    for (int i = 0; i < scene.materials.size(); ++i)
+    {
+        if (scene.materials[i].name == matName)
+        {
+            material = i;
+            break;
+        }
+    }
+    if (material < 0)
+    {
+        U3dMaterial m;
+        m.name = matName;
+        m.diffuse = QVector3D(1.0f, 1.0f, 1.0f);
+        m.emissive = QVector3D(0.15f, 0.15f, 0.15f);
+        m.opacity = 1.0f;
+        m.vertexColors = true;
+        material = scene.materials.size();
+        scene.materials.push_back(m);
+    }
+
+    U3dMesh mesh;
+    mesh.name = QStringLiteral("OM%1").arg(scene.meshes.size());
+    mesh.materialIndex = material;
     for (size_t rank = 0; rank < order.size(); ++rank)
     {
         const Group& g = groups[static_cast<size_t>(order[rank])];
-        if (g.positions.empty())
-            continue;
-
-        // material shared by colour
-        const QString matName = QStringLiteral("Overlay %1 %2 %3").arg(g.key.r).arg(g.key.g).arg(g.key.b);
-        int material = -1;
-        for (int i = 0; i < scene.materials.size(); ++i)
-        {
-            if (scene.materials[i].name == matName)
-            {
-                material = i;
-                break;
-            }
-        }
-        if (material < 0)
-        {
-            U3dMaterial m;
-            m.name = matName;
-            const QVector3D c(g.key.r / 255.0f, g.key.g / 255.0f, g.key.b / 255.0f);
-            m.diffuse = c * 0.5f;     // flat look: half the colour from the lights, half emitted, so it reads the same from any side
-            m.emissive = c * 0.5f;
-            m.opacity = 1.0f;
-            material = scene.materials.size();
-            scene.materials.push_back(m);
-        }
-
         const QVector3D bias = -view * (static_cast<float>(rank) * 0.6f * std::max(lineWidth, 1.0e-9f));
-        U3dMesh mesh;
-        mesh.name = QStringLiteral("OM%1").arg(scene.meshes.size());
-        mesh.materialIndex = material;
-        mesh.positions.reserve(static_cast<int>(g.positions.size()));
+        const float r = g.key.r / 255.0f, gr = g.key.g / 255.0f, b = g.key.b / 255.0f;
         for (size_t i = 0; i + 3 <= g.positions.size(); i += 3)
         {
             mesh.positions.push_back(g.positions[i] + bias.x());
             mesh.positions.push_back(g.positions[i + 1] + bias.y());
             mesh.positions.push_back(g.positions[i + 2] + bias.z());
+            mesh.colors.push_back(r);
+            mesh.colors.push_back(gr);
+            mesh.colors.push_back(b);
+            mesh.colors.push_back(1.0f);
         }
-        const int vertexCount = mesh.positions.size() / 3;
-        mesh.indices.reserve(vertexCount);
-        for (int i = 0; i < vertexCount; ++i)
-            mesh.indices.push_back(static_cast<quint32>(i));
-
-        U3dNode node;
-        node.displayName = graphic.name;
-        node.name = QStringLiteral("O%1_%2").arg(overlayNodes++, 4, 10, QLatin1Char('0')).arg(asciiName(graphic.name));
-        node.meshIndex = scene.meshes.size();
-        node.overlay = true;
-        scene.meshes.push_back(mesh);
-        scene.nodes.push_back(node);
-        ++added;
     }
-    return added;
+    const int vertexCount = mesh.positions.size() / 3;
+    mesh.indices.reserve(vertexCount);
+    for (int i = 0; i < vertexCount; ++i)
+        mesh.indices.push_back(static_cast<quint32>(i));
+
+    U3dNode node;
+    node.displayName = graphic.name;
+    node.name = QStringLiteral("O%1_%2").arg(item, 4, 10, QLatin1Char('0')).arg(asciiName(graphic.name));
+    if (!graphic.folder.isEmpty())
+    {
+        const QString folder = asciiName(graphic.folder);
+        if (!scene.groups.contains(folder))
+        {
+            scene.groups.append(folder);
+            scene.groupParents.append(QString());
+        }
+        node.parent = folder;
+    }
+    node.meshIndex = scene.meshes.size();
+    node.overlay = true;
+    node.overlayItem = item;
+    node.follows = graphic.followsNodes;
+    scene.meshes.push_back(mesh);
+    scene.nodes.push_back(node);
+    return 1;
 }
 
 } // namespace Pdf3D

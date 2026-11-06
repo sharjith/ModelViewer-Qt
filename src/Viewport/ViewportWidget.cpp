@@ -4081,6 +4081,13 @@ QVector<OverlayGraphic> ViewportWidget::captureOverlayGraphics() const
 				continue;
 			graphic.name = _measurementController->measurementSummaryText(m).replace(QLatin1Char('\n'), QStringLiteral(" - "));
 			graphic.viewDirection = dir;
+			for (const MeasurementAnchorRef& anchor : m.anchors)
+			{
+				if (!anchor.meshUuid.isNull() && !graphic.meshUuids.contains(anchor.meshUuid))
+					graphic.meshUuids.append(anchor.meshUuid);
+			}
+			if (m.recordedDrawing && !m.recordedDrawing->meshUuid.isNull() && !graphic.meshUuids.contains(m.recordedDrawing->meshUuid))
+				graphic.meshUuids.append(m.recordedDrawing->meshUuid);
 			graphics.append(std::move(graphic));
 		}
 	}
@@ -4098,6 +4105,10 @@ QVector<OverlayGraphic> ViewportWidget::captureOverlayGraphics() const
 				continue;
 			graphic.name = a.text.split(QLatin1Char('\n')).value(0);
 			graphic.viewDirection = dir;
+			if (!a.anchor.meshUuid.isNull())
+				graphic.meshUuids.append(a.anchor.meshUuid);
+			if (a.recordedDrawing && !a.recordedDrawing->meshUuid.isNull() && !graphic.meshUuids.contains(a.recordedDrawing->meshUuid))
+				graphic.meshUuids.append(a.recordedDrawing->meshUuid);
 			graphics.append(std::move(graphic));
 		}
 	}

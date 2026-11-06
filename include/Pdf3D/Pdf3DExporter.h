@@ -26,6 +26,7 @@ struct Pdf3DOptions
     QString date;                      // empty = today (ISO)
     QVector<CameraViewSpec> extraViews; // saved camera views, scene states and exploded views, added after the standard views
     QSet<QString> excludedStandardViews; // names (standardViewNames()) of standard views left out of the PDF
+    QSet<QString> standardViewsWithoutOverlays; // standard views that hide the measurement and annotation nodes
     bool    includePartsList = true;   // extra sheet(s) listing the exported parts (item, name, material, quantity)
     UpAxis  upAxis = UpAxis::Y;        // the viewer's world up axis; decides what Front/Top/... mean
     QImage  poster;                    // optional picture shown on the page where 3D is not available (a viewport grab)

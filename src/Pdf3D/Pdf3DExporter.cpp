@@ -10,6 +10,7 @@
 #include <QFont>
 #include <QStringList>
 #include <QHash>
+#include <cmath>
 #include <QSet>
 #include <QVector>
 #include <QPageLayout>
@@ -340,20 +341,100 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     annotation.u3d = u3d.data;
 
     // A view only changes the parts it lists, and Acrobat keeps the previous view's changes (an explosion, hidden parts) for the
-    // others. So every view lists every part that ANY view changes, with the default state (visible, assembled transform) where
-    // it has no override of its own; parts nothing changes are not listed.
+    // others. So every view lists every node that ANY view changes, with the default state (visible, assembled transform) where it
+    // has no override of its own; nodes nothing changes are not listed. Parts: the overrides the view brings. Measurement and
+    // annotation nodes (overlay): shown or hidden per view, and carried along with the part they are attached to when a view moves
+    // it (an item attached to several parts that move differently cannot follow all of them and is hidden in that view).
+    QHash<QString, QMatrix4x4> worldByName;
+    for (const U3dNode& node : scene.nodes)
+        worldByName.insert(node.name, node.world);
+
+    const auto nearlyEqual = [](const QMatrix4x4& a, const QMatrix4x4& b) {
+        const float* pa = a.constData();
+        const float* pb = b.constData();
+        for (int i = 0; i < 16; ++i)
+        {
+            if (std::fabs(pa[i] - pb[i]) > 1.0e-4f)
+                return false;
+        }
+        return true;
+    };
+
+    const auto overlayStates = [&](const QVector<NodeVisibility>& partOverrides, bool showOverlays) {
+        QHash<QString, int> ownIndex;
+        for (int i = 0; i < partOverrides.size(); ++i)
+            ownIndex.insert(partOverrides[i].node, i);
+        QVector<NodeVisibility> out;
+        for (const U3dNode& n : scene.nodes)
+        {
+            if (!n.overlay)
+                continue;
+            NodeVisibility s;
+            s.node = n.name;
+            s.visible = showOverlays;
+            s.matrix = n.world;
+            if (showOverlays && !n.follows.isEmpty())
+            {
+                QMatrix4x4 common;
+                bool have = false;
+                bool consistent = true;
+                for (const QString& part : n.follows)
+                {
+                    QMatrix4x4 pose;   // how this view moves the part from its exported place (identity when it leaves it)
+                    const int found = ownIndex.value(part, -1);
+                    if (found >= 0 && partOverrides[found].hasMatrix)
+                    {
+                        bool invertible = false;
+                        const QMatrix4x4 worldInverse = worldByName.value(part).inverted(&invertible);
+                        if (invertible)
+                            pose = partOverrides[found].matrix * worldInverse;
+                    }
+                    if (!have)
+                    {
+                        common = pose;
+                        have = true;
+                    }
+                    else if (!nearlyEqual(common, pose))
+                    {
+                        consistent = false;
+                        break;
+                    }
+                }
+                if (!consistent)
+                    s.visible = false;
+                else if (!nearlyEqual(common, QMatrix4x4()))
+                {
+                    s.hasMatrix = true;
+                    s.matrix = common * n.world;
+                }
+            }
+            out.append(s);
+        }
+        return out;
+    };
+
+    const QStringList standardNames = standardViewNames();
     QVector<NodeVisibility> defaultNodes;   // in scene order
     {
         QSet<QString> touched, withMatrix;
-        for (const CameraViewSpec& spec : options.extraViews)
-        {
-            for (const NodeVisibility& n : spec.nodes)
+        const auto note = [&](const QVector<NodeVisibility>& states) {
+            for (const NodeVisibility& n : states)
             {
                 if (!n.visible || n.hasMatrix)
                     touched.insert(n.node);
                 if (n.hasMatrix)
                     withMatrix.insert(n.node);
             }
+        };
+        for (const CameraViewSpec& spec : options.extraViews)
+        {
+            note(spec.nodes);
+            note(overlayStates(spec.nodes, spec.showOverlays));
+        }
+        for (const QString& name : standardNames)
+        {
+            if (!options.excludedStandardViews.contains(name))
+                note(overlayStates(QVector<NodeVisibility>(), !options.standardViewsWithoutOverlays.contains(name)));
         }
         for (const U3dNode& node : scene.nodes)
         {
@@ -367,7 +448,9 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             defaultNodes.append(d);
         }
     }
-    const auto completeNodes = [&defaultNodes](const QVector<NodeVisibility>& own) {
+    const auto completeNodes = [&](const QVector<NodeVisibility>& ownParts, bool showOverlays) {
+        QVector<NodeVisibility> own = ownParts;
+        own += overlayStates(ownParts, showOverlays);
         QHash<QString, int> index;
         for (int i = 0; i < own.size(); ++i)
             index.insert(own[i].node, i);
@@ -394,21 +477,26 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     {
         // fitted to the bounding box and the shape of the 3D area (falls back to the sphere fit for a degenerate area)
         const float aspect = layout.area3d.height() > 0.0 ? static_cast<float>(layout.area3d.width() / layout.area3d.height()) : 1.0f;
-        const QByteArray standardNodes = makeNodeOverrides(defaultNodes);
-        QList<QByteArray> standard = standardViewsFitted(lo, hi, aspect, options.upAxis, standardNodes);
-        if (standard.isEmpty())
-            standard = standardViews(center, radius, options.upAxis, standardNodes);
-        const QStringList standardNames = standardViewNames();
-        for (int i = 0; i < standard.size() && i < standardNames.size(); ++i)
+        const auto build = [&](bool showOverlays) {
+            const QByteArray nodesBytes = makeNodeOverrides(completeNodes(QVector<NodeVisibility>(), showOverlays));
+            QList<QByteArray> views = standardViewsFitted(lo, hi, aspect, options.upAxis, nodesBytes);
+            if (views.isEmpty())
+                views = standardViews(center, radius, options.upAxis, nodesBytes);
+            return views;
+        };
+        const QList<QByteArray> standardShown = build(true);
+        const QList<QByteArray> standardHidden = options.standardViewsWithoutOverlays.isEmpty() ? standardShown : build(false);
+        for (int i = 0; i < standardShown.size() && i < standardNames.size(); ++i)
         {
-            if (!options.excludedStandardViews.contains(standardNames[i]))
-                annotation.viewDictionaries.append(standard[i]);
+            if (options.excludedStandardViews.contains(standardNames[i]))
+                continue;
+            annotation.viewDictionaries.append(options.standardViewsWithoutOverlays.contains(standardNames[i]) ? standardHidden[i] : standardShown[i]);
         }
     }
     {
         // saved views follow the standard ones; names are made unique ("name (2)") so the view list stays unambiguous
         QSet<QString> used;
-        for (const QString& n : standardViewNames())
+        for (const QString& n : standardNames)
             used.insert(n);
         for (CameraViewSpec spec : options.extraViews)
         {
@@ -418,7 +506,7 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
                 unique = QStringLiteral("%1 (%2)").arg(base).arg(i);
             used.insert(unique);
             spec.name = unique;
-            spec.nodes = completeNodes(spec.nodes);
+            spec.nodes = completeNodes(spec.nodes, spec.showOverlays);
             annotation.viewDictionaries.append(makeCameraView(spec, center, radius));
         }
     }

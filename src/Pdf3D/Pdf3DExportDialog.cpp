@@ -56,6 +56,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
 		item->setCheckState(0, Qt::Checked);
 		item->setData(0, kViewIndexRole, i);
+		item->setCheckState(2, view.overlays ? Qt::Checked : Qt::Unchecked);   // show the measurements and annotations in this view
 		if (!view.note.isEmpty())
 		{
 			item->setToolTip(1, view.note);
@@ -67,6 +68,8 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	}
 	ui->viewsTree->expandAll();
 	ui->viewsTree->resizeColumnToContents(0);
+	// the column is only useful when there is something to show
+	ui->viewsTree->setColumnHidden(2, overlays.isEmpty());
 
 	// the info line is deliberately subtle: a remark, not a warning dialog
 	ui->viewsInfoLabel->setText(viewsInfo);
@@ -130,6 +133,18 @@ QVector<bool> Pdf3DExportDialog::viewSelection() const
 		const QVariant index = (*it)->data(0, kViewIndexRole);
 		if (index.isValid())
 			selection[index.toInt()] = ((*it)->checkState(0) == Qt::Checked);
+	}
+	return selection;
+}
+
+QVector<bool> Pdf3DExportDialog::viewOverlaySelection() const
+{
+	QVector<bool> selection(_viewCount, true);
+	for (QTreeWidgetItemIterator it(ui->viewsTree); *it; ++it)
+	{
+		const QVariant index = (*it)->data(0, kViewIndexRole);
+		if (index.isValid())
+			selection[index.toInt()] = ((*it)->checkState(2) == Qt::Checked);
 	}
 	return selection;
 }

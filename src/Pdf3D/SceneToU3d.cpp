@@ -45,6 +45,21 @@ struct Builder
     QHash<unsigned, int>  materialMap;  // aiMaterial index -> U3dMaterial index
     QHash<QString, int>   variantMap;   // derived (tinted / vertex colour) materials
     int                   nodeCounter = 0;
+    int                   groupCounter = 0;
+    QHash<const aiNode*, bool> meshesBelowMemo;
+
+    // Whether the node or anything below it carries a mesh (an assembly with nothing to show gets no folder).
+    bool meshesBelow(const aiNode* node)
+    {
+        const auto it = meshesBelowMemo.constFind(node);
+        if (it != meshesBelowMemo.constEnd())
+            return it.value();
+        bool result = node->mNumMeshes > 0;
+        for (unsigned c = 0; c < node->mNumChildren && !result; ++c)
+            result = meshesBelow(node->mChildren[c]);
+        meshesBelowMemo.insert(node, result);
+        return result;
+    }
 
     int materialFor(unsigned aiIndex)
     {
@@ -196,11 +211,21 @@ struct Builder
         return result;
     }
 
-    void visit(const aiNode* node, const QMatrix4x4& parentWorld)
+    // parentGroup: the folder of the model tree the node sits in ("" = the root). An assembly node (children with meshes below) becomes
+    // a folder of its own: an identity group node, so the parts keep their world matrices and only the tree shows the structure.
+    void visit(const aiNode* node, const QMatrix4x4& parentWorld, const QString& parentGroup = QString())
     {
         if (!node)
             return;
         const QMatrix4x4 world = parentWorld * toQt(node->mTransformation);
+
+        QString group = parentGroup;
+        if (node->mNumChildren > 0 && meshesBelow(node))
+        {
+            group = QStringLiteral("G%1_%2").arg(groupCounter++, 4, 10, QLatin1Char('0')).arg(asciiName(QString::fromUtf8(node->mName.C_Str())));
+            out.groups.append(group);
+            out.groupParents.append(parentGroup);
+        }
 
         for (unsigned i = 0; i < node->mNumMeshes; ++i)
         {
@@ -213,10 +238,11 @@ struct Builder
             n.name = QStringLiteral("N%1_%2").arg(nodeCounter++, 4, 10, QLatin1Char('0')).arg(asciiName(display));
             n.meshIndex = mesh;
             n.world = world;
+            n.parent = group;
             out.nodes.push_back(n);
         }
         for (unsigned c = 0; c < node->mNumChildren; ++c)
-            visit(node->mChildren[c], world);
+            visit(node->mChildren[c], world, group);
     }
 };
 

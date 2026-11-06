@@ -38,6 +38,7 @@ public:
 		QString name;                // the view's name in the PDF
 		QString note;                // optional remark shown in the second column
 		bool    warning = false;     // the note is a limitation of this view (shown highlighted)
+		bool    overlays = true;     // show the measurements and annotations in this view (the checkbox in the third column)
 	};
 
 	// A measurement or annotation that can be written into the 3D model.
@@ -60,6 +61,9 @@ public:
 
 	// For each OverlayItem passed to the constructor, in order: whether it is ticked.
 	QVector<bool> overlaySelection() const;
+
+	// For each ViewItem, in order: whether the measurements and annotations are shown in that view.
+	QVector<bool> viewOverlaySelection() const;
 
 protected:
 	void done(int result) override;   // saves the remembered fields and the geometry on every way out
