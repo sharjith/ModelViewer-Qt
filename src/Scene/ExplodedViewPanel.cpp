@@ -4595,11 +4595,14 @@ QVector<ExplodedViewPanel::PresetPose> ExplodedViewPanel::computePresetPoses()
         PresetPose pose;
         pose.name = preset.name;
 
-        // A stored exploded view with captured steps is the multi-step explosion; its pose is the final one, after the last
-        // step. The steps hold node (or mesh) local transforms that already contain whatever auto or manual displacement was
-        // captured, so (like the draft preview, applyDraftPreviewPose()) they replace the live auto/manual parameters. In
-        // every output mode the end of the last track that targets a node wins.
-        if (!preset.capturedSteps.isEmpty())
+        // A stored exploded view with captured steps and NO live definition (no assembly with a distance, no manual pose) is the
+        // multi-step explosion: its pose is the final one, after the last step. The steps hold node (or mesh) local transforms that
+        // already contain whatever auto or manual displacement was captured, so (like the draft preview, applyDraftPreviewPose())
+        // they stand in for the live parameters. In every output mode the end of the last track that targets a node wins. A view
+        // that does have a live definition is exported as the viewport shows it when the view is opened (a captured step is the
+        // layout as it was captured, which can differ from the live layout, e.g. after the layout algorithm changed).
+        const bool hasLiveDefinition = (!preset.assemblyUuids.isEmpty() && preset.factor > 0.0f) || !preset.uncapturedManualStates.isEmpty();
+        if (!preset.capturedSteps.isEmpty() && !hasLiveDefinition)
         {
             struct EndState
             {
