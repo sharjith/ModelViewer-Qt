@@ -481,3 +481,30 @@ The owner chose the loader patch (9.9, option a): keep the u3d modules as shared
 - **[Result, Linux]** Needed and done, saved as `tools/3dpdf/u3d-patches/0001-linux-static-idtf-and-module-dir.patch` (4 files): (1) `IDTF` is always built STATIC (it was SHARED on non-MSVC) so the executable's `RUNPATH $ORIGIN` governs the `dlopen` calls; (2) when `U3D_LIBDIR` is unset the module directory is the directory of the running executable (`/proc/self/exe`) instead of the compile-time `"."` default, in `libIDTF/IFXOSLoader.cpp`, `RTL/Platform/Lin32/Common/IFXOSLoader.cpp` and `RTL/Platform/Lin32/Common/IFXOSFileIterator.cpp`. The executable must be linked with `RUNPATH $ORIGIN` (`BUILD_RPATH`/`INSTALL_RPATH` in the spike's `CMakeLists.txt`). Result: both layouts (flat and `Plugins/`) give byte-identical output, started from another working directory with no `U3D_LIBDIR` and no `LD_LIBRARY_PATH`.
 - **[Result, locale]** The application does not need `IFXSetDefaultLocale` and must not call it: it changes the process-wide `LC_CTYPE`, and with `INPROC_SKIP_LOCALE=1` (call skipped) both platforms still produce identical output, without the private `en_US.UTF-8` locale. **[Caveat, untested]** The library converts file names with `wcstombs`, which in the default "C" locale can fail for non-ASCII paths; the exporter should write to a temporary ASCII file name and move it with Qt, or hold the data in memory, and a test with a non-ASCII path should be added.
 - **[Consequence for packaging]** Ship `IFXCore`, `IFXExporting`, `IFXImporting`, `IFXScheduling` (`.dll`/`.so`) next to the application (or in a `Plugins/` subfolder for the three plugins). The `.deb` puts them in the application's library folder; the exporter must verify they exist before calling in (a missing module crashes instead of returning an error code, 9.9). Overlay port tasks shrink to: apply the Linux patch, build `IDTF` static plus the four modules, install them with the headers; the locale patch is no longer needed.
+
+---
+
+## 10. Phase 1 implementation status (6 November 2026)
+
+Written but NOT yet built or run (the owner builds and tests, see the standing no-build rule); nothing of this part is committed.
+
+| Piece | Files | Notes |
+|---|---|---|
+| u3d vcpkg overlay port | `overlay-ports/u3d/` (`portfile.cmake`, `vcpkg.json`, `u3d-config.cmake`, `usage`, `patches/0001-*.patch`) | Pinned commit `5c141d9f...` with SHA512, builds `IDTF` static and the four IFX modules; installs headers, libs, modules and `find_package(u3d CONFIG)` giving `u3d::idtf` and the `U3D_MODULE_*` variables. Added to `vcpkg.json` and `packaging/linux/vendor/vcpkg.json`. |
+| CMake | `CMakeLists.txt` | `find_package(u3d)`, link `u3d::idtf`, copy the modules next to the executable after every build and install them beside it (`CMAKE_INSTALL_BINDIR`), Linux `$ORIGIN` rpath. Sources are globbed, so `src/Pdf3D/*.cpp` and `include/Pdf3D/*.h` need no listing. |
+| Scene description | `include/Pdf3D/U3dScene.h`, `src/Pdf3D/U3dScene.cpp` | Plain data: nodes, meshes, materials, bounds. |
+| aiScene to U3dScene | `SceneToU3d.*` | World-space node per mesh reference, shared meshes, diffuse/emissive/opacity materials, unique ASCII names, per-file import correction put back. |
+| u3d writer | `U3dWriter.*` | In-process libIDTF call from the spike (9.9), module presence check, temporary ASCII file name, no `IFXSetDefaultLocale`. |
+| Views | `Pdf3DViews.*` | Seven named views (Isometric, Front, Back, Left, Right, Top, Bottom), Y-up mapping, camera matrix per 8.6/8.14. |
+| PDF update | `PdfAppender.*` | Appends 3D stream, appearance, annotation and a rewritten `/Annots` array as an incremental update to a `QPdfWriter` page; refuses xref streams. |
+| Sheet and orchestration | `Pdf3DExporter.*` | A4 landscape sheet (border, 3D area, title block with title, source names, part count, date) with the viewport grab as the non-3D poster. |
+| UI | `ui/App/MainWindow.ui`, `MainWindow.cpp`, `ModelViewer.h/.cpp` | File > Save as 3D PDF... (`ModelViewer::exportAs3DPdf`): visible parts only (`isMeshDisplayed`), Y-up. |
+| Tests | `tests/pdf3d_tests.cpp`, `tests/CMakeLists.txt` | Views, aiScene conversion, appender on a real `QPdfWriter` page (this also verifies the Qt structure assumption of 9.1), in-process conversion; `--full` runs the whole exporter. Offscreen Qt platform. Enabled with `-DMV_BUILD_TESTS=ON`. |
+
+Known gaps in this first cut (all planned): no title-block fields editor or parts list (phase 2), no measurement or annotation layer (phase 3), saved cameras and scene states are not turned into views (phase 4), no view buttons (phase 5), textures and PBR are dropped, the up axis is fixed to Y, the file name is converted through the library only via a temporary ASCII path, packaging of the modules in the installer and `.deb` relies on the CMake `install(FILES ...)` added here and is untested.
+
+**Installing the port (manual vcpkg step).** The Windows dev configurations are configured with `VCPKG_MANIFEST_INSTALL=OFF`, so adding `u3d` to `vcpkg.json` does not install it; CMake then stops with "Could not find a package configuration file provided by u3d". Install it once per install folder, from the repo root:
+
+`.\vcpkg\vcpkg.exe install --triplet x64-windows --x-manifest-root=. --x-install-root=out\build\ninja_release_vcpkg\vcpkg_installed --overlay-ports=overlay-ports`
+
+(repeat with the other install folders in use, e.g. a Debug configuration). On Linux the `.deb` path takes it from `packaging/linux/vendor` (`setup-wsl-build-env.sh` installs that manifest with `--overlay-ports=overlay-ports`, so it now includes `u3d`). If the port build fails, the logs are in `vcpkg\buildtrees\u3d\`.

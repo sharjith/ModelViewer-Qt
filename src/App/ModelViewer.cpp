@@ -5576,6 +5576,9 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "SceneMesh.h"
 #include "SceneUtils.h"
 #include "SceneGraphExporter.h"
+#include "Pdf3DExporter.h"
+#include "SceneToU3d.h"
+#include "U3dWriter.h"
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -5890,6 +5893,75 @@ void ModelViewer::onFileExport()
 		QMessageBox::information(this, tr("Information"), tr("Exported %1").arg(QFileInfo(fileName).fileName()));
 	else
 		QMessageBox::critical(this, tr("Error"), tr("Export failed!"));
+}
+
+
+void ModelViewer::exportAs3DPdf()
+{
+	if (!_sceneGraph || !_sceneGraph->root() || !_viewportWidget)
+		return;
+
+	// The u3d library needs its four run-time modules next to the executable; a missing one would crash it.
+	QStringList missingModules;
+	if (!Pdf3D::U3dWriter::modulesAvailable(&missingModules))
+	{
+		QMessageBox::critical(this, tr("Save as 3D PDF"),
+			tr("The 3D PDF export modules are missing next to the application:\n%1\n\nReinstall the application or rebuild it.")
+				.arg(missingModules.join(QStringLiteral("\n"))));
+		return;
+	}
+
+	QString fileName = QFileDialog::getSaveFileName(this, tr("Save as 3D PDF"), _lastOpenedDir,
+		tr("PDF Files (*.pdf)"));
+	if (fileName.isEmpty())
+		return;
+	if (!fileName.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
+		fileName += QLatin1String(".pdf");
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Visible parts only (the owner's export policy): a mesh is exported only when the viewer displays it.
+	auto resolver = [this](const QUuid& uuid) -> SceneMesh* {
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
+		return (mesh && _viewportWidget->isMeshShown(uuid)) ? mesh : nullptr;
+	};
+	aiScene* exportScene = SceneGraphExporter::buildExportScene(_sceneGraph, resolver, false);
+	if (!exportScene)
+	{
+		QApplication::restoreOverrideCursor();
+		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Failed to build the export scene."));
+		return;
+	}
+
+	// buildExportScene() factors each file's import correction (auto orient / auto scale) out of the scene; put it back so the
+	// model is in the space the viewer shows it in. The export scene's root children are the file nodes, in order.
+	QVector<QMatrix4x4> corrections;
+	QStringList sourceNames;
+	for (const SceneNode* fileNode : _sceneGraph->root()->children)
+	{
+		const aiMatrix4x4& c = fileNode->importCorrection;
+		corrections.append(QMatrix4x4(c.a1, c.a2, c.a3, c.a4, c.b1, c.b2, c.b3, c.b4, c.c1, c.c2, c.c3, c.c4, c.d1, c.d2, c.d3, c.d4));
+		sourceNames << fileNode->name;
+	}
+
+	const Pdf3D::U3dScene u3dScene = Pdf3D::SceneToU3d::build(exportScene, corrections);
+	delete exportScene;
+
+	Pdf3D::Pdf3DOptions options;
+	options.title = QFileInfo(fileName).completeBaseName();
+	options.subtitle = sourceNames.join(QStringLiteral(", "));
+	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
+	// standard views (Front/Top/...) use the same convention as the viewport.
+	options.upAxis = _viewportWidget->isCameraUpAxisZUp() ? Pdf3D::UpAxis::Z : Pdf3D::UpAxis::Y;
+	options.poster = _viewportWidget->grabFramebuffer();
+
+	const Pdf3D::Pdf3DResult result = Pdf3D::Pdf3DExporter::exportToFile(u3dScene, options, fileName);
+	QApplication::restoreOverrideCursor();
+
+	if (result.ok)
+		QMessageBox::information(this, tr("Save as 3D PDF"), tr("Saved %1").arg(QFileInfo(fileName).fileName()));
+	else
+		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Saving the 3D PDF failed:\n%1").arg(result.error));
 }
 
 

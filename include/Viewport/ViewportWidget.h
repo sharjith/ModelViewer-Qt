@@ -1205,6 +1205,9 @@ public:
 
 	// UUID lookup methods
 	SceneMesh* getMeshByUuid(const QUuid& uuid) const;
+	// True when the mesh is currently part of the displayed set (not hidden, not in the recycle bin). Used by Save as 3D PDF
+	// to export visible parts only; the viewer's own checks keep using the private isMeshDisplayed().
+	bool isMeshShown(const QUuid& uuid) const { return isMeshDisplayed(uuid); }
 	SceneMesh* getMeshByIndex(int index) const;
 	int getIndexByUuid(const QUuid& uuid) const;
 	QUuid getUuidByIndex(int index) const;

@@ -35,6 +35,9 @@ find_package(basisu CONFIG REQUIRED)
 find_package(embree CONFIG REQUIRED)
 find_package(OpenImageDenoise CONFIG REQUIRED)
 find_package(OpenEXR CONFIG REQUIRED)
+# u3d: Universal 3D writer for Save as 3D PDF (local overlay port, overlay-ports/u3d). Static IDTF library plus four run-time
+# modules (U3D_MODULE_NAMES) that are deployed next to the executable below.
+find_package(u3d CONFIG REQUIRED)
 # Experimental (experimental/cgal-edge-detection branch): evaluating CGAL's
 # Polygon_mesh_processing package as a replacement for the hand-rolled
 # feature-edge heuristic in SceneMesh::buildAndUploadFeatureEdges(). Pulls
@@ -551,6 +554,7 @@ target_link_libraries(ModelViewer
         embree
         OpenImageDenoise
         OpenEXR::OpenEXR
+        u3d::idtf
         CGAL::CGAL
         Eigen3::Eigen
         ${OpenCASCADE_FoundationClasses_LIBRARIES}
@@ -917,6 +921,31 @@ if(WIN32)
     endif()
 endif()
 
+# ============================================================================
+# Deploy the u3d run-time modules (Save as 3D PDF). IFXCOMInitialize() loads IFXCore and the exporting/importing/scheduling
+# plugins at run time from the folder of the executable (flat layout: Windows via the DLL search path, Linux via the patched
+# module directory lookup), so they are copied next to the exe for the build tree and installed beside it for packages.
+# ============================================================================
+foreach(U3D_MODULE ${U3D_MODULE_NAMES})
+    set(U3D_MODULE_FILE "${U3D_MODULE_PREFIX}${U3D_MODULE}${U3D_MODULE_SUFFIX}")
+    add_custom_command(TARGET ModelViewer POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<IF:$<CONFIG:Debug>,${U3D_MODULE_DIR_DEBUG},${U3D_MODULE_DIR_RELEASE}>/${U3D_MODULE_FILE}"
+            "$<TARGET_FILE_DIR:ModelViewer>/${U3D_MODULE_FILE}"
+        VERBATIM
+    )
+    install(FILES "${U3D_MODULE_DIR_RELEASE}/${U3D_MODULE_FILE}" DESTINATION "${CMAKE_INSTALL_BINDIR}")
+    if(EXISTS "${U3D_MODULE_DIR_RELEASE}/${U3D_MODULE_FILE}")
+        message(STATUS "Will deploy: ${U3D_MODULE_FILE}")
+    else()
+        message(WARNING "u3d module not found (Save as 3D PDF will not work): ${U3D_MODULE_DIR_RELEASE}/${U3D_MODULE_FILE}")
+    endif()
+endforeach()
+if(UNIX AND NOT APPLE)
+    # also let the dynamic loader look in the executable's own folder (build tree and installed bin/)
+    set_property(TARGET ModelViewer APPEND PROPERTY BUILD_RPATH "$ORIGIN")
+    set_property(TARGET ModelViewer APPEND PROPERTY INSTALL_RPATH "$ORIGIN")
+endif()
 
 # ============================================================================
 # Create qt.conf - Windows only

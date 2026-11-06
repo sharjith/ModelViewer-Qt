@@ -1,0 +1,8 @@
+u3d provides the in-process libIDTF API for writing Universal 3D (.u3d) streams.
+
+    find_package(u3d CONFIG REQUIRED)
+    target_link_libraries(app PRIVATE u3d::idtf)
+
+At run time the four modules (U3D_MODULE_NAMES) must sit in the application's own folder; Linux executables also need
+RUNPATH $ORIGIN (set_target_properties(app PROPERTIES BUILD_RPATH "$ORIGIN" INSTALL_RPATH "$ORIGIN")).
+Never call IFXSetDefaultLocale() from an application: it changes the process-wide locale.

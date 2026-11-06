@@ -921,6 +921,11 @@ MainWindow::MainWindow(QWidget* parent)
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("report"));
     });
 
+	// File → Save as 3D PDF... - one-shot export of the visible parts, no persistent tool state
+	connect(ui->actionExport3DPdf, &QAction::triggered, this, [this]() {
+		if (auto* child = activeMdiChild()) child->exportAs3DPdf();
+	});
+
 	// Tools → Batch Render Views... - same "modal, one-shot batch action"
 	// reasoning as actionExportReport above, just producing individual
 	// offline path-traced image files instead of one PDF.
@@ -2777,6 +2782,7 @@ void MainWindow::updateMenus()
 	ui->actionSaveSceneState->setEnabled(hasMdiChild);
 	ui->actionAnnotate->setEnabled(hasMdiChild);
 	ui->actionExportReport->setEnabled(hasMdiChild);
+	ui->actionExport3DPdf->setEnabled(hasMdiChild);
 	ui->actionBatchRenderViews->setEnabled(hasMdiChild);
 	ui->actionMassProperties->setEnabled(hasMdiChild);
 	ui->actionSurfaceAnalysis->setEnabled(hasMdiChild);

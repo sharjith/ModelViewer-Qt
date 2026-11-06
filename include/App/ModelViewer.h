@@ -192,6 +192,8 @@ public:
 
 	void importModel();
 	void exportModel();
+	// File > Save as 3D PDF...: the visible parts as a drawing sheet with an embedded 3D model (see Pdf3D/Pdf3DExporter.h)
+	void exportAs3DPdf();
 
 	bool saveToFile(const QString& fileName);
 	bool loadFromFile(const QString& fileName);
