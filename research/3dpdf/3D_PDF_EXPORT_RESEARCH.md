@@ -238,3 +238,246 @@ Fetched or surfaced in this session (dates 3 November 2026):
 - PoDoFo: <https://github.com/podofo/podofo/>; libharu (search summary, <https://github.com/libharu/libharu>)
 
 Not fetchable in this session: Wikipedia "3D PDF" (HTTP 403), `pdfa.org` root (404), `vcpkg.link/ports/u3d` (404). Not researched: Spatial 3D InterOp, Datakit licensing, Qt PDF 3D support, current Acrobat release notes on 3D.
+
+---
+
+## 8. Phase 1 spike log (5 November 2026)
+
+Work is on `feature/3DPDF` in a separate worktree. Nothing here is committed. Regenerate the evidence from the repository root (all output under ignored `out/`):
+
+```bash
+git clone --depth 1 https://github.com/DmytroSytnyk/u3d.git out/3dpdf/src/u3d
+cmake -S out/3dpdf/src/u3d -B out/3dpdf/build/u3d -G "Visual Studio 17 2022" -A x64 -DU3D_SHARED=OFF -Wno-dev
+cmake --build out/3dpdf/build/u3d --config Release --target IDTFConverter IFXCore IFXExporting IFXImporting IFXScheduling
+export U3D_LIBDIR="$(cygpath -w out/3dpdf/build/u3d/Release)"
+out/3dpdf/build/u3d/Release/IDTFConverter.exe -input out/3dpdf/src/u3d/Samples/TestScenes/box.idtf -output out/3dpdf/run/box.u3d
+python -I tools/3dpdf/make_u3d_pdf.py out/3dpdf/run/box.u3d out/3dpdf/run/spike_box.pdf --title "Spike: box"
+```
+
+### 8.1 u3d library observations
+
+- **[Obs]** Fork commit `5c141d9`, Apache-2.0 (`COPYING`). Configures and builds with Visual Studio 2022 (MSVC 14.44) using the Visual Studio generator; the `IDTFConverter` tool, and the four runtime modules `IFXCore`, `IFXExporting`, `IFXImporting`, `IFXScheduling` all built. Build emitted many warnings, including C4302 "truncation from `char *` to `long`" in `IFXVoidStar.h` (a pointer-size hazard on 64-bit; effect not investigated).
+- **[Obs]** `IDTFConverter` and `libIDTF` load the `IFX*.dll` modules at run time (`libIDTF/IFXOSLoader.cpp`, environment variable `U3D_LIBDIR`). Without them it exits with code `0x80000003` and writes nothing. This is a deployment constraint: the application would need to ship those modules or the code would need to be linked statically [Hyp: link-time change, not attempted].
+- **[Obs]** `IDTFGen` writes only the two-line IDTF header (a stub), and `HelloU3DWorld` fails with `0x80000003` without the modules. Neither is useful as a model generator; the bundled `Samples/TestScenes/*.idtf` scenes are.
+- **[Obs]** With the modules present, `IDTFConverter` converted the sample `box.idtf` to a 1,276-byte `.u3d` (exit code 0).
+- **[Hyp]** The IDTF text format is therefore the practical input API (the fork's `libIDTF` exposes `IFXWriter` for emitting IDTF, then conversion is a second step). A production writer would generate IDTF in memory or on disk and convert it, or emit U3D blocks directly.
+
+### 8.2 Hand-built PDF wrapper
+
+- **[Obs]** `tools/3dpdf/make_u3d_pdf.py` (stdlib-only, throwaway) builds a one-page A4 landscape PDF: border, title block, small parts list (vector lines and Helvetica text) and a 3D annotation (`/Subtype /3D`, `/3DD` U3D stream, `/3DV` default view, `/3DA` activation, `/AP` poster text for readers without 3D). It was run on `box.u3d`; the output parses with pypdf (one page, one `/3D` annotation, expected text).
+- **[Not verified]** Whether Acrobat opens it and renders the box. This needs the owner's check (see "owner gate" below). The `/C2W` camera values in the default view are placeholders.
+
+### 8.3 What a commercial 3D PDF looks like (Tetra4D samples)
+
+Source: the owner supplied <https://tetra4d.com/pdf-samples/>; the page lists 24 sample PDFs (6 made with their Enrich product, 18 with their Converter product), gives no licence for them and no feature descriptions. Eleven were downloaded for local study only into ignored `out/3dpdf/samples-tetra4d/`; they must not be committed or redistributed. Structure inspected read-only with pypdf (`python -I`).
+
+- **[Obs]** Every file with a 3D annotation carries **PRC** (stream magic `PRC` plus a version byte), none carries U3D. 3D PDFs are 1-3 pages for these samples (a 7-page document and a 2-page document also seen); the files are 0.6-2.9 MB; the 3D payloads are 0.4-1.6 MB.
+- **[Obs]** The Converter samples are single pages of Letter portrait or 960x540 landscape with one large 3D annotation covering most of the page, a header/branding text and (landscape ones) six form-field widgets (buttons/fields).
+- **[Obs]** The 3D stream dictionaries carry a `/VA` array of named views (5-25 per file, e.g. Left/Top/Front/Right/Bottom/Back/Default, or engineering names such as "SECTION A-A", "DETAIL F", "NOTES"), an `/AN` entry (animation) and an `/OnInstantiate` stream (a script).
+- **[Obs]** Each view dictionary carries: `/C2W` (12-number camera-to-world matrix), `/CO` (distance to the centre of orbit), `/MS /M`, `/P` projection, `/BG` background, `/RM` render mode, `/LS` lighting scheme (CAD, Headlamp), and `/NA`, a per-node array with `/N` node name, `/V` visibility, `/O` opacity, `/M` 12-number matrix and `/RM`. In other words, saved views encode part visibility, opacity and transforms per node, and "section" or "detail" views are implemented as named views.
+- **[Obs]** Activation is `/A /XA` (activate when the page is visible), `/D /XD`, `/DIS /I`, `/Style /Embedded`, optionally `/TB false` (no toolbar); the Prendergast sample (2 pages, 25 views) uses `/A /PO /D /PC /NP false`.
+- **[Obs]** Several Enrich-type files (Spare Part Catalog, Design Change Notification, Engineering Data Release, Design Review) contain no 3D annotation and no widgets in the downloaded copies (page content only), so they look like 2D templates without the model; they are layout references only. The Technical Data Package sample is a 7-page document (form page with ~133 widgets and stamps, then A4 landscape pages).
+- **[Hyp]** The drawing-style target the owner described (decision O6) corresponds to: a page with border and title block, a large 3D viewport, a view list implemented through `/VA` views with node visibility, and optional form widgets for buttons. Our export can map saved cameras and scene states to `/VA` views with per-node `/NA` entries (visibility, opacity, matrix), consistent with section 4.3.
+- **[Hyp]** Because these commercial files use PRC, whereas the first-cut plan here is U3D, a quick compatibility check is worthwhile: U3D streams are in the PDF 1.7 core and Acrobat has supported them since PDF 1.6 [Recall]; the spike will show whether the `/VA`/`/NA` view mechanism works the same for U3D streams (the spec places it at the stream dictionary level for both subtypes, but this is unverified).
+
+### 8.4 Owner result (5 November 2026)
+
+**[Owner observation, from a screenshot]** `spike_box.pdf` opens in Adobe Acrobat; the hand-built 3D annotation activates and shows the U3D box lit and shaded, with Acrobat's 3D toolbar (rotate/pan, home, Views list, model tree, render mode, lighting, section, background). The border, title block and parts list render. One defect, ours: the parts-list text overlapped the title text (layout bug in the spike script, fixed afterwards by moving the table right). The camera shows the box tilted, because the `/C2W` values are placeholders; real views are still to be written. **Phase 1 gate passed for U3D in Acrobat**: the toolchain (u3d library, IDTF-to-U3D conversion, hand-written PDF objects) is viable.
+
+### 8.5 Owner gate for phase 1 (superseded by 8.4)
+
+Please open `out/3dpdf/run/spike_box.pdf` (in the 3D PDF worktree) in Adobe Acrobat/Reader, enable 3D content if prompted, and report: (a) does the 3D annotation activate, (b) is the box visible and lit, (c) does the title block and parts list render, (d) the camera orientation and zoom (placeholder `/C2W`). Phase 2 does not start until this is answered.
+
+### 8.6 Camera matrix findings (5 November 2026)
+
+- **[Owner observation]** Named views written with `/MS /M` and a computed `/C2W` first showed the box off-centre, toward the top-left and far away, while a view that reuses the U3D file's own camera node (`/MS /U3D /U3DPath (DefaultView)`) was centred. The spec pages for the 3D coordinate systems could not be fetched (404), so this was settled by experiment.
+- **[Owner observation]** A diagnostic PDF wrote the U3D file's own camera (eye on the -Y side, looking at the origin) as `/C2W` in six conventions; only the one in which **the camera looks along +Z of its own frame** showed the box (the others showed nothing in the viewport). So in Acrobat, for `/MS /M`, the rows of `/C2W` are the camera's right, up and **forward** axes in world coordinates, followed by the eye position. This is the opposite of a U3D view node (which looks along -Z).
+- **[Hyp]** The matrix is not mirrored for a right-handed world (the right axis is forward x up), and the test box is symmetric, so a mirror error would not have been visible. It must be re-checked with an asymmetric model before this is relied on.
+- **[Hyp]** Distance from the target to the eye for a bounding sphere of radius r is `r / sin(FOV/2) * margin` (with `/PS /Min`; margin 1.25 was used); not yet confirmed visually after the fix.
+- **[Obs]** PDF numbers must not use exponent notation (e.g. `7e-15`); the writer prints plain decimals.
+- **[Obs, caveat]** The Tetra4D PRC samples' camera rows read in the same way (right, up, then an axis) but their model placement could not be checked, so they are not independent evidence.
+
+### 8.7 Node matrix override (6 November 2026)
+
+- **[Owner observation]** With the forward-Z camera (8.6) the views were in the frame but not centred: with the box moved to the origin, Top was centred while Right and Iso were about 20 units too high; with the box in its original place (-3.3, -63, 0..40), Top was about 63 units too high and Iso was displaced to the upper right.
+- **[Hyp, from those offsets]** Each view's `/NA` entry listed the box node with `/M` set to the identity. In a 3D view dictionary the node matrix replaces that node's own transform for that view, so the box jumped to its local origin while the camera was aimed at its authored position: the offsets above equal the box's own translation. Fix: leave `/M` out of `/NA` entries (keep `/V` visibility and `/O` opacity). To be confirmed in Acrobat with the v6 files.
+- **[Hyp]** The same `/NA /M` entry is the mechanism for exploded or moved states per view; it must then contain the node's full intended transform, not an offset.
+
+**[Owner observation, 6 November 2026]** The v6 files (box at origin and box in its original position) show the box centred in every computed view (Iso, Front, Top, Right). The 8.6 camera convention (rows: right, up, forward, then eye; distance `r / sin(FOV/2) * 1.25`) and the 8.7 fix (no `/M` in `/NA`) are therefore confirmed for a symmetric box in Acrobat. Still unchecked: mirroring (needs an asymmetric model) and per-view part visibility on more than one node.
+
+### 8.8 Asymmetric multi-part test (6 November 2026)
+
+Scene `out/3dpdf/run/lscene.idtf` (generator `tools/3dpdf/make_test_scene_idtf.py`): `LBracket` (L-shaped, tall leg at -X, base along +X, one mesh of two cuboids) and `Block` (separate blue cuboid at +X); PDF built with the same `make_u3d_pdf.py` and the computed views.
+
+- **[Owner observation]** Front: tall leg on the left, block on the right. Top: leg at the left end, block at the right, axis triad X right and Y up. Right: block nearest and in front, bracket behind and above it, axis triad Z up and Y right. These are the correct, unmirrored images, so the 8.6 camera convention (right, up, forward rows plus eye) is right-handed and not mirrored.
+- **[Owner observation]** "First part hidden" hides only `LBracket` and leaves `Block` visible, so per-node `/NA` visibility works with several nodes. The remaining block is off-centre in that view, as expected, because the camera is still framed on the full scene.
+- **[Obs]** The U3D file's own DefaultView renders the same orientation as the computed Front-like view.
+- Still unchecked: `/NA /M` (moved part per view), `/O` opacity below 1, line and point geometry for measurements, and large-model behaviour.
+
+### 8.9 Line-set measurement layer (6 November 2026)
+
+Scene `out/3dpdf/run/mscene.idtf` (same generator): the L bracket and block plus a third node `Measure`, an IDTF `LINE_SET` of 24 segments in the plane y = -10: a 60-unit dimension (two extension lines, dimension line, two arrowheads), the number "60" as seven-segment strokes, and a leader from the tall leg to a label point. The material was given a red emissive colour.
+
+- **[Owner observation]** Line sets render in Acrobat and the dimension, arrowheads, leader and stroke-drawn "60" are all correct and unmirrored in Front and Iso; in Top the in-plane graphic is seen edge-on as a thin line, as expected.
+- **[Owner observation]** The lines are thin and BLACK in every view. The red emissive material was not applied, so Acrobat ignores material colour for line sets (it draws them in a fixed colour). **[Hyp]** per-vertex diffuse colours (`MODEL_DIFFUSE_COLOR` with line shading) or PRC/other styling would be needed for coloured measurement lines; to be tested if colour matters. Line width is a fixed hairline and not controllable from the file.
+- **[Owner observation]** The "Last node hidden" view hides the whole measurement layer and keeps both parts, so a measurement layer can be a single node that views toggle on and off.
+- **[Consequence]** Outline-stroke text is legible but hairline-thin; for the real exporter consider text as filled triangle outlines (a mesh node, which does take colour) and keep lines only for dimension and leader geometry. One node per measurement would allow per-measurement visibility in views.
+- Still unchecked: coloured line sets (vertex colours), filled-triangle text, point sets, `/NA /M` moved parts, opacity below 1.
+
+### 8.10 Coloured lines and filled text (6 November 2026)
+
+Scene `out/3dpdf/run/nscene.idtf`: the 8.9 line set now with per-vertex diffuse colours (`MODEL_DIFFUSE_COLOR_LIST`, `LINE_DIFFUSE_COLOR_LIST`, shader `ATTRIBUTE_USE_VERTEX_COLOR "TRUE"`; red dimension, blue leader) plus a `TextMesh` node: the "60" again as thin cuboids with a red material.
+
+- **[Owner observation]** The line set is STILL drawn thin and black in Front: neither material emissive colour (8.9) nor per-vertex colours change it. Acrobat draws U3D line sets in a fixed colour, so dimension and leader colour cannot be set through line sets.
+- **[Owner observation]** The filled "60" renders in red, crisp, readable and unmirrored (Front, and in Iso), at a clearly legible weight compared with the hairline version.
+- **[Owner observation]** "Last node hidden" removes the line set and leaves the filled text, so line sets and meshes toggle independently per view.
+- **[Consequence for the design]** Use meshes (thin cuboids or flat triangle strips, one per stroke) for anything that must be coloured or thick: measurement text, and probably the dimension and leader lines as well. Line sets stay available for plain hairlines. Cost: the mesh approach multiplies triangle counts (12 per cuboid stroke, 4 per double-sided flat quad), so keep strokes simple; a flat double-sided quad is the cheaper option to test next, together with its look edge-on.
+- Still unchecked: point sets, `/NA /M` moved parts, opacity below 1, flat quads versus cuboids, Linux build.
+
+### 8.11 Flat quads, moved part, opacity (6 November 2026)
+
+Scene `out/3dpdf/run/oscene.idtf` / `spike_oscene.pdf`: the 8.10 scene plus a `TextQuads` node ("60" as double-sided flat quads in green, 4 triangles per stroke, 0.1 in front of the face) and three new views: "Block moved +Z 40" (`/NA /M [1 0 0 0 1 0 0 0 1 0 0 40]`), "Block 40% opaque" and "Bracket 40% opaque" (`/O 0.4`).
+
+- **[Owner observation]** Flat quads render fine: the green "60" is crisp and readable, as heavy as the cuboid version in Front, and shows no z-fighting against the bracket face. In Iso it is shaded darker green (lit). Triangle cost is a third of the cuboid version, so flat quads are the choice for text and thick dimension strokes.
+- **[Owner observation]** `/NA /M` with an identity rotation and a translation moves the block up by 40 as intended (Iso and Front), while the other nodes stay put. Because the test nodes' own transforms are identity, this only shows that `/M` takes effect; for the real exporter `/M` must hold the node's full transform (8.7).
+- **[Owner observation]** `/O 0.4` makes the block, or the bracket, translucent with correct blending: the bracket's internal overlap and the block show through, and the other part is unaffected. Per-view opacity per node works.
+- **[Consequence]** The view mechanism covers everything the app needs from saved scene states: camera, per-part visibility, per-part opacity and moved parts (exploded views).
+- Still unchecked: point sets, many nodes, textured and metallic-looking materials, Linux build.
+
+### 8.12 Point set and 400-node stress scene (6 November 2026)
+
+Scenes `out/3dpdf/run/pscene.idtf` (adds an `Anchors` POINT_SET of 5 anchor points, magenta material) and `stress.idtf` (`tools/3dpdf/make_stress_scene_idtf.py`: 20 x 20 grid of separate cubes, each its own node, mesh, shader and material; U3D 300 KB, PDF 197 KB).
+
+- **[Owner observation]** Point sets render only as single-pixel BLACK dots (visible at the leader end, the dimension ends and the block corner). Colour, size and the magenta material are ignored, as with line sets. They are not usable as visible anchor markers; use small meshes (a flat quad or tiny cuboid) for any visible dot or marker.
+- **[Owner observation]** The 400-node scene opens and renders correctly in Iso, with all cubes and per-node colours. **[Owner observation]** Loading took no noticeably longer than the small scenes, so 400 nodes is not a load-time concern.
+- **[Obs]** The 400-node U3D is about 300 KB uncompressed (about 750 bytes per cube with its own resources), so file size scales linearly and is dominated by per-node resource overhead, not geometry; merging parts that need no separate view control would shrink it.
+- **[Consequence]** Fixed Acrobat styling for non-mesh primitives (lines and points: black, hairline and one pixel) means the exporter's visible measurement layer is best built from flat-quad meshes: stroke text, dimension lines as thin quads, arrowheads as triangles, anchor markers as small quads. Lines stay useful only as optional hairline extras.
+- Still unchecked: orbit smoothness at much larger node counts (thousands), textures, Linux build.
+
+### 8.13 Survey of three more sample sets (6 November 2026)
+
+Read-only pypdf survey (scratch scripts, not in the repo) of `out/3dpdf/samples-techsoft3d` (6 files), `samples-pdfa.org` (10 files) and `samples-simlab-soft` (21 zips, each one PDF; unpacked each into its own folder after checking for non-PDF content). Local study only, no content reused.
+
+- **TechSoft3D (SpinFire) and PDF Association samples: PRC.** One 3D annotation per page, `/MS /M` views, 3 to 30 named views, up to 245 `/NA` node entries per view, 300 KB to 4 MB of PRC. They carry 25 to 500 form fields (view buttons, BOM tables, text fields) and document-level JavaScript. Pages are 1 to 4 (cover, 3D, tables).
+- **SimLab samples: U3D**, 1 to 119 named views, one 3D annotation per page, page sizes like 1136 x 640 (a full-page 3D window). Their views are mostly `/MS /U3D` with a `/U3DPath` to camera nodes inside the U3D file (the camera set lives in the file; `/NA` lists just that camera), the stream has `/OnInstantiate` JavaScript and `/AN` animation entries, and navigation uses form buttons (`/Btn`). U3D streams are 1 to 61 MB (large textured scenes); 3D toolbar on or off per file.
+- **[Consequence]** Both approaches exist in the wild. For our exporter `/MS /M` with computed cameras (our spike) is the PRC-sample style and keeps the camera data in the PDF; `/MS /U3D` needs a camera node per view in the U3D file and has no advantage for us. View buttons are form widgets with JavaScript; that is phase 3 (interactivity), not phase 1.
+- **[Open, camera handedness]** All 35 `/MS /M` views checked in the NX, Creo and SpinFire samples have a positive determinant for the three rotation rows of `/C2W`, but our `look_at` (rows right, up, forward) has a negative determinant and was confirmed unmirrored in Acrobat (8.8). The `spike_lscene_det.pdf` test (right, up or forward row negated) is meant to settle which row conventions Acrobat really uses.
+
+### 8.14 Camera handedness test result (6 November 2026)
+
+`out/3dpdf/run/spike_lscene_det.pdf`: the Front view of the L-bracket scene with the camera matrix variations below (all other rows and the eye unchanged).
+
+- **[Owner observation]** Our matrix (right, up, forward; det -1): the normal, unmirrored Front image.
+- **[Owner observation]** Right row negated (det +1): IDENTICAL image. Acrobat ignores the first row.
+- **[Owner observation]** Up row negated (det +1): the image is rotated by 180 degrees in the screen plane (block on the left, L upside down and flipped). The second row is used.
+- **[Owner observation]** Forward row negated: empty view (the camera looks away from the scene). The third row is used.
+- **[Conclusion]** Acrobat takes the view direction from the third row and the up direction from the second, derives "right" itself, and takes the eye from the translation. The determinant of the matrix therefore does not matter, which resolves the 8.13 puzzle: commercial files write a right-handed-looking matrix, our right row has the opposite sign, both display identically. For the exporter, write (right, up, forward, eye) with `up` and `forward` exact; the right row can be either sign (write the right-handed one, `up x forward`, to match the commercial files).
+
+### 8.15 Linux build of u3d (6 November 2026, WSL Ubuntu 26.04)
+
+Built in the Linux dev checkout (`~/dev/ModelViewer-Qt/out/3dpdf-linux/`, git-ignored `out/`), same u3d commit `5c141d9`, g++ (GCC 16 default C++17), cmake 4.2.3, bundled jpeg/png/zlib.
+
+- **[Obs]** Source needs NO change. Three build/run requirements:
+  1. cmake 4: `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` (the project declares `cmake_minimum_required(2.8)`).
+  2. C++14: `-DCMAKE_CXX_STANDARD=14 -DCMAKE_CXX_FLAGS="-std=gnu++14 -fpermissive -w"`; with the C++17 default the build stops on `throw()` dynamic exception specifications in `IFXCorePluginStatic.cpp`.
+  3. Runtime: the `IFX*` plugin libraries must sit in `$U3D_LIBDIR/Plugins/` (symlinks to the built `.so` files work), and the converter calls `setlocale(LC_CTYPE, "en_US.UTF-8")` at startup, failing with `Exit code = 80000000` and no output when that locale is missing (the WSL install only has C/C.utf8/POSIX). A private locale generated with `localedef -i en_US -f UTF-8 <dir>/en_US.UTF-8` plus `LOCPATH=<dir>` fixes it without root. A production exporter must not depend on this: either link the library into the app and bypass the converter's `main`, or patch `IFXSetDefaultLocale` to accept `C.UTF-8`.
+- **[Result]** The Linux `IDTFConverter` produces BYTE-IDENTICAL `.u3d` files to the Windows build for the five small scenes (`lscene`, `mscene`, `nscene`, `oscene`, `pscene`), so the Windows-verified Acrobat behaviour carries over without a new Acrobat test. The 400-node scene differs by 388 bytes (301 260 vs 301 648 bytes), presumably an ordering or hashing detail with many resources; `out/3dpdf/run/spike_stress_linux.pdf` is the Linux-built variant for an optional Acrobat check.
+- **[Consequence]** Linux parity for the writer is not a risk. The open design point is how the app calls the library (embedding `IFXCore`/`IDTF` as a static library with the plugin lookup replaced, versus invoking the converter binary), see the exporter design.
+
+---
+
+## 9. PDF writer decision and exporter design (draft, 6 November 2026)
+
+### 9.1 PDF writer options, re-assessed after the spike
+
+What the spike showed about the file we need: one page, one `/3D` annotation with a Flate stream and a `/VA` view array, an optional poster; everything else is ordinary 2D page content (border, title block, parts list, text).
+
+- **A. In-house writer for the whole file** (what the Python spike does). Fine for the 3D part; the 2D page needs text, font embedding (Unicode, the app is translated), images and vector drawing, which is the large and error-prone part.
+- **B. `QPdfWriter` for the 2D page, then an in-house incremental update that appends the 3D annotation.** The app already uses `QPdfWriter` (`ReportExportDialog.cpp:359`), so fonts, text layout, images, A3/A4 pages and Linux parity come for free from Qt with no new dependency or licence. The update appends the 3D stream, the annotation object, a new copy of the page object with `/Annots`, a new xref section and a trailer with `/Prev`. This needs a small reader for Qt's output: last `startxref`, trailer (`/Root`, `/Size`, `/ID`), the page object.
+- **C. PoDoFo for everything** (LGPL-2.0-or-later or MPL-2.0 per the PDF Association release note for PoDoFo 1.0; vcpkg lists 1.0.x; upstream is at 1.1.1). Robust parsing and incremental saving, but it adds a sizeable dependency tree (openssl/libxml2/fontconfig/...) to a vcpkg build that is already large, and a search found no ready-made 3D annotation class (it would be built from raw dictionaries anyway).
+- **D. `QPdfWriter` then PoDoFo to append the annotation.** Same parsing robustness as C but the same dependency cost as C.
+
+**Recommendation: B**, with D as the fallback if Qt's output ever stops being simple to append to. Reasons: no new dependency, matches the existing report export, the 3D part is already proven by the spike, and Linux is identical.
+
+- **[Recall, to verify first]** Qt's PDF engine writes a classic xref table and no object streams. The three existing PDFs in `docs/guide/` are Skia (not Qt), so they do not confirm it. First implementation step: write a page with `QPdfWriter`, inspect its structure with pypdf/a hex dump, and confirm the append works in Acrobat; the code must detect an xref stream or object streams and fail with a clear message rather than corrupt the file.
+- **[Hyp, to test]** The poster can be drawn by `QPainter` onto the page inside the annotation rectangle, and the annotation can carry an empty appearance stream, so no image XObject has to be written by hand. Acrobat shows the page content until the 3D is activated. Needs one Acrobat check (the spike used a poster `/AP`).
+- **[Obs]** Acrobat only needs the `/Rect`, `/3DD`, `/3DV`, `/3DA` and `/VA` entries seen in the spike; a PDF/A-style conformance claim is out of scope.
+
+### 9.2 The U3D side: calling the library
+
+The u3d library is Apache-2.0 and builds on Windows (VS2022) and Linux (GCC with `-std=gnu++14`, 8.15) with identical output, but it needs a one-line patch (`setlocale(LC_CTYPE, "en_US.UTF-8")` in `IFXSetDefaultLocale` must not fail on systems without that locale) and its plugin lookup (`Plugins/` next to `U3D_LIBDIR`).
+
+- **Option 1: ship `IDTFConverter` plus the four plugin libraries as a helper and call it through `QProcess`** with an IDTF text file. Pro: no linking against a 2008-era code base, crash isolation, minimal code. Con: extra files in the installer and the `.deb`; text IDTF is slower than direct API for very large models (still fine at 400 nodes).
+- **Option 2: link the library in-process** (`IFXCoreStatic` exists) and drive it through the `libIDTF` API. Pro: no temp files or helper. Con: more patching and a harder-to-debug 32-bit-era API surface.
+- **[Superseded by 9.7: the owner chose Option 2, in-process.]** Earlier recommendation: Option 1 for the first version, keeping the IDTF generator behind an interface so Option 2 can replace it later. The one-line locale patch is carried as a patch file in a vendored `third_party/u3d` folder (Apache-2.0 notice added to `CREDITS.md`).
+- **[Hyp]** U3D mesh compression is controlled by the converter's `-compress` and quality options; the export dialog should map "Compress" to those. To measure on a real model before committing to a default.
+
+### 9.3 Mapping the app to the PDF (what the spike proved is possible)
+
+| App data | PDF/U3D result | Spike evidence |
+|---|---|---|
+| Visible parts (scene graph export) | One U3D node per exported part (unique stable name, e.g. uuid), one mesh/shader/material each | 8.12 (400 nodes fine) |
+| Material | Diffuse colour and opacity (Phong); no PBR; textures need a later test | 8.11, 8.12 |
+| Saved cameras | `/VA` views with `/MS /M`, `/C2W` (up, forward, eye used), `/CO`, `/FOV` (FOV 30 min-dimension fit) | 8.6, 8.14 |
+| Scene states (visibility, opacity, transforms, exploded) | Per-view `/NA` entries: `/V`, `/O`, `/M` full node transform | 8.8, 8.11 |
+| Measurement/annotation graphics | Flat double-sided quad meshes for text, dimension lines, arrows, markers (colour and weight come from the material); one node per measurement so views can toggle it | 8.9-8.12 |
+| 2D page (title block, parts list, border) | Drawn by `QPainter` via `QPdfWriter` | 9.1 |
+
+Open items inside the mapping: unit/scale handling (the camera fit assumes model units), text outlines (the app must turn `QPainterPath` text into triangles; options: an ear-clipping header library or the CGAL triangulation the app already ships), textures and PBR (not tested), instances/duplicate meshes (each export node writes its own mesh, so repeated parts multiply size; a shared-mesh option needs a spike test).
+
+### 9.4 Phased plan (revised)
+
+1. **Phase 1, minimal exporter** (`Save as 3D PDF...`): visible parts to IDTF, helper converts, `QPdfWriter` page with border and title, append the 3D annotation with Iso/Front/Top/Right views.
+2. **Phase 2, drawing page:** title block with editable fields, parts list from the scene, scale and sheet fields, A4/A3, language support.
+3. **Phase 3, measurement and annotation layer:** flat-quad geometry, one node per item, layer toggles through views.
+4. **Phase 4, saved views and scene states:** cameras to `/VA`, states to `/NA`, exploded view positions.
+5. **Phase 5, interactivity:** form buttons with JavaScript to switch views (as in the commercial samples), per the survey in 8.13.
+6. **Phase 6, packaging:** helper and plugins in the Windows installer and the `.deb`, Apache-2.0 notices, CI smoke test comparing converter output.
+
+### 9.5 Decisions needed from the owner
+
+1. Writer path: B (`QPdfWriter` plus own append, recommended) or C/D (PoDoFo).
+2. U3D library call: helper process first (recommended) or in-process from the start.
+3. Text outlines: which triangulation to use (CGAL, already a dependency, or a small header library).
+4. Page template: fixed layout first (recommended) or user-defined templates from the start.
+5. Where to vendor the u3d sources and the patch file (`third_party/u3d`).
+6. When phase 1 starts, and whether the exporter code goes into this branch or a separate one off `feature/3DPDF`.
+
+### 9.6 Sources for this section
+
+- PoDoFo 1.0 release: <https://pdfa.org/podofo-10-released/>; vcpkg port: <https://vcpkg.io/en/package/podofo.html>.
+- Qt forum thread on extending `QPdfWriter` with a widget annotation (needs Qt-internals changes, supports not using Qt's engine for annotations): <https://forum.qt.io/topic/153166/extend-qpdfwriter-for-adding-pdf-widget-annotation-field>.
+
+### 9.7 Owner decisions on 9.5 (6 November 2026)
+
+1. **Writer: `QPdfWriter` plus our own append** (9.1 option B). Fallback D (PoDoFo) only if Qt's output cannot be appended to safely.
+2. **u3d call: in-process from the start** (9.2 option 2). The helper-process route is dropped. Consequences and a new first step below.
+3. **Text triangulation: CGAL** (already a dependency): `QPainterPath` outlines to polygons to constrained triangulation to flat quad meshes for measurement/annotation text.
+4. **Page template: a fixed layout first.** Design note for later (user-defined templates): keep the layout in one `DrawingTemplate` description (page size, border, a list of rectangles with type and anchor: title block cells, parts list, 3D area, logo area, free text with `{field}` placeholders) that the fixed layout is simply the built-in instance of; a later step loads the same description from JSON in the user data folder and adds an editor. The exporter must therefore ask the template for the 3D area rectangle and field values instead of hard-coding coordinates.
+5. **Vendoring: a vcpkg overlay port** `overlay-ports/u3d/` (the repo already has `overlay-ports/openimagedenoise` and `vcpkg-configuration.json` points at it). Suggested layout: `portfile.cmake` that fetches the pinned upstream commit with `vcpkg_from_github` (`DmytroSytnyk/u3d`, `5c141d9`, with the archive SHA512), applies patches from `overlay-ports/u3d/patches/`, builds the static libraries with `vcpkg_cmake_configure` (`-DU3D_SHARED=OFF -DCMAKE_CXX_STANDARD=14`), and installs the headers, libs and the Apache-2.0 licence as `copyright`; `vcpkg.json` with version, license `Apache-2.0` and `supports` windows/linux; add `u3d` to the app's `vcpkg.json`. Patches: (a) `IFXSetDefaultLocale` must not fail when `en_US.UTF-8` is missing (use `C.UTF-8`, or ignore a failure), (b) static plugin registration or a plugin path next to the application so no `U3D_LIBDIR` environment variable is needed, (c) any C++17 fixes that remove the need for the `-std=gnu++14` flag (`throw()` specifications), (d) a CMake install of the library so it is a normal vcpkg package. This keeps third-party source out of the app repository.
+6. **Branching: everything on `feature/3DPDF`** (research, spike tools and the exporter).
+
+### 9.8 What the in-process choice changes
+
+- **New phase 0 spike (before phase 1):** link the patched u3d static libraries into a small test program under `out/`, drive the conversion through the API from memory (no IDTF file and no converter `main`), write a `.u3d` and compare it byte for byte with the converter output for `lscene`, `mscene` and `stress`. This proves the patches in (b) work on Windows and Linux. If the converter's logic lives in the `IDTF`/`libIDTF` source tree rather than the static library, the test also shows how much of it must be reused.
+- **Interface:** the exporter builds an in-memory scene description (nodes, meshes, materials, views); two back ends sit behind one interface: an IDTF text writer (kept for tests and debugging, since the spike files can be diffed against it) and the in-process API writer.
+- **Packaging:** no helper executable and no plugin folder to ship; the Apache-2.0 notice and the u3d licence line go into `CREDITS.md`.
+- **Risk:** the 2008-era API (COM-like interfaces, `IFXRESULT` codes, thread-unsafe globals); keep all calls behind one wrapper class, create and release the library per export, and run the export off the UI thread only after checking thread safety.
+
+### 9.9 Phase 0 spike result: in-process u3d (6 November 2026)
+
+`tools/3dpdf/inproc/inproc_u3d.cpp` (+ `CMakeLists.txt`, throwaway) builds the `lscene` scene (view, two meshes, light, shaders, materials, shading modifiers) in memory with the `libIDTF` classes (`SceneConverter` from `libIDTF/SceneConverterLib.h`, `NodeList`, `SceneResources`, `ModifierList`, the pattern of `Samples/SampleCode/IDTFGen.cpp`), calls `converter.Convert()` and `SceneUtilities::WriteSceneToFile()`, with no IDTF file and no converter `main`.
+
+- **[Result]** The `.u3d` is BYTE-IDENTICAL to the converter's output for `lscene.idtf` on Windows (VS2022) and on Linux (WSL, GCC, `-std=gnu++14`), and identical across the two platforms. The in-process API is therefore a complete replacement for the IDTF text route; the IDTF writer stays useful only for tests and diffs.
+- **[Obs]** Build notes: link the static `IDTF` library (it contains `IFXCoreStatic.cpp` and all the converters), plus `winmm.lib` on Windows; defines `U3D_NO_ASM` and (Windows) `UNICODE _UNICODE _CRT_SECURE_NO_DEPRECATE`, `LIN32` on Linux; the include list is the one in `inproc/CMakeLists.txt`. The C4311 pointer truncation warning in `IFXVoidStar.h` appears again (not investigated).
+- **[Obs, important]** "In-process" does NOT yet mean "no extra files". `IFXCoreStatic.cpp` is only a stub that loads `IFXCore.dll`/`libIFXCore.so` at run time (`IFXLoadCoreLibrary`), and the core then scans a `Plugins/` folder and loads the exporting, importing and scheduling modules, each exporting an `IFXPluginRegister` function. The test program only works with `U3D_LIBDIR` pointing at the folder with these libraries. Without them the Windows build crashed with a segmentation fault instead of returning an error code (not retested on Linux); the exporter must check for the modules before calling in.
+- **[Hyp, to test next]** Two ways to remove the run-time modules: (a) keep the modules as shared libraries but patch the loader to look next to the application binary instead of `U3D_LIBDIR` (small patch, still ships four libraries); (b) fuse everything into one static library: compile the `IFXCore` sources and the three plugin modules into the application, replace `IFXCoreStatic` by direct calls, and call each module's registration function directly, renaming the colliding `IFXPluginRegister` symbols per module (`-DIFXPluginRegister=IFXExporting_PluginRegister` style). (b) matches the in-process decision best (one binary, nothing to find at run time) but is a larger patch to the vcpkg overlay port; (a) is the cheap fallback.
+
+### 9.10 Owner decision: loader patch (6 November 2026) and its spike result
+
+The owner chose the loader patch (9.9, option a): keep the u3d modules as shared libraries and make them load from the application folder, rather than fusing everything into one static library.
+
+- **[Result, Windows]** No patch is needed. With `IFXCore.dll` next to the executable, the plugin DLLs either next to it (flat) or in a `Plugins\` subfolder, no `U3D_LIBDIR`, and a different working directory, the in-process program produces byte-identical output (both layouts tested).
+- **[Result, Linux]** Needed and done, saved as `tools/3dpdf/u3d-patches/0001-linux-static-idtf-and-module-dir.patch` (4 files): (1) `IDTF` is always built STATIC (it was SHARED on non-MSVC) so the executable's `RUNPATH $ORIGIN` governs the `dlopen` calls; (2) when `U3D_LIBDIR` is unset the module directory is the directory of the running executable (`/proc/self/exe`) instead of the compile-time `"."` default, in `libIDTF/IFXOSLoader.cpp`, `RTL/Platform/Lin32/Common/IFXOSLoader.cpp` and `RTL/Platform/Lin32/Common/IFXOSFileIterator.cpp`. The executable must be linked with `RUNPATH $ORIGIN` (`BUILD_RPATH`/`INSTALL_RPATH` in the spike's `CMakeLists.txt`). Result: both layouts (flat and `Plugins/`) give byte-identical output, started from another working directory with no `U3D_LIBDIR` and no `LD_LIBRARY_PATH`.
+- **[Result, locale]** The application does not need `IFXSetDefaultLocale` and must not call it: it changes the process-wide `LC_CTYPE`, and with `INPROC_SKIP_LOCALE=1` (call skipped) both platforms still produce identical output, without the private `en_US.UTF-8` locale. **[Caveat, untested]** The library converts file names with `wcstombs`, which in the default "C" locale can fail for non-ASCII paths; the exporter should write to a temporary ASCII file name and move it with Qt, or hold the data in memory, and a test with a non-ASCII path should be added.
+- **[Consequence for packaging]** Ship `IFXCore`, `IFXExporting`, `IFXImporting`, `IFXScheduling` (`.dll`/`.so`) next to the application (or in a `Plugins/` subfolder for the three plugins). The `.deb` puts them in the application's library folder; the exporter must verify they exist before calling in (a missing module crashes instead of returning an error code, 9.9). Overlay port tasks shrink to: apply the Linux patch, build `IDTF` static plus the four modules, install them with the headers; the locale patch is no longer needed.
