@@ -66,12 +66,18 @@ QByteArray makeCameraView(const CameraViewSpec& spec, const QVector3D& sceneCent
 // The standard named views for a model whose bounding sphere is (center, radius): Isometric, Front, Back, Left, Right, Top,
 // Bottom. The directions are defined for a Z-up model and mapped to Y-up when upAxis is Y ((x, y, z) -> (x, z, -y)).
 // Front looks at the model from -Y (Z-up) or +Z (Y-up).
-QList<QByteArray> standardViews(const QVector3D& center, float radius, UpAxis upAxis);
+QList<QByteArray> standardViews(const QVector3D& center, float radius, UpAxis upAxis, const QByteArray& nodeOverrides = QByteArray());
 
 // Same views, but each one is fitted to the model's bounding box instead of its bounding sphere: the distance is the smallest
 // at which all eight box corners fit the 3D area (aspect = width / height; the field of view applies to the smaller side),
 // with a 5% margin. A long, flat model then fills the view instead of floating in a sphere-sized frame.
-QList<QByteArray> standardViewsFitted(const QVector3D& boundsMin, const QVector3D& boundsMax, float aspect, UpAxis upAxis);
+QList<QByteArray> standardViewsFitted(const QVector3D& boundsMin, const QVector3D& boundsMax, float aspect, UpAxis upAxis,
+                                      const QByteArray& nodeOverrides = QByteArray());
+
+// The /NA entries (dictionaries separated by spaces, without the brackets) for `nodes`: visibility and, where set, the node transform.
+// A view only changes the parts it lists and Acrobat keeps the previous view's changes for the others, so views that should show
+// the default state must list those parts too (the exporter does this).
+QByteArray makeNodeOverrides(const QVector<NodeVisibility>& nodes);
 
 // Names of the views standardViews() writes, in order (for tests and the document).
 QStringList standardViewNames();

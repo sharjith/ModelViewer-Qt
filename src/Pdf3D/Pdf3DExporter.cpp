@@ -336,12 +336,66 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     Annotation3D annotation;
     annotation.rect = toPdfRect(layout.area3d, layout.pageHeightPt);
     annotation.u3d = u3d.data;
+
+    // A view only changes the parts it lists, and Acrobat keeps the previous view's changes (an explosion, hidden parts) for the
+    // others. So every view lists every part that ANY view changes, with the default state (visible, assembled transform) where
+    // it has no override of its own; parts nothing changes are not listed.
+    QVector<NodeVisibility> defaultNodes;   // in scene order
+    {
+        QSet<QString> touched, withMatrix;
+        for (const CameraViewSpec& spec : options.extraViews)
+        {
+            for (const NodeVisibility& n : spec.nodes)
+            {
+                if (!n.visible || n.hasMatrix)
+                    touched.insert(n.node);
+                if (n.hasMatrix)
+                    withMatrix.insert(n.node);
+            }
+        }
+        for (const U3dNode& node : scene.nodes)
+        {
+            if (!touched.contains(node.name))
+                continue;
+            NodeVisibility d;
+            d.node = node.name;
+            d.visible = true;
+            d.hasMatrix = withMatrix.contains(node.name);
+            d.matrix = node.world;
+            defaultNodes.append(d);
+        }
+    }
+    const auto completeNodes = [&defaultNodes](const QVector<NodeVisibility>& own) {
+        QHash<QString, int> index;
+        for (int i = 0; i < own.size(); ++i)
+            index.insert(own[i].node, i);
+        QVector<NodeVisibility> out;
+        out.reserve(defaultNodes.size());
+        for (const NodeVisibility& d : defaultNodes)
+        {
+            const int found = index.value(d.node, -1);
+            if (found < 0)
+            {
+                out.append(d);
+                continue;
+            }
+            NodeVisibility e = own[found];
+            if (d.hasMatrix && !e.hasMatrix)
+            {
+                e.hasMatrix = true;
+                e.matrix = d.matrix;
+            }
+            out.append(e);
+        }
+        return out;
+    };
     {
         // fitted to the bounding box and the shape of the 3D area (falls back to the sphere fit for a degenerate area)
         const float aspect = layout.area3d.height() > 0.0 ? static_cast<float>(layout.area3d.width() / layout.area3d.height()) : 1.0f;
-        QList<QByteArray> standard = standardViewsFitted(lo, hi, aspect, options.upAxis);
+        const QByteArray standardNodes = makeNodeOverrides(defaultNodes);
+        QList<QByteArray> standard = standardViewsFitted(lo, hi, aspect, options.upAxis, standardNodes);
         if (standard.isEmpty())
-            standard = standardViews(center, radius, options.upAxis);
+            standard = standardViews(center, radius, options.upAxis, standardNodes);
         const QStringList standardNames = standardViewNames();
         for (int i = 0; i < standard.size() && i < standardNames.size(); ++i)
         {
@@ -362,6 +416,7 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
                 unique = QStringLiteral("%1 (%2)").arg(base).arg(i);
             used.insert(unique);
             spec.name = unique;
+            spec.nodes = completeNodes(spec.nodes);
             annotation.viewDictionaries.append(makeCameraView(spec, center, radius));
         }
     }

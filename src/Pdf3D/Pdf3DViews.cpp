@@ -90,6 +90,33 @@ QByteArray makeView(const QString& name, const QVector3D& eye, const QVector3D& 
     return buildView(name, eye, target, up, kPerspective30, QByteArray());
 }
 
+QByteArray makeNodeOverrides(const QVector<NodeVisibility>& overrides)
+{
+    QByteArray nodes;
+    for (const NodeVisibility& n : overrides)
+    {
+        if (!nodes.isEmpty())
+            nodes += ' ';
+        nodes += "<< /Type /3DNode /N " + PdfAppender::pdfTextString(n.node) + " /V " + (n.visible ? "true" : "false");
+        if (n.hasMatrix)
+        {
+            // 12 numbers: the 3x3 part as rows (images of the basis vectors, i.e. the columns of the Qt matrix), then the translation
+            const float* m = n.matrix.constData();
+            const int idx[12] = {0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14};
+            nodes += " /M [";
+            for (int i = 0; i < 12; ++i)
+            {
+                if (i)
+                    nodes += ' ';
+                nodes += PdfAppender::pdfNumber(m[idx[i]]);
+            }
+            nodes += "]";
+        }
+        nodes += " >>";
+    }
+    return nodes;
+}
+
 QByteArray makeCrossSection(const SectionPlane& plane, const QVector3D& sceneCenter)
 {
     const int axis = qBound(0, plane.axis, 2);
@@ -140,28 +167,7 @@ QByteArray makeCameraView(const CameraViewSpec& spec, const QVector3D& sceneCent
         projection = "<< /Type /3DProjection /Subtype /P /PS /Min /FOV " + PdfAppender::pdfNumber(spec.fovDegrees) + " >>";
     }
 
-    QByteArray nodes;
-    for (const NodeVisibility& n : spec.nodes)
-    {
-        if (!nodes.isEmpty())
-            nodes += ' ';
-        nodes += "<< /Type /3DNode /N " + PdfAppender::pdfTextString(n.node) + " /V " + (n.visible ? "true" : "false");
-        if (n.hasMatrix)
-        {
-            // 12 numbers: the 3x3 part as rows (images of the basis vectors, i.e. the columns of the Qt matrix), then the translation
-            const float* m = n.matrix.constData();
-            const int idx[12] = {0, 1, 2, 4, 5, 6, 8, 9, 10, 12, 13, 14};
-            nodes += " /M [";
-            for (int i = 0; i < 12; ++i)
-            {
-                if (i)
-                    nodes += ' ';
-                nodes += PdfAppender::pdfNumber(m[idx[i]]);
-            }
-            nodes += "]";
-        }
-        nodes += " >>";
-    }
+    const QByteArray nodes = makeNodeOverrides(spec.nodes);
     QByteArray sections;
     for (const SectionPlane& plane : spec.sections)
     {
@@ -172,7 +178,7 @@ QByteArray makeCameraView(const CameraViewSpec& spec, const QVector3D& sceneCent
     return buildView(spec.name, eye, target, spec.up, projection, nodes, sections);
 }
 
-QList<QByteArray> standardViews(const QVector3D& center, float radius, UpAxis upAxis)
+QList<QByteArray> standardViews(const QVector3D& center, float radius, UpAxis upAxis, const QByteArray& nodeOverrides)
 {
     // distance at which the bounding sphere fits the smaller viewport dimension (FOV 30), with a 5% margin
     const float distance = std::max(radius, 1.0e-6f) / std::sin(15.0f * 3.14159265f / 180.0f) * 1.05f;
@@ -189,12 +195,13 @@ QList<QByteArray> standardViews(const QVector3D& center, float radius, UpAxis up
             dir = toYUp(dir);
             up = toYUp(up);
         }
-        views.append(makeView(QString::fromLatin1(defs[i].name), center + dir * distance, center, up));
+        views.append(buildView(QString::fromLatin1(defs[i].name), center + dir * distance, center, up, kPerspective30, nodeOverrides));
     }
     return views;
 }
 
-QList<QByteArray> standardViewsFitted(const QVector3D& boundsMin, const QVector3D& boundsMax, float aspect, UpAxis upAxis)
+QList<QByteArray> standardViewsFitted(const QVector3D& boundsMin, const QVector3D& boundsMax, float aspect, UpAxis upAxis,
+                                      const QByteArray& nodeOverrides)
 {
     const QVector3D center = (boundsMin + boundsMax) * 0.5f;
     const float radius = 0.5f * (boundsMax - boundsMin).length();
@@ -239,7 +246,7 @@ QList<QByteArray> standardViewsFitted(const QVector3D& boundsMin, const QVector3
             distance = std::max(distance, std::max(x / tanX, y / tanY) - z);
         }
         distance = std::max(distance, std::max(radius, 1.0e-6f) * 0.1f);
-        views.append(makeView(QString::fromLatin1(defs[i].name), center + dir * distance, center, up));
+        views.append(buildView(QString::fromLatin1(defs[i].name), center + dir * distance, center, up, kPerspective30, nodeOverrides));
     }
     return views;
 }

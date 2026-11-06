@@ -512,6 +512,27 @@ void testFullExport()
     CHECK(onePage.match(QString::fromLatin1(pdf2)).hasMatch() && pdf2.contains("/Subtype /3D"));
     CHECK(!pdf2.contains("/Subtype /Widget"));   // short notes stay plain text in the title block
 
+    // a view that moves a part: every view (the seven standard ones too) lists that part, so the explosion does not carry over
+    Pdf3D::Pdf3DOptions moved = options;
+    moved.notes.clear();
+    Pdf3D::CameraViewSpec exploded;
+    exploded.name = QStringLiteral("Exploded");
+    exploded.eye = QVector3D(0, -10, 0);
+    exploded.direction = QVector3D(0, 1, 0);
+    exploded.up = QVector3D(0, 0, 1);
+    Pdf3D::NodeVisibility moveNode;
+    moveNode.node = u.nodes[0].name;
+    moveNode.hasMatrix = true;
+    moveNode.matrix.translate(5.0f, 0.0f, 0.0f);
+    exploded.nodes.append(moveNode);
+    moved.extraViews.append(exploded);
+    const QString pathMoved = dir.filePath(QStringLiteral("moved.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, moved, pathMoved).ok);
+    QFile fMoved(pathMoved);
+    CHECK(fMoved.open(QIODevice::ReadOnly));
+    const QByteArray pdfMoved = fMoved.readAll();
+    CHECK(pdfMoved.count("/Type /3DNode") == 8 && pdfMoved.count("/M [") >= 8);   // 7 standard views + the exploded one
+
     // standard views can be left out: only "Top" remains, and with none left the export is refused
     Pdf3D::Pdf3DOptions onlyTop = options;
     onlyTop.notes.clear();
