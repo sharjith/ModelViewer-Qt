@@ -5,7 +5,7 @@
 Why: the owner's controls (c4block_pmi.par and the extended one) hold dimensions, a note, a balloon, datum targets, regions and a surface
 texture symbol. Feature control frames, datum feature symbols, weld symbols, leaders, text boxes and named PMI model views have no sample,
 and the values they take are many; this script fills them in with plausible ones so the importer can be studied on authentic Solid Edge
-output. The input is never modified. Outputs (`<stem>_more.par/.jt`, and `<stem>_views.par/.jt` with named PMI model views) go to --folder, which must be under the ignored
+output. The input is never modified. Outputs (`<stem>_<tag>.par/.jt`, and `<stem>_<tag>_views.par/.jt` with named PMI model views) go to --folder, which must be under the ignored
 out/ folder. Solid Edge must not be running (the script refuses, and quits the instance it starts; it never touches an instance it did
 not start).
 
@@ -26,11 +26,20 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 
-# Frame text of the feature control frames. The format Solid Edge expects was not found; it renders the typed characters (the exported
-# stroke count follows the text) and does not fill the exported ToleranceCompartment property, so these are plain symbols.
-FCF_PERPENDICULARITY = "⟂|0.1|A"
-FCF_FLATNESS = "⏥|0.05"
-FCF_POSITION = "⌖|Ø0.2|A|B"
+# Frame text of a feature control frame: `%XX` codes for the symbols and `%VB` for the compartment divider (what the Feature Control
+# Frame Properties dialog stores when a symbol button or the Divider button is used; found by reading back a frame made by hand and by
+# scanning all 676 two-letter codes and looking at the exported strokes, see research/jt/JT_PMI_STUDY.md). Typed characters are drawn
+# literally in one box.
+FCF_PERPENDICULARITY = "%PP%VB0.1%VBA"
+FCF_FLATNESS = "%FL%VB0.05"
+FCF_POSITION = "%PO%VB%DI%VB0.2%VBA%VBB%VB%MC"
+# Geometric characteristic symbols, material conditions and tolerance zones, each on its own frame (name, text).
+FCF_SYMBOLS = (("straightness", "%SR%VB0.05"), ("circularity", "%CI%VB0.05"), ("cylindricity", "%CY%VB0.05"),
+               ("angularity", "%AN%VB0.1%VBA"), ("parallelism", "%PR%VB0.1%VBA"), ("profile of a surface", "%PS%VB0.1%VBA%VBB"),
+               ("profile of a line", "%PL%VB0.1"), ("circular runout", "%CR%VB0.1%VBA"), ("total runout", "%TR%VB0.1%VBA"),
+               ("concentricity", "%CO%VB%DI0.1%VBA"), ("symmetry", "%SY%VB0.1%VBA"),
+               ("least material", "%PO%VB%DI%VB0.2%LC%VBA%LC"), ("regardless of feature size", "%PO%VB%DI%VB0.2%SC%VBA%SC"),
+               ("projected zone", "%PP%VB0.1%PZ%VBA"), ("statistical tolerance", "%PP%VB0.1%ST%VBA"))
 
 
 def edge_running():
@@ -62,6 +71,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--input", required=True, type=Path, help="the .par to start from (not modified)")
     parser.add_argument("--folder", required=True, type=Path, help="output folder under out/")
+    parser.add_argument("--tag", default="more", help="output name suffix (default more): <stem>_<tag>.par/.jt and <stem>_<tag>_views.par/.jt")
     args = parser.parse_args()
     folder = args.folder.resolve()
     if not folder.is_relative_to(REPO / "out"):
@@ -69,9 +79,9 @@ def main():
     folder.mkdir(parents=True, exist_ok=True)
     if edge_running():
         raise SystemExit("Solid Edge (Edge.exe) is running: close it first; this script does not touch a running instance")
-    out_par = folder / (args.input.stem + "_more.par")
+    out_par = folder / (args.input.stem + "_" + args.tag + ".par")
     out_jt = out_par.with_suffix(".jt")
-    out_views_par = folder / (args.input.stem + "_views.par")
+    out_views_par = folder / (args.input.stem + "_" + args.tag + "_views.par")
     out_views_jt = out_views_par.with_suffix(".jt")
     shutil.copyfile(args.input, out_par)
 
@@ -117,10 +127,13 @@ def main():
             if symbol is not None:
                 step("  label " + label, lambda: setattr(symbol, "Datum", label))
 
-        # Feature control frames
-        for name, text, face, point in (("perpendicularity", FCF_PERPENDICULARITY, f_side, (c_side[0], c_side[1] + 0.02, c_side[2] + 0.02)),
-                                        ("flatness", FCF_FLATNESS, f_bottom, (c_bottom[0] + 0.02, c_bottom[1], c_bottom[2])),
-                                        ("position", FCF_POSITION, f_side, (c_side[0], c_side[1] - 0.02, c_side[2] - 0.02))):
+        # Feature control frames: the three of the first version, then one per remaining symbol on a grid on the side face (x = 0)
+        frames = [("perpendicularity", FCF_PERPENDICULARITY, f_side, (c_side[0], c_side[1] + 0.02, c_side[2] + 0.02)),
+                  ("flatness", FCF_FLATNESS, f_bottom, (c_bottom[0] + 0.02, c_bottom[1], c_bottom[2])),
+                  ("position", FCF_POSITION, f_side, (c_side[0], c_side[1] - 0.02, c_side[2] - 0.02))]
+        for k, (name, text) in enumerate(FCF_SYMBOLS):
+            frames.append((name, text, f_side, (c_side[0], -0.04 + 0.025 * (k % 4), 0.012 + 0.012 * (k // 4))))
+        for name, text, face, point in frames:
             frame = step("feature control frame " + name, lambda: add(pmi.FeatureControlFrames, "AddFeatureControlFrame", face, point))
             if frame is not None:
                 step("  text " + name, lambda: setattr(frame, "PrimaryFrame", text))
@@ -136,6 +149,9 @@ def main():
             weld = step("weld symbol " + name, lambda: add(pmi.WeldSymbols, "AddWeldSymbol", edge, ec))
             if weld is None:
                 continue
+            # The weld symbols are in the PMI collection and in the exported JT, but Solid Edge itself did not draw them in the first
+            # version; HidePMI is the one visibility switch the object has.
+            step("  show PMI", lambda: setattr(weld, "HidePMI", False))
             if top_type is not None:
                 step("  top type", lambda: setattr(weld, "TopType", top_type))
                 step("  top note", lambda: setattr(weld, "TopNote1", top_note))

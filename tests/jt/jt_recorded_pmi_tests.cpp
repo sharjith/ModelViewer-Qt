@@ -212,6 +212,22 @@ void recordedPmiTests(){
    bad=json;bad.insert(QStringLiteral("vertices"),packArray(std::vector<float>{1,2}));check(!drawingFromJson(bad),"Vertices that are not triples are refused");
    bad=json;bad.insert(QStringLiteral("vertices"),QStringLiteral("AAA"));check(!drawingFromJson(bad),"A truncated array is refused");
    bad=json;bad.remove(QStringLiteral("vertices"));check(!drawingFromJson(bad),"A drawing without vertices is refused"); }
+ { // Circles drawn as one line (circularity, concentricity) stay outlines; letter outlines are filled.
+   using Glyph::P2;
+   const auto polygon=[](double cu,double cv,double ru,double rv,int n){std::vector<P2> loop;for(int i=0;i<n;++i){const double a=6.283185307179586*i/n;loop.push_back({cu+ru*std::cos(a),cv+rv*std::sin(a)});}return loop;};
+   const auto rectangle=[](double u0,double v0,double u1,double v1){return std::vector<P2>{{u0,v0},{u1,v0},{u1,v1},{u0,v1}};};
+   std::vector<std::array<P2,3>> out;
+   Glyph::fillLoops({polygon(0,0,1,1,24)},1e-6,out);
+   check(out.empty(),"A single-line circle is not filled");
+   out.clear();Glyph::fillLoops({polygon(0,0,1,1,24),polygon(0,0,0.6,0.6,24)},1e-6,out);
+   check(out.empty(),"Two concentric single-line circles are not filled");
+   out.clear();Glyph::fillLoops({polygon(0,0,0.8,1,24),polygon(0,0,0.4,0.6,24)},1e-6,out);
+   check(!out.empty(),"An 'O' (oval outline with an oval hole) is filled");
+   out.clear();Glyph::fillLoops({rectangle(0,0,0.25,1)},1e-6,out);
+   check(!out.empty(),"A narrow stem ('I') is filled");
+   out.clear();Glyph::fillLoops({polygon(0,0,1,1,24),polygon(4,0.9,0.05,0.05,12)},1e-6,out);
+   check(!out.empty(),"A small dot next to a circle is still filled");
+ }
  { // Import-time consistency check: quiet for snapping noise, loud only for a gross deviation.
    SanityReport close=checkAgainstMesh({1.0,1.02,0.97,1.04});
    check(close.compared==4&&close.off==0&&close.notes.isEmpty()&&close.warning.isEmpty(),"Values close to the mesh say nothing");

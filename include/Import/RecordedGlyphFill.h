@@ -245,14 +245,56 @@ inline void triangulate(std::vector<P2> outer, std::vector<std::vector<P2>> hole
 	clipEars(std::move(poly), tol, out);
 }
 
+struct Box
+{
+	double u0 = 1e300, u1 = -1e300, v0 = 1e300, v1 = -1e300;
+	double width() const { return u1 - u0; }
+	double height() const { return v1 - v0; }
+};
+
+inline Box boxOf(const std::vector<P2>& loop)
+{
+	Box b;
+	for (const P2& p : loop)
+	{
+		b.u0 = std::min(b.u0, p.u);
+		b.u1 = std::max(b.u1, p.u);
+		b.v0 = std::min(b.v0, p.v);
+		b.v1 = std::max(b.v1, p.v);
+	}
+	return b;
+}
+
+// A circle drawn as one line: the circularity and concentricity symbols of a feature control frame come from a symbol font whose circles
+// are single lines, not outlines, so the loop must stay an outline (filling it gives a solid disc). A letter's closed outline is not a
+// circle: its bounding box is not square, or its area is not that of the inscribed ellipse, or it is a dot far smaller than the text.
+inline bool isLineCircle(const std::vector<P2>& loop, double area, double biggest)
+{
+	const Box b = boxOf(loop);
+	const double w = b.width(), h = b.height();
+	if (w <= 0 || h <= 0)
+		return false;
+	const double aspect = w / h;
+	if (aspect < 0.9 || aspect > 1.1 || std::min(w, h) < 0.35 * biggest)
+		return false;
+	const double fillRatio = area / (w * h);
+	return fillRatio > 0.7 && fillRatio < 0.85;
+}
+
 // Fills closed loops by even-odd containment: a loop wholly inside an odd number of others is a hole of the smallest loop around
-// it, and loops that merely overlap are separate shapes. Triangles are appended to `out`.
+// it, and loops that merely overlap are separate shapes. Triangles are appended to `out`. A loop that is a circle drawn as one line,
+// alone or as a ring of two concentric ones, is not filled (see isLineCircle).
 inline void fillLoops(const std::vector<std::vector<P2>>& loops, double tol, std::vector<std::array<P2, 3>>& out)
 {
 	const size_t n = loops.size();
 	std::vector<double> area(n);
+	double biggest = 0;
 	for (size_t i = 0; i < n; ++i)
+	{
 		area[i] = std::abs(Glyph::signedArea(loops[i]));
+		const Box b = boxOf(loops[i]);
+		biggest = std::max(biggest, std::max(b.width(), b.height()));
+	}
 	std::vector<int> depth(n, 0), parent(n, -1);
 	for (size_t i = 0; i < n; ++i)
 		for (size_t j = 0; j < n; ++j)
@@ -268,9 +310,23 @@ inline void fillLoops(const std::vector<std::vector<P2>>& loops, double tol, std
 		if (depth[i] % 2 != 0)
 			continue;
 		std::vector<std::vector<P2>> holes;
+		std::vector<size_t> holeIndex;
 		for (size_t j = 0; j < n; ++j)
 			if (depth[j] % 2 != 0 && parent[j] == int(i))
+			{
 				holes.push_back(loops[j]);
+				holeIndex.push_back(j);
+			}
+		bool lineCircle = false;
+		if (holeIndex.empty())
+			lineCircle = isLineCircle(loops[i], area[i], biggest);
+		else if (holeIndex.size() == 1 && isLineCircle(loops[i], area[i], biggest) && isLineCircle(loops[holeIndex[0]], area[holeIndex[0]], 0.0))
+		{
+			const Box o = boxOf(loops[i]), h = boxOf(loops[holeIndex[0]]);
+			lineCircle = std::abs((o.u0 + o.u1) - (h.u0 + h.u1)) < 0.1 * o.width() && std::abs((o.v0 + o.v1) - (h.v0 + h.v1)) < 0.1 * o.height();
+		}
+		if (lineCircle)
+			continue; // stays an outline
 		triangulate(loops[i], std::move(holes), tol, out);
 	}
 }
