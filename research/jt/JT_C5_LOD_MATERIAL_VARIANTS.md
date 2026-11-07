@@ -204,3 +204,7 @@ Owner checks after building:
 4. Open A103 and A109: no variant entry, meshes and look unchanged.
 5. Save and reopen the session (MVF) and export a GLB: the variant survives; check the GLB once in an independent glTF viewer.
 6. The import note appears with the counts (including ambiguous nodes).
+
+## 12. Default policy decided (7 November 2026)
+
+Owner decision on the open question of sections 8 and 11: **the default is per-level as authored, as before V1.** The viewer's `LOD Material Variants` setting (`jtLodMaterialVariants`) is therefore **off by default**; each level shows only its own materials and parts merge as they did. The feature stays available as an opt-in (Settings, Import Export, JT Importer): with it on, the explicit material is the default and the loaded level's own material is the variant "As authored in this level", as described in section 5. `MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=1` or `0` overrides the setting. The plain `Jt::Options` default stays on, so the existing scene tests, which build with default options, still exercise the feature; only `Options::fromEnvironment()` (the viewer) changes the default. Not checked: the effect on A95's 408 differing LOD nodes beyond what section 11 recorded; the owner has not yet run the changed default.

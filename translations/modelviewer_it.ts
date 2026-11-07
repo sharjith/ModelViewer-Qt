@@ -17887,13 +17887,13 @@ Continuare?</translation>
         <translation type="vanished">Compatibilità Force Legacy OpenGL Modalità</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2608"/>
-        <location filename="../ui/App/SettingsDialog.ui" line="2660"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2617"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2669"/>
         <source>Debug</source>
         <translation>Debug</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2632"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2641"/>
         <source>Debug Information</source>
         <translation>Informazioni su Debug</translation>
     </message>
@@ -17910,22 +17910,22 @@ Continuare?</translation>
         <translation type="vanished">Mostra Informazioni OpenGL</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2638"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2647"/>
         <source>Enable Debug Logging</source>
         <translation>Abilitare Debug Logging</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2652"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2661"/>
         <source>Log Level:</source>
         <translation>Livello di Registro:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2675"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2684"/>
         <source>Error</source>
         <translation>Errore</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2645"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2654"/>
         <source>Enable Console Output</source>
         <translation>Attivare l&apos;uscita Console</translation>
     </message>
@@ -18214,7 +18214,6 @@ attivo)</translation>
         <translation>Livello di dettaglio:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2459"/>
         <source>Which level of detail a JT file&apos;s LOD alternatives are
   loaded at. Finest is the normal choice. Medium and
   Coarsest read much less geometry from files that
@@ -18225,7 +18224,7 @@ attivo)</translation>
   with a single level are unaffected. Applies to files
   opened afterwards.
   Override: MODELVIEWER_JT_DETAIL_LEVEL.</source>
-        <translation>Livello di dettaglio al quale vengono caricate le alternative LOD di
+        <translation type="vanished">Livello di dettaglio al quale vengono caricate le alternative LOD di
   un file JT. Più fine è la scelta normale. Medio e Più grossolano
   leggono molta meno geometria dai file che memorizzano più livelli,
   quindi gli assiemi grandi si caricano più in fretta e usano meno
@@ -18235,12 +18234,11 @@ attivo)</translation>
   Sostituzione: MODELVIEWER_JT_DETAIL_LEVEL.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2500"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2509"/>
         <source>LOD Material Variants</source>
         <translation>Varianti di materiale LOD</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2490"/>
         <source>Some JT files give a shape its own material in one
   LOD alternative and let it inherit one in another.
   On: the explicit material is the default and the loaded
@@ -18249,7 +18247,7 @@ attivo)</translation>
   merge into one mesh. Off: each level shows only its own
   materials. Applies to files opened afterwards.
   Override: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=0.</source>
-        <translation>Alcuni file JT assegnano a una forma un materiale proprio in
+        <translation type="vanished">Alcuni file JT assegnano a una forma un materiale proprio in
   un&apos;alternativa LOD e le fanno ereditare un materiale in un&apos;altra.
   Attivo: il materiale esplicito è quello predefinito e il materiale proprio
   del livello caricato è la variante &quot;As authored in this level&quot; nel
@@ -18259,22 +18257,22 @@ attivo)</translation>
   Sostituzione: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=0.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2472"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2476"/>
         <source>Finest</source>
         <translation>Più fine</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2477"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2481"/>
         <source>Medium</source>
         <translation>Medio</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2482"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2486"/>
         <source>Coarsest</source>
         <translation>Più grossolano</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2718"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2727"/>
         <source>Logs [RenderDiagnostics] frame timings and
 [BatchDiagnostics] draw-batching statistics to the
 log (enable Debug Logging and set the level to Info
@@ -18294,7 +18292,7 @@ un secondo, senza riavvio.</translation>
         <translation type="vanished">Diagnostica di prestazioni e importazione</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2757"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2766"/>
         <source>Import Diagnostics</source>
         <translation>Diagnostica di importazione</translation>
     </message>
@@ -18304,7 +18302,7 @@ un secondo, senza riavvio.</translation>
         <translation>Prestazioni con modelli grandi</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2763"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2772"/>
         <source>Writes a timing and memory checkpoint trace while
 a model is imported (for diagnosing slow or failing
 imports of very large assemblies). Environment variable
@@ -18316,17 +18314,17 @@ assiemi molto grandi). Anche la variabile d&apos;ambiente
 MODELVIEWER_IMPORT_DIAGNOSTICS=1 la attiva.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2769"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2778"/>
         <source>Import Diagnostics Trace</source>
         <translation>Traccia diagnostica di importazione</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2776"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2785"/>
         <source>Trace File Limit:</source>
         <translation>Limite del file di traccia:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2783"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2792"/>
         <source>Size at which the import trace file is truncated and
 restarted. Raise it for 30000-part imports.
 Applies after restarting the application.
@@ -18338,7 +18336,7 @@ Sostituzione: MODELVIEWER_IMPORT_DIAGNOSTICS_MAX_MB.</translation>
     </message>
     <message>
         <location filename="../ui/App/SettingsDialog.ui" line="1794"/>
-        <location filename="../ui/App/SettingsDialog.ui" line="2789"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2798"/>
         <source> MB</source>
         <translation> MB</translation>
     </message>
@@ -18622,7 +18620,7 @@ di questa app</translation>
     </message>
     <message>
         <location filename="../ui/App/SettingsDialog.ui" line="2369"/>
-        <location filename="../ui/App/SettingsDialog.ui" line="2533"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2542"/>
         <source>Decode Threads:</source>
         <translation>Thread di decodifica:</translation>
     </message>
@@ -18639,7 +18637,7 @@ di questa app</translation>
     </message>
     <message>
         <location filename="../ui/App/SettingsDialog.ui" line="2382"/>
-        <location filename="../ui/App/SettingsDialog.ui" line="2546"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2555"/>
         <source>Automatic</source>
         <translation>Automatico</translation>
     </message>
@@ -18679,12 +18677,66 @@ di questa app</translation>
   Sostituzione: MODELVIEWER_JT_PREFETCH_MIN.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2513"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2459"/>
+        <source>Which level of detail a JT file&apos;s LOD alternatives are
+  loaded at. Finest is the normal choice. Medium and
+  Coarsest read much less geometry from files that
+  store several levels, so large assemblies load faster
+  and use less memory, but measurements, section caps
+  and exports then use the coarser geometry, and a saved
+  session belongs to the level it was made at. Files
+  with a single level are unaffected. Applies to files
+  opened afterwards. Automatic chooses from the size of
+  the model: Finest up to about 8 million polygons in the
+  finest levels, Medium up to about 25 million, Coarsest
+  above; a model that does not state its polygon counts
+  is loaded at Finest.
+  Override: MODELVIEWER_JT_DETAIL_LEVEL.</source>
+        <translation>Livello di dettaglio al quale vengono caricate le alternative LOD di
+  un file JT. Più fine è la scelta normale. Medio e Più grossolano
+  leggono molta meno geometria dai file che memorizzano più livelli,
+  quindi gli assiemi grandi si caricano più in fretta e usano meno
+  memoria, ma misure, tappi di sezione ed esportazioni usano allora
+  la geometria più grossolana, e una sessione salvata appartiene al
+  livello con cui è stata creata. I file con un solo livello non sono
+  interessati. Si applica ai file aperti dopo. Automatico sceglie in
+  base alla dimensione del modello: Più fine fino a circa 8 milioni di
+  poligoni nei livelli più fini, Medio fino a circa 25 milioni, Più
+  grossolano oltre; un modello che non indica il numero di poligoni
+  viene caricato al livello più fine.
+  Sostituzione: MODELVIEWER_JT_DETAIL_LEVEL.</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2491"/>
+        <source>Automatic (by model size)</source>
+        <translation>Automatico (in base alla dimensione del modello)</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2499"/>
+        <source>Some JT files give a shape its own material in one
+  LOD alternative and let it inherit one in another.
+  On: the explicit material is the default and the loaded
+  level&apos;s own material is the variant &quot;As authored in this
+  level&quot; in the Variants panel. Parts that differ no longer
+  merge into one mesh. Off: each level shows only its own
+  materials. Applies to files opened afterwards.
+  Override: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=1 or 0.</source>
+        <translation>Alcuni file JT assegnano a una forma un materiale proprio in
+  un&apos;alternativa LOD e le fanno ereditare un materiale in un&apos;altra.
+  Attivo: il materiale esplicito è quello predefinito e il materiale proprio
+  del livello caricato è la variante &quot;As authored in this level&quot; nel
+  pannello Varianti. Le parti che differiscono non vengono più unite in una
+  sola mesh. Disattivo: ogni livello mostra solo i propri materiali.
+  Si applica ai file aperti dopo.
+  Sostituzione: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=1 o 0.</translation>
+    </message>
+    <message>
+        <location filename="../ui/App/SettingsDialog.ui" line="2522"/>
         <source>3DXML Importer</source>
         <translation>Importatore 3DXML</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2519"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2528"/>
         <source>Off: an unreadable representation is skipped with a
   warning and the rest of the assembly loads. On: any
   unreadable representation fails the whole import.
@@ -18697,12 +18749,12 @@ di questa app</translation>
   MODELVIEWER_3DXML_STRICT=1 lo attiva.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2526"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2535"/>
         <source>Strict (fail on unreadable representation)</source>
         <translation>Rigoroso (fallire su una rappresentazione illeggibile)</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2540"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2549"/>
         <source>Threads that read 3DXML representations in parallel.
   Automatic uses all cores but one; 1 turns parallel
   reading off.
@@ -18713,12 +18765,12 @@ di questa app</translation>
   Sostituzione: MODELVIEWER_3DXML_THREADS.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2562"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2571"/>
         <source>Parallel Minimum:</source>
         <translation>Minimo per la lettura parallela:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2569"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2578"/>
         <source>Parallel reading is used only when the file has at least
   this many representations.
   Override: MODELVIEWER_3DXML_PARALLEL_MIN.</source>
@@ -18727,17 +18779,17 @@ di questa app</translation>
   Sostituzione: MODELVIEWER_3DXML_PARALLEL_MIN.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2670"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2679"/>
         <source>Warning</source>
         <translation>Avvertenza</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2683"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2692"/>
         <source>Console Buffer Lines:</source>
         <translation>Righe buffer console:</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2690"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2699"/>
         <source>Maximum number of lines kept in the console window&apos;s scrollback</source>
         <translation>Numero massimo di righe mantenute nello scrollback della finestra console</translation>
     </message>
@@ -18746,14 +18798,14 @@ di questa app</translation>
         <translation type="vanished">Registra i tempi di rendering per frame per la profilazione delle prestazioni</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2733"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2742"/>
         <source>Adds a Texture Debugger entry to the Tools menu.
 The panel shows GPU-side texture bindings for the selected mesh.</source>
         <translation>Aggiunge una voce Debugger texture al menu Strumenti.
 Il pannello mostra i binding delle texture lato GPU per la mesh selezionata.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2665"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2674"/>
         <source>Info</source>
         <translation>Info</translation>
     </message>
@@ -18762,7 +18814,7 @@ Il pannello mostra i binding delle texture lato GPU per la mesh selezionata.</tr
         <translation type="vanished">Verbose</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2712"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2721"/>
         <source>Diagnostics</source>
         <translation>Diagnostica</translation>
     </message>
@@ -18775,7 +18827,7 @@ Il pannello mostra i binding delle texture lato GPU per la mesh selezionata.</tr
         <translation type="vanished">Convalida Shaders</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2726"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2735"/>
         <source>Profile Rendering</source>
         <translation>Rendering del Profilo</translation>
     </message>
@@ -18784,17 +18836,17 @@ Il pannello mostra i binding delle texture lato GPU per la mesh selezionata.</tr
         <translation type="vanished">Aggiunge una voce Debugger delle texture al menu Strumenti. Il pannello mostra i binding delle texture lato GPU per la mesh selezionata.</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2737"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2746"/>
         <source>Enable Texture Debugger in Tools menu</source>
         <translation>Attiva il Debugger delle texture nel menu Strumenti</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2744"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2753"/>
         <source>Free GPU texture memory cached across all open documents</source>
         <translation>Libera la memoria texture GPU memorizzata nella cache su tutti i documenti aperti</translation>
     </message>
     <message>
-        <location filename="../ui/App/SettingsDialog.ui" line="2747"/>
+        <location filename="../ui/App/SettingsDialog.ui" line="2756"/>
         <source>Clear All Caches</source>
         <translation>Cancellare Tutte le Cavità</translation>
     </message>

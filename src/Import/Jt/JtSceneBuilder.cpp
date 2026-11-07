@@ -555,6 +555,8 @@ private:
 struct Builder {
     const Options& options; QString rootDirectory;
     ImportResult result;
+    // Automatic detail level: scout() adds up the polygon counts the shape nodes advertise (see Detail::buildScene).
+    bool estimating=false;unsigned long long estimatedPolygons=0;unsigned estimatedWithoutCounts=0;
     std::vector<std::unique_ptr<aiMesh>> meshes;
     // Canonical decoded geometry is independent of material/flat-normal variants.
     std::vector<std::unique_ptr<aiMesh>> geometries;
@@ -1605,6 +1607,7 @@ struct Builder {
         options.check();
         const auto shape=Handle(JtNode_Shape_Base)::DownCast(object);
         if(!shape.IsNull()) {
+            if(estimating) {if(shape->HasCountRanges())estimatedPolygons+=(unsigned long long)std::max(0,shape->PolyRangeMax());else ++estimatedWithoutCounts;}
             for(size_t i=0;i<shape->LateLoads().Count();++i) {
                 const auto prop=shape->LateLoads()[i];
                 if(prop->SegmentType()<6||prop->SegmentType()>16)continue;
@@ -2297,7 +2300,8 @@ struct PartMerger {
     }
 };
 }
-ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QString& path,const Options& options) {
+ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QString& path,const Options& callerOptions) {
+    Options options=callerOptions; // local: the Automatic detail level is resolved into it below
     std::unique_ptr<JtData_Limits::Scope> scope;
     if(!JtData_Limits::check) scope=std::make_unique<JtData_Limits::Scope>([&]{options.check();},options.decodedAllocationBudget);
     options.check();const QFileInfo info(path);
@@ -2308,6 +2312,19 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
     const auto stamp=[]{return std::chrono::steady_clock::now();};
     const auto since=[&](std::chrono::steady_clock::time_point t){return std::chrono::duration<double,std::milli>(stamp()-t).count();};
     auto phase=stamp();
+    // Automatic detail level: add up the polygon counts the shape nodes advertise for the finest alternatives (one scout pass; it opens
+    // the part files, which the build then reuses) and take the level from the total. The limits are untuned guesses; a model whose
+    // shapes advertise no counts is treated as small. The resolved level replaces Automatic for everything below.
+    constexpr unsigned long long kAutoFinestMaxPolygons=8000000ull,kAutoMediumMaxPolygons=25000000ull;
+    const bool automaticLevel=options.detailLevel==Options::DetailLevel::Automatic;
+    if(automaticLevel) {
+        options.detailLevel=Options::DetailLevel::Finest;
+        b.estimating=true;
+        {std::unordered_set<const void*> seen;std::vector<Handle(JtProperty_LateLoaded)> ignored;b.scout(root,seen,ignored);}
+        b.estimating=false;
+        options.detailLevel=b.estimatedPolygons<=kAutoFinestMaxPolygons ? Options::DetailLevel::Finest
+            : b.estimatedPolygons<=kAutoMediumMaxPolygons ? Options::DetailLevel::Medium : Options::DetailLevel::Coarsest;
+    }
     {
         // Decode shape payloads on a few threads ahead of the build. Small inputs are not worth the threads.
         const unsigned cores=std::max(1u,std::thread::hardware_concurrency());
@@ -2369,6 +2386,10 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         .arg(qint64(scoutMs)).arg(qint64(visitMs)).arg(qint64(b.decodeMs)).arg(qint64(b.convertMs)).arg(qint64(mergeMs)).arg(qint64(nameMs)).arg(qint64(b.copyMs)).arg(qint64(b.addMs)).arg(qint64(b.metaMs)).arg(qint64(b.sourceCtxMs)));
     b.result.notes.append(QStringLiteral("JT read timing: %1 part files opened in %2 ms, %3 shape payloads decoded in %4 ms, converted to meshes in %5 ms; %6 payloads were queued for parallel decoding (decode time is the build's wait for them).")
         .arg(b.filesOpened).arg(qint64(b.openMs)).arg(b.shapesDecoded).arg(qint64(b.decodeMs)).arg(qint64(b.convertMs)).arg(b.prefetched));
+    if(automaticLevel)
+        b.result.notes.append(QStringLiteral("JT detail level automatic: the finest alternatives advertise %1 polygons (%2 shapes advertise no count and are not included); chosen level: %3.")
+            .arg(b.estimatedPolygons).arg(b.estimatedWithoutCounts)
+            .arg(options.detailLevel==Options::DetailLevel::Finest ? QStringLiteral("finest") : options.detailLevel==Options::DetailLevel::Medium ? QStringLiteral("medium") : QStringLiteral("coarsest")));
     if(options.detailLevel!=Options::DetailLevel::Finest)
         b.result.notes.append(QStringLiteral("JT detail level %1: %2 of %3 LOD nodes loaded a coarser alternative than the first; %4 offered no distinct levels and kept the established choice. "
             "Measurements and recorded PMI of this session belong to this level.")

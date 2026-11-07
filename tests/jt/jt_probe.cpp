@@ -65,7 +65,8 @@ int main(int argc,char** argv) {
             if(level=="finest")options.detailLevel=Jt::Options::DetailLevel::Finest;
             else if(level=="medium")options.detailLevel=Jt::Options::DetailLevel::Medium;
             else if(level=="coarsest")options.detailLevel=Jt::Options::DetailLevel::Coarsest;
-            else throw std::runtime_error("--detail-level requires finest, medium or coarsest");
+            else if(level=="automatic"||level=="auto")options.detailLevel=Jt::Options::DetailLevel::Automatic;
+            else throw std::runtime_error("--detail-level requires finest, medium, coarsest or automatic");
         }
         size_t charged=0;options.progress=[&](const QString&,int,int){charged=JtData_Limits::allocated;};
         if(parser.isSet(eye)) {

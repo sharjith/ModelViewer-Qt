@@ -643,7 +643,7 @@ void SettingsDialog::setDefaultValues()
     ui->jtBudgetGibSpinBox->setValue(16);
     ui->jtPrefetchMinSpinBox->setValue(16);
     ui->jtDetailLevelComboBox->setCurrentIndex(0);
-    ui->jtLodMaterialVariantsCheckBox->setChecked(true);
+    ui->jtLodMaterialVariantsCheckBox->setChecked(false);
     ui->threeDxmlStrictCheckBox->setChecked(false);
     ui->threeDxmlThreadsSpinBox->setValue(0);
     ui->threeDxmlParallelMinSpinBox->setValue(8);
@@ -1033,8 +1033,8 @@ void SettingsDialog::loadSettings()
     ui->jtDecodeThreadsSpinBox->setValue(settings.value("jtDecodeThreads", 0).toInt());
     ui->jtBudgetGibSpinBox->setValue(settings.value("jtBudgetGiB", 16).toInt());
     ui->jtPrefetchMinSpinBox->setValue(settings.value("jtPrefetchMin", 16).toInt());
-    ui->jtDetailLevelComboBox->setCurrentIndex(qBound(0, settings.value("jtDetailLevel", 0).toInt(), 2));
-    ui->jtLodMaterialVariantsCheckBox->setChecked(settings.value("jtLodMaterialVariants", true).toBool());
+    ui->jtDetailLevelComboBox->setCurrentIndex(qBound(0, settings.value("jtDetailLevel", 0).toInt(), 3));
+    ui->jtLodMaterialVariantsCheckBox->setChecked(settings.value("jtLodMaterialVariants", false).toBool());
     ui->threeDxmlStrictCheckBox->setChecked(settings.value("threeDxmlStrict", false).toBool());
     ui->threeDxmlThreadsSpinBox->setValue(settings.value("threeDxmlThreads", 0).toInt());
     ui->threeDxmlParallelMinSpinBox->setValue(settings.value("threeDxmlParallelMin", 8).toInt());

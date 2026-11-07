@@ -41,6 +41,7 @@ template<class T> struct Node:T {
     void target(const Object& object) {this->myObject=object;}
     void emptyCounts(int vertices=0) {this->myHasCountRanges=true;this->myVertexRange[0]=this->myVertexRange[1]=vertices;this->myPolyRange[0]=this->myPolyRange[1]=0;}
     void hidden() {this->myIgnored=true;}
+    void polygons(int count) {this->myHasCountRanges=true;this->myPolyRange[0]=this->myPolyRange[1]=count;}
     void select(unsigned index) {this->mySelectedChild=index;}
     void ranges(std::initializer_list<float> values) {this->myVecR.Allocate(values.size());size_t i=0;for(float v:values)this->myVecR[i++]=v;this->myCenter={0,0,0};}
     void center(float x,float y,float z) {this->myCenter={x,y,z};}
@@ -420,6 +421,12 @@ void selectionTests() {
         reset(6,6,6);check(choice(Level::Coarsest)=="fine","Generic-type alternatives must keep the established choice");
         reset(7,7,7);check(choice(Level::Medium)=="fine","A single level must keep the established choice");
         reset(7,8,12);check(choice(Level::Coarsest)=="coarse","Level numbers above 9 are coarser still");
+        // Automatic: the level comes from the polygon count the finest alternative advertises (8 and 25 million are the limits).
+        levelRange->children({fine,mid,coarse});
+        reset(7,8,9);check(choice(Level::Automatic)=="fine","Automatic without advertised counts must load the finest level");
+        fine->polygons(1000);reset(7,8,9);check(choice(Level::Automatic)=="fine","Automatic: a small model must load the finest level");
+        fine->polygons(10000000);reset(7,8,9);check(choice(Level::Automatic,&index)=="mid" && index==1,"Automatic: a large model must load the medium level");
+        fine->polygons(30000000);reset(7,8,9);check(choice(Level::Automatic,&index)=="coarse" && index==2,"Automatic: a very large model must load the coarsest level");
     }
 }
 // LOD material variants: a shape that only inherits a material in the loaded alternative takes the explicit material of the same
