@@ -304,6 +304,10 @@ void testCameraViews()
     const QByteArray pv = Pdf3D::makeCameraView(persp, QVector3D(0, 0, 0), 5.0f);
     CHECK(pv.contains("/XN (Saved)") && pv.contains("/Subtype /P") && pv.contains("/FOV 45") && !pv.contains("/NA"));
     CHECK(pv.contains("/SA []"));   // a view without a section clears the previous view's section
+    CHECK(pv.contains("/RM << /Type /3DRenderMode /Subtype /Solid >>"));
+    Pdf3D::CameraViewSpec wire = persp;
+    wire.renderMode = "Wireframe";
+    CHECK(Pdf3D::makeCameraView(wire, QVector3D(0, 0, 0), 5.0f).contains("/RM << /Type /3DRenderMode /Subtype /Wireframe >>"));
     // the orbit centre is the scene centre projected on the view axis: 10 units ahead of the eye
     const QRegularExpressionMatch co = QRegularExpression(QStringLiteral("/CO ([0-9.]+)")).match(QString::fromLatin1(pv));
     CHECK(co.hasMatch() && nearly(co.captured(1).toDouble(), 10.0, 1.0e-3));

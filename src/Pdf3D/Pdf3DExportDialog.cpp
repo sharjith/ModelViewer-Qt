@@ -15,7 +15,8 @@
 
 namespace
 {
-	constexpr int kViewIndexRole = Qt::UserRole;   // the index into the caller's ViewItem list, on the leaf items
+	constexpr int kViewIndexRole = Qt::UserRole;       // the index into the caller's ViewItem list, on the leaf items
+	constexpr int kViewKeyRole = Qt::UserRole + 1;     // "group|name" of a view, to remember its tick state
 }
 
 Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
@@ -38,6 +39,11 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	ui->partsListCheck->setChecked(settings.value(QStringLiteral("pdf3d/partsList"), true).toBool());
 	ui->titleEdit->selectAll();
 
+	// Views the user unticked earlier (and views they switched the measurements off for) stay unticked: remembered by group and name,
+	// across documents. Everything else starts ticked.
+	const QStringList uncheckedViews = settings.value(QStringLiteral("pdf3d/viewsUnchecked")).toStringList();
+	const QStringList noOverlayViews = settings.value(QStringLiteral("pdf3d/viewsWithoutMeasurements")).toStringList();
+
 	// the views, grouped in the order the groups first appear
 	QTreeWidgetItem* group = nullptr;
 	QString groupName;
@@ -56,9 +62,11 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 		}
 		auto* item = new QTreeWidgetItem(group, QStringList{view.name, view.note});
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-		item->setCheckState(0, Qt::Checked);
+		const QString key = view.group + QLatin1Char('|') + view.name;
+		item->setData(0, kViewKeyRole, key);
+		item->setCheckState(0, uncheckedViews.contains(key) ? Qt::Unchecked : Qt::Checked);
 		item->setData(0, kViewIndexRole, i);
-		item->setCheckState(2, view.overlays ? Qt::Checked : Qt::Unchecked);   // show the measurements and annotations in this view
+		item->setCheckState(2, (view.overlays && !noOverlayViews.contains(key)) ? Qt::Checked : Qt::Unchecked);   // show the measurements and annotations in this view
 		if (!view.note.isEmpty())
 		{
 			item->setToolTip(1, view.note);
@@ -240,6 +248,23 @@ void Pdf3DExportDialog::done(int result)
 		settings.setValue(QStringLiteral("pdf3d/company"), ui->companyEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/scale"), ui->scaleEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/partsList"), ui->partsListCheck->isChecked());
+		// the view selection: forget what this list showed, then remember what is unticked in it (views of other documents stay)
+		QStringList unchecked = settings.value(QStringLiteral("pdf3d/viewsUnchecked")).toStringList();
+		QStringList noOverlays = settings.value(QStringLiteral("pdf3d/viewsWithoutMeasurements")).toStringList();
+		for (QTreeWidgetItemIterator it(ui->viewsTree); *it; ++it)
+		{
+			if (!(*it)->data(0, kViewIndexRole).isValid())
+				continue;
+			const QString key = (*it)->data(0, kViewKeyRole).toString();
+			unchecked.removeAll(key);
+			noOverlays.removeAll(key);
+			if ((*it)->checkState(0) != Qt::Checked)
+				unchecked.append(key);
+			if ((*it)->checkState(2) != Qt::Checked)
+				noOverlays.append(key);
+		}
+		settings.setValue(QStringLiteral("pdf3d/viewsUnchecked"), unchecked);
+		settings.setValue(QStringLiteral("pdf3d/viewsWithoutMeasurements"), noOverlays);
 		settings.setValue(QStringLiteral("pdf3d/animationPlayback"), ui->playbackCombo->currentIndex());
 		settings.setValue(QStringLiteral("pdf3d/animationAutoStart"), ui->autoStartCheck->isChecked());
 	}

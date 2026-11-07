@@ -6088,6 +6088,12 @@ void ModelViewer::exportAs3DPdf()
 		entry.spec = spec;
 		if (!spec.sections.isEmpty())
 			entry.item.note = tr("with section");
+		if (spec.renderMode != "Solid")
+		{
+			const QString mode = spec.renderMode == "HiddenWireframe" ? tr("hollow mesh") : spec.renderMode == "SolidWireframe" ? tr("shaded with mesh edges")
+				: spec.renderMode == "Wireframe" ? tr("wireframe") : tr("shaded with edges");
+			entry.item.note = entry.item.note.isEmpty() ? mode : entry.item.note + QStringLiteral(", ") + mode;
+		}
 		if (boxClip)
 		{
 			anyBox = true;
@@ -6123,6 +6129,16 @@ void ModelViewer::exportAs3DPdf()
 	{
 		bool box = false;
 		Pdf3D::CameraViewSpec spec = specFromEntry(state.camera, tr("State: %1").arg(state.name), QMatrix4x4(), &box);
+		// the display mode the state was saved with becomes the view's render mode
+		switch (static_cast<DisplayMode>(state.displayMode))
+		{
+		case DisplayMode::HOLLOW_MESH:       spec.renderMode = "HiddenWireframe"; break;   // mesh edges, hidden lines removed
+		case DisplayMode::MESH_EDGES:        spec.renderMode = "SolidWireframe"; break;    // shaded with the mesh edges
+		case DisplayMode::WIREFRAME:         spec.renderMode = "Wireframe"; break;
+		case DisplayMode::SHADED_WITH_EDGES: spec.renderMode = "SolidOutline"; break;     // shaded with outline edges
+		case DisplayMode::SHADED:
+		default:                             spec.renderMode = "Solid"; break;
+		}
 		for (const Pdf3D::U3dNode& node : u3dScene.nodes)
 		{
 			const QUuid uuid = uuidByNodeName.value(node.displayName);

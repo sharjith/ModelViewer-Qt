@@ -52,6 +52,9 @@ struct CameraViewSpec
     QVector<NodeVisibility> nodes;                // empty: the view leaves visibility alone
     QVector<SectionPlane>   sections;             // the cross sections of this view (empty: the view has none)
     bool                    showOverlays = true;  // show the measurement and annotation nodes in this view
+    // The PDF render mode of the view: the /Subtype of its /3DRenderMode ("Solid", "SolidWireframe", "Wireframe", "HiddenWireframe",
+    // "SolidOutline", ...). A scene state brings the display mode it was saved with.
+    QByteArray              renderMode = "Solid";
 };
 
 // The /3DCrossSection dictionary for `plane` in a scene whose bounding box centre is `sceneCenter`. Verified in Acrobat (research doc,

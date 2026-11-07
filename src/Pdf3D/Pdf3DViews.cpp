@@ -49,7 +49,8 @@ constexpr float kOrthoFovDegrees = 2.0f;
 const char* const kPerspective30 = "<< /Type /3DProjection /Subtype /P /PS /Min /FOV 30 >>";
 
 QByteArray buildView(const QString& name, const QVector3D& eye, const QVector3D& target, const QVector3D& up,
-                     const QByteArray& projection, const QByteArray& nodes, const QByteArray& sections = QByteArray())
+                     const QByteArray& projection, const QByteArray& nodes, const QByteArray& sections = QByteArray(),
+                     const QByteArray& renderMode = "Solid")
 {
     const QVector3D forward = (target - eye).normalized();
     QVector3D upN = up.normalized();
@@ -79,7 +80,7 @@ QByteArray buildView(const QString& name, const QVector3D& eye, const QVector3D&
            (nodes.isEmpty() ? QByteArray() : " /NA [" + nodes + "]") +
            " /SA [" + sections + "]" +   // always written: a view without a section must clear the previous view's
            " /BG << /Type /3DBG /Subtype /SC /C [1 1 1] >>"
-           " /RM << /Type /3DRenderMode /Subtype /Solid >>"
+           " /RM << /Type /3DRenderMode /Subtype /" + (renderMode.isEmpty() ? QByteArray("Solid") : renderMode) + " >>"
            " /LS << /Type /3DLightingScheme /Subtype /CAD >> >>";
 }
 
@@ -175,7 +176,7 @@ QByteArray makeCameraView(const CameraViewSpec& spec, const QVector3D& sceneCent
             sections += ' ';
         sections += makeCrossSection(plane, sceneCenter);
     }
-    return buildView(spec.name, eye, target, spec.up, projection, nodes, sections);
+    return buildView(spec.name, eye, target, spec.up, projection, nodes, sections, spec.renderMode);
 }
 
 QList<QByteArray> standardViews(const QVector3D& center, float radius, UpAxis upAxis, const QByteArray& nodeOverrides)
