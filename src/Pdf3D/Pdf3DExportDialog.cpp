@@ -3,20 +3,48 @@
 
 #include "Pdf3DExporter.h"
 
+#include <QComboBox>
+#include <QDate>
+#include <QDateEdit>
+#include <QDesktopServices>
 #include <QDialogButtonBox>
+#include <QDir>
+#include <QFont>
+#include <QFileDialog>
+#include <QFormLayout>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
-#include <QFont>
+#include <QMessageBox>
 #include <QPalette>
+#include <QPlainTextEdit>
 #include <QPushButton>
 #include <QSettings>
+#include <QSignalBlocker>
 #include <QTreeWidgetItem>
 #include <QTreeWidgetItemIterator>
+#include <QUrl>
 
 namespace
 {
 	constexpr int kViewIndexRole = Qt::UserRole;       // the index into the caller's ViewItem list, on the leaf items
 	constexpr int kViewKeyRole = Qt::UserRole + 1;     // "group|name" of a view, to remember its tick state
+	constexpr int kFixedFormRows = 7;                  // title .. notes in the Sheet tab's form; the template's custom fields follow
+
+	// The text of a custom field's editor, whatever its type.
+	QString editorValue(const QWidget* editor)
+	{
+		if (const auto* line = qobject_cast<const QLineEdit*>(editor))
+			return line->text().trimmed();
+		if (const auto* plain = qobject_cast<const QPlainTextEdit*>(editor))
+			return plain->toPlainText().trimmed();
+		if (const auto* combo = qobject_cast<const QComboBox*>(editor))
+			return combo->currentText();
+		if (const auto* date = qobject_cast<const QDateEdit*>(editor))
+			return date->date().toString(Qt::ISODate);
+		return QString();
+	}
 }
 
 Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
@@ -39,6 +67,40 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	ui->partsListCheck->setChecked(settings.value(QStringLiteral("pdf3d/partsList"), true).toBool());
 	ui->viewButtonsCheck->setChecked(settings.value(QStringLiteral("pdf3d/viewButtons"), true).toBool());
 	ui->titleEdit->selectAll();
+
+	// the sheet template: built-in and user templates in a combo; the fields below follow the chosen one
+	// the combo is editable: typing a new name and pressing Enter saves the current template under that name
+	ui->templateCombo->setEditable(true);
+	ui->templateCombo->setInsertPolicy(QComboBox::NoInsert);
+	connect(ui->templateCombo, &QComboBox::currentIndexChanged, this, [this]() { applyTemplateSelection(); });
+	connect(ui->templateCombo->lineEdit(), &QLineEdit::editingFinished, this, [this]() { templateNameEntered(); });
+	connect(ui->logoTemplateButton, &QPushButton::clicked, this, [this]() { chooseLogo(); });
+	connect(ui->editTemplateButton, &QPushButton::clicked, this, [this]() {
+		const QString id = currentTemplateId();
+		if (!id.startsWith(QLatin1String("user:")))
+			return;
+		QDesktopServices::openUrl(QUrl::fromLocalFile(QDir(Pdf3D::userSheetTemplateFolder()).filePath(id.mid(5) + QStringLiteral(".json"))));
+	});
+	connect(ui->reloadTemplatesButton, &QPushButton::clicked, this, [this]() { reloadTemplates(currentTemplateId()); });
+	connect(ui->openTemplatesButton, &QPushButton::clicked, this, []() {
+		const QString folder = Pdf3D::userSheetTemplateFolder();
+		if (!folder.isEmpty())
+		{
+			QDir().mkpath(folder);
+			QDesktopServices::openUrl(QUrl::fromLocalFile(folder));
+		}
+	});
+	connect(ui->sampleTemplateButton, &QPushButton::clicked, this, [this]() {
+		QString error;
+		const QString id = Pdf3D::writeSampleSheetTemplate(Pdf3D::userSheetTemplateFolder(), &error);
+		if (id.isEmpty())
+		{
+			QMessageBox::warning(this, tr("Sheet template"), error);
+			return;
+		}
+		reloadTemplates(id);
+	});
+	reloadTemplates(settings.value(QStringLiteral("pdf3d/template")).toString());
 
 	// Views the user unticked earlier (and views they switched the measurements off for) stay unticked: remembered by group and name,
 	// across documents. Everything else starts ticked.
@@ -141,6 +203,176 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 
 Pdf3DExportDialog::~Pdf3DExportDialog() = default;
 
+QString Pdf3DExportDialog::currentTemplateId() const
+{
+	const int i = ui->templateCombo->currentIndex();
+	return (i >= 0 && i < _templates.size()) ? _templates[i].id : QString();
+}
+
+void Pdf3DExportDialog::reloadTemplates(const QString& selectId)
+{
+	_templates = Pdf3D::builtInSheetTemplates();
+	_templateProblems.clear();
+	_templates += Pdf3D::loadUserSheetTemplates(Pdf3D::userSheetTemplateFolder(), &_templateProblems);
+	{
+		const QSignalBlocker blocker(ui->templateCombo);
+		ui->templateCombo->clear();
+		for (const Pdf3D::SheetTemplate& t : _templates)
+			ui->templateCombo->addItem(t.name, t.id);
+		int index = ui->templateCombo->findData(selectId);
+		ui->templateCombo->setCurrentIndex(index >= 0 ? index : 0);
+	}
+	applyTemplateSelection();
+}
+
+// The combo's text was edited: a name of an existing template selects it, a new name saves a copy of the current template under it.
+void Pdf3DExportDialog::templateNameEntered()
+{
+	const QString name = ui->templateCombo->currentText().trimmed();
+	const int current = ui->templateCombo->currentIndex();
+	if (name.isEmpty() || current < 0 || current >= _templates.size())
+	{
+		if (current >= 0 && current < _templates.size())
+			ui->templateCombo->setEditText(_templates[current].name);
+		return;
+	}
+	for (int i = 0; i < _templates.size(); ++i)
+	{
+		if (_templates[i].name.compare(name, Qt::CaseInsensitive) == 0)
+		{
+			ui->templateCombo->setCurrentIndex(i);   // the name of an existing template: select it
+			ui->templateCombo->setEditText(_templates[i].name);
+			return;
+		}
+	}
+	QString error;
+	const QString id = Pdf3D::saveSheetTemplateAs(_templates[current], name, Pdf3D::userSheetTemplateFolder(), &error);
+	if (id.isEmpty())
+	{
+		QMessageBox::warning(this, tr("Sheet template"), error);
+		ui->templateCombo->setEditText(_templates[current].name);
+		return;
+	}
+	reloadTemplates(id);
+}
+
+// Logo...: pick a file; a built-in template is first saved as a copy of the user's, then the logo is added and the template saved.
+void Pdf3DExportDialog::chooseLogo()
+{
+	const int current = ui->templateCombo->currentIndex();
+	if (current < 0 || current >= _templates.size())
+		return;
+	const QString file = QFileDialog::getOpenFileName(this, tr("Logo"), QString(), tr("Images (*.png *.jpg *.jpeg *.svg)"));
+	if (file.isEmpty())
+		return;
+
+	const QString folder = Pdf3D::userSheetTemplateFolder();
+	Pdf3D::SheetTemplate t = _templates[current];
+	QString error;
+	if (!t.id.startsWith(QLatin1String("user:")))
+	{
+		bool ok = false;
+		const QString name = QInputDialog::getText(this, tr("Save as a template"),
+			tr("A built-in template cannot be changed. Name for your copy with the logo:"), QLineEdit::Normal, tr("My %1").arg(t.name), &ok).trimmed();
+		if (!ok || name.isEmpty())
+			return;
+		const QString id = Pdf3D::saveSheetTemplateAs(t, name, folder, &error);
+		if (id.isEmpty())
+		{
+			QMessageBox::warning(this, tr("Sheet template"), error);
+			return;
+		}
+		t = Pdf3D::findSheetTemplate(id);
+		if (t.id != id)
+		{
+			QMessageBox::warning(this, tr("Sheet template"), tr("The new template could not be read back."));
+			return;
+		}
+	}
+	if (!Pdf3D::setSheetTemplateLogo(&t, file, folder, &error) || Pdf3D::writeUserSheetTemplate(t, folder, &error).isEmpty())
+	{
+		QMessageBox::warning(this, tr("Sheet template"), tr("The logo could not be added: %1").arg(error));
+		reloadTemplates(t.id.startsWith(QLatin1String("user:")) ? t.id : currentTemplateId());   // a copy made above stays and is listed
+		return;
+	}
+	reloadTemplates(t.id);
+}
+
+void Pdf3DExportDialog::applyTemplateSelection()
+{
+	const int index = ui->templateCombo->currentIndex();
+	if (index < 0 || index >= _templates.size())
+		return;
+	const Pdf3D::SheetTemplate& t = _templates[index];
+
+	// the title block fields the template does not use are not asked for (the title is always asked: it is also the document title)
+	const QSet<QString> used = Pdf3D::usedSheetPlaceholders(t);
+	const struct { const char* name; QWidget* label; QWidget* edit; } rows[] = {
+		{ "drawingNumber", ui->drawingNumberLabel, ui->drawingNumberEdit }, { "revision", ui->revisionLabel, ui->revisionEdit },
+		{ "author", ui->authorLabel, ui->authorEdit }, { "company", ui->companyLabel, ui->companyEdit },
+		{ "scale", ui->scaleLabel, ui->scaleEdit }, { "notes", ui->notesLabel, ui->notesEdit } };
+	for (const auto& r : rows)
+	{
+		const bool show = used.contains(QLatin1String(r.name));
+		r.label->setVisible(show);
+		r.edit->setVisible(show);
+	}
+
+	// the template's own fields, below the standard ones; the last values used with this template come back
+	while (ui->formLayout->rowCount() > kFixedFormRows)
+		ui->formLayout->removeRow(ui->formLayout->rowCount() - 1);
+	_customFields.clear();
+	const QSettings settings;
+	for (const Pdf3D::SheetField& f : t.fields)
+	{
+		const QString stored = settings.value(QStringLiteral("pdf3d/templates/%1/%2").arg(t.id, f.id), f.defaultValue).toString();
+		QWidget* editor = nullptr;
+		if (f.type == QLatin1String("multiline"))
+		{
+			auto* e = new QPlainTextEdit;
+			e->setMinimumHeight(60);
+			e->setPlainText(stored);
+			editor = e;
+		}
+		else if (f.type == QLatin1String("date"))
+		{
+			const QDate fallback = QDate::fromString(f.defaultValue, Qt::ISODate);
+			auto* e = new QDateEdit(fallback.isValid() ? fallback : QDate::currentDate());
+			e->setCalendarPopup(true);
+			e->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
+			editor = e;
+		}
+		else if (f.type == QLatin1String("choice"))
+		{
+			auto* e = new QComboBox;
+			e->addItems(f.options);
+			const int i = e->findText(stored);
+			if (i >= 0)
+				e->setCurrentIndex(i);
+			editor = e;
+		}
+		else
+		{
+			editor = new QLineEdit(stored);
+		}
+		ui->formLayout->addRow(f.label + QLatin1Char(':'), editor);
+		_customFields.insert(f.id, editor);
+	}
+
+	const bool isUser = t.id.startsWith(QLatin1String("user:"));
+	ui->editTemplateButton->setEnabled(isUser);
+	const QSizeF pagePt = Pdf3D::sheetPageSizePt(t);
+	QString info = tr("%1 template. Page %2 x %3 mm, %4.").arg(isUser ? tr("Your") : tr("Built-in"))
+		.arg(qRound(pagePt.width() * 25.4 / 72.0)).arg(qRound(pagePt.height() * 25.4 / 72.0))
+		.arg(t.landscape ? tr("landscape") : tr("portrait"));
+	if (!_templateProblems.isEmpty())
+		info += QLatin1Char('\n') + tr("In the templates folder:") + QLatin1Char('\n') + _templateProblems.join(QLatin1Char('\n'));
+	ui->templateInfoLabel->setText(info);
+	QPalette infoPalette = ui->templateInfoLabel->palette();
+	infoPalette.setColor(QPalette::WindowText, palette().color(QPalette::Disabled, QPalette::Text));
+	ui->templateInfoLabel->setPalette(infoPalette);
+}
+
 void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
 {
 	options.title = ui->titleEdit->text().trimmed();
@@ -152,6 +384,10 @@ void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
 	options.notes = ui->notesEdit->toPlainText().trimmed();
 	options.includePartsList = ui->partsListCheck->isChecked();
 	options.viewButtons = ui->viewButtonsCheck->isChecked();
+	options.templateId = currentTemplateId();
+	options.fieldValues.clear();
+	for (auto it = _customFields.constBegin(); it != _customFields.constEnd(); ++it)
+		options.fieldValues.insert(it.key(), editorValue(it.value()));
 }
 
 QVector<bool> Pdf3DExportDialog::viewSelection() const
@@ -251,6 +487,13 @@ void Pdf3DExportDialog::done(int result)
 		settings.setValue(QStringLiteral("pdf3d/scale"), ui->scaleEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/partsList"), ui->partsListCheck->isChecked());
 		settings.setValue(QStringLiteral("pdf3d/viewButtons"), ui->viewButtonsCheck->isChecked());
+		settings.setValue(QStringLiteral("pdf3d/template"), currentTemplateId());
+		// the custom fields of the chosen template (a date is always today's unless the template says otherwise)
+		for (auto it = _customFields.constBegin(); it != _customFields.constEnd(); ++it)
+		{
+			if (!qobject_cast<const QDateEdit*>(it.value()))
+				settings.setValue(QStringLiteral("pdf3d/templates/%1/%2").arg(currentTemplateId(), it.key()), editorValue(it.value()));
+		}
 		// the view selection: forget what this list showed, then remember what is unticked in it (views of other documents stay)
 		QStringList unchecked = settings.value(QStringLiteral("pdf3d/viewsUnchecked")).toStringList();
 		QStringList noOverlays = settings.value(QStringLiteral("pdf3d/viewsWithoutMeasurements")).toStringList();

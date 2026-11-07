@@ -25,6 +25,92 @@
       </attribute>
       <layout class="QVBoxLayout" name="sheetLayout">
        <item>
+        <layout class="QHBoxLayout" name="templateLayout">
+         <item>
+          <widget class="QLabel" name="templateLabel">
+           <property name="text">
+            <string>Sheet template:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="templateCombo">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed"/>
+           </property>
+           <property name="toolTip">
+            <string>The layout of the sheet around the 3D area: page size, border, logo and title block.
+The built-in templates are always listed; your own are JSON files in the templates folder.
+To save the current template under a new name, type the name here and press Enter.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="openTemplatesButton">
+           <property name="toolTip">
+            <string>Opens the folder with your own sheet templates (JSON files).</string>
+           </property>
+           <property name="text">
+            <string>Open folder</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="reloadTemplatesButton">
+           <property name="toolTip">
+            <string>Reads the templates folder again, after you added or changed a template.</string>
+           </property>
+           <property name="text">
+            <string>Reload</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="logoTemplateButton">
+           <property name="toolTip">
+            <string>Adds your logo (a PNG, JPEG or SVG file) at the left of the title block.
+On a built-in template this first saves a copy under a name you give.</string>
+           </property>
+           <property name="text">
+            <string>Logo...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="editTemplateButton">
+           <property name="toolTip">
+            <string>Opens your template's JSON file in the editor of your system to move cells or change fonts and fields.
+Press Reload afterwards. Built-in templates cannot be edited: save a copy first.</string>
+           </property>
+           <property name="text">
+            <string>Edit...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="sampleTemplateButton">
+           <property name="toolTip">
+            <string>Writes an example template with a logo and two extra fields into the templates folder,
+to copy and change for your own sheets.</string>
+           </property>
+           <property name="text">
+            <string>Create sample</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="templateInfoLabel">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QLabel" name="introLabel">
          <property name="text">
           <string>These fields fill the title block of the sheet. Empty fields stay blank.</string>

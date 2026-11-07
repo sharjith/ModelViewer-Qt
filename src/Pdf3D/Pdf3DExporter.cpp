@@ -20,6 +20,9 @@
 #include <QPainter>
 #include <QPdfWriter>
 #include <QSaveFile>
+#include <QDir>
+#include <QImage>
+#include <QSvgRenderer>
 
 namespace Pdf3D
 {
@@ -195,6 +198,32 @@ int partsRowsPerSheet(const Layout& l)
     return qMax(1, static_cast<int>((l.area3d.height() - kPartsHeaderHeight) / kPartsRowHeight));
 }
 
+// The template's logo (SVG as vectors, PNG or JPEG as an image) in its rectangle. A missing or unreadable file leaves the space empty.
+void drawLogo(QPainter& p, const SheetTemplate& tpl, const QRectF& rect)
+{
+    const QString path = sheetLogoPath(tpl);
+    if (path.isEmpty() || !QFileInfo::exists(path))
+        return;
+    const QFileInfo info(path);
+    const auto fitted = [&](const QSizeF& natural) -> QRectF {
+        if (!tpl.logo.contain || natural.isEmpty())
+            return rect;
+        QSizeF size = natural;
+        size.scale(rect.size(), Qt::KeepAspectRatio);
+        return QRectF(QPointF(rect.center().x() - size.width() / 2.0, rect.center().y() - size.height() / 2.0), size);
+    };
+    if (info.suffix().compare(QLatin1String("svg"), Qt::CaseInsensitive) == 0)
+    {
+        QSvgRenderer renderer(path);
+        if (renderer.isValid())
+            renderer.render(&p, fitted(QSizeF(renderer.defaultSize())));
+        return;
+    }
+    const QImage image(path);
+    if (!image.isNull())
+        p.drawImage(fitted(QSizeF(image.size())), image);
+}
+
 // A title block cell with a caption (small, grey, top left) and its value below, as the field grid of the sheet has always looked.
 void drawFieldCell(QPainter& p, const QRectF& cell, const QString& label, const QString& value, const SheetCell& c)
 {
@@ -229,6 +258,8 @@ void drawFrame(QPainter& p, const Layout& l, const Pdf3DOptions& options, int pa
     p.drawRect(s.titleBlock);
     for (const QLineF& line : s.lines)
         p.drawLine(line);
+    if (tpl.hasLogo && !s.logo.isEmpty())
+        drawLogo(p, tpl, s.logo);
 
     const QMap<QString, QString> values = sheetValues(options, partCount, sheet, sheetCount);
     const QFont base = p.font();

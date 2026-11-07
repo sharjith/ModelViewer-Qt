@@ -1,7 +1,11 @@
 #pragma once
 
+#include "SheetTemplate.h"
+
 #include <QDialog>
+#include <QMap>
 #include <QString>
+#include <QStringList>
 #include <QVector>
 
 #include <memory>
@@ -20,8 +24,10 @@ namespace Pdf3D
 // Pdf3DExportDialog
 //
 // Modal "Save as 3D PDF" options dialog, two tabs:
-//  - Sheet: the title block fields (title, drawing number, revision, author, company, scale, notes) and whether to add a parts
-//    list sheet. Everything except the title and the notes is remembered between uses (QSettings "pdf3d/...").
+//  - Sheet: the sheet template (built-in or a JSON file of the user's, see SheetTemplate.h), the title block fields it uses
+//    (title, drawing number, revision, author, company, scale, notes; fields the template does not use are hidden) plus the
+//    template's own custom fields, and whether to add a parts list sheet. Everything except the title and the notes is remembered
+//    between uses (QSettings "pdf3d/..."; custom fields per template, "pdf3d/templates/<id>/<field>").
 //  - Views: every view the document can put into the PDF's view list (standard views, saved camera views, cameras of the model
 //    files, scene states, exploded views), grouped, with a checkbox each and an optional note per view. The caller builds the
 //    list from the document's stored data, so nothing depends on a panel being open. A preview is planned.
@@ -59,8 +65,8 @@ public:
 		const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations, QWidget* parent = nullptr);
 	~Pdf3DExportDialog() override;
 
-	// Copies the sheet tab's values into the title block fields of `options` (title, drawing number, revision, author, company,
-	// scale, notes, includePartsList). The other options are left untouched.
+	// Copies the sheet tab's values into `options`: the title block fields (title, drawing number, revision, author, company, scale,
+	// notes, includePartsList), the chosen template id and the values of its custom fields. The other options are left untouched.
 	void applyTo(Pdf3D::Pdf3DOptions& options) const;
 
 	// For each ViewItem passed to the constructor, in order: whether it is ticked.
@@ -84,8 +90,16 @@ private:
 	void updateOkEnabled();
 	void setAllViewsChecked(bool checked);
 	void setAllOverlaysChecked(bool checked);
+	void reloadTemplates(const QString& selectId);   // rescans the templates, fills the combo and selects `selectId` (or the first)
+	void applyTemplateSelection();                   // shows the fields the chosen template uses and builds its custom fields
+	void templateNameEntered();                      // the combo's text was edited: select that template, or save a copy under the new name
+	void chooseLogo();                               // the Logo button
+	QString currentTemplateId() const;
 
 	std::unique_ptr<Ui::Pdf3DExportDialog> ui;
 	int _viewCount = 0;
 	int _overlayCount = 0;
+	QVector<Pdf3D::SheetTemplate> _templates;   // parallel to the combo
+	QStringList _templateProblems;              // files of the user folder that could not be used, and warnings
+	QMap<QString, QWidget*> _customFields;      // custom field id -> its editor (owned by the form layout)
 };

@@ -9,6 +9,7 @@
 #include <QJsonObject>
 #include <QJsonValue>
 #include <QRegularExpression>
+#include <QSaveFile>
 #include <QStandardPaths>
 #include <QtMath>
 
@@ -115,6 +116,63 @@ const char* kA3Json = R"JSON({
     ]
   }
 })JSON";
+
+// A company-style sample written to the user folder by the dialog's "Create sample" button: a logo, two custom fields and a four-row
+// grid. Millimetres, A4 landscape.
+const char* kSampleJson = R"JSON({
+  "version": 1,
+  "name": "Company sample",
+  "units": "mm",
+  "page": { "size": "A4", "orientation": "landscape" },
+  "border": { "inset": 7 },
+  "margin": 10,
+  "areaGap": 4,
+  "lineWidth": 0.6,
+  "titleBlock": {
+    "anchor": "bottom",
+    "height": 36,
+    "maxHeight": 50,
+    "growWithCell": "notes",
+    "growPadding": 2,
+    "lines": [
+      { "x1": 45, "y1": 0, "x2": 45, "y2": "100%" },
+      { "x1": -96, "y1": 0, "x2": -96, "y2": "100%" },
+      { "x1": -48, "y1": 0, "x2": -48, "y2": "100%" },
+      { "x1": -96, "y1": "1/4", "x2": "100%", "y2": "1/4" },
+      { "x1": -96, "y1": "2/4", "x2": "100%", "y2": "2/4" },
+      { "x1": -96, "y1": "3/4", "x2": "100%", "y2": "3/4" }
+    ],
+    "logo": { "file": "sample-logo.svg", "left": 3, "right": 43, "top": 3, "bottom": -3, "fit": "contain" },
+    "cells": [
+      { "id": "title", "left": 48, "right": -99, "top": 3, "bottom": 13, "text": "{title}", "fontSize": 15, "bold": true },
+      { "id": "subtitle", "left": 48, "right": -99, "top": 13, "bottom": 19, "text": "{subtitle}", "fontSize": 9 },
+      { "id": "notes", "left": 48, "right": -99, "top": 20, "bottom": -2, "text": "{notes}", "fontSize": 8,
+        "color": "#464646", "wrap": true, "scrollWhenOverflow": true },
+      { "left": -96, "right": -48, "top": 0, "bottom": "1/4", "label": "Drawing no.", "text": "{drawingNumber}" },
+      { "left": -48, "right": "100%", "top": 0, "bottom": "1/4", "label": "Revision", "text": "{revision}" },
+      { "left": -96, "right": -48, "top": "1/4", "bottom": "2/4", "label": "Author", "text": "{author}" },
+      { "left": -48, "right": "100%", "top": "1/4", "bottom": "2/4", "label": "Approved by", "text": "{approvedBy}" },
+      { "left": -96, "right": -48, "top": "2/4", "bottom": "3/4", "label": "Material", "text": "{material}" },
+      { "left": -48, "right": "100%", "top": "2/4", "bottom": "3/4", "label": "Scale", "text": "{scale|-}" },
+      { "left": -96, "right": -48, "top": "3/4", "bottom": "100%", "label": "Date", "text": "{date}" },
+      { "left": -48, "right": "100%", "top": "3/4", "bottom": "100%", "label": "Sheet", "text": "{sheet}/{sheets}" }
+    ]
+  },
+  "fields": [
+    { "id": "approvedBy", "label": "Approved by", "type": "text" },
+    { "id": "material", "label": "Material", "type": "choice", "options": ["Steel", "Aluminium", "Plastic", "Other"] }
+  ]
+})JSON";
+
+// A plain geometric mark for the sample (no text, so it needs no font).
+const char* kSampleLogoSvg = R"SVG(<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="120" viewBox="0 0 160 120">
+  <rect x="4" y="4" width="152" height="112" rx="14" fill="#1f5f8b"/>
+  <circle cx="58" cy="60" r="30" fill="#ffffff"/>
+  <rect x="84" y="30" width="52" height="60" rx="6" fill="#f2a900"/>
+  <polygon points="58,38 80,60 58,82 36,60" fill="#1f5f8b"/>
+</svg>
+)SVG";
 
 struct PageSizeName
 {
@@ -671,6 +729,301 @@ QVector<SheetTemplate> loadUserSheetTemplates(const QString& folder, QStringList
         list.append(t);
     }
     return list;
+}
+
+namespace
+{
+
+QJsonValue edgeJson(const SheetEdge& e)
+{
+    if (e.fraction)
+        return QString::number(e.value * 100.0, 'g', 15) + QLatin1Char('%');
+    return e.value;
+}
+
+void putRect(QJsonObject& o, const SheetRect& r)
+{
+    o.insert(QStringLiteral("left"), edgeJson(r.left));
+    o.insert(QStringLiteral("right"), edgeJson(r.right));
+    o.insert(QStringLiteral("top"), edgeJson(r.top));
+    o.insert(QStringLiteral("bottom"), edgeJson(r.bottom));
+}
+
+// A file name base from a template name: letters, digits, space, dash and underscore stay, anything else becomes an underscore.
+QString uniqueFileBase(const QDir& dir, const QString& base, const QString& suffix)
+{
+    QString candidate = base;
+    for (int n = 2; QFileInfo::exists(dir.filePath(candidate + suffix)); ++n)
+        candidate = QStringLiteral("%1 %2").arg(base).arg(n);
+    return candidate;
+}
+
+bool sameFileContent(const QString& a, const QString& b)
+{
+    QFile fa(a), fb(b);
+    return fa.open(QIODevice::ReadOnly) && fb.open(QIODevice::ReadOnly) && fa.size() == fb.size() && fa.readAll() == fb.readAll();
+}
+
+} // namespace
+
+QString sanitizedTemplateFileName(const QString& name)
+{
+    QString out;
+    for (const QChar c : name.trimmed())
+        out += (c.isLetterOrNumber() || c == QLatin1Char(' ') || c == QLatin1Char('-') || c == QLatin1Char('_')) ? c : QLatin1Char('_');
+    out = out.left(60).trimmed();
+    return out.isEmpty() ? QStringLiteral("template") : out;
+}
+
+QByteArray sheetTemplateToJson(const SheetTemplate& t)
+{
+    QJsonObject root;
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("name"), t.name);
+    root.insert(QStringLiteral("units"), QStringLiteral("pt"));
+
+    QJsonObject page;
+    if (t.pageSizeId == QPageSize::Custom)
+        page.insert(QStringLiteral("size"), QJsonArray{ t.customSizeMm.width() * kPointsPerMm, t.customSizeMm.height() * kPointsPerMm });
+    else
+    {
+        for (const PageSizeName& n : kPageSizes)
+            if (n.id == t.pageSizeId)
+                page.insert(QStringLiteral("size"), QString::fromLatin1(n.name));
+    }
+    page.insert(QStringLiteral("orientation"), t.landscape ? QStringLiteral("landscape") : QStringLiteral("portrait"));
+    root.insert(QStringLiteral("page"), page);
+    root.insert(QStringLiteral("border"), QJsonObject{ { QStringLiteral("inset"), t.borderInset } });
+    root.insert(QStringLiteral("margin"), t.margin);
+    root.insert(QStringLiteral("areaGap"), t.areaGap);
+    root.insert(QStringLiteral("lineWidth"), t.lineWidth);
+
+    QJsonObject block;
+    block.insert(QStringLiteral("anchor"), t.anchor == TitleBlockAnchor::Bottom ? QStringLiteral("bottom")
+                                         : t.anchor == TitleBlockAnchor::BottomLeft ? QStringLiteral("bottom-left") : QStringLiteral("bottom-right"));
+    if (t.anchor != TitleBlockAnchor::Bottom)
+        block.insert(QStringLiteral("width"), t.blockWidth);
+    block.insert(QStringLiteral("height"), t.blockHeight);
+    block.insert(QStringLiteral("maxHeight"), t.blockMaxHeight);
+    block.insert(QStringLiteral("growPadding"), t.growPadding);
+    if (!t.growWithCell.isEmpty())
+        block.insert(QStringLiteral("growWithCell"), t.growWithCell);
+
+    QJsonArray lines;
+    for (const SheetLine& l : t.lines)
+        lines.append(QJsonObject{ { QStringLiteral("x1"), edgeJson(l.x1) }, { QStringLiteral("y1"), edgeJson(l.y1) },
+                                  { QStringLiteral("x2"), edgeJson(l.x2) }, { QStringLiteral("y2"), edgeJson(l.y2) } });
+    block.insert(QStringLiteral("lines"), lines);
+
+    if (t.hasLogo)
+    {
+        QJsonObject logo;
+        logo.insert(QStringLiteral("file"), t.logo.file);
+        putRect(logo, t.logo.rect);
+        logo.insert(QStringLiteral("fit"), t.logo.contain ? QStringLiteral("contain") : QStringLiteral("stretch"));
+        block.insert(QStringLiteral("logo"), logo);
+    }
+
+    QJsonArray cells;
+    for (const SheetCell& c : t.cells)
+    {
+        QJsonObject o;
+        if (!c.id.isEmpty())
+            o.insert(QStringLiteral("id"), c.id);
+        putRect(o, c.rect);
+        if (!c.label.isEmpty())
+            o.insert(QStringLiteral("label"), c.label);
+        o.insert(QStringLiteral("text"), c.text);
+        o.insert(QStringLiteral("fontSize"), c.fontSize);
+        if (c.bold)
+            o.insert(QStringLiteral("bold"), true);
+        if (c.color != QColor(Qt::black))
+            o.insert(QStringLiteral("color"), c.color.name());
+        const Qt::Alignment h = c.align & Qt::AlignHorizontal_Mask;
+        if (h == Qt::AlignHCenter)
+            o.insert(QStringLiteral("align"), QStringLiteral("center"));
+        else if (h == Qt::AlignRight)
+            o.insert(QStringLiteral("align"), QStringLiteral("right"));
+        if (c.wrap)
+            o.insert(QStringLiteral("wrap"), true);
+        if (c.scrollWhenOverflow)
+            o.insert(QStringLiteral("scrollWhenOverflow"), true);
+        cells.append(o);
+    }
+    block.insert(QStringLiteral("cells"), cells);
+    root.insert(QStringLiteral("titleBlock"), block);
+
+    QJsonArray fields;
+    for (const SheetField& f : t.fields)
+    {
+        QJsonObject o;
+        o.insert(QStringLiteral("id"), f.id);
+        o.insert(QStringLiteral("label"), f.label);
+        o.insert(QStringLiteral("type"), f.type);
+        if (!f.defaultValue.isEmpty())
+            o.insert(QStringLiteral("default"), f.defaultValue);
+        if (!f.options.isEmpty())
+            o.insert(QStringLiteral("options"), QJsonArray::fromStringList(f.options));
+        fields.append(o);
+    }
+    if (!fields.isEmpty())
+        root.insert(QStringLiteral("fields"), fields);
+    return QJsonDocument(root).toJson(QJsonDocument::Indented);
+}
+
+QString sheetLogoPath(const SheetTemplate& t)
+{
+    if (!t.hasLogo || t.logo.file.isEmpty())
+        return QString();
+    if (QFileInfo(t.logo.file).isAbsolute())
+        return t.logo.file;
+    return t.folder.isEmpty() ? QString() : QDir(t.folder).filePath(t.logo.file);
+}
+
+QString writeUserSheetTemplate(const SheetTemplate& t, const QString& folder, QString* error)
+{
+    const auto fail = [&](const QString& message) {
+        if (error)
+            *error = message;
+        return QString();
+    };
+    if (!t.id.startsWith(QLatin1String("user:")) || t.id.size() <= 5)
+        return fail(QStringLiteral("Only your own templates can be saved."));
+    const QByteArray json = sheetTemplateToJson(t);
+    // a template that would not load again is never written
+    SheetTemplate check;
+    QString parseError;
+    if (!parseSheetTemplate(json, t.id, &check, &parseError))
+        return fail(parseError);
+    if (folder.isEmpty() || !QDir().mkpath(folder))
+        return fail(QStringLiteral("The templates folder could not be created."));
+    QSaveFile file(QDir(folder).filePath(t.id.mid(5) + QStringLiteral(".json")));
+    if (!file.open(QIODevice::WriteOnly) || file.write(json) != json.size() || !file.commit())
+        return fail(QStringLiteral("%1 could not be written.").arg(file.fileName()));
+    return t.id;
+}
+
+QString saveSheetTemplateAs(const SheetTemplate& source, const QString& newName, const QString& folder, QString* error)
+{
+    const auto fail = [&](const QString& message) {
+        if (error)
+            *error = message;
+        return QString();
+    };
+    const QString name = newName.trimmed();
+    if (name.isEmpty() || name.size() > kMaxNameLength)
+        return fail(QStringLiteral("A template name must have 1 to %1 characters.").arg(kMaxNameLength));
+    for (const SheetTemplate& b : builtInSheetTemplates())
+        if (b.name.compare(name, Qt::CaseInsensitive) == 0)
+            return fail(QStringLiteral("\"%1\" is the name of a built-in template. Choose another name.").arg(name));
+    // a template of yours with this name is selected as it is, never overwritten
+    for (const SheetTemplate& u : loadUserSheetTemplates(folder))
+        if (u.name.compare(name, Qt::CaseInsensitive) == 0)
+            return u.id;
+
+    if (folder.isEmpty() || !QDir().mkpath(folder))
+        return fail(QStringLiteral("The templates folder could not be created."));
+    const QDir dir(folder);
+    SheetTemplate copy = source;
+    copy.name = name;
+    const QString base = uniqueFileBase(dir, sanitizedTemplateFileName(name), QStringLiteral(".json"));
+    copy.id = QStringLiteral("user:") + base;
+
+    // the logo file goes next to the new template, so the template is self-contained
+    const QString logoSource = sheetLogoPath(source);
+    if (!logoSource.isEmpty() && QFileInfo::exists(logoSource))
+    {
+        const QFileInfo info(logoSource);
+        QString destination = dir.filePath(info.fileName());
+        if (QFileInfo(destination).absoluteFilePath() != info.absoluteFilePath() && QFileInfo::exists(destination) && !sameFileContent(logoSource, destination))
+        {
+            const QString suffix = QLatin1Char('.') + info.suffix();
+            destination = dir.filePath(uniqueFileBase(dir, info.completeBaseName(), suffix) + suffix);
+        }
+        if (QFileInfo(destination).absoluteFilePath() != info.absoluteFilePath() && !QFileInfo::exists(destination) && !QFile::copy(logoSource, destination))
+            return fail(QStringLiteral("The logo file could not be copied."));
+        copy.logo.file = QFileInfo(destination).fileName();
+    }
+    copy.folder = dir.absolutePath();
+    return writeUserSheetTemplate(copy, folder, error);
+}
+
+bool setSheetTemplateLogo(SheetTemplate* t, const QString& logoFile, const QString& folder, QString* error)
+{
+    const auto fail = [&](const QString& message) {
+        if (error)
+            *error = message;
+        return false;
+    };
+    const QFileInfo info(logoFile);
+    const QString suffix = info.suffix().toLower();
+    if (!info.isFile() || (suffix != QLatin1String("png") && suffix != QLatin1String("jpg") && suffix != QLatin1String("jpeg") && suffix != QLatin1String("svg")))
+        return fail(QStringLiteral("The logo must be a PNG, JPEG or SVG file."));
+    if (folder.isEmpty() || !QDir().mkpath(folder))
+        return fail(QStringLiteral("The templates folder could not be created."));
+    const QDir dir(folder);
+    QString destination = dir.filePath(info.fileName());
+    if (QFileInfo(destination).absoluteFilePath() != info.absoluteFilePath())
+    {
+        if (QFileInfo::exists(destination) && !sameFileContent(logoFile, destination))
+            destination = dir.filePath(uniqueFileBase(dir, info.completeBaseName(), QLatin1Char('.') + info.suffix()) + QLatin1Char('.') + info.suffix());
+        if (!QFileInfo::exists(destination) && !QFile::copy(logoFile, destination))
+            return fail(QStringLiteral("The logo file could not be copied into the templates folder."));
+    }
+    t->logo.file = QFileInfo(destination).fileName();
+    t->folder = dir.absolutePath();
+    t->logo.contain = true;
+    if (!t->hasLogo)
+    {
+        // a new logo cell at the left of the title block; whatever is measured from the left edge moves right to make room, and a thin
+        // line separates it from the text
+        const double width = std::max(60.0, t->blockHeight * 1.2);
+        const double shift = 4.0 + width + 4.0;
+        t->hasLogo = true;
+        t->logo.rect.left = SheetEdge{ 4.0, false };
+        t->logo.rect.right = SheetEdge{ 4.0 + width, false };
+        t->logo.rect.top = SheetEdge{ 4.0, false };
+        t->logo.rect.bottom = SheetEdge{ -4.0, false };
+        for (SheetCell& c : t->cells)
+        {
+            if (!c.rect.left.fraction && c.rect.left.value >= 0.0)
+            {
+                c.rect.left.value += shift;
+                if (!c.rect.right.fraction && c.rect.right.value > 0.0)
+                    c.rect.right.value += shift;
+            }
+        }
+        SheetLine separator;
+        separator.x1 = SheetEdge{ shift - 2.0, false };
+        separator.y1 = SheetEdge{ 0.0, false };
+        separator.x2 = SheetEdge{ shift - 2.0, false };
+        separator.y2 = SheetEdge{ 1.0, true };
+        t->lines.append(separator);
+    }
+    return true;
+}
+
+QString writeSampleSheetTemplate(const QString& folder, QString* error)
+{
+    const auto fail = [&](const QString& message) {
+        if (error)
+            *error = message;
+        return QString();
+    };
+    if (folder.isEmpty() || !QDir().mkpath(folder))
+        return fail(QStringLiteral("The templates folder could not be created."));
+    const QDir dir(folder);
+    const struct { const char* name; const char* data; } files[] = { { "sample-company.json", kSampleJson }, { "sample-logo.svg", kSampleLogoSvg } };
+    for (const auto& f : files)
+    {
+        const QString path = dir.filePath(QLatin1String(f.name));
+        if (QFileInfo::exists(path))
+            continue;   // never overwrite the user's own edits
+        QFile file(path);
+        if (!file.open(QIODevice::WriteOnly) || file.write(f.data) < 0)
+            return fail(QStringLiteral("%1 could not be written.").arg(path));
+    }
+    return QStringLiteral("user:sample-company");
 }
 
 QString userSheetTemplateFolder()

@@ -153,7 +153,30 @@ QVector<SheetTemplate> loadUserSheetTemplates(const QString& folder, QStringList
 // <AppDataLocation>/pdf3d-templates, where the user's templates live.
 QString userSheetTemplateFolder();
 
+// Writes the "Company sample" template (sample-company.json and its logo sample-logo.svg) into `folder`, creating it; existing files
+// are left alone. Returns the template id ("user:sample-company"), or an empty string with a message in `error`.
+QString writeSampleSheetTemplate(const QString& folder, QString* error = nullptr);
+
 // The template with this id (built-in, then the user folder); Default when the id is unknown.
 SheetTemplate findSheetTemplate(const QString& id);
+
+// Saving. A template is written as JSON in points ("units": "pt"); what is written always parses again (the result is checked first).
+QByteArray sheetTemplateToJson(const SheetTemplate& tpl);
+QString sanitizedTemplateFileName(const QString& name);   // a file name base for a template name
+QString sheetLogoPath(const SheetTemplate& tpl);          // the logo file's path (relative ones resolved against the template's folder); empty when none
+
+// Writes `tpl` (its id must be "user:<file name base>") to <folder>/<base>.json, replacing that file. Returns the id, or an empty
+// string with a message in `error` (also when the template would not load again, for example a logo that leaves no room).
+QString writeUserSheetTemplate(const SheetTemplate& tpl, const QString& folder, QString* error = nullptr);
+
+// Saves a copy of `source` (a built-in template or one of the user's) as a template of the user's named `newName`; its logo file is
+// copied next to it. A name that belongs to a built-in template is refused; a name that belongs to a template of the user's returns
+// that template's id and changes nothing. Returns the new template's id, or an empty string with a message in `error`.
+QString saveSheetTemplateAs(const SheetTemplate& source, const QString& newName, const QString& folder, QString* error = nullptr);
+
+// Gives `tpl` a logo: the file is copied into `folder`. A template without a logo gets a logo cell at the left of the title block
+// (cells measured from the left edge move right to make room, with a separating line); one that has a logo keeps its place and
+// only the file changes. The caller saves the result with writeUserSheetTemplate.
+bool setSheetTemplateLogo(SheetTemplate* tpl, const QString& logoFile, const QString& folder, QString* error = nullptr);
 
 } // namespace Pdf3D

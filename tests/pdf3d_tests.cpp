@@ -29,6 +29,7 @@
 #include <QPainter>
 #include <QPdfWriter>
 #include <QRegularExpression>
+#include <QStandardPaths>
 #include <QTemporaryDir>
 
 #include <cmath>
@@ -671,6 +672,19 @@ void testFullExport()
     QFile fUnknown(pathUnknown);
     CHECK(fUnknown.open(QIODevice::ReadOnly));
     CHECK(a4Box.match(QString::fromLatin1(fUnknown.readAll())).hasMatch());
+    // the sample template: a logo, custom fields, a different grid; the exporter finds it by id in the user folder (test mode, so the
+    // folder is not the real one)
+    QString sampleError;
+    CHECK(Pdf3D::writeSampleSheetTemplate(Pdf3D::userSheetTemplateFolder(), &sampleError) == QLatin1String("user:sample-company"));
+    Pdf3D::Pdf3DOptions withSample = options;
+    withSample.templateId = QStringLiteral("user:sample-company");
+    withSample.fieldValues.insert(QStringLiteral("approvedBy"), QStringLiteral("A. Approver"));
+    withSample.fieldValues.insert(QStringLiteral("material"), QStringLiteral("Steel"));
+    const QString pathSample = dir.filePath(QStringLiteral("outSample.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, withSample, pathSample).ok);
+    QFile fSample(pathSample);
+    CHECK(fSample.open(QIODevice::ReadOnly));
+    CHECK(a4Box.match(QString::fromLatin1(fSample.readAll())).hasMatch());
     Pdf3D::Pdf3DOptions longNotes = options;
     longNotes.notes = QString(2000, QLatin1Char('n'));
     for (int i = 20; i < longNotes.notes.size(); i += 20)
@@ -926,6 +940,38 @@ bool rejects(const QByteArray& json, const QString& expectedInMessage)
     return !ok && error.contains(expectedInMessage);
 }
 
+// Two templates describe the same sheet: page, every rectangle and line for one block height, the cell texts and styles, the fields.
+bool sameSheet(const Pdf3D::SheetTemplate& a, const Pdf3D::SheetTemplate& b, double blockHeight)
+{
+    using namespace Pdf3D;
+    const QSizeF pa = sheetPageSizePt(a), pb = sheetPageSizePt(b);
+    if (!almostEqual(pa.width(), pb.width()) || !almostEqual(pa.height(), pb.height()))
+        return false;
+    const ResolvedSheet ra = resolveSheet(a, pa, blockHeight), rb = resolveSheet(b, pb, blockHeight);
+    if (ra.cells.size() != rb.cells.size() || ra.lines.size() != rb.lines.size() || a.cells.size() != b.cells.size() || a.fields.size() != b.fields.size())
+        return false;
+    if (!sameRect(ra.border, rb.border) || !sameRect(ra.titleBlock, rb.titleBlock) || !sameRect(ra.area3d, rb.area3d) || !sameRect(ra.logo, rb.logo))
+        return false;
+    for (int i = 0; i < ra.cells.size(); ++i)
+    {
+        const SheetCell &ca = a.cells[i], &cb = b.cells[i];
+        if (!sameRect(ra.cells[i], rb.cells[i]) || ca.id != cb.id || ca.text != cb.text || ca.label != cb.label || !almostEqual(ca.fontSize, cb.fontSize) ||
+            ca.bold != cb.bold || ca.color != cb.color || (ca.align & Qt::AlignHorizontal_Mask) != (cb.align & Qt::AlignHorizontal_Mask) || ca.wrap != cb.wrap ||
+            ca.scrollWhenOverflow != cb.scrollWhenOverflow)
+            return false;
+    }
+    for (int i = 0; i < ra.lines.size(); ++i)
+        if (!almostEqual(ra.lines[i].x1(), rb.lines[i].x1()) || !almostEqual(ra.lines[i].y1(), rb.lines[i].y1()) || !almostEqual(ra.lines[i].x2(), rb.lines[i].x2()) ||
+            !almostEqual(ra.lines[i].y2(), rb.lines[i].y2()))
+            return false;
+    for (int i = 0; i < a.fields.size(); ++i)
+        if (a.fields[i].id != b.fields[i].id || a.fields[i].label != b.fields[i].label || a.fields[i].type != b.fields[i].type ||
+            a.fields[i].defaultValue != b.fields[i].defaultValue || a.fields[i].options != b.fields[i].options)
+            return false;
+    return a.name == b.name && a.growWithCell == b.growWithCell && almostEqual(a.blockHeight, b.blockHeight) && almostEqual(a.blockMaxHeight, b.blockMaxHeight) &&
+           a.landscape == b.landscape && a.hasLogo == b.hasLogo && almostEqual(a.lineWidth, b.lineWidth);
+}
+
 void testSheetTemplates()
 {
     using namespace Pdf3D;
@@ -1168,6 +1214,118 @@ void testSheetTemplates()
         CHECK(problems.size() == 2 && problems[0].startsWith(QLatin1String("a_broken.json")) && problems[1].contains(QLatin1String("logo")) && problems[1].contains(QLatin1String("missing.png")));
         CHECK(loadUserSheetTemplates(QDir(folder.path()).filePath(QStringLiteral("nowhere"))).isEmpty());
     }
+
+    // the sample the dialog's "Create sample" button writes: valid, with its logo and fields, and never over the user's own edits
+    QTemporaryDir sampleRoot;
+    CHECK(sampleRoot.isValid());
+    if (sampleRoot.isValid())
+    {
+        const QString sampleFolder = QDir(sampleRoot.path()).filePath(QStringLiteral("pdf3d-templates"));
+        QString writeError;
+        CHECK(writeSampleSheetTemplate(sampleFolder, &writeError) == QLatin1String("user:sample-company") && writeError.isEmpty());
+        CHECK(QFile::exists(QDir(sampleFolder).filePath(QStringLiteral("sample-logo.svg"))));
+        QStringList sampleProblems;
+        const QVector<SheetTemplate> sample = loadUserSheetTemplates(sampleFolder, &sampleProblems);
+        CHECK(sample.size() == 1 && sampleProblems.isEmpty());
+        if (sample.size() == 1)
+        {
+            const SheetTemplate& s = sample[0];
+            CHECK(s.id == QLatin1String("user:sample-company") && s.hasLogo && s.cells.size() == 11 && s.fields.size() == 2);
+            CHECK(s.fields.size() == 2 && s.fields[0].id == QLatin1String("approvedBy") && s.fields[1].type == QLatin1String("choice") && s.fields[1].options.size() == 4);
+            const QSet<QString> sampleUsed = usedSheetPlaceholders(s);
+            CHECK(sampleUsed.contains(QStringLiteral("approvedBy")) && sampleUsed.contains(QStringLiteral("material")) && !sampleUsed.contains(QStringLiteral("company")));
+            const ResolvedSheet r = resolveSheet(s, sheetPageSizePt(s), s.blockHeight);
+            CHECK(!r.logo.isEmpty() && r.titleBlock.contains(r.logo) && r.logo.right() < r.cells[0].left());   // the logo sits left of the title
+            CHECK(r.titleBlock.contains(r.cells[3]) && r.cells[3].left() > r.cells[0].right());                // the grid sits right of the title
+        }
+        // a second call keeps an edited file
+        {
+            QFile edited(QDir(sampleFolder).filePath(QStringLiteral("sample-company.json")));
+            CHECK(edited.open(QIODevice::WriteOnly | QIODevice::Truncate));
+            edited.write("edited");
+        }
+        CHECK(writeSampleSheetTemplate(sampleFolder, &writeError) == QLatin1String("user:sample-company"));
+        QFile again(QDir(sampleFolder).filePath(QStringLiteral("sample-company.json")));
+        CHECK(again.open(QIODevice::ReadOnly) && again.readAll() == "edited");
+        CHECK(writeSampleSheetTemplate(QString(), &writeError).isEmpty() && !writeError.isEmpty());
+    }
+
+    // saving: a template written as JSON and read back describes the same sheet (the built-ins, the sample, a template with a logo)
+    for (const SheetTemplate& original : builtIn)
+    {
+        SheetTemplate back;
+        QString backError;
+        CHECK(parseSheetTemplate(sheetTemplateToJson(original), original.id, &back, &backError));
+        CHECK(sameSheet(original, back, original.blockHeight) && sameSheet(original, back, original.blockMaxHeight));
+    }
+
+    QTemporaryDir saveRoot;
+    CHECK(saveRoot.isValid());
+    if (saveRoot.isValid())
+    {
+        const QString folder = QDir(saveRoot.path()).filePath(QStringLiteral("pdf3d-templates"));
+        QString saveError;
+        QStringList loadProblems;
+
+        // Save as: a copy under a new name in the user folder, built-in names refused, an existing name selects, bad names rejected
+        const QString id = saveSheetTemplateAs(def, QStringLiteral("My Company"), folder, &saveError);
+        CHECK(id == QLatin1String("user:My Company") && saveError.isEmpty());
+        CHECK(QFile::exists(QDir(folder).filePath(QStringLiteral("My Company.json"))));
+        QVector<SheetTemplate> saved = loadUserSheetTemplates(folder, &loadProblems);
+        CHECK(saved.size() == 1 && loadProblems.isEmpty());
+        if (saved.size() == 1)
+        {
+            CHECK(saved[0].name == QLatin1String("My Company") && saved[0].id == id);
+            SheetTemplate expected = def;
+            expected.name = QStringLiteral("My Company");
+            CHECK(sameSheet(expected, saved[0], def.blockHeight) && sameSheet(expected, saved[0], def.blockMaxHeight));
+        }
+        CHECK(saveSheetTemplateAs(def, QStringLiteral("my company"), folder, &saveError) == id);   // the same name (any case) selects it
+        CHECK(QDir(folder).entryList(QStringList() << QStringLiteral("*.json")).size() == 1);
+        CHECK(saveSheetTemplateAs(def, QStringLiteral("default"), folder, &saveError).isEmpty() && saveError.contains(QLatin1String("built-in")));
+        CHECK(saveSheetTemplateAs(def, QStringLiteral("  "), folder, &saveError).isEmpty() && !saveError.isEmpty());
+        CHECK(saveSheetTemplateAs(def, QString(81, QLatin1Char('x')), folder, &saveError).isEmpty());
+        CHECK(sanitizedTemplateFileName(QStringLiteral("A/B:C*?")) == QLatin1String("A_B_C__") && sanitizedTemplateFileName(QStringLiteral("///")) == QLatin1String("___"));
+        const QString second = saveSheetTemplateAs(def, QStringLiteral("My/Company"), folder, &saveError);   // another name, same sanitised base as nothing yet
+        CHECK(second == QLatin1String("user:My_Company"));
+
+        // Logo: a template without one gets a cell at the left of the title block; the text moves right, the grid stays; saved and read back
+        const QString logoFolder = QDir(saveRoot.path()).filePath(QStringLiteral("logos"));
+        const QString sampleFolder2 = QDir(saveRoot.path()).filePath(QStringLiteral("sample"));
+        CHECK(writeSampleSheetTemplate(sampleFolder2, &saveError) == QLatin1String("user:sample-company"));
+        const QString logoFile = QDir(sampleFolder2).filePath(QStringLiteral("sample-logo.svg"));
+        SheetTemplate withLogo = saved.value(0);
+        const ResolvedSheet before = resolveSheet(withLogo, sheetPageSizePt(withLogo), withLogo.blockHeight);
+        CHECK(!withLogo.hasLogo && withLogo.lines.size() == 4);
+        CHECK(setSheetTemplateLogo(&withLogo, logoFile, folder, &saveError) && withLogo.hasLogo && withLogo.logo.file == QLatin1String("sample-logo.svg"));
+        CHECK(QFile::exists(QDir(folder).filePath(QStringLiteral("sample-logo.svg"))) && withLogo.lines.size() == 5);
+        const ResolvedSheet after = resolveSheet(withLogo, sheetPageSizePt(withLogo), withLogo.blockHeight);
+        CHECK(!after.logo.isEmpty() && after.titleBlock.contains(after.logo));
+        CHECK(almostEqual(after.cells[0].left() - before.cells[0].left(), 116.0));   // 4 + max(60, 1.2 x 90) + 4 points: the title moved right
+        CHECK(sameRect(after.cells[3], before.cells[3]));                              // the field grid did not move
+        CHECK(after.logo.right() < after.cells[0].left());
+        CHECK(writeUserSheetTemplate(withLogo, folder, &saveError) == withLogo.id);
+        const QVector<SheetTemplate> reloaded = loadUserSheetTemplates(folder, &loadProblems);
+        SheetTemplate found;
+        for (const SheetTemplate& r : reloaded)
+            if (r.id == withLogo.id)
+                found = r;
+        CHECK(found.hasLogo && QFileInfo::exists(sheetLogoPath(found)) && sameSheet(withLogo, found, withLogo.blockHeight));
+        // a second logo only replaces the file: the cell stays where it is and nothing moves again
+        CHECK(setSheetTemplateLogo(&withLogo, logoFile, folder, &saveError));
+        CHECK(sameRect(resolveSheet(withLogo, sheetPageSizePt(withLogo), withLogo.blockHeight).cells[0], after.cells[0]) && withLogo.lines.size() == 5);
+        CHECK(!setSheetTemplateLogo(&withLogo, QDir(folder).filePath(QStringLiteral("My Company.json")), folder, &saveError) && saveError.contains(QLatin1String("PNG")));
+        // a copy of a template that has a logo takes the logo file along
+        const QString copyId = saveSheetTemplateAs(found, QStringLiteral("Copy with logo"), logoFolder, &saveError);
+        CHECK(copyId == QLatin1String("user:Copy with logo") && QFile::exists(QDir(logoFolder).filePath(QStringLiteral("sample-logo.svg"))));
+        // what would not load again is never written
+        SheetTemplate broken = withLogo;
+        broken.id = QStringLiteral("user:broken");
+        broken.cells[0].rect.left = SheetEdge{ 5000.0, false };
+        CHECK(writeUserSheetTemplate(broken, folder, &saveError).isEmpty() && !saveError.isEmpty() && !QFile::exists(QDir(folder).filePath(QStringLiteral("broken.json"))));
+        SheetTemplate builtInId = def;
+        CHECK(writeUserSheetTemplate(builtInId, folder, &saveError).isEmpty());
+    }
 }
 
 int main(int argc, char** argv)
@@ -1185,6 +1343,7 @@ int main(int argc, char** argv)
     // QPdfWriter/QPainter want a GUI application object. vcpkg's Qt has no "offscreen" platform plugin on Windows, so use the
     // regular "windows" platform there (a desktop session is enough, no window is shown); "offscreen" elsewhere. Set
     // QT_QPA_PLATFORM yourself to override.
+    QStandardPaths::setTestModeEnabled(true);   // the user's template folder (AppData) is a test location, not the real one
     if (!qEnvironmentVariableIsSet("QT_QPA_PLATFORM"))
     {
 #ifdef Q_OS_WIN
