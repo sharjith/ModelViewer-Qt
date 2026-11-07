@@ -73,14 +73,21 @@ void recordedPmiTests(){
  head(marks,6,"Region",0x246);prop(marks,6,"Description","nowhere");                       // nothing to place it by: left out
  head(marks,7,"Unknown",0x999);prop(marks,7,"Leader[0].terminator","1 1 1");               // not an annotation-like kind
  head(marks,8,"Note",0x100);prop(marks,8,"Text[0].Item[0].string","text origin only");prop(marks,8,"textOrigin","5 6 7");
+ // Kinds generated with Solid Edge on 7 November 2026: datum feature symbol, feature control frame and line weld, placed by frame origin.
+ head(marks,9,"DatumFeatureSymbol",0x84);prop(marks,9,"label","B");prop(marks,9,"(frame origin)","50 0 0");
+ head(marks,10,"FeatureControlFrame",0x81);prop(marks,10,"(frame origin)","0 0 50");
+ head(marks,11,"LineWeld",0x8);prop(marks,11,"(frame origin)","50 -48 0");
  const auto found=notes(marks);
- check(found.size()==7,"Seven placeable annotation-like entities");
+ check(found.size()==10,"Ten placeable annotation-like entities");
  check(found[0].entityType==TypeCode::Note && found[0].text=="Line one more\nSecond" && found[0].hasLeader && found[0].anchor==QVector3D(9,-50,38) && found[0].hasTextOrigin && found[0].textOrigin==QVector3D(-48,-50,97),"Note text joins items with a space and texts with a newline");
  check(found[1].entityType==TypeCode::BalloonNote && found[1].text=="Hole" && found[2].text=="B7","Balloon text, falling back to its id");
  check(found[3].entityType==TypeCode::DatumTarget && found[3].text=="A2","Datum target label and index");
  check(found[4].entityType==TypeCode::Region && found[4].text=="Datum Point 1" && !found[4].hasLeader && found[4].hasAnchor && found[4].anchor==QVector3D(10,-50,60),"A region without a leader is placed by its frame origin");
  check(found[5].entityType==TypeCode::SurfaceFinish && found[5].text.isEmpty() && found[5].hasLeader,"A surface finish symbol carries no text");
  check(found[6].entity==8 && !found[6].hasLeader && found[6].anchor==QVector3D(5,6,7),"With nothing else, the text origin places an item");
+ check(found[7].entityType==TypeCode::DatumFeatureSymbol && found[7].text=="B" && found[7].anchor==QVector3D(50,0,0),"A datum feature symbol carries its label and sits at its frame origin");
+ check(found[8].entityType==TypeCode::FeatureControlFrame && found[8].text.isEmpty() && found[8].anchor==QVector3D(0,0,50),"A feature control frame is placed by its frame origin");
+ check(found[9].entityType==TypeCode::LineWeld && found[9].anchor==QVector3D(50,-48,0),"A line weld is placed by its frame origin");
 
  // Closest point on a mesh: a unit square in z = 0 made of two triangles.
  const std::vector<float> points{0,0,0, 1,0,0, 1,1,0, 0,1,0};

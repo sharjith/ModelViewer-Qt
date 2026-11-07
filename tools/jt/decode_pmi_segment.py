@@ -150,17 +150,43 @@ def decode(blob):
     result['object_id'] = reader.i32()
     result['version'] = reader.u8()
     result['empty_field'] = reader.i16()
-    design_groups, associations, user_attributes = reader.count(), reader.count(), reader.count()
-    result['counts_before_strings'] = {'design_groups': design_groups, 'associations': associations,
+    # Order of the PMI Manager element (JT 10.6, 8.3.1 to 8.3.5): design groups, associations, user attributes, string table, model
+    # views. Each count is followed by its data, so the counts are not adjacent when one of the collections is not empty.
+    design_groups = reader.count()
+    if design_groups:
+        raise SystemExit('non-empty design groups: layout not yet validated')
+    association_count = reader.count()
+    # Each association is five 32-bit words (observed in a Solid Edge export with model views: source data, an owning-entity word,
+    # a reason code, destination data, an owning-entity word). The words are kept raw; their meaning is not decoded here.
+    associations = [[reader.u32() for _ in range(5)] for _ in range(association_count)]
+    user_attributes = reader.count()
+    if user_attributes:
+        raise SystemExit('non-empty user attributes: layout not yet validated')
+    result['counts_before_strings'] = {'design_groups': design_groups, 'associations': association_count,
                                        'user_attributes': user_attributes}
-    if design_groups or associations or user_attributes:
-        raise SystemExit('non-empty design groups, associations or user attributes: layout not yet validated')
+    result['associations_raw'] = associations[:12]
     strings = [reader.mbstring() for _ in range(reader.count())]
     result['string_table'] = strings
     model_views = reader.count()
     result['model_view_count'] = model_views
-    if model_views:
-        raise SystemExit('model views present: layout not yet validated')
+    views = []
+    for _ in range(model_views):
+        view = {'eye_direction': reader.unpack('3f'), 'angle': reader.f32(), 'eye_position': reader.unpack('3f'),
+                'target_point': reader.unpack('3f'), 'view_angle': reader.unpack('3f'), 'viewport_diameter': reader.f32()}
+        reader.f32()
+        reader.i32()
+        view['active'] = reader.i32()
+        view['view_id'] = reader.i32()
+        name_id = reader.u32()
+        view['name'] = strings[name_id] if name_id < len(strings) else None
+        properties = []
+        for _ in range(reader.count()):
+            key, key_hidden = reader.mbstring(), reader.u8()
+            value, value_hidden = reader.mbstring(), reader.u8()
+            properties.append({'key': key, 'value': value})
+        view['properties'] = properties
+        views.append(view)
+    result['model_views'] = views
     entities = []
     for _ in range(reader.count()):
         entities.append(read_entity(reader, strings))

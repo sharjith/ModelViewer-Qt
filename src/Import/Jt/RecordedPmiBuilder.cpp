@@ -350,6 +350,19 @@ AnnotationResult buildAnnotations(const std::vector<SceneMeshRecord>& meshes)
 				if (a.text.isEmpty())
 					a.text = QObject::tr("Surface texture symbol");
 				break;
+			case TypeCode::DatumFeatureSymbol:
+				a.recordedKind = QStringLiteral("Datum feature symbol");
+				if (!a.text.isEmpty())
+					a.text = QObject::tr("Datum %1").arg(a.text);
+				break;
+			case TypeCode::FeatureControlFrame:
+				a.recordedKind = QStringLiteral("Feature control frame");
+				a.text = QObject::tr("Feature control frame");
+				break;
+			case TypeCode::LineWeld:
+				a.recordedKind = QStringLiteral("Weld symbol");
+				a.text = QObject::tr("Weld symbol");
+				break;
 			default: continue;
 			}
 			if (a.text.isEmpty())

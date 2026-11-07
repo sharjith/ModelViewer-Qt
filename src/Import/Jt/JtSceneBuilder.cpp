@@ -2060,6 +2060,11 @@ struct Builder {
                 options.check();prop->Load();
                 const auto pmi=Handle(JtElement_MetaData_PMIManager)::DownCast(prop->DefferedObject());
                 if(pmi.IsNull()) throw std::runtime_error("unsupported or unreadable PMI payload");
+                if(!pmi->ModelViews().empty()) {
+                    QStringList names;for(const auto& view:pmi->ModelViews())names.append(QString::fromUtf16(view.Name.c_str()));
+                    result.notes.append(label+QStringLiteral(": JT PMI has %1 named model view(s) (%2) and %3 association(s) linking PMI to them; the views are read but not shown separately, all PMI of the part is displayed.")
+                        .arg(pmi->ModelViews().size()).arg(names.join(QStringLiteral(", "))).arg(pmi->AssociationCount()));
+                }
                 {Timed timed(metaMs);auto converted=pmiMetadata(*pmi,label);if(converted){if(sourcePmi)result.warnings.append(label+": additional JT PMI segment ignored");else {sourcePmi=std::move(converted);result.pmiGeometry[node.get()]=pmiGeometryOf(*pmi);}}}
             } catch(const Cancelled&) {throw;}
               catch(const std::bad_alloc&) {throw;}

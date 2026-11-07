@@ -31,6 +31,11 @@ constexpr int DatumTarget = 0x0088;
 constexpr int Note = 0x0100;
 constexpr int BalloonNote = 0x0235;
 constexpr int Region = 0x0246;
+// Seen in a Solid Edge control made on purpose (7 November 2026): their drawing is stored like the other kinds; none of the rows
+// they carry is needed beyond the label of a datum feature symbol.
+constexpr int LineWeld = 0x0008;
+constexpr int FeatureControlFrame = 0x0081;
+constexpr int DatumFeatureSymbol = 0x0084;
 }
 
 inline bool parseVector(const QString& text, QVector3D& out)
@@ -307,6 +312,9 @@ inline std::vector<Note> notes(const NodePropertySet& set)
 		case TypeCode::DatumTarget: n.text = e.properties.value(QStringLiteral("label")) + e.properties.value(QStringLiteral("index")); break;
 		case TypeCode::Region: n.text = e.properties.value(QStringLiteral("Description")); break;
 		case TypeCode::SurfaceFinish: break; // a symbol; the builder names it
+		case TypeCode::DatumFeatureSymbol: n.text = e.properties.value(QStringLiteral("label")); break;
+		case TypeCode::FeatureControlFrame:  // the frame's text is only in its drawing; the builder names it
+		case TypeCode::LineWeld: break;
 		default: continue;
 		}
 		QVector3D point;

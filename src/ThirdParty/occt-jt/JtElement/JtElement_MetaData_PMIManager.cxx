@@ -38,6 +38,8 @@ namespace
   constexpr std::size_t MaxEntities = 1u << 20;
   constexpr std::size_t MaxStrings = 1u << 22;
   constexpr std::size_t MaxProperties = 1u << 16;
+  constexpr std::size_t MaxAssociations = 1u << 22;
+  constexpr std::size_t MaxModelViews = 1u << 16;
 
   // Bounded element-level reads on top of JtData_Reader: counts must be plausible against the bytes the element still has.
   struct Cursor
@@ -147,19 +149,54 @@ Standard_Boolean JtElement_MetaData_PMIManager::Read (JtData_Reader& theReader)
     throw std::runtime_error ("Unsupported JT PMI Manager element version " + std::to_string (int (myVersion)));
   C.I16 ("empty field");
 
-  const std::uint32_t aDesignGroups = C.U32 ("design group count");
-  const std::uint32_t anAssociations = C.U32 ("association count");
-  const std::uint32_t aUserAttributes = C.U32 ("user attribute count");
-  if (aDesignGroups || anAssociations || aUserAttributes)
-    throw std::runtime_error ("JT PMI design groups, associations and user attributes are not supported (no authentic sample has been decoded)");
+  // Order of the element (JT 10.6, 8.3.1 to 8.3.5): design groups, associations, user attributes, string table, model views; each
+  // count is followed by its own data, so the counts are adjacent only when the collections before them are empty.
+  if (C.U32 ("design group count") != 0)
+    throw std::runtime_error ("JT PMI design groups are not supported (no authentic sample has been decoded)");
+  // Associations link PMI to model views and geometry: five 32-bit words each (source data, owning entity, reason code, destination
+  // data, owning entity; seen in a Solid Edge export with model views). They are counted and skipped, not interpreted.
+  const std::size_t anAssociations = C.Count (20, MaxAssociations, "association count");
+  for (std::size_t i = 0; i < anAssociations; ++i)
+    for (int w = 0; w < 5; ++w)
+      C.U32 ("association");
+  myAssociationCount = std::uint32_t (anAssociations);
+  if (C.U32 ("user attribute count") != 0)
+    throw std::runtime_error ("JT PMI user attributes are not supported (no authentic sample has been decoded)");
 
   const std::size_t aStringCount = C.Count (4, MaxStrings, "string count");
   myStrings.reserve (aStringCount);
   for (std::size_t i = 0; i < aStringCount; ++i)
     myStrings.push_back (C.String ("string table"));
 
-  if (C.U32 ("model view count") != 0)
-    throw std::runtime_error ("JT PMI model views are not supported (no authentic sample has been decoded)");
+  // Model views (8.3.5): direction, angle, eye position, target point, view angles, viewport diameter, two empty fields, active flag,
+  // view id, name string id and a property list.
+  const std::size_t aViewCount = C.Count (80, MaxModelViews, "model view count");
+  myModelViews.reserve (aViewCount);
+  for (std::size_t i = 0; i < aViewCount; ++i)
+  {
+    ModelView aView;
+    for (float& aValue : aView.EyeDirection) aValue = C.F32 ("view direction");
+    aView.Angle = C.F32 ("view angle");
+    for (float& aValue : aView.EyePosition) aValue = C.F32 ("view eye position");
+    for (float& aValue : aView.TargetPoint) aValue = C.F32 ("view target point");
+    for (int k = 0; k < 3; ++k) C.F32 ("view rotation angle");
+    C.F32 ("viewport diameter");
+    C.F32 ("empty field");
+    C.I32 ("empty field");
+    aView.Active = C.I32 ("active flag");
+    aView.Id = C.I32 ("view id");
+    const std::uint32_t aNameId = C.U32 ("view name id");
+    if (aNameId != NoString && aNameId < myStrings.size()) aView.Name = myStrings[aNameId];
+    const std::size_t aViewProperties = C.Count (10, MaxProperties, "view property count");
+    for (std::size_t k = 0; k < aViewProperties; ++k)
+    {
+      C.String ("view property key");
+      C.U8 ("view property key flag");
+      C.String ("view property value");
+      C.U8 ("view property value flag");
+    }
+    myModelViews.push_back (std::move (aView));
+  }
 
   const std::size_t anEntityCount = C.Count (30, MaxEntities, "entity count");
   JtData_Limits::allocation (anEntityCount * sizeof (Entity));

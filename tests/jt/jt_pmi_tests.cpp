@@ -27,8 +27,13 @@ struct Spec {
 };
 // One dimension-like entity: label 3, a real 2D frame, two stored polylines (3 vertices), properties value and unit.
 Bytes element(const Spec& s) {
- Bytes b(s.big);b.u8(s.version);b.u16(0xffff);b.u32(s.designGroups);b.u32(s.associations);b.u32(s.userAttributes);
+ Bytes b(s.big);b.u8(s.version);b.u16(0xffff);b.u32(s.designGroups);
+ b.u32(s.associations);for(unsigned i=0;i<(s.associations<1000?s.associations:0u);++i){b.u32(0x92000000u+i);b.u32(0xffffffffu);b.u32(10);b.u32(0x91000000u+i);b.u32(0xffffffffu);}
+ b.u32(s.userAttributes);
  b.u32(2);b.text("Dimension");b.text("PMI");b.u32(s.modelViews);
+ for(unsigned i=0;i<(s.modelViews<1000?s.modelViews:0u);++i){   // one named view: camera, flags, id, name string id (1 = "PMI"), no properties
+  for(float v:{0.f,-1.f,0.f})b.f32(v);b.f32(30.f);for(float v:{90.f,436.f,53.f})b.f32(v);for(float v:{90.f,0.f,53.f})b.f32(v);for(float v:{0.f,0.f,0.f})b.f32(v);
+  b.f32(0.f);b.f32(0.f);b.u32(0);b.u32(1);b.u32(7+i);b.u32(1);b.u32(0);}
  b.u32(s.entityCountOverride?s.entityCountOverride:1);
  b.u32(3);b.u8(1);for(float v:{0.1f,-0.05f,0.f,1.1f,-0.05f,0.f,0.1f,-0.05f,1.f})b.f32(v);b.f32(0.0065f);b.u8(1);b.u32(s.textEntities);
  b.u32(2);b.u32(0);b.u32(s.badIndex>=0?unsigned(s.badIndex):3);   // polyline indices (vertex indices)
@@ -68,9 +73,13 @@ void pmiTests() {
  { Spec s;s.version=4; rejects([&]{read(s);},"other element version"); }
  { Spec s;s.version=6; rejects([&]{read(s);},"later element version"); }
  { Spec s;s.designGroups=1; rejects([&]{read(s);},"design groups"); }
- { Spec s;s.associations=1; rejects([&]{read(s);},"associations"); }
+ { Spec s;s.associations=2; const auto pmi=read(s); verify(pmi); check(pmi->AssociationCount()==2,"Associations are counted and skipped"); }
+ { Spec s;s.associations=0x7fffffff; rejects([&]{read(s);},"implausible association count"); }
  { Spec s;s.userAttributes=1; rejects([&]{read(s);},"user attributes"); }
- { Spec s;s.modelViews=1; rejects([&]{read(s);},"model views"); }
+ { Spec s;s.modelViews=1; const auto pmi=read(s); verify(pmi);
+   check(pmi->ModelViews().size()==1 && pmi->ModelViews()[0].Name==u"PMI" && pmi->ModelViews()[0].Id==7 && pmi->ModelViews()[0].Active==1
+         && pmi->ModelViews()[0].EyeDirection[1]==-1.f && pmi->ModelViews()[0].Angle==30.f && pmi->ModelViews()[0].TargetPoint[0]==90.f,"A model view is read"); }
+ { Spec s;s.modelViews=0x7fffffff; rejects([&]{read(s);},"implausible model view count"); }
  { Spec s;s.textEntities=1; rejects([&]{read(s);},"2D text entities"); }
  // Malformed input.
  { Spec s;s.badIndex=4; rejects([&]{read(s);},"polyline index beyond the vertex array"); }

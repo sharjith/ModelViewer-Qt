@@ -32,9 +32,10 @@
 //
 // Reads the layout of the JT 10.6 format description, section 8.3, for element version 5 (the only version observed in
 // authentic files, Solid Edge 2026 JT 10.10): every PMI item is a Generic PMI Entity with a typed 2D-data block, non-text
-// polylines in the part's frame and key/value string properties. Design groups, associations, user attributes, model views,
-// 2D text entities, CAD tags and the version 3 additions are not read: a file that uses them is rejected with an explicit
-// diagnostic instead of being misread, and the unread trailing bytes of the element are skipped by the caller. Replaces the
+// polylines in the part's frame and key/value string properties. Associations (counted, their five words skipped) and model views
+// (name, camera and id kept) are read since 7 November 2026, from a Solid Edge export with two named PMI model views; design groups,
+// user attributes, 2D text entities, CAD tags and the version 3 additions are not read: a file that uses them is rejected with an
+// explicit diagnostic instead of being misread, and the unread trailing bytes of the element are skipped by the caller. Replaces the
 // upstream reader, which modelled an older layout (typed per-kind collections) that these files do not use.
 class JtElement_MetaData_PMIManager : public JtData_Object
 {
@@ -43,6 +44,18 @@ public:
   {
     std::u16string Key;
     std::u16string Value;
+  };
+
+  // A named PMI model view (JT 10.6, 8.3.5). Which PMI belongs to it is in the associations, which are not decoded.
+  struct ModelView
+  {
+    std::u16string Name;
+    std::int32_t Id = 0;
+    std::int32_t Active = 0;
+    float EyeDirection[3] = {};
+    float Angle = 0.f;
+    float EyePosition[3] = {};
+    float TargetPoint[3] = {};
   };
 
   struct Entity
@@ -74,6 +87,8 @@ public:
   std::uint8_t LocalVersion() const { return myVersion; }
   const std::vector<std::u16string>& Strings() const { return myStrings; }
   const std::vector<Entity>& Entities() const { return myEntities; }
+  const std::vector<ModelView>& ModelViews() const { return myModelViews; }
+  std::uint32_t AssociationCount() const { return myAssociationCount; }
 
   DEFINE_STANDARD_RTTIEXT(JtElement_MetaData_PMIManager, JtData_Object)
   DEFINE_OBJECT_CLASS (JtElement_MetaData_PMIManager)
@@ -82,6 +97,8 @@ protected:
   std::uint8_t myVersion = 0;
   std::vector<std::u16string> myStrings;
   std::vector<Entity> myEntities;
+  std::vector<ModelView> myModelViews;
+  std::uint32_t myAssociationCount = 0;
 };
 
 DEFINE_STANDARD_HANDLE(JtElement_MetaData_PMIManager, JtData_Object)
