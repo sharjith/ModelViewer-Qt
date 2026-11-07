@@ -216,7 +216,19 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
     const QString tempPath = QDir::temp().filePath(QStringLiteral("mv3dpdf_%1.u3d").arg(QUuid::createUuid().toString(QUuid::Id128)));
 
     IFXRESULT result = IFX_OK;
+#ifdef _WIN32
     result = IFXCOMInitialize();
+#else
+    // The static IFXCoreStatic wrapper fails a second IFXCOMInitialize() ("cannot load IFXCore", 0x80000003) while the core is still
+    // loaded, and after IFXCOMUninitialize() it may stay loaded (IFX_W_CANNOT_UNLOAD: the scheduling module keeps live components).
+    // So on Linux the library is initialised once and stays initialised for the life of the process.
+    static bool s_comInitialised = false;
+    if (!s_comInitialised)
+    {
+        result = IFXCOMInitialize();
+        s_comInitialised = IFXSUCCESS(result);
+    }
+#endif
     if (!IFXSUCCESS(result))
     {
         out.error = QStringLiteral("The 3D library could not be initialised (%1).").arg(resultText(result));
@@ -455,7 +467,11 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
         }
     }
 
+#ifdef _WIN32
     IFXCOMUninitialize();
+#else
+    // On Linux the library stays initialised for the life of the process (see the guard at the top of this function).
+#endif
 
     if (!IFXSUCCESS(result))
     {
