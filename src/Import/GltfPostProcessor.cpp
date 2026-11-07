@@ -1889,6 +1889,20 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
             return -1;
         };
 
+        // Source meshes that share a name (one JT part split into several coloured meshes, repeated part
+        // names in a BOM) cannot be told apart by name. Assimp writes the JSON meshes in the same order as
+        // the source meshes, so when a name is shared and the counts agree, the n-th JSON mesh of that name
+        // is the n-th source mesh of that name. Without this every one of them took the first source mesh's
+        // colour.
+        QMap<QString, int> jsonMeshNameCount;
+        for (int j = 0; j < jsonMeshes.size(); ++j)
+        {
+            const QJsonObject jm = jsonMeshes[j].toObject();
+            if (!jm["primitives"].toArray().isEmpty())
+                ++jsonMeshNameCount[jm["name"].toString()];
+        }
+        QMap<QString, int> jsonMeshNameSeen;
+
         for (int j = 0; j < jsonMeshes.size(); ++j)
         {
             QJsonObject jMesh = jsonMeshes[j].toObject();
@@ -1901,6 +1915,18 @@ bool GltfPostProcessor::postProcessGltfJsonWithMaterials(
                 .arg(j).arg(meshName).arg(primitives.size()), logCallback);
 
             int baseMeshIdx = resolveSourceMeshIndex(meshName, j, "NAME MATCH");
+            {
+                const int occurrence = jsonMeshNameSeen[meshName]++;
+                const auto shared = meshNameToIndices.constFind(meshName);
+                if (shared != meshNameToIndices.constEnd() && shared.value().size() > 1 &&
+                    shared.value().size() == jsonMeshNameCount.value(meshName) &&
+                    occurrence < shared.value().size())
+                {
+                    baseMeshIdx = shared.value()[occurrence];
+                    log(QString("  [ORDER MATCH] json mesh[%1] '%2' is occurrence %3 of %4 -> source mesh[%5]")
+                        .arg(j).arg(meshName).arg(occurrence).arg(shared.value().size()).arg(baseMeshIdx), logCallback);
+                }
+            }
             if (baseMeshIdx < 0)
             {
                 log(QString("  WARNING: no source mesh found for json mesh '%1' (index %2)")
