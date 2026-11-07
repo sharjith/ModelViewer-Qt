@@ -1,6 +1,7 @@
 // Tests for the Save as 3D PDF export (src/Pdf3D). GUI-free except the optional end-to-end test.
 //
-//   pdf3d_tests          view dictionaries, aiScene conversion, incremental PDF update on a real QPdfWriter page, the
+//   pdf3d_tests          view dictionaries, aiScene conversion, sheet templates (parser, rectangles, placeholders, user folder),
+//                        incremental PDF update on a real QPdfWriter page, the
 //                        in-process u3d conversion (skipped when the u3d modules are not next to the test executable)
 //   pdf3d_tests --full   additionally runs Pdf3DExporter::exportToFile (text layout and fonts) and checks the written file
 #include "ClippingState.h"
@@ -9,6 +10,7 @@
 #include "Pdf3DExporter.h"
 #include "Pdf3DViews.h"
 #include "SceneToU3d.h"
+#include "SheetTemplate.h"
 #include "U3dWriter.h"
 
 #include <assimp/material.h>
@@ -21,6 +23,7 @@
 #include <QFile>
 #include <QGuiApplication>
 #include <QJsonArray>
+#include <QJsonDocument>
 #include <QJsonObject>
 #include <QPageSize>
 #include <QPainter>
@@ -29,6 +32,7 @@
 #include <QTemporaryDir>
 
 #include <cmath>
+#include <functional>
 #include <cstdio>
 #include <cstring>
 #include <memory>
@@ -628,6 +632,36 @@ void testFullExport()
     CHECK(onePage.match(QString::fromLatin1(pdf2)).hasMatch() && pdf2.contains("/Subtype /3D"));
     CHECK(!pdf2.contains("/Subtype /Widget"));   // short notes stay plain text in the title block
 
+    // sheet templates: the template decides the page size (Default is A4 landscape, 842 x 595 pt; A3 landscape 1191 x 842 pt), an
+    // unknown template id falls back to Default, and a long note still becomes the scrollable notes field of the Default block
+    const QRegularExpression a4Box(QStringLiteral("/MediaBox\\s*\\[\\s*0\\s+0\\s+84[12](\\.\\d+)?\\s+59[45](\\.\\d+)?\\s*\\]"));
+    const QRegularExpression a3Box(QStringLiteral("/MediaBox\\s*\\[\\s*0\\s+0\\s+119[01](\\.\\d+)?\\s+84[12](\\.\\d+)?\\s*\\]"));
+    CHECK(a4Box.match(QString::fromLatin1(pdf2)).hasMatch());
+    Pdf3D::Pdf3DOptions a3 = options;
+    a3.templateId = QStringLiteral("builtin:a3-landscape");
+    const QString pathA3 = dir.filePath(QStringLiteral("outA3.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, a3, pathA3).ok);
+    QFile fA3(pathA3);
+    CHECK(fA3.open(QIODevice::ReadOnly));
+    const QString pdfA3 = QString::fromLatin1(fA3.readAll());
+    CHECK(a3Box.match(pdfA3).hasMatch() && !a4Box.match(pdfA3).hasMatch());
+    Pdf3D::Pdf3DOptions unknownTemplate = options;
+    unknownTemplate.templateId = QStringLiteral("user:does-not-exist");
+    const QString pathUnknown = dir.filePath(QStringLiteral("outUnknown.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, unknownTemplate, pathUnknown).ok);
+    QFile fUnknown(pathUnknown);
+    CHECK(fUnknown.open(QIODevice::ReadOnly));
+    CHECK(a4Box.match(QString::fromLatin1(fUnknown.readAll())).hasMatch());
+    Pdf3D::Pdf3DOptions longNotes = options;
+    longNotes.notes = QString(2000, QLatin1Char('n'));
+    for (int i = 20; i < longNotes.notes.size(); i += 20)
+        longNotes.notes[i] = QLatin1Char(' ');   // words, so the text wraps over many lines
+    const QString pathLong = dir.filePath(QStringLiteral("outLongNotes.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, longNotes, pathLong).ok);
+    QFile fLong(pathLong);
+    CHECK(fLong.open(QIODevice::ReadOnly));
+    CHECK(fLong.readAll().contains("/FT /Tx"));
+
     // a view that moves a part: every view (the seven standard ones too) lists that part, so the explosion does not carry over
     Pdf3D::Pdf3DOptions moved = options;
     moved.notes.clear();
@@ -811,6 +845,312 @@ void writeAnimationSpikes(const QString& folder)
     { Pdf3D::U3dScene u = spikeScene(6, true);  for (int i = 0; i < 6; ++i) addSpikeTrack(u, i, 3, 3.0); writeSpike(folder, QStringLiteral("anim_D_six_parts_in_folder_3keys"), u); }
 }
 
+// ---- Sheet templates (SheetTemplate.h) ----------------------------------------------------------------------------------------------
+
+bool almostEqual(double a, double b, double tolerance = 1e-6) { return std::abs(a - b) <= tolerance; }
+bool sameRect(const QRectF& a, const QRectF& b) { return almostEqual(a.left(), b.left()) && almostEqual(a.top(), b.top()) && almostEqual(a.width(), b.width()) && almostEqual(a.height(), b.height()); }
+
+// A valid minimal template (millimetres, A4 landscape, one cell), changed by `mutate` for the rejection cases.
+QByteArray sheetJson(const std::function<void(QJsonObject&)>& mutate = nullptr)
+{
+    QJsonObject cell;
+    cell.insert(QStringLiteral("id"), QStringLiteral("a"));
+    cell.insert(QStringLiteral("left"), 2);
+    cell.insert(QStringLiteral("right"), -2);
+    cell.insert(QStringLiteral("top"), 2);
+    cell.insert(QStringLiteral("bottom"), -2);
+    cell.insert(QStringLiteral("text"), QStringLiteral("{title}"));
+    QJsonObject block;
+    block.insert(QStringLiteral("anchor"), QStringLiteral("bottom"));
+    block.insert(QStringLiteral("height"), 30);
+    block.insert(QStringLiteral("cells"), QJsonArray{ cell });
+    QJsonObject page;
+    page.insert(QStringLiteral("size"), QStringLiteral("A4"));
+    page.insert(QStringLiteral("orientation"), QStringLiteral("landscape"));
+    QJsonObject root;
+    root.insert(QStringLiteral("version"), 1);
+    root.insert(QStringLiteral("name"), QStringLiteral("Test"));
+    root.insert(QStringLiteral("units"), QStringLiteral("mm"));
+    root.insert(QStringLiteral("page"), page);
+    root.insert(QStringLiteral("titleBlock"), block);
+    if (mutate)
+        mutate(root);
+    return QJsonDocument(root).toJson(QJsonDocument::Compact);
+}
+
+// Mutators reach into the title block: root["titleBlock"] is a copy, so write it back.
+void editBlock(QJsonObject& root, const std::function<void(QJsonObject&)>& edit)
+{
+    QJsonObject block = root.value(QStringLiteral("titleBlock")).toObject();
+    edit(block);
+    root.insert(QStringLiteral("titleBlock"), block);
+}
+
+void editFirstCell(QJsonObject& root, const std::function<void(QJsonObject&)>& edit)
+{
+    editBlock(root, [&](QJsonObject& block) {
+        QJsonArray cells = block.value(QStringLiteral("cells")).toArray();
+        QJsonObject cell = cells.at(0).toObject();
+        edit(cell);
+        cells.replace(0, cell);
+        block.insert(QStringLiteral("cells"), cells);
+    });
+}
+
+bool rejects(const QByteArray& json, const QString& expectedInMessage)
+{
+    Pdf3D::SheetTemplate t;
+    QString error;
+    const bool ok = Pdf3D::parseSheetTemplate(json, QStringLiteral("test"), &t, &error);
+    if (ok || !error.contains(expectedInMessage))
+        std::fprintf(stderr, "  expected rejection containing \"%s\", got ok=%d error=\"%s\"\n", qPrintable(expectedInMessage), ok ? 1 : 0, qPrintable(error));
+    return !ok && error.contains(expectedInMessage);
+}
+
+void testSheetTemplates()
+{
+    using namespace Pdf3D;
+
+    // built-in templates parse
+    const QVector<SheetTemplate> builtIn = builtInSheetTemplates();
+    CHECK(builtIn.size() == 2);
+    CHECK(builtIn.size() == 2 && builtIn[0].id == QLatin1String("builtin:default") && builtIn[1].id == QLatin1String("builtin:a3-landscape"));
+    const SheetTemplate& def = builtIn.value(0);
+
+    // Default reproduces today's hard-coded sheet (the numbers of Pdf3DExporter.cpp: margin 28, border 20, 12 gap, 360 wide grid,
+    // notes 52 below the top, 3 x 2 cells), for the minimum and the maximum title block height
+    const QSizeF page = sheetPageSizePt(def);
+    CHECK(almostEqual(page.width(), 841.8898, 0.01) && almostEqual(page.height(), 595.2756, 0.01));
+    for (const double bh : { 90.0, 100.0, 120.0 })
+    {
+        const ResolvedSheet r = resolveSheet(def, page, bh);
+        const QRectF tb(28.0, page.height() - 28.0 - bh, page.width() - 56.0, bh);
+        const double splitX = tb.right() - 360.0, rowH = bh / 3.0;
+        CHECK(sameRect(r.page, QRectF(QPointF(0, 0), page)));
+        CHECK(sameRect(r.border, QRectF(20, 20, page.width() - 40, page.height() - 40)));
+        CHECK(sameRect(r.titleBlock, tb));
+        CHECK(sameRect(r.area3d, QRectF(QPointF(28, 28), QPointF(page.width() - 28, tb.top() - 12))));
+        CHECK(r.cells.size() == 9);
+        if (r.cells.size() == 9)
+        {
+            CHECK(sameRect(r.cells[0], QRectF(tb.left() + 10, tb.top() + 6, splitX - tb.left() - 20, 28)));           // title
+            CHECK(sameRect(r.cells[1], QRectF(tb.left() + 10, tb.top() + 36, splitX - tb.left() - 20, 14)));          // subtitle
+            CHECK(sameRect(r.cells[2], QRectF(tb.left() + 10, tb.top() + 52, tb.width() - 360.0 - 20.0, bh - 52 - 4))); // notes
+            const int order[6][2] = { { 0, 0 }, { 1, 0 }, { 0, 1 }, { 1, 1 }, { 0, 2 }, { 1, 2 } };   // column, row of cells 3..8
+            for (int k = 0; k < 6; ++k)
+                CHECK(sameRect(r.cells[3 + k], QRectF(splitX + order[k][0] * 180.0, tb.top() + order[k][1] * rowH, 180.0, rowH)));
+        }
+        CHECK(r.lines.size() == 4);
+        if (r.lines.size() == 4)
+        {
+            const auto sameLine = [](const QLineF& a, const QLineF& b) { return almostEqual(a.x1(), b.x1()) && almostEqual(a.y1(), b.y1()) && almostEqual(a.x2(), b.x2()) && almostEqual(a.y2(), b.y2()); };
+            CHECK(sameLine(r.lines[0], QLineF(splitX, tb.top(), splitX, tb.bottom())));
+            CHECK(sameLine(r.lines[1], QLineF(splitX + 180.0, tb.top(), splitX + 180.0, tb.bottom())));
+            CHECK(sameLine(r.lines[2], QLineF(splitX, tb.top() + rowH, tb.right(), tb.top() + rowH)));
+            CHECK(sameLine(r.lines[3], QLineF(splitX, tb.top() + 2 * rowH, tb.right(), tb.top() + 2 * rowH)));
+        }
+        CHECK(r.logo.isEmpty());
+    }
+
+    // the title block grows with the notes like the exporter did: 52 + text + 6, within 90..120
+    bool overflows = true;
+    CHECK(almostEqual(titleBlockHeightFor(def, page, 0.0, &overflows), 90.0) && !overflows);
+    CHECK(almostEqual(titleBlockHeightFor(def, page, 20.0, &overflows), 90.0) && !overflows);
+    CHECK(almostEqual(titleBlockHeightFor(def, page, 50.0, &overflows), 108.0) && !overflows);
+    CHECK(almostEqual(titleBlockHeightFor(def, page, 100.0, &overflows), 120.0) && overflows);
+
+    // exactly one scrollable cell (the notes) and the built-in label is the one the exporter always used
+    int scroll = 0;
+    for (const SheetCell& c : def.cells)
+        scroll += c.scrollWhenOverflow ? 1 : 0;
+    CHECK(scroll == 1 && def.cells.value(2).id == QLatin1String("notes") && def.growWithCell == QLatin1String("notes"));
+    CHECK(sheetLabelText(def, QStringLiteral("Drawing no.")) == QLatin1String("Drawing no."));
+
+    // A3 landscape
+    const SheetTemplate a3 = builtIn.value(1);
+    const QSizeF a3Page = sheetPageSizePt(a3);
+    CHECK(almostEqual(a3Page.width(), 1190.55, 0.01) && almostEqual(a3Page.height(), 841.89, 0.01));
+
+    // the placeholders used decide which standard fields the dialog asks for
+    const QSet<QString> used = usedSheetPlaceholders(def);
+    for (const QString& name : { QStringLiteral("title"), QStringLiteral("subtitle"), QStringLiteral("notes"), QStringLiteral("drawingNumber"), QStringLiteral("revision"),
+                                  QStringLiteral("author"), QStringLiteral("company"), QStringLiteral("scale"), QStringLiteral("date"), QStringLiteral("parts"),
+                                  QStringLiteral("sheet"), QStringLiteral("sheets") })
+        CHECK(used.contains(name));
+    CHECK(standardSheetPlaceholders().size() == 12);
+
+    // placeholder substitution, fallback and unknown names
+    QMap<QString, QString> values;
+    values.insert(QStringLiteral("scale"), QString());
+    values.insert(QStringLiteral("parts"), QStringLiteral("12"));
+    values.insert(QStringLiteral("sheet"), QStringLiteral("1"));
+    values.insert(QStringLiteral("sheets"), QStringLiteral("3"));
+    values.insert(QStringLiteral("approvedBy"), QStringLiteral("A. B."));
+    QStringList unknown;
+    CHECK(substituteSheetText(QStringLiteral("{scale|-}  |  {parts}  |  {sheet}/{sheets}"), values, &unknown) == QLatin1String("-  |  12  |  1/3") && unknown.isEmpty());
+    CHECK(substituteSheetText(QStringLiteral("by {approvedBy}{missing} {missing}!"), values, &unknown) == QLatin1String("by A. B. !") && unknown == QStringList{ QStringLiteral("missing") });
+    CHECK(substituteSheetText(QStringLiteral("no placeholders { } {1x}"), values) == QLatin1String("no placeholders { } {1x}"));
+
+    // a valid minimal template, a custom field and a corner block
+    SheetTemplate t;
+    QString error;
+    QStringList warnings;
+    CHECK(parseSheetTemplate(sheetJson(), QStringLiteral("test"), &t, &error, &warnings) && t.cells.size() == 1 && warnings.isEmpty());
+    CHECK(parseSheetTemplate(sheetJson([](QJsonObject& o) {
+        QJsonObject field;
+        field.insert(QStringLiteral("id"), QStringLiteral("approvedBy"));
+        field.insert(QStringLiteral("label"), QStringLiteral("Approved by"));
+        field.insert(QStringLiteral("type"), QStringLiteral("choice"));
+        field.insert(QStringLiteral("options"), QJsonArray{ QStringLiteral("A"), QStringLiteral("B") });
+        o.insert(QStringLiteral("fields"), QJsonArray{ field });
+        editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("text"), QStringLiteral("{approvedBy} {nonsense}")); });
+    }), QStringLiteral("test"), &t, &error, &warnings) && t.fields.size() == 1 && t.fields[0].options.size() == 2 && warnings.size() == 1 && warnings[0].contains(QLatin1String("nonsense")));
+    CHECK(parseSheetTemplate(sheetJson([](QJsonObject& o) {
+        editBlock(o, [](QJsonObject& b) { b.insert(QStringLiteral("anchor"), QStringLiteral("bottom-right")); b.insert(QStringLiteral("width"), 100); });
+    }), QStringLiteral("test"), &t, &error));
+    if (t.anchor == TitleBlockAnchor::BottomRight)
+    {
+        const QSizeF p = sheetPageSizePt(t);
+        const ResolvedSheet r = resolveSheet(t, p, t.blockHeight);
+        CHECK(almostEqual(r.titleBlock.width(), 100.0 * 72.0 / 25.4) && almostEqual(r.titleBlock.right(), p.width() - t.margin));
+        // the cell is 2 mm in from each edge (millimetres converted to points; the right and bottom edges count from the opposite side)
+        CHECK(sameRect(r.cells[0], r.titleBlock.adjusted(2.0 * 72.0 / 25.4, 2.0 * 72.0 / 25.4, -2.0 * 72.0 / 25.4, -2.0 * 72.0 / 25.4)));
+    }
+    else
+        CHECK(false);
+
+    // coordinate rules: positive from the top-left, negative from the opposite edge, fractions and percentages of the block size
+    CHECK(almostEqual(resolveSheetEdge(SheetEdge{ 10.0, false }, 200.0), 10.0));
+    CHECK(almostEqual(resolveSheetEdge(SheetEdge{ -10.0, false }, 200.0), 190.0));
+    CHECK(almostEqual(resolveSheetEdge(SheetEdge{ 0.25, true }, 200.0), 50.0));
+    CHECK(almostEqual(resolveSheetEdge(SheetEdge{ -0.25, true }, 200.0), 150.0));
+    CHECK(almostEqual(resolveSheetEdge(SheetEdge{ 1.0, true }, 200.0), 200.0));
+
+    // rejected templates, each with a message that names the problem
+    CHECK(rejects(QByteArray("not json"), QStringLiteral("JSON")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { o.insert(QStringLiteral("version"), 2); }), QStringLiteral("version")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { o.insert(QStringLiteral("name"), QStringLiteral("")); }), QStringLiteral("name")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { o.insert(QStringLiteral("units"), QStringLiteral("inch")); }), QStringLiteral("units")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { QJsonObject p = o.value(QStringLiteral("page")).toObject(); p.insert(QStringLiteral("size"), QStringLiteral("B7")); o.insert(QStringLiteral("page"), p); }), QStringLiteral("page size")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { QJsonObject p = o.value(QStringLiteral("page")).toObject(); p.insert(QStringLiteral("size"), QJsonArray{ 50, 50 }); o.insert(QStringLiteral("page"), p); }), QStringLiteral("custom page size")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { QJsonObject p = o.value(QStringLiteral("page")).toObject(); p.insert(QStringLiteral("orientation"), QStringLiteral("diagonal")); o.insert(QStringLiteral("page"), p); }), QStringLiteral("orientation")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editBlock(o, [](QJsonObject& b) { b.insert(QStringLiteral("anchor"), QStringLiteral("top")); }); }), QStringLiteral("anchor")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editBlock(o, [](QJsonObject& b) { b.insert(QStringLiteral("anchor"), QStringLiteral("bottom-left")); }); }), QStringLiteral("width")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editBlock(o, [](QJsonObject& b) { b.insert(QStringLiteral("maxHeight"), 10); }); }), QStringLiteral("maxHeight")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editBlock(o, [](QJsonObject& b) { b.insert(QStringLiteral("cells"), QJsonArray()); }); }), QStringLiteral("cells")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("right"), 500); }); }), QStringLiteral("outside the title block")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("left"), 50); c.insert(QStringLiteral("right"), 40); }); }), QStringLiteral("no area")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editFirstCell(o, [](QJsonObject& c) { c.remove(QStringLiteral("top")); }); }), QStringLiteral("top")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("top"), QStringLiteral("2/0")); }); }), QStringLiteral("fraction")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("bottom"), QStringLiteral("150%")); }); }), QStringLiteral("percentage")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("fontSize"), 1); }); }), QStringLiteral("fontSize")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("color"), QStringLiteral("nocolour")); }); }), QStringLiteral("color")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("align"), QStringLiteral("middle")); }); }), QStringLiteral("align")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("text"), QString(501, QLatin1Char('x'))); }); }), QStringLiteral("longer than")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) { editBlock(o, [](QJsonObject& b) { b.insert(QStringLiteral("growWithCell"), QStringLiteral("nothing")); }); }), QStringLiteral("growWithCell")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) {
+        editBlock(o, [](QJsonObject& b) {
+            QJsonArray cells = b.value(QStringLiteral("cells")).toArray();
+            cells.append(cells.at(0));   // the same id twice
+            b.insert(QStringLiteral("cells"), cells);
+        });
+    }), QStringLiteral("used twice")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) {
+        editBlock(o, [](QJsonObject& b) {
+            QJsonArray cells = b.value(QStringLiteral("cells")).toArray();
+            for (int i = 0; i < 2; ++i)
+            {
+                QJsonObject c = cells.at(0).toObject();
+                c.insert(QStringLiteral("id"), QStringLiteral("s%1").arg(i));
+                c.insert(QStringLiteral("scrollWhenOverflow"), true);
+                cells.append(c);
+            }
+            b.insert(QStringLiteral("cells"), cells);
+        });
+    }), QStringLiteral("scrollWhenOverflow")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) {
+        editBlock(o, [](QJsonObject& b) {
+            QJsonArray cells;
+            for (int i = 0; i < 65; ++i)
+            {
+                QJsonObject c = b.value(QStringLiteral("cells")).toArray().at(0).toObject();
+                c.insert(QStringLiteral("id"), QStringLiteral("c%1").arg(i));
+                cells.append(c);
+            }
+            b.insert(QStringLiteral("cells"), cells);
+        });
+    }), QStringLiteral("cells")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) {
+        QJsonObject field;
+        field.insert(QStringLiteral("id"), QStringLiteral("title"));   // a standard placeholder name
+        field.insert(QStringLiteral("label"), QStringLiteral("X"));
+        o.insert(QStringLiteral("fields"), QJsonArray{ field });
+    }), QStringLiteral("already a placeholder")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) {
+        QJsonObject field;
+        field.insert(QStringLiteral("id"), QStringLiteral("pick"));
+        field.insert(QStringLiteral("label"), QStringLiteral("Pick"));
+        field.insert(QStringLiteral("type"), QStringLiteral("choice"));   // a choice without options
+        o.insert(QStringLiteral("fields"), QJsonArray{ field });
+    }), QStringLiteral("options")));
+    CHECK(rejects(sheetJson([](QJsonObject& o) {
+        editBlock(o, [](QJsonObject& b) {
+            QJsonObject logo;
+            logo.insert(QStringLiteral("file"), QStringLiteral("logo.png"));
+            logo.insert(QStringLiteral("left"), 2);
+            logo.insert(QStringLiteral("right"), 400);   // outside the block
+            logo.insert(QStringLiteral("top"), 2);
+            logo.insert(QStringLiteral("bottom"), 10);
+            b.insert(QStringLiteral("logo"), logo);
+        });
+    }), QStringLiteral("logo")));
+    CHECK(rejects(QByteArray(300 * 1024, ' '), QStringLiteral("larger")));
+
+    // a logo is parsed with its rectangle
+    CHECK(parseSheetTemplate(sheetJson([](QJsonObject& o) {
+        editBlock(o, [](QJsonObject& b) {
+            QJsonObject logo;
+            logo.insert(QStringLiteral("file"), QStringLiteral("logo.svg"));
+            logo.insert(QStringLiteral("left"), -30);
+            logo.insert(QStringLiteral("right"), -2);
+            logo.insert(QStringLiteral("top"), 2);
+            logo.insert(QStringLiteral("bottom"), -2);
+            logo.insert(QStringLiteral("fit"), QStringLiteral("stretch"));
+            b.insert(QStringLiteral("logo"), logo);
+        });
+    }), QStringLiteral("test"), &t, &error) && t.hasLogo && !t.logo.contain && !resolveSheet(t, sheetPageSizePt(t), t.blockHeight).logo.isEmpty());
+
+    // user templates from a folder: a good one, a broken one, one with a missing logo, and files that are ignored
+    QTemporaryDir folder;
+    CHECK(folder.isValid());
+    if (folder.isValid())
+    {
+        const auto write = [&](const QString& name, const QByteArray& data) { QFile f(QDir(folder.path()).filePath(name)); CHECK(f.open(QIODevice::WriteOnly)); f.write(data); };
+        write(QStringLiteral("b_good.json"), sheetJson());
+        write(QStringLiteral("a_broken.json"), QByteArray("{ nope"));
+        write(QStringLiteral("c_logo.json"), sheetJson([](QJsonObject& o) {
+            editBlock(o, [](QJsonObject& b) {
+                QJsonObject logo;
+                logo.insert(QStringLiteral("file"), QStringLiteral("missing.png"));
+                logo.insert(QStringLiteral("left"), -30);
+                logo.insert(QStringLiteral("right"), -2);
+                logo.insert(QStringLiteral("top"), 2);
+                logo.insert(QStringLiteral("bottom"), -2);
+                b.insert(QStringLiteral("logo"), logo);
+            });
+        }));
+        write(QStringLiteral("notes.txt"), QByteArray("ignored"));
+        QStringList problems;
+        const QVector<SheetTemplate> user = loadUserSheetTemplates(folder.path(), &problems);
+        CHECK(user.size() == 2);
+        CHECK(user.size() == 2 && user[0].id == QLatin1String("user:b_good") && user[1].id == QLatin1String("user:c_logo"));
+        CHECK(user.size() == 2 && user[0].folder == QDir(folder.path()).absolutePath() && sheetLabelText(user[0], QStringLiteral("Drawing no.")) == QLatin1String("Drawing no."));
+        CHECK(problems.size() == 2);
+        CHECK(problems.size() == 2 && problems[0].startsWith(QLatin1String("a_broken.json")) && problems[1].contains(QLatin1String("logo")) && problems[1].contains(QLatin1String("missing.png")));
+        CHECK(loadUserSheetTemplates(QDir(folder.path()).filePath(QStringLiteral("nowhere"))).isEmpty());
+    }
+}
+
 int main(int argc, char** argv)
 {
     bool full = false;
@@ -852,6 +1192,7 @@ int main(int argc, char** argv)
     testVertexColors();
     testAppender();
     testU3dWriter();
+    testSheetTemplates();
     if (full)
         testFullExport();
 

@@ -574,3 +574,97 @@ Owner test (2026-11-07): both behave as expected in Acrobat. Observation: the PD
 **Plan change (owner decision, 2026-11-07).** Export-dialog preview moved out of Phase 4 into the open-file-dialog work (one reusable offscreen snapshot call, also used for MVF save-time thumbnails). Phases 4 and 5 are done. Next: Linux build and test, then packaging of the u3d modules, then **Phase 6: sheet templates** (JSON: page size/orientation, border, logo, title block cells with `{placeholder}` text and custom fields; the dialog builds its input fields from the chosen template; the current layout becomes the built-in "Default"; no visual designer, no multi-page templates at first).
 
 **Linux build and test (2026-11-07, WSL Ubuntu 26.04, preset linux_system_release).** `vcpkg install` of `packaging/linux/vendor` builds the overlay port u3d; the preset's `CMAKE_PREFIX_PATH` needed `.../x64-linux/share/u3d` (added). The whole application builds (11 min, 16 threads) with `libIFXCore/Exporting/Importing/Scheduling.so` copied next to the executable, and `cmake --install` puts them into `usr/bin` beside `ModelViewer` (RUNPATH `$ORIGIN/../lib:$ORIGIN`), so the existing `install(FILES ...)` rule already covers the `.deb`; the stale `.deb` in the build tree (21 October) was not rebuilt. `pdf3d_tests --full` (with `-DMV_BUILD_TESTS=ON`): 163 checks, 0 failures, after one fix. **[Obs]** the first u3d write in a process works, the next fails with 0x80000003: the static `IFXCoreStatic` wrapper's `IFXCOMInitialize()` loads libIFXCore.so again and fails while it is still mapped, and after `IFXCOMUninitialize()` the core stays loaded (`IFX_W_CANNOT_UNLOAD`, the scheduling module keeps live components). Fix: on Linux `U3dWriter::write` initialises the library once per process and never uninitialises it (Windows unchanged). Not tested on Linux: an interactive export from the GUI, non-ASCII output paths, `.deb` installation.
+
+
+## 11. Phase 6 design: sheet templates (draft, 7 November 2026)
+
+Status: design only, nothing implemented. Owner decision of 7 November: Phase 6 is sheet templates; packaging of the u3d modules is covered in 11.8.
+
+### 11.1 Scope
+
+A template describes the 2D sheet around the 3D area: page size and orientation, border, an optional logo, and the title block (cells with fixed and `{placeholder}` text, plus the custom fields the user is asked for). The current hard-coded layout becomes the built-in template "Default" and must keep producing the same sheet. Out of scope at first: a visual designer, multi-page templates, templates for the parts list table (its columns stay fixed; it only inherits page size, border and title block), per-view sheets.
+
+### 11.2 Template file (JSON, version 1)
+
+Lengths are millimetres. A cell edge is given as `left`/`right`/`top`/`bottom` relative to the title block; a negative value is measured from the opposite edge (so `"right": -127` is 127 mm in from the right edge). No expressions or scripts: only placeholder substitution, so a template is data and cannot execute anything.
+
+```json
+{
+  "version": 1,
+  "name": "Default",
+  "page": { "size": "A4", "orientation": "landscape" },
+  "border": { "inset": 20, "lineWidth": 0.6 },
+  "titleBlock": {
+    "anchor": "bottom", "height": 32, "growWithCell": "notes", "maxHeight": 42,
+    "lineWidth": 0.6,
+    "lines": [ { "x1": -127, "y1": 0, "x2": -127, "y2": 32 } ],
+    "logo": { "file": "logo.svg", "left": -40, "right": -2, "top": 2, "bottom": -2, "fit": "contain" },
+    "cells": [
+      { "id": "title", "left": 3, "right": -127, "top": 2, "bottom": 14, "text": "{title}", "fontSize": 15, "bold": true },
+      { "id": "subtitle", "left": 3, "right": -127, "top": 14, "bottom": 19, "text": "{subtitle}", "fontSize": 9 },
+      { "id": "notes", "left": 3, "right": -127, "top": 19, "bottom": -1, "text": "{notes}", "fontSize": 8, "wrap": true, "scrollWhenOverflow": true },
+      { "left": -127, "right": -64, "top": 0, "bottom": 11, "label": "Drawing no.", "text": "{drawingNumber}" }
+    ]
+  },
+  "fields": [ { "id": "approvedBy", "label": "Approved by", "type": "text", "default": "" } ]
+}
+```
+
+- `page.size`: A0-A5, Letter, Legal, Tabloid, or `[width, height]` in mm. `anchor`: `bottom` (full width, today's layout) or `bottom-right` / `bottom-left` with a `width`.
+- `cells`: `text` with placeholders, optional `label` (small caption, as today), `fontSize`, `bold`, `align` (left, center, right), `wrap`. Standard placeholders: `{title} {subtitle} {notes} {drawingNumber} {revision} {author} {company} {scale} {date} {parts} {sheet} {sheets}`. Custom fields use their id: `{approvedBy}`. An unknown placeholder prints nothing and the dialog shows a warning for the template.
+- `fields`: extra values the dialog asks for (`text`, `multiline`, `date`, `choice` with `options`). A standard field is asked for only when some cell uses it, so a template without `{company}` has no Company box.
+- Only one cell may set `scrollWhenOverflow` (the existing scrollable notes form field; `PdfAppender` supports one).
+
+### 11.3 Where templates come from
+
+Built-in templates are Qt resources (`:/pdf3d/templates/*.json`): Default (A4 landscape, today's block) and A3 landscape. User templates are `*.json` files in `<AppDataLocation>/pdf3d-templates/`, listed after the built-in ones; the dialog has "Open templates folder". A logo `file` is relative to the template file or absolute; PNG, JPEG and SVG (Qt Svg is already linked); a missing or unreadable logo is skipped with a warning. A template that fails to parse or validate is not listed and the reason is shown in the dialog (version, unknown key types, cell outside the block, more than 64 cells, page size below 100 mm).
+
+### 11.4 Code
+
+- `include/Pdf3D/SheetTemplate.h`, `src/Pdf3D/SheetTemplate.cpp`: data model, `parse(QByteArray, QString* error)`, `resolveRects(pageSizePt)`, `substitute(text, values)`, the built-in list and the user folder scan. No GUI dependency, so it is unit-testable.
+- `Pdf3DExporter.cpp`: `Layout` and `drawFrame` are replaced by the template evaluator (page size, border, block rect, 3D area = border inset minus block minus the button strip, as now). The notes auto-grow becomes `growWithCell`. The 3D annotation, views and buttons code is unchanged because it only needs `Layout::area3d`, `buttonStrip`, `page` and the notes field rect.
+- `Pdf3DOptions`: `QString templateId` and `QMap<QString, QString> fieldValues` replace the individual author/company/... members (kept as the standard keys of the map).
+- `Pdf3DExportDialog`: a template combo on the Sheet tab; the input fields are built from the chosen template's used placeholders plus its `fields`; values remembered per template id in `QSettings pdf3d/templates/<id>/...`; the standard fields keep their current remembered values.
+- Page size from the template reaches `QPdfWriter::setPageSize`; the u3d view fitting already uses the area's aspect ratio, so other sizes need no change there.
+
+### 11.5 Tests (tests/pdf3d_tests.cpp, GUI-free)
+
+Parse a valid template; reject each invalid case in 11.3; negative edges resolve from the opposite side; placeholder substitution including an unknown one and a custom field; Default resolves to the same page, border, block, cell and 3D-area rectangles as the current constants (golden numbers taken from the current code, so the Default sheet cannot drift); a standard field is asked for only when used; `--full` exports with an A3 template and checks the PDF `/MediaBox`.
+
+### 11.6 Order of work and gates
+
+6a data model, parser, Default and A3 resources, tests (owner builds and runs `pdf3d_tests`). 6b exporter uses the template evaluator, Default only (owner opens a PDF in Acrobat and compares it with the previous export: must be identical). 6c dialog fields, template combo, user folder, one sample template with a logo. 6d Quick Help and tutorial text, changelog. Each step stops for the owner's build and test.
+
+### 11.7 Decisions proposed, for the owner to confirm
+
+1. Millimetres in the JSON (the PDF stays in points internally).
+2. User templates in `AppData/pdf3d-templates`, no template editor in v1.
+3. Logo formats PNG, JPEG, SVG.
+4. Two built-in templates (Default A4, A3 landscape); more later from real company layouts.
+5. The parts list table keeps fixed columns for now.
+
+### 11.8 Packaging (the earlier Phase 6 item)
+
+The Windows installer script copies the whole install directory (`{#MyAppInstallDir}\*`, recursive) and CMake installs the four u3d run-time modules into `bin` (`install(FILES ...)` in `CMakeLists.txt`), so they ship with the installer without a script change; the Linux `.deb` path installs them beside the executable the same way (verified by `cmake --install` in WSL on 7 November, the `.deb` itself was not rebuilt). Open for the owner: build the installer and the `.deb` once and open a 3D PDF export from the installed application. A u3d entry was added to `THIRD_PARTY_NOTICES.md`; the Apache-2.0 licence text must also accompany the binaries (confirm where the installer places it).
+
+### 11.9 Step 6a, written 7 November 2026 (not yet built or run)
+
+Files: `include/Pdf3D/SheetTemplate.h`, `src/Pdf3D/SheetTemplate.cpp` (no GUI code), `tests/pdf3d_tests.cpp` (`testSheetTemplates`), `tests/CMakeLists.txt` (adds `SheetTemplate.cpp` to `pdf3d_tests`; the application globs `src/*.cpp`). Differences from the sketch in 11.2 and 11.3, all to make Default reproducible exactly:
+
+- A top-level `"units"` key, `"mm"` (default) or `"pt"`; the built-in templates use `"pt"` so their numbers are the constants of `Pdf3DExporter.cpp` (margin 28, border 20, gap 12, block 90 to 120, grid 360 wide, notes 52 below the top).
+- Frame keys are top-level: `border.inset`, `margin`, `areaGap`, `lineWidth` (one pen width for the border, the 3D area frame, the title block and its lines), plus `titleBlock.growPadding`.
+- A coordinate is a number, or a fraction `"1/3"` or percentage `"50%"` of the block size (the Default grid rows are thirds of a block whose height grows with the notes); positive counts from the top-left, negative from the opposite edge.
+- `{name|fallback}` prints the fallback when the value is empty (Default: `{scale|-}`).
+- Built-in templates are JSON strings inside `SheetTemplate.cpp`, not Qt resources, so the GUI-free test executable needs no resource file; their labels use the translation context `Pdf3DExporter`, the one the exporter's own labels already have. User templates: `loadUserSheetTemplates(folder)`; the dialog will pass `<AppDataLocation>/pdf3d-templates`.
+- `resolveSheet(template, pageSizePt, blockHeightPt)` takes the page size as an argument: step 6b will read it back from `QPdfWriter` after `setPageSize`, so the sheet is computed for the page Qt really produces.
+- Limits: file 256 KiB, 64 cells, 64 lines, 16 custom fields, text 500 characters, custom page size 100 to 5000 mm, one `scrollWhenOverflow` cell.
+
+`testSheetTemplates` checks: both built-ins parse; for block heights 90, 100 and 120 the Default page, border, block, 3D area, all nine cells and the four lines equal the rectangles the current exporter computes; the block growth rule (52 + text + 6, within 90..120, overflow flag); the coordinate rules; placeholders, fallbacks and unknown names; a custom field with a choice list; a bottom-right corner block; 28 rejection cases, each with the expected message; the user folder (good, broken, missing logo, ignored non-JSON). Gate: the owner builds and runs `pdf3d_tests`; step 6b starts after that.
+
+### 11.10 Step 6a result and step 6b, 7 November 2026
+
+6a: the owner built and ran `ctest -R pdf3d_tests` (Release): passed. Observation only; the `--full` run was not part of it.
+
+6b, written, not yet built or run: `Pdf3DExporter.cpp` no longer has the layout constants. `Layout` holds the template and its `ResolvedSheet`; `drawFrame` draws the border, the 3D area frame, the title block and its lines from the template, then every cell (a cell with a label as the old field cell: 6.5 pt grey caption, value below; a cell without a label as plain text, word-wrapped and clipped when `wrap` is set, otherwise one elided line). The page size and orientation go to `QPdfWriter` from the template and the real page size is read back before `resolveSheet`. The block height comes from `titleBlockHeightFor` (the notes text measured at the grow cell's width, as before); the scrollable notes form field uses the scroll cell's rectangle, text and font size. `Pdf3DOptions` gained `templateId` (default `builtin:default`, unknown ids fall back to Default) and `fieldValues` (custom fields, used from 6c). Logos are not drawn yet (6c). `pdf3d_tests --full` gained checks: Default page is A4 landscape, `builtin:a3-landscape` gives an A3 landscape `/MediaBox`, an unknown id falls back to Default, a 2000-character note still produces the scrollable `/FT /Tx` field.
+
+Gate for 6b (owner): build, run `pdf3d_tests --full`, then export one model with the previous build and with this one (same title, notes, fields; once with a short note and once with a note long enough to scroll) and compare the sheets in Acrobat: they must look identical. Only then does 6c start.

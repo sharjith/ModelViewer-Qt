@@ -1,9 +1,11 @@
 #include "Pdf3DExporter.h"
 
 #include "PdfAppender.h"
+#include "SheetTemplate.h"
 #include "U3dWriter.h"
 
 #include <QBuffer>
+#include <QMap>
 #include <QCoreApplication>
 #include <QDate>
 #include <QFileInfo>
@@ -24,28 +26,55 @@ namespace Pdf3D
 namespace
 {
 
-constexpr qreal kMargin = 28.0;          // points
-constexpr qreal kTitleBlockHeight = 90.0;
-constexpr qreal kTitleBlockMaxHeight = 120.0;   // longer notes become a scrollable text field
-constexpr qreal kTitleGridWidth = 360.0;   // right-hand field grid
-constexpr qreal kNotesTop = 52.0;          // notes start this far below the title block top
-constexpr qreal kNotesPointSize = 8.0;
 constexpr qreal kButtonStripHeight = 20.0;   // the view/animation buttons under the 3D area
 constexpr qreal kButtonStripGap = 6.0;
 
 struct Layout
 {
+    SheetTemplate tpl;    // the sheet template (page, border, title block cells); see SheetTemplate.h
+    ResolvedSheet sheet;  // its rectangles for this page size and title block height
     QRectF page;          // full page, painter coordinates (points, origin top left)
-    QRectF area3d;        // the 3D area, painter coordinates
-    QRectF titleBlock;
+    QRectF area3d;        // the 3D area, painter coordinates (sheet.area3d minus the button strip)
     QRectF buttonStrip;   // empty when there are no buttons
     qreal  pageHeightPt = 0.0;
-    bool   notesScroll = false;   // the notes do not fit: a scrollable form field is added over the notes cell
+    bool   notesScroll = false;   // the scroll cell's text does not fit: a scrollable form field is added over the cell
+    QRectF scrollRect;            // that cell, painter coordinates
+    QString scrollText;
+    qreal  scrollFontSize = 8.0;
 };
 
-QRectF notesRectOf(const QRectF& titleBlock)
+// Every placeholder value of the sheet: the standard ones from the options, then the custom fields of the template.
+QMap<QString, QString> sheetValues(const Pdf3DOptions& options, int partCount, int sheet, int sheetCount)
 {
-    return QRectF(titleBlock.left() + 10, titleBlock.top() + kNotesTop, titleBlock.width() - kTitleGridWidth - 20, titleBlock.height() - kNotesTop - 4);
+    QMap<QString, QString> v;
+    v.insert(QStringLiteral("title"), options.title);
+    v.insert(QStringLiteral("subtitle"), options.subtitle);
+    v.insert(QStringLiteral("notes"), options.notes);
+    v.insert(QStringLiteral("drawingNumber"), options.drawingNumber);
+    v.insert(QStringLiteral("revision"), options.revision);
+    v.insert(QStringLiteral("author"), options.author);
+    v.insert(QStringLiteral("company"), options.company);
+    v.insert(QStringLiteral("scale"), options.scale);
+    v.insert(QStringLiteral("date"), options.date.isEmpty() ? QDate::currentDate().toString(Qt::ISODate) : options.date);
+    v.insert(QStringLiteral("parts"), QString::number(partCount));
+    v.insert(QStringLiteral("sheet"), QString::number(sheet));
+    v.insert(QStringLiteral("sheets"), QString::number(sheetCount));
+    for (auto it = options.fieldValues.constBegin(); it != options.fieldValues.constEnd(); ++it)
+    {
+        if (!v.contains(it.key()))
+            v.insert(it.key(), it.value());
+    }
+    return v;
+}
+
+int cellIndexById(const SheetTemplate& tpl, const QString& id)
+{
+    if (id.isEmpty())
+        return -1;
+    for (int i = 0; i < tpl.cells.size(); ++i)
+        if (tpl.cells[i].id == id)
+            return i;
+    return -1;
 }
 
 QRectF toPdfRect(const QRectF& painterRect, qreal pageHeightPt)
@@ -166,7 +195,8 @@ int partsRowsPerSheet(const Layout& l)
     return qMax(1, static_cast<int>((l.area3d.height() - kPartsHeaderHeight) / kPartsRowHeight));
 }
 
-void drawCell(QPainter& p, const QRectF& cell, const QString& label, const QString& value)
+// A title block cell with a caption (small, grey, top left) and its value below, as the field grid of the sheet has always looked.
+void drawFieldCell(QPainter& p, const QRectF& cell, const QString& label, const QString& value, const SheetCell& c)
 {
     p.save();
     QFont f = p.font();
@@ -175,67 +205,62 @@ void drawCell(QPainter& p, const QRectF& cell, const QString& label, const QStri
     p.setFont(f);
     p.setPen(QColor(110, 110, 110));
     p.drawText(cell.adjusted(5, 2, -3, 0), Qt::AlignLeft | Qt::AlignTop | Qt::TextSingleLine, label);
-    f.setPointSizeF(9);
+    f.setBold(c.bold);
+    f.setPointSizeF(c.fontSize);
     p.setFont(f);
-    p.setPen(Qt::black);
+    p.setPen(c.color);
     const QRectF v = cell.adjusted(5, 10, -3, -2);
-    p.drawText(v, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, p.fontMetrics().elidedText(value, Qt::ElideRight, static_cast<int>(v.width())));
+    p.drawText(v, static_cast<int>(c.align) | Qt::AlignVCenter | Qt::TextSingleLine,
+               p.fontMetrics().elidedText(value, Qt::ElideRight, static_cast<int>(v.width())));
     p.restore();
 }
 
-// Border and title block, identical on every sheet.
+// Border, 3D area frame and title block, identical on every sheet; the cells come from the sheet template.
 void drawFrame(QPainter& p, const Layout& l, const Pdf3DOptions& options, int partCount, int sheet, int sheetCount)
 {
+    const SheetTemplate& tpl = l.tpl;
+    const ResolvedSheet& s = l.sheet;
     p.setRenderHint(QPainter::Antialiasing, true);
-    QPen thin(Qt::black, 0.6);
+    const QPen thin(Qt::black, tpl.lineWidth);
     p.setPen(thin);
     p.setBrush(Qt::NoBrush);
-    p.drawRect(l.page.adjusted(kMargin - 8, kMargin - 8, -(kMargin - 8), -(kMargin - 8)));
+    p.drawRect(s.border);
     p.drawRect(l.area3d);
+    p.drawRect(s.titleBlock);
+    for (const QLineF& line : s.lines)
+        p.drawLine(line);
 
-    // title block: left cell with title, subtitle and notes; right grid of 2 x 3 fields
-    p.drawRect(l.titleBlock);
-    const qreal gridW = kTitleGridWidth;
-    const qreal splitX = l.titleBlock.right() - gridW;
-    p.drawLine(QPointF(splitX, l.titleBlock.top()), QPointF(splitX, l.titleBlock.bottom()));
-    const qreal midX = splitX + gridW / 2.0;
-    const qreal rowH = l.titleBlock.height() / 3.0;
-    p.drawLine(QPointF(midX, l.titleBlock.top()), QPointF(midX, l.titleBlock.bottom()));
-    p.drawLine(QPointF(splitX, l.titleBlock.top() + rowH), QPointF(l.titleBlock.right(), l.titleBlock.top() + rowH));
-    p.drawLine(QPointF(splitX, l.titleBlock.top() + 2 * rowH), QPointF(l.titleBlock.right(), l.titleBlock.top() + 2 * rowH));
-
-    QFont titleFont = p.font();
-    titleFont.setPointSizeF(15);
-    titleFont.setBold(true);
-    p.setFont(titleFont);
-    const QRectF titleRect(l.titleBlock.left() + 10, l.titleBlock.top() + 6, splitX - l.titleBlock.left() - 20, 28);
-    p.drawText(titleRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, p.fontMetrics().elidedText(options.title, Qt::ElideRight, static_cast<int>(titleRect.width())));
-
-    QFont small = p.font();
-    small.setBold(false);
-    small.setPointSizeF(9);
-    p.setFont(small);
-    const QRectF subRect(l.titleBlock.left() + 10, l.titleBlock.top() + 36, splitX - l.titleBlock.left() - 20, 14);
-    p.drawText(subRect, Qt::AlignLeft | Qt::AlignVCenter | Qt::TextSingleLine, p.fontMetrics().elidedText(options.subtitle, Qt::ElideRight, static_cast<int>(subRect.width())));
-    small.setPointSizeF(kNotesPointSize);
-    p.setFont(small);
-    p.setPen(QColor(70, 70, 70));
-    const QRectF noteRect = notesRectOf(l.titleBlock);
-    p.save();
-    p.setClipRect(noteRect);   // overflowing text is cut (a scrollable field with the full text sits on top of it, see below)
-    p.drawText(noteRect, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, options.notes);
-    p.restore();
-    p.setPen(thin);
-
-    const QString date = options.date.isEmpty() ? QDate::currentDate().toString(Qt::ISODate) : options.date;
-    auto cell = [&](int col, int row) { return QRectF(splitX + col * gridW / 2.0, l.titleBlock.top() + row * rowH, gridW / 2.0, rowH); };
-    drawCell(p, cell(0, 0), QCoreApplication::translate("Pdf3DExporter", "Drawing no."), options.drawingNumber);
-    drawCell(p, cell(1, 0), QCoreApplication::translate("Pdf3DExporter", "Revision"), options.revision);
-    drawCell(p, cell(0, 1), QCoreApplication::translate("Pdf3DExporter", "Author"), options.author);
-    drawCell(p, cell(1, 1), QCoreApplication::translate("Pdf3DExporter", "Date"), date);
-    drawCell(p, cell(0, 2), QCoreApplication::translate("Pdf3DExporter", "Company"), options.company);
-    drawCell(p, cell(1, 2), QCoreApplication::translate("Pdf3DExporter", "Scale | parts | sheet"),
-             QStringLiteral("%1  |  %2  |  %3/%4").arg(options.scale.isEmpty() ? QStringLiteral("-") : options.scale).arg(partCount).arg(sheet).arg(sheetCount));
+    const QMap<QString, QString> values = sheetValues(options, partCount, sheet, sheetCount);
+    const QFont base = p.font();
+    for (int i = 0; i < tpl.cells.size() && i < s.cells.size(); ++i)
+    {
+        const SheetCell& c = tpl.cells[i];
+        const QRectF rect = s.cells[i];
+        const QString text = substituteSheetText(c.text, values);
+        if (!c.label.isEmpty())
+        {
+            p.setFont(base);
+            drawFieldCell(p, rect, sheetLabelText(tpl, c.label), text, c);
+            continue;
+        }
+        p.save();
+        QFont f = base;
+        f.setBold(c.bold);
+        f.setPointSizeF(c.fontSize);
+        p.setFont(f);
+        p.setPen(c.color);
+        if (c.wrap)
+        {
+            p.setClipRect(rect);   // overflowing text is cut (a scrollable field with the full text sits on top of it, see exportToFile)
+            p.drawText(rect, static_cast<int>(c.align) | Qt::AlignTop | Qt::TextWordWrap, text);
+        }
+        else
+        {
+            p.drawText(rect, static_cast<int>(c.align) | Qt::AlignVCenter | Qt::TextSingleLine,
+                       p.fontMetrics().elidedText(text, Qt::ElideRight, static_cast<int>(rect.width())));
+        }
+        p.restore();
+    }
 }
 
 // Sheet 1: the frame plus the placeholder under the 3D annotation (the poster when there is one, otherwise a hint for readers
@@ -339,15 +364,27 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         buffer.open(QIODevice::WriteOnly);
         QPdfWriter writer(&buffer);
         writer.setPdfVersion(QPagedPaintDevice::PdfVersion_1_6);   // 3D annotations are a PDF 1.6 feature
-        writer.setPageSize(QPageSize(QPageSize::A4));
-        writer.setPageOrientation(QPageLayout::Landscape);
+        layout.tpl = findSheetTemplate(options.templateId);
+        const SheetTemplate& tpl = layout.tpl;
+        if (tpl.pageSizeId == QPageSize::Custom)
+        {
+            // a custom size is defined in portrait and turned by the orientation
+            const QSizeF mm = tpl.customSizeMm;
+            writer.setPageSize(QPageSize(QSizeF(qMin(mm.width(), mm.height()), qMax(mm.width(), mm.height())), QPageSize::Millimeter));
+        }
+        else
+        {
+            writer.setPageSize(QPageSize(tpl.pageSizeId));
+        }
+        writer.setPageOrientation(tpl.landscape ? QPageLayout::Landscape : QPageLayout::Portrait);
         writer.setPageMargins(QMarginsF(0, 0, 0, 0), QPageLayout::Point);
         writer.setResolution(72);   // painter units are PDF points
         writer.setTitle(options.title);
         writer.setCreator(QStringLiteral("ModelViewer"));
 
-        layout.pageHeightPt = writer.pageLayout().fullRect(QPageLayout::Point).height();
-        layout.page = QRectF(0, 0, writer.pageLayout().fullRect(QPageLayout::Point).width(), layout.pageHeightPt);
+        const QSizeF pagePt = writer.pageLayout().fullRect(QPageLayout::Point).size();
+        layout.pageHeightPt = pagePt.height();
+        layout.page = QRectF(QPointF(0, 0), pagePt);
 
         QPainter painter(&writer);
         if (!painter.isActive())
@@ -356,23 +393,49 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             return result;
         }
 
-        // The title block grows with the notes text (up to kTitleBlockMaxHeight); the 3D area takes the rest of the page.
-        qreal blockHeight = kTitleBlockHeight;
-        if (!options.notes.trimmed().isEmpty())
-        {
+        int partCount = 0;
+        for (const U3dNode& n : scene.nodes)
+            partCount += n.overlay ? 0 : 1;
+        const QMap<QString, QString> firstSheetValues = sheetValues(options, partCount, 1, 1);
+
+        // The title block grows with the text of its grow cell (the notes) up to the template's maximum; the 3D area takes the rest
+        // of the page.
+        const int growCell = cellIndexById(tpl, tpl.growWithCell);
+        const int scrollCell = [&] {
+            for (int i = 0; i < tpl.cells.size(); ++i)
+                if (tpl.cells[i].scrollWhenOverflow)
+                    return i;
+            return -1;
+        }();
+        const auto textHeightIn = [&](int cellIndex, const QRectF& rect) {
+            const SheetCell& c = tpl.cells[cellIndex];
+            const QString text = substituteSheetText(c.text, firstSheetValues);
+            if (text.trimmed().isEmpty())
+                return 0.0;
             painter.save();
             QFont nf = painter.font();
-            nf.setPointSizeF(kNotesPointSize);
+            nf.setBold(c.bold);
+            nf.setPointSizeF(c.fontSize);
             painter.setFont(nf);
-            const qreal textWidth = layout.page.width() - 2 * kMargin - kTitleGridWidth - 20;
-            const QRectF needed = painter.boundingRect(QRectF(0, 0, textWidth, 10000), Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, options.notes);
+            const qreal h = painter.boundingRect(QRectF(0, 0, rect.width(), 10000), Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, text).height();
             painter.restore();
-            const qreal wanted = kNotesTop + needed.height() + 6.0;
-            layout.notesScroll = wanted > kTitleBlockMaxHeight;
-            blockHeight = qBound(kTitleBlockHeight, wanted, kTitleBlockMaxHeight);
+            return h;
+        };
+        double neededText = 0.0;
+        if (growCell >= 0)
+            neededText = textHeightIn(growCell, resolveSheet(tpl, pagePt, tpl.blockHeight).cells[growCell]);
+        bool growOverflows = false;
+        const double blockHeight = titleBlockHeightFor(tpl, pagePt, neededText, &growOverflows);
+        layout.sheet = resolveSheet(tpl, pagePt, blockHeight);
+        layout.area3d = layout.sheet.area3d;
+        if (scrollCell >= 0)
+        {
+            layout.scrollRect = layout.sheet.cells[scrollCell];
+            layout.scrollText = substituteSheetText(tpl.cells[scrollCell].text, firstSheetValues);
+            layout.scrollFontSize = tpl.cells[scrollCell].fontSize;
+            // the grow cell overflows when its text needs more than the maximum block; any other scroll cell when its text needs more than it has
+            layout.notesScroll = scrollCell == growCell ? growOverflows : textHeightIn(scrollCell, layout.scrollRect) > layout.scrollRect.height();
         }
-        layout.titleBlock = QRectF(kMargin, layout.page.bottom() - kMargin - blockHeight, layout.page.width() - 2 * kMargin, blockHeight);
-        layout.area3d = QRectF(QPointF(kMargin, kMargin), QPointF(layout.page.right() - kMargin, layout.titleBlock.top() - 12));
         // the button strip, when there is something to switch: more than one view, or an animation
         int viewCount = static_cast<int>(options.extraViews.size());
         for (const QString& n : standardViewNames())
@@ -382,9 +445,6 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             layout.buttonStrip = QRectF(layout.area3d.left(), layout.area3d.bottom() - kButtonStripHeight, layout.area3d.width(), kButtonStripHeight);
             layout.area3d.setBottom(layout.buttonStrip.top() - kButtonStripGap);
         }
-        int partCount = 0;
-        for (const U3dNode& n : scene.nodes)
-            partCount += n.overlay ? 0 : 1;
         const QVector<PartRow> rows = options.includePartsList ? buildPartRows(scene, options.subtitle) : QVector<PartRow>();
         const int perSheet = partsRowsPerSheet(layout);
         const int listSheets = rows.isEmpty() ? 0 : (static_cast<int>(rows.size()) + perSheet - 1) / perSheet;
@@ -598,9 +658,9 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     if (layout.notesScroll)
     {
         annotation.hasNotesField = true;
-        annotation.notesField.rect = toPdfRect(notesRectOf(layout.titleBlock), layout.pageHeightPt);
-        annotation.notesField.text = options.notes;
-        annotation.notesField.fontSize = kNotesPointSize;
+        annotation.notesField.rect = toPdfRect(layout.scrollRect, layout.pageHeightPt);
+        annotation.notesField.text = layout.scrollText;
+        annotation.notesField.fontSize = layout.scrollFontSize;
     }
 
     if (annotation.viewDictionaries.isEmpty())

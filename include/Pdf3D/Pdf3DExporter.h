@@ -4,6 +4,7 @@
 #include "U3dScene.h"
 
 #include <QImage>
+#include <QMap>
 #include <QSet>
 #include <QString>
 
@@ -32,6 +33,8 @@ struct Pdf3DOptions
     QString scale;                     // free text, e.g. "1:2" or "NTS"
     QString notes;                     // short free text under the subtitle
     QString date;                      // empty = today (ISO)
+    QString templateId = QStringLiteral("builtin:default");   // the sheet template (SheetTemplate.h); an unknown id falls back to Default
+    QMap<QString, QString> fieldValues;   // values of the template's custom fields, by field id
     QVector<CameraViewSpec> extraViews; // saved camera views, scene states and exploded views, added after the standard views
     QSet<QString> excludedStandardViews; // names (standardViewNames()) of standard views left out of the PDF
     QSet<QString> standardViewsWithoutOverlays; // standard views that hide the measurement and annotation nodes
