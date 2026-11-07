@@ -301,7 +301,7 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
         const double lo = qMin(b.rect.top(), b.rect.bottom()), hi = qMax(b.rect.top(), b.rect.bottom());
         const double bw = b.rect.width(), bh = hi - lo;
         const double fs = qMin(8.0, bh - 6.0);
-        QString shown = b.caption;
+        QString shown = b.caption;   // too long for the button: the start and "..", also in /MK /CA (Acrobat redraws the face from it); /TU keeps the full name
         const double maxChars = (bw - 6.0) / (fs * 0.52);
         if (shown.size() > maxChars && maxChars > 3)
             shown = shown.left(static_cast<int>(maxChars) - 2) + QStringLiteral("..");
@@ -315,7 +315,7 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
         action.replace("@ANNOT@", QByteArray::number(numAnnot) + " 0 R");
         objects.insert(widget, "<< /Type /Annot /Subtype /Widget /FT /Btn /Ff 65536 /T (btn" + QByteArray::number(i) + ") /TU " +
             pdfTextString(b.caption) + " /P " + QByteArray::number(pageNum) + " 0 R /Rect [" + pdfNumber(b.rect.left()) + " " + pdfNumber(lo) +
-            " " + pdfNumber(b.rect.right()) + " " + pdfNumber(hi) + "] /F 4 /MK << /CA " + pdfTextString(b.caption) +
+            " " + pdfNumber(b.rect.right()) + " " + pdfNumber(hi) + "] /F 4 /MK << /CA " + pdfTextString(shown) +
             " /BG [0.9 0.9 0.9] /BC [0.35 0.35 0.35] >> /DA (/Helv " + pdfNumber(fs) + " Tf 0 g) /A " + action + " /AP << /N " +
             QByteArray::number(appearance) + " 0 R >> >>");
         fieldRefs += QByteArray::number(widget) + " 0 R ";

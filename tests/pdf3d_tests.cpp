@@ -529,6 +529,25 @@ void testAppender()
     Pdf3D::Annotation3D empty;
     QByteArray copy = original;
     CHECK(!Pdf3D::PdfAppender::append3DAnnotation(copy, empty, &error) && copy == original);
+
+    // page buttons: a caption that does not fit a 90 pt button is cut to its start and ".." in the button's /MK /CA too (Acrobat redraws
+    // the face from it, and would clip the full text at both ends), while the tooltip keeps the full name
+    Pdf3D::Annotation3D withButtons = a;
+    for (const QString& caption : { QStringLiteral("Front"), QStringLiteral("State: Exploded View 1") })
+    {
+        Pdf3D::PageButton b;
+        b.rect = QRectF(QPointF(40, 20), QPointF(130, 40));
+        b.caption = caption;
+        b.action = "<< /S /GoTo3DView /TA @ANNOT@ /V 0 >>";
+        withButtons.buttons.append(b);
+    }
+    QByteArray buttonPdf = original;
+    CHECK(Pdf3D::PdfAppender::append3DAnnotation(buttonPdf, withButtons, &error));
+    const QString buttonText = QString::fromLatin1(buttonPdf.mid(original.size()));
+    CHECK(buttonText.contains(QStringLiteral("/TU (Front)")) && buttonText.contains(QStringLiteral("/MK << /CA (Front)")));
+    CHECK(buttonText.contains(QStringLiteral("/TU (State: Exploded View 1)")));
+    CHECK(buttonText.contains(QStringLiteral("/MK << /CA (State: Exploded Vi..)")));
+    CHECK(!buttonText.contains(QStringLiteral("/MK << /CA (State: Exploded View 1)")));
 }
 
 void testU3dWriter()
