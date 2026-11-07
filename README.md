@@ -344,6 +344,12 @@ glTF / GLB (also with Draco mesh compression and KTX2 textures), OBJ, FBX, COLLA
 - **IGES** (.iges, .igs) - Industry-standard CAD interchange format
 - **BRep** (.brep) - OpenCASCADE native boundary representation format
 
+### 3DXML Import
+
+The native 3DXML (`.3dxml`) importer reads Dassault CATIA and 3DEXPERIENCE archives and loose XML assemblies without any intermediate conversion. It brings in the assembly structure with its transforms, the tessellated geometry (the binary UVR representations and XML tessellations), face and occurrence colours, normals, texture coordinates, edge polylines (shown in the edge and wireframe modes) and part names. A representation that cannot be read is skipped and listed in the import report instead of aborting the import. It was checked against the supplied CATIA V5 and 3DEXPERIENCE exports, including an assembly of about four million triangles, and the results were checked visually in the viewer.
+
+Limits: display uses the stored tessellation, with no exact B-Rep. The length unit is inferred as millimetres and the import warns about it. Texture images are not displayed, although the texture coordinates are read, and CATIA material data, which describes mass properties, is not used for the appearance; the applied colours are shown instead. Coverage is measured on the supplied exporters, not guaranteed for every 3DXML file: an unknown layout is reported with a diagnostic. The byte layouts, evidence and open questions are in the [native importer notes](research/3dxml/3DXML_NATIVE_IMPORTER.md).
+
 ### Simulation Result Formats
 
 ModelViewer displays results that other programs have computed; it does not run simulations. Open them with File > Import:

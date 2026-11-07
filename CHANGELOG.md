@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- 3DXML import: native reader for CATIA and 3DEXPERIENCE archives and loose XML
+  assemblies (assembly structure, tessellation, colours, normals, texture
+  coordinates, edge polylines). Unreadable representations are skipped and listed
+  in the import report. Not supported: exact B-Rep, texture image display, and
+  layouts that none of the supplied exporters produced; the length unit is inferred
+  as millimetres.
+
 ## [2026.11.0] - 2026-10-21
 
 The release that turns ModelViewer from a model viewer into a full engineering

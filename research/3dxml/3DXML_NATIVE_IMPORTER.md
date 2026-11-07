@@ -6,8 +6,9 @@ then ordinary Assimp formats. No intermediate GLB/OBJ, Python runtime, vendor
 SDK or B-Rep conversion is involved at runtime.
 
 The owner has now confirmed that the original GETRAG archive loads directly
-and looks perfect in ModelViewer. Four additional archives now pass native import and independent triangle-count
-checks; their visual acceptance is pending. See [additional layouts and validation](3DXML_additional_layouts.md).
+and looks perfect in ModelViewer. Four additional archives pass native import and independent triangle-count
+checks, and the owner accepted their appearance in the viewer on 7 November 2026 (they open without errors, with the
+expected geometry and plausible colours). See [additional layouts and validation](3DXML_additional_layouts.md).
 Measured sample coverage is not universal format coverage.
 
 ZIP packages and standalone `Model_3dxml` assembly documents are supported.
