@@ -20,6 +20,10 @@ The 104 upstream-derived source/header files permit GPL version 2 or any later v
 
 This software is provided without warranty; the governing GPL texts contain the full terms. Binary distributions must provide Corresponding Source in a manner allowed by GPLv3 section 6. A project-homepage link by itself is not a substitute for that obligation.
 
+## u3d library (Save as 3D PDF)
+
+The Save as 3D PDF export writes its Universal 3D (ECMA-363) stream with the u3d reference library, distributed under the Apache License 2.0: https://github.com/DmytroSytnyk/u3d (a fork of the Intel u3d code), pinned commit 5c141d9, built from the local vcpkg overlay port overlay-ports/u3d, which applies one patch (overlay-ports/u3d/patches). The four run-time modules (IFXCore, IFXExporting, IFXImporting, IFXScheduling; .dll on Windows, .so on Linux) are installed beside the executable. Apache-2.0 is compatible with GPL version 3. No PDF library is bundled: the sheet is written with Qt's QPdfWriter and an in-house incremental-update writer. The Apache-2.0 licence text and the upstream notices must accompany binary distributions.
+
 ## Siemens JT data-structure notice
 
 JT 9.5 Rev-A reference data structures and operators: Copyright 2010 Siemens Product Lifecycle Management Software Inc.
