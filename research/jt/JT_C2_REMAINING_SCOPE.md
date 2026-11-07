@@ -4,6 +4,10 @@
 
 The owner explicitly paused further C2 expansion after accepted C2ag `dea4c25` to prioritize generic viewing essentials. All seven residual areas below remain a retained return backlog; C2 is not declared complete and no accepted functionality is removed. [Core viewing priorities](JT_VIEWING_PRIORITY.md) records the decision, return policy and immediate C3 direction. Do not select another appearance-expansion gate automatically while this pause is in force.
 
+## Closed for now - 7 November 2026
+
+The owner has visually verified every texture implementation accepted so far (through C2ag) and declared the JT texture area closed for now. The seven residual areas below stay a retained backlog, not an open gate. The Codex handoff of 7 November 2026 recommends, and the owner accepts, restarting only when a real JT model shows a texture or appearance failure (Route C): inventory that model's exact descriptors and implement the narrowest coherent missing feature. The alternatives are an evidence-first `Combine` gate (an authentic file establishing functions, sources, operands and scales) or the multi-stage material architecture shared by raster, CPU, OptiX, scene copy and export. Neither starts without owner approval. The documented user-facing limits are in the JT section of the README and the changelog.
+
 ## Current scope - 24 October 2026
 
 C2 is accepted through bounded C2ag, including C2ad (2c27d7c) and the shared raster light-uniform correction (3c7fd30). The owner also accepted the focused non-glTF/glTF PBR smoke check after the shared raster-light correction. The original seven packages below are historical: many of their core features have since passed. Seven residual areas remain, not seven promised builds or a fixed number of sub-gates.

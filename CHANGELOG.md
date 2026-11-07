@@ -2,7 +2,18 @@
 
 ## [Unreleased]
 
+### Added
+
+- JT import: textures within defined bounds (UV sets, common image formats, wrapping,
+  borders, filtering, mip levels, affine and model-linear mapping, bounded combiners,
+  one normal-map role) with GLB/glTF export of the result. Not supported: the general
+  `Combine` mode, independently sampled texture stages, camera-dependent mappings,
+  bump, gloss, environment and light maps, and textures in JT 8.x files.
+
 ### Fixed
+
+- GLB export: meshes that share a name (a JT part split into coloured meshes, repeated
+  part names in a BOM) no longer all take the first mesh's colour.
 
 - Honour unlit materials in ADS rendering as well as PBR.
 - Preserve unlit materials when exporting GLB and glTF, preventing darker
