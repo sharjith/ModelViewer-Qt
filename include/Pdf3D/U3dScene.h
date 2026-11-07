@@ -62,6 +62,7 @@ struct U3dAnimation
 {
     QString               name;
     QVector<U3dMotionTrack> tracks;
+    bool                  playing = true;   // the animation modifiers start in the playing state (false: the reader presses play)
 };
 
 struct U3dScene

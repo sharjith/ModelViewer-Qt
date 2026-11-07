@@ -134,6 +134,20 @@ item number, part name, material and quantity.</string>
         </widget>
        </item>
        <item>
+        <widget class="QCheckBox" name="viewButtonsCheck">
+         <property name="toolTip">
+          <string>Adds a row of buttons under the 3D area: previous and next view, a button per view
+(when they fit) and, with an animation, play and pause. Works in Adobe Acrobat and Reader.</string>
+         </property>
+         <property name="text">
+          <string>Add view and animation buttons</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
         <spacer name="verticalSpacer">
          <property name="orientation">
           <enum>Qt::Vertical</enum>

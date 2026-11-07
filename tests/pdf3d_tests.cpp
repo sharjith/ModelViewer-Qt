@@ -600,12 +600,19 @@ void testFullExport()
     CHECK(pdf.startsWith("%PDF-1.6") && pdf.size() > 1500);
     CHECK(pdf.contains("/Subtype /3D") && pdf.contains("/Type /3DView") && pdf.endsWith("%%EOF\n"));
     CHECK(pdf.count("/Type /3DView") == 7);
+    // view buttons: previous, next and one per view (all seven fit), GoTo3DView actions aimed at the annotation, in an AcroForm;
+    // no animation, so no JavaScript
+    CHECK(pdf.count("/Subtype /Widget") == 9 && pdf.contains("/AcroForm"));
+    CHECK(pdf.count("/S /GoTo3DView") == 9 && pdf.contains("/V /P") && pdf.contains("/V /N") && pdf.contains("/V 6 >>"));
+    CHECK(!pdf.contains("/S /JavaScript"));
+    CHECK(pdf.endsWith("%%EOF\n"));
 
     // title block fields + parts list: the list adds a second page (the 3D annotation stays on page 1); without it one page
     const QRegularExpression twoPages(QStringLiteral("/Count\\s+2\\b"));
     const QRegularExpression onePage(QStringLiteral("/Count\\s+1\\b"));
     CHECK(twoPages.match(QString::fromLatin1(pdf)).hasMatch() && !onePage.match(QString::fromLatin1(pdf)).hasMatch());
 
+    options.viewButtons = false;
     options.author = QStringLiteral("A. Author");
     options.company = QStringLiteral("ACME");
     options.drawingNumber = QStringLiteral("DWG-001");
@@ -689,6 +696,7 @@ void testFullExport()
     }
     Pdf3D::Pdf3DOptions animOptions = options;
     animOptions.notes.clear();
+    animOptions.viewButtons = true;
     animOptions.animationPlayback = Pdf3D::AnimationPlayback::BackAndForth;
     const QString pathAnim = dir.filePath(QStringLiteral("anim.pdf"));
     CHECK(Pdf3D::Pdf3DExporter::exportToFile(animatedScene, animOptions, pathAnim).ok);
@@ -696,6 +704,7 @@ void testFullExport()
     CHECK(fAnim.open(QIODevice::ReadOnly));
     const QByteArray pdfAnim = fAnim.readAll();
     CHECK(pdfAnim.contains("/AN << /Type /3DAnimationStyle /Subtype /Oscillating /PC -1 /TM 1 >>") && pdfAnim.contains("/AIS /L /DIS /I"));
+    CHECK(pdfAnim.contains("/S /JavaScript") && pdfAnim.contains("runtime.play()") && pdfAnim.contains("runtime.pause()"));   // Play, Pause
     animOptions.animationPlayback = Pdf3D::AnimationPlayback::Once;
     animOptions.animationAutoStart = false;
     const QString pathAnim2 = dir.filePath(QStringLiteral("anim_once.pdf"));   // not the first file: it is still open (Windows cannot replace it)
@@ -704,6 +713,7 @@ void testFullExport()
     CHECK(fAnim2.open(QIODevice::ReadOnly));
     const QByteArray pdfAnim2 = fAnim2.readAll();
     CHECK(pdfAnim2.contains("/Subtype /Linear /PC 1 /TM 1 >>") && !pdfAnim2.contains("/AIS /L"));
+    CHECK(pdfAnim2.contains("/3DA << /A /XA") && pdfAnim.contains("/3DA << /A /PO"));   // autostart off: the area is activated by a click
     CHECK(!pdf.contains("/3DAnimationStyle") && !pdf.contains("/AIS /L"));   // no animation, no style
 
     // standard views can be left out: only "Top" remains, and with none left the export is refused

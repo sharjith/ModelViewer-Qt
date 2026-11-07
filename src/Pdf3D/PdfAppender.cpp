@@ -216,10 +216,19 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
     const int num3d = doc.size;
     const int numAnnot = doc.size + 1;
     const int numAppearance = doc.size + 2;
-    const int numField = doc.size + 3;       // only used with a notes field: the field, the font, the form, then one widget per page
-    const int numFont = doc.size + 4;
-    const int numAcroForm = doc.size + 5;
-    const int numFirstWidget = doc.size + 6;
+    // with a notes field and/or buttons there is an interactive form: the font, the form, the notes field and one widget per page,
+    // then one widget (with its appearance) per button
+    const bool hasForm = a.hasNotesField || !a.buttons.isEmpty();
+    int nextNum = doc.size + 3;
+    const int numFont = hasForm ? nextNum++ : 0;
+    const int numAcroForm = hasForm ? nextNum++ : 0;
+    const int numField = a.hasNotesField ? nextNum++ : 0;
+    const int numFirstWidget = nextNum;
+    if (a.hasNotesField)
+        nextNum += static_cast<int>(pageNums.size());
+    const int numFirstButton = nextNum;
+    nextNum += static_cast<int>(a.buttons.size()) * 2;   // widget + appearance stream
+    const int newObjectCount = nextNum - doc.size;
 
     QByteArray views = "[";
     for (int i = 0; i < a.viewDictionaries.size(); ++i)
@@ -242,17 +251,20 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
         pdfNumber(a.rect.top() > a.rect.bottom() ? a.rect.bottom() : a.rect.top()) + " " + pdfNumber(a.rect.right()) + " " +
         pdfNumber(a.rect.top() > a.rect.bottom() ? a.rect.top() : a.rect.bottom()) + "] /F 4 /Contents " + pdfString(a.description) +
         " /3DD " + QByteArray::number(num3d) + " 0 R /3DV " + QByteArray::number(a.defaultView) +
-        " /3DA << /A /PO /D /PC /TB true /NP false" + (a.startLive ? " /AIS /L /DIS /I" : "") + " >> /AP << /N " + QByteArray::number(numAppearance) + " 0 R >> >>");
+        " /3DA << /A /" + QByteArray(a.activateOnClick ? "XA" : "PO") + " /D /PC /TB true /NP false" + (a.startLive ? " /AIS /L /DIS /I" : "") + " >> /AP << /N " + QByteArray::number(numAppearance) + " 0 R >> >>");
 
     // refs to add to each page's /Annots (parallel to pageNums)
     QVector<QByteArray> pageRefs(pageNums.size());
     pageRefs[0] = QByteArray::number(numAnnot) + " 0 R";
-    int newObjectCount = 3;
-    if (a.hasNotesField)
+    QByteArray fieldRefs;
+    if (hasForm)
     {
         // The catalog is rewritten to point at a new /AcroForm; refuse files that already have one.
         if (catalog.contains(QStringLiteral("/AcroForm")))
             return fail(error, QStringLiteral("The PDF already has an interactive form."));
+    }
+    if (a.hasNotesField)
+    {
         QByteArray utf16 = "<FEFF";
         for (const QChar c : a.notesField.text)
             utf16 += QByteArray::number(c.unicode(), 16).rightJustified(4, '0').toUpper();
@@ -278,9 +290,45 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
             pageRefs[i] += QByteArray::number(widget) + " 0 R";
         }
         objects.insert(numField, "<< /FT /Tx /T (Notes) /TU (Notes) /Ff 4198400 /V " + utf16 + " /DA " + da + " /Kids [" + kids + "] >>");
+        fieldRefs += QByteArray::number(numField) + " 0 R ";
+    }
+    // push buttons: each one is a field and its widget in one dictionary, with a drawn appearance (grey face, border, centred caption)
+    for (int i = 0; i < a.buttons.size(); ++i)
+    {
+        const PageButton& b = a.buttons[i];
+        const int widget = numFirstButton + 2 * i;
+        const int appearance = widget + 1;
+        const double lo = qMin(b.rect.top(), b.rect.bottom()), hi = qMax(b.rect.top(), b.rect.bottom());
+        const double bw = b.rect.width(), bh = hi - lo;
+        const double fs = qMin(8.0, bh - 6.0);
+        QString shown = b.caption;
+        const double maxChars = (bw - 6.0) / (fs * 0.52);
+        if (shown.size() > maxChars && maxChars > 3)
+            shown = shown.left(static_cast<int>(maxChars) - 2) + QStringLiteral("..");
+        const double textW = shown.size() * fs * 0.52;
+        const QByteArray content = "0.90 g 0 0 " + pdfNumber(bw) + " " + pdfNumber(bh) + " re f 0.35 G 0.8 w 0.4 0.4 " +
+            pdfNumber(bw - 0.8) + " " + pdfNumber(bh - 0.8) + " re S BT 0 g /Helv " + pdfNumber(fs) + " Tf " +
+            pdfNumber(qMax(3.0, (bw - textW) / 2.0)) + " " + pdfNumber((bh - fs) / 2.0 + fs * 0.22) + " Td " + pdfString(shown) + " Tj ET";
+        objects.insert(appearance, streamObject("/Type /XObject /Subtype /Form /BBox [0 0 " + pdfNumber(bw) + " " + pdfNumber(bh) +
+            "] /Resources << /Font << /Helv " + QByteArray::number(numFont) + " 0 R >> >>", content));
+        QByteArray action = b.action;
+        action.replace("@ANNOT@", QByteArray::number(numAnnot) + " 0 R");
+        objects.insert(widget, "<< /Type /Annot /Subtype /Widget /FT /Btn /Ff 65536 /T (btn" + QByteArray::number(i) + ") /TU " +
+            pdfTextString(b.caption) + " /P " + QByteArray::number(pageNum) + " 0 R /Rect [" + pdfNumber(b.rect.left()) + " " + pdfNumber(lo) +
+            " " + pdfNumber(b.rect.right()) + " " + pdfNumber(hi) + "] /F 4 /MK << /CA " + pdfTextString(b.caption) +
+            " /BG [0.9 0.9 0.9] /BC [0.35 0.35 0.35] >> /DA (/Helv " + pdfNumber(fs) + " Tf 0 g) /A " + action + " /AP << /N " +
+            QByteArray::number(appearance) + " 0 R >> >>");
+        fieldRefs += QByteArray::number(widget) + " 0 R ";
+        if (!pageRefs[0].isEmpty())
+            pageRefs[0] += ' ';
+        pageRefs[0] += QByteArray::number(widget) + " 0 R";
+    }
+    if (hasForm)
+    {
+        const QByteArray formDa = "(/Helv 8 Tf 0 g)";
         objects.insert(numFont, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
         objects.insert(numAcroForm,
-            "<< /Fields [" + QByteArray::number(numField) + " 0 R] /NeedAppearances true /DA " + da + " /DR << /Font << /Helv " +
+            "<< /Fields [" + fieldRefs.trimmed() + "] /NeedAppearances true /DA " + formDa + " /DR << /Font << /Helv " +
             QByteArray::number(numFont) + " 0 R >> >> >>");
         QByteArray cat = doc.objectBody(doc.root);
         const int end = cat.lastIndexOf(">>");
@@ -288,7 +336,6 @@ bool PdfAppender::append3DAnnotation(QByteArray& pdf, const Annotation3D& a, QSt
             return fail(error, QStringLiteral("The PDF catalog could not be rewritten."));
         cat.insert(end, "/AcroForm " + QByteArray::number(numAcroForm) + " 0 R\n");
         objects.insert(doc.root, cat);
-        newObjectCount = 6 + static_cast<int>(pageNums.size());
     }
 
     // ---- hook the new annotations into each page's /Annots ------------------------------------------------------------------

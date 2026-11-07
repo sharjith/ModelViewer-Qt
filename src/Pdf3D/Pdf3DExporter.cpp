@@ -30,12 +30,15 @@ constexpr qreal kTitleBlockMaxHeight = 120.0;   // longer notes become a scrolla
 constexpr qreal kTitleGridWidth = 360.0;   // right-hand field grid
 constexpr qreal kNotesTop = 52.0;          // notes start this far below the title block top
 constexpr qreal kNotesPointSize = 8.0;
+constexpr qreal kButtonStripHeight = 20.0;   // the view/animation buttons under the 3D area
+constexpr qreal kButtonStripGap = 6.0;
 
 struct Layout
 {
     QRectF page;          // full page, painter coordinates (points, origin top left)
     QRectF area3d;        // the 3D area, painter coordinates
     QRectF titleBlock;
+    QRectF buttonStrip;   // empty when there are no buttons
     qreal  pageHeightPt = 0.0;
     bool   notesScroll = false;   // the notes do not fit: a scrollable form field is added over the notes cell
 };
@@ -52,6 +55,57 @@ QRectF toPdfRect(const QRectF& painterRect, qreal pageHeightPt)
     const qreal pdfBottom = pageHeightPt - painterRect.bottom();
     const qreal pdfTop = pageHeightPt - painterRect.top();
     return QRectF(QPointF(painterRect.left(), pdfBottom), QPointF(painterRect.right(), pdfTop));
+}
+
+// The buttons of the strip, left to right: previous and next view (GoTo3DView actions), one button per view when they all fit at
+// a readable width, and at the right the animation controls (JavaScript: PDF has no play/pause action). `strip` is in painter
+// coordinates; the buttons come back in PDF coordinates.
+QList<PageButton> makeButtons(const QStringList& viewNames, bool animation, const QRectF& strip, qreal pageHeightPt)
+{
+    QList<PageButton> buttons;
+    const qreal gap = 4.0, small = 26.0, animW = 40.0, minView = 54.0;
+    const auto add = [&](qreal x, qreal w, const QString& caption, const QByteArray& action) {
+        PageButton b;
+        b.rect = toPdfRect(QRectF(x, strip.top(), w, strip.height()), pageHeightPt);
+        b.caption = caption;
+        b.action = action;
+        buttons.append(b);
+    };
+    const auto goTo = [](const QByteArray& view) { return "<< /S /GoTo3DView /TA @ANNOT@ /V " + view + " >>"; };
+    const auto script = [](const QByteArray& call) {
+        // runtime.play()/pause() need the 3D content to be activated; setting activated true is harmless when it already is
+        return "<< /S /JavaScript /JS (var a = this.getAnnots3D(0)[0]; if (a) { if (!a.activated) { a.activated = true; } "
+               "try { a.context3D.runtime." + call + "(); } catch (e) { } }) >>";
+    };
+
+    qreal x = strip.left();
+    qreal right = strip.right();
+    if (animation)
+    {
+        right -= animW;
+        add(right, animW, QCoreApplication::translate("Pdf3DExporter", "Pause"), script("pause"));
+        right -= gap + animW;
+        add(right, animW, QCoreApplication::translate("Pdf3DExporter", "Play"), script("play"));
+        right -= gap * 3;
+    }
+    if (viewNames.size() > 1)
+    {
+        add(x, small, QStringLiteral("<"), goTo("/P"));
+        x += small + gap;
+        add(x, small, QStringLiteral(">"), goTo("/N"));
+        x += small + gap * 3;
+        const int n = static_cast<int>(viewNames.size());
+        const qreal each = (right - x - gap * (n - 1)) / n;
+        if (each >= minView)
+        {
+            for (int i = 0; i < n; ++i)
+            {
+                add(x, qMin(each, 90.0), viewNames[i], goTo(QByteArray::number(i)));
+                x += qMin(each, 90.0) + gap;
+            }
+        }
+    }
+    return buttons;
 }
 
 struct PartRow
@@ -267,7 +321,10 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     }
 
     // 1. the 3D stream
-    const U3dWriteResult u3d = U3dWriter::write(scene);
+    // an animation that must not start by itself is written paused (the modifiers' playing flag), whatever the PDF's /AIS says
+    U3dScene writeScene = scene;
+    writeScene.animation.playing = options.animationAutoStart;
+    const U3dWriteResult u3d = U3dWriter::write(writeScene);
     if (!u3d.ok)
     {
         result.error = u3d.error;
@@ -316,6 +373,15 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         }
         layout.titleBlock = QRectF(kMargin, layout.page.bottom() - kMargin - blockHeight, layout.page.width() - 2 * kMargin, blockHeight);
         layout.area3d = QRectF(QPointF(kMargin, kMargin), QPointF(layout.page.right() - kMargin, layout.titleBlock.top() - 12));
+        // the button strip, when there is something to switch: more than one view, or an animation
+        int viewCount = static_cast<int>(options.extraViews.size());
+        for (const QString& n : standardViewNames())
+            viewCount += options.excludedStandardViews.contains(n) ? 0 : 1;
+        if (options.viewButtons && (viewCount > 1 || scene.hasAnimation()))
+        {
+            layout.buttonStrip = QRectF(layout.area3d.left(), layout.area3d.bottom() - kButtonStripHeight, layout.area3d.width(), kButtonStripHeight);
+            layout.area3d.setBottom(layout.buttonStrip.top() - kButtonStripGap);
+        }
         int partCount = 0;
         for (const U3dNode& n : scene.nodes)
             partCount += n.overlay ? 0 : 1;
@@ -339,6 +405,7 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     Annotation3D annotation;
     annotation.rect = toPdfRect(layout.area3d, layout.pageHeightPt);
     annotation.u3d = u3d.data;
+    QStringList viewNames;   // parallel to annotation.viewDictionaries; the captions of the view buttons
 
     // A view only changes the parts it lists, and Acrobat keeps the previous view's changes (an explosion, hidden parts) for the
     // others. So every view lists every node that ANY view changes, with the default state (visible, assembled transform) where it
@@ -491,6 +558,7 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             if (options.excludedStandardViews.contains(standardNames[i]))
                 continue;
             annotation.viewDictionaries.append(options.standardViewsWithoutOverlays.contains(standardNames[i]) ? standardHidden[i] : standardShown[i]);
+            viewNames.append(standardNames[i]);
         }
     }
     {
@@ -508,10 +576,13 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             spec.name = unique;
             spec.nodes = completeNodes(spec.nodes, spec.showOverlays);
             annotation.viewDictionaries.append(makeCameraView(spec, center, radius));
+            viewNames.append(unique);
         }
     }
     annotation.defaultView = 0;
     annotation.description = QStringLiteral("3D model");
+    if (!layout.buttonStrip.isEmpty())
+        annotation.buttons = makeButtons(viewNames, scene.hasAnimation(), layout.buttonStrip, layout.pageHeightPt);
     if (scene.hasAnimation())
     {
         const char* style = "Linear";
@@ -522,6 +593,7 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             playCount = 1;
         annotation.animationStyle = "<< /Type /3DAnimationStyle /Subtype /" + QByteArray(style) + " /PC " + QByteArray::number(playCount) + " /TM 1 >>";
         annotation.startLive = options.animationAutoStart;
+        annotation.activateOnClick = !options.animationAutoStart;   // Acrobat starts an animation as soon as the area is activated
     }
     if (layout.notesScroll)
     {

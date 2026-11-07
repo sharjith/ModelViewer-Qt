@@ -22,6 +22,14 @@ struct NotesField
     double  fontSize = 8.0;
 };
 
+// A push button on the page (a form widget with an action), drawn by the appender: view buttons, animation buttons.
+struct PageButton
+{
+    QRectF     rect;       // PDF points, origin at the bottom left
+    QString    caption;
+    QByteArray action;     // complete action dictionary; "@ANNOT@" is replaced by the reference to the 3D annotation
+};
+
 struct Annotation3D
 {
     QRectF             rect;                 // in PDF points, origin at the bottom left of the page
@@ -30,7 +38,9 @@ struct Annotation3D
     int                defaultView = 0;      // index into viewDictionaries; written as /3DV
     QString            description;          // /Contents of the annotation (alternate text), ASCII
     QByteArray         animationStyle;       // the 3D stream's /AN value, e.g. "<< /Type /3DAnimationStyle /Subtype /Linear /PC -1 /TM 1 >>" (empty: none)
+    bool               activateOnClick = false;   // 3D activation /A /XA instead of /PO: the 3D area is inactive (poster) until the reader clicks it
     bool               startLive = false;    // 3D activation /AIS /L: the 3D content is live on opening (needed for an animation to start by itself)
+    QList<PageButton>  buttons;              // on the page of the 3D annotation
     bool               hasNotesField = false;
     NotesField         notesField;           // used when hasNotesField
 };

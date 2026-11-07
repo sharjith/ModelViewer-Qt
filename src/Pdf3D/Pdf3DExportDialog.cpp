@@ -37,6 +37,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	ui->companyEdit->setText(settings.value(QStringLiteral("pdf3d/company")).toString());
 	ui->scaleEdit->setText(settings.value(QStringLiteral("pdf3d/scale")).toString());
 	ui->partsListCheck->setChecked(settings.value(QStringLiteral("pdf3d/partsList"), true).toBool());
+	ui->viewButtonsCheck->setChecked(settings.value(QStringLiteral("pdf3d/viewButtons"), true).toBool());
 	ui->titleEdit->selectAll();
 
 	// Views the user unticked earlier (and views they switched the measurements off for) stay unticked: remembered by group and name,
@@ -150,6 +151,7 @@ void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
 	options.scale = ui->scaleEdit->text().trimmed();
 	options.notes = ui->notesEdit->toPlainText().trimmed();
 	options.includePartsList = ui->partsListCheck->isChecked();
+	options.viewButtons = ui->viewButtonsCheck->isChecked();
 }
 
 QVector<bool> Pdf3DExportDialog::viewSelection() const
@@ -248,6 +250,7 @@ void Pdf3DExportDialog::done(int result)
 		settings.setValue(QStringLiteral("pdf3d/company"), ui->companyEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/scale"), ui->scaleEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/partsList"), ui->partsListCheck->isChecked());
+		settings.setValue(QStringLiteral("pdf3d/viewButtons"), ui->viewButtonsCheck->isChecked());
 		// the view selection: forget what this list showed, then remember what is unticked in it (views of other documents stay)
 		QStringList unchecked = settings.value(QStringLiteral("pdf3d/viewsUnchecked")).toStringList();
 		QStringList noOverlays = settings.value(QStringLiteral("pdf3d/viewsWithoutMeasurements")).toStringList();

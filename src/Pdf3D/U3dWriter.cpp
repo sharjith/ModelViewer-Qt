@@ -422,7 +422,7 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
                         am.SetName(wide(n.name).c_str());
                         am.SetType(IDTF_ANIMATION_MODIFIER);
                         am.SetChainType(IDTF_NODE);
-                        am.m_playing = TRUE;
+                        am.m_playing = scene.animation.playing ? TRUE : FALSE;
                         am.m_rootLock = FALSE;
                         am.m_singleTrack = TRUE;
                         am.m_autoBlend = TRUE;
