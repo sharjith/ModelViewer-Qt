@@ -2464,7 +2464,11 @@ axis</string>
   and exports then use the coarser geometry, and a saved
   session belongs to the level it was made at. Files
   with a single level are unaffected. Applies to files
-  opened afterwards.
+  opened afterwards. Automatic chooses from the size of
+  the model: Finest up to about 8 million polygons in the
+  finest levels, Medium up to about 25 million, Coarsest
+  above; a model that does not state its polygon counts
+  is loaded at Finest.
   Override: MODELVIEWER_JT_DETAIL_LEVEL.</string>
               </property>
               <item>
@@ -2482,6 +2486,11 @@ axis</string>
                 <string>Coarsest</string>
                </property>
               </item>
+              <item>
+               <property name="text">
+                <string>Automatic (by model size)</string>
+               </property>
+              </item>
              </widget>
             </item>
             <item row="5" column="0" colspan="2">
@@ -2494,13 +2503,13 @@ axis</string>
   level" in the Variants panel. Parts that differ no longer
   merge into one mesh. Off: each level shows only its own
   materials. Applies to files opened afterwards.
-  Override: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=0.</string>
+  Override: MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=1 or 0.</string>
               </property>
               <property name="text">
                <string>LOD Material Variants</string>
               </property>
               <property name="checked">
-               <bool>true</bool>
+               <bool>false</bool>
               </property>
              </widget>
             </item>

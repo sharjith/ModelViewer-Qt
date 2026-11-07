@@ -53,13 +53,16 @@ struct Options {
     // coarser of two), Coarsest the lowest detail. A LOD node whose alternatives do not name distinct levels (generic type 6, a
     // single level) keeps the established choice. Only one alternative is ever loaded; this is not runtime switching.
     // Measurements and recorded PMI are placed on the loaded triangles, so a session belongs to the level it was made at.
-    enum class DetailLevel { Finest=0, Medium=1, Coarsest=2 };
+    // Automatic picks Finest, Medium or Coarsest from the size of the model: the sum of the polygon counts that the shape nodes
+    // advertise for the finest alternatives (see Detail::buildScene). A model that advertises no counts is treated as small (Finest).
+    enum class DetailLevel { Finest=0, Medium=1, Coarsest=2, Automatic=3 };
     DetailLevel detailLevel=DetailLevel::Finest;
     // LOD alternatives that differ in the materials of their shapes (one alternative gives a shape its own material, another lets it
     // inherit one from an assembly node): the shape takes the explicit material by default (the more specific attribute wins,
     // reference 11.10) and the loaded alternative's own material is variant 0, "As authored in this level". Nothing is added for
     // files whose alternatives agree. Meshes of a part that differ in a variant no longer merge into one. See
-    // research/jt/JT_C5_LOD_MATERIAL_VARIANTS.md. Setting jtLodMaterialVariants; MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=0 turns it off.
+    // research/jt/JT_C5_LOD_MATERIAL_VARIANTS.md. Setting jtLodMaterialVariants (off by default in the viewer, fromEnvironment; the plain Options default stays on);
+    // MODELVIEWER_JT_LOD_MATERIAL_VARIANTS=1 / 0 overrides it.
     bool lodMaterialVariants=true;
     void check() const { if(cancelled && cancelled()) throw Cancelled(); }
     // Opt-in desktop runtime override. Plain Options and explicit caller budgets
@@ -72,13 +75,18 @@ struct Options {
         {const int threads=settings.value(QStringLiteral("jtDecodeThreads"),0).toInt();if(threads>=0)result.decodeThreads=unsigned(threads);}
         {const int gib=settings.value(QStringLiteral("jtBudgetGiB"),16).toInt();
          if(gib>=1&&gib<=256)result.decodedAllocationBudget=size_t(gib)*size_t(1024)*1024*1024;}
-        {const int level=settings.value(QStringLiteral("jtDetailLevel"),0).toInt();if(level>=0&&level<=2)result.detailLevel=DetailLevel(level);}
+        {const int level=settings.value(QStringLiteral("jtDetailLevel"),0).toInt();if(level>=0&&level<=3)result.detailLevel=DetailLevel(level);}
         if(qgetenv("MODELVIEWER_JT_MERGE_PART_MESHES")=="0")result.mergePartMeshes=false;
-        if(!settings.value(QStringLiteral("jtLodMaterialVariants"),true).toBool()||qgetenv("MODELVIEWER_JT_LOD_MATERIAL_VARIANTS")=="0")result.lodMaterialVariants=false;
+        {bool variants=settings.value(QStringLiteral("jtLodMaterialVariants"),false).toBool(); // off by default: each level keeps its own materials (owner decision, 7 November 2026)
+         const QByteArray variantsEnv=qgetenv("MODELVIEWER_JT_LOD_MATERIAL_VARIANTS");
+         if(variantsEnv=="1")variants=true;
+         if(variantsEnv=="0")variants=false;
+         result.lodMaterialVariants=variants;}
         {const QByteArray level=qgetenv("MODELVIEWER_JT_DETAIL_LEVEL").trimmed().toLower();
          if(level=="finest")result.detailLevel=DetailLevel::Finest;
          else if(level=="medium")result.detailLevel=DetailLevel::Medium;
-         else if(level=="coarsest")result.detailLevel=DetailLevel::Coarsest;}
+         else if(level=="coarsest")result.detailLevel=DetailLevel::Coarsest;
+         else if(level=="automatic"||level=="auto")result.detailLevel=DetailLevel::Automatic;}
         {bool ok=false;const int threads=qEnvironmentVariableIntValue("MODELVIEWER_JT_DECODE_THREADS",&ok);if(ok&&threads>=0)result.decodeThreads=unsigned(threads);}
         const auto value=qgetenv("MODELVIEWER_JT_BUDGET_GIB");
         if(value.isNull())return result;

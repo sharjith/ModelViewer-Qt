@@ -310,3 +310,9 @@ Owner acceptance has not been given for any statement here.
 **Observation (controls C4-M1 to C4-M3 and the assembly part, this exporter only).** `PMIGeometryColor`, `PMITextForegroundColor`, `Leader[n].colour`, `textColour` and `symbolColour` appear on every entity, with two distinct values across the controls (`0x00b43c78` and `0x00dc6e00`, blue-green-red byte order, equal for one entity's geometry and text). The generic-entity line width arrays are empty in every control and `Leader[n].arrowLineThickness` is `0`, so **no authored line width is available to read**; it is not implemented.
 
 **Implemented, owner test pending.** `PMIGeometryColor` colours a recorded item's strokes (dimension, note, symbol) when it parses and is not nearly black (largest channel below 0.25 keeps the viewer colour, so an authored black does not vanish on a dark background). Selection still shows the selection colour; hover lightens the authored colour. The colour is stored with the drawing in the MVF (`color`, three floats), absent in older sessions. Unit test: `parseColour` in `tests/jt/jt_recorded_pmi_tests.cpp`.
+
+## Samples not planned (7 November 2026)
+
+Owner decision: the samples C4-M3b (feature control frame, datum feature symbol, datum target, weld symbol, chamfer, region, each created singly) and C4-M4 (the C4-M1 part with named PMI views) are **not planned**. Feature control frames, datum feature symbols, welds, chamfers and named model views therefore stay unsupported and are not to be guessed from the specification; the importer reports PMI it cannot read (it never skips silently).
+
+Status of the staging item "3. Check value": built for recorded linear dimensions, diameters and radii (the label shows the authored value and the mesh's own value side by side, see step 2). Recorded angles show the authored value only; a mesh angle would need the stored extension-line directions mapped onto the part and has not been attempted.
