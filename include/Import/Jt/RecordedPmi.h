@@ -1,6 +1,7 @@
 #pragma once
 
 #include "NodeProperties.h"
+#include "PmiGeometry.h"
 
 #include <QMap>
 #include <QString>
@@ -114,6 +115,55 @@ inline std::vector<Entity> entities(const NodePropertySet& set)
 }
 
 enum class DimensionKind { Linear, Diameter, Radius, Angle };
+
+// The angle, in degrees, between the two straight extension lines an angle entity stored with its drawing, seen from its vertex.
+// The extension lines are the non-text polylines of exactly two vertices; each must pass through the vertex (within 5 percent of
+// its length) and the ray taken from the vertex towards its middle gives the direction. False when the drawing does not hold
+// exactly two such lines (the arc, arrowheads and text have more vertices or are text strokes). In the part's own frame, like the
+// vertex. It checks the authored value against what the CAD system drew, not against the mesh.
+inline bool drawnAngleDegrees(const PmiEntityGeometry& g, const QVector3D& vertex, double& degrees)
+{
+	if (g.indices.size() < 2 || g.vertices.size() < 6)
+		return false;
+	const size_t count = g.indices.size() - 1;
+	// types holds pairs (up to polyline index, type): polylines [previous, upTo) have that type.
+	std::vector<int> type(count, 0);
+	size_t k = 0;
+	for (size_t i = 0; i + 1 < g.types.size(); i += 2)
+	{
+		const size_t upTo = size_t(std::max<int>(0, g.types[i]));
+		for (; k < upTo && k < count; ++k)
+			type[k] = g.types[i + 1];
+	}
+	std::vector<QVector3D> rays;
+	for (size_t p = 0; p < count; ++p)
+	{
+		if (type[p] == 8 || g.indices[p] < 0 || g.indices[p + 1] - g.indices[p] != 2)
+			continue;
+		const size_t a = size_t(g.indices[p]) * 3;
+		if (a + 6 > g.vertices.size())
+			return false;
+		const QVector3D p0(g.vertices[a], g.vertices[a + 1], g.vertices[a + 2]);
+		const QVector3D p1(g.vertices[a + 3], g.vertices[a + 4], g.vertices[a + 5]);
+		const QVector3D along = p1 - p0;
+		const float length = along.length();
+		if (length < 1e-6f)
+			continue;
+		const QVector3D w = vertex - p0;
+		const QVector3D off = w - along * (QVector3D::dotProduct(w, along) / (length * length));
+		if (off.length() > 0.05f * length)
+			continue; // a 2-vertex line that does not pass through the vertex is not an extension line
+		const QVector3D toMiddle = (p0 + p1) * 0.5f - vertex;
+		if (toMiddle.length() < 1e-6f)
+			continue;
+		rays.push_back(toMiddle.normalized());
+	}
+	if (rays.size() != 2)
+		return false;
+	const double cosine = std::clamp(double(QVector3D::dotProduct(rays[0], rays[1])), -1.0, 1.0);
+	degrees = std::acos(cosine) * 180.0 / 3.14159265358979323846;
+	return std::isfinite(degrees);
+}
 
 // A dimension as stored. Values and points are in the part's coordinate unit and frame, except an angle's value, which is in
 // radians (observed on one exporter; the angle format property says how the source displays it).

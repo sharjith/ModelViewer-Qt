@@ -181,6 +181,7 @@ BuildResult buildDimensions(const std::vector<SceneMeshRecord>& meshes, LengthUn
 	BuildResult result;
 	int skippedOffMesh = 0;
 	std::vector<double> ratios;
+	std::vector<double> angleRatios;   // authored / drawn angle, see RecordedPmi::drawnAngleDegrees
 	for (const PartGroup& group : groupParts(meshes))
 	{
 		for (const Dimension& d : dimensions(*group.set))
@@ -279,6 +280,13 @@ BuildResult buildDimensions(const std::vector<SceneMeshRecord>& meshes, LengthUn
 					m.recordedValue = d.value; // file unit undeclared: the raw stored number, shown without a unit
 			}
 			m.recordedDrawing = drawingOf(group, d.entity, first.anchor.meshUuid, d.hasColor ? &d.color : nullptr);
+			// For the import's angle check: the authored angle against the one between the extension lines the author drew.
+			if (d.kind == DimensionKind::Angle && group.set->pmiGeometry && d.entity >= 0 && size_t(d.entity) < group.set->pmiGeometry->size())
+			{
+				double drawn = 0.0;
+				if (drawnAngleDegrees((*group.set->pmiGeometry)[size_t(d.entity)], d.vertex, drawn) && drawn > 1e-6)
+					angleRatios.push_back(m.recordedValue / drawn);
+			}
 			// For the import's consistency check: authored and mesh length in the part's own units, when both ends lie on one mesh.
 			if (d.kind != DimensionKind::Angle && first.mesh && first.mesh == second.mesh)
 			{
@@ -295,6 +303,14 @@ BuildResult buildDimensions(const std::vector<SceneMeshRecord>& meshes, LengthUn
 	const SanityReport sanity = checkAgainstMesh(ratios);
 	result.notes.append(sanity.notes);
 	result.warning = sanity.warning;
+	const SanityReport angleSanity = checkAngles(angleRatios);
+	result.notes.append(angleSanity.notes);
+	// So the log shows that the checks ran when they found nothing to report.
+	if (sanity.compared + angleSanity.compared > 0)
+		result.notes.append(QObject::tr("Recorded PMI consistency check: %1 dimension(s) compared with the mesh (%2 off by more than %4%), %3 angle(s) compared with their drawn extension lines (%5 off by more than %4%).")
+			.arg(sanity.compared).arg(sanity.off).arg(angleSanity.compared).arg(int(OffTolerance * 100.0)).arg(angleSanity.off));
+	if (!angleSanity.warning.isEmpty())
+		result.warning = result.warning.isEmpty() ? angleSanity.warning : result.warning + QLatin1Char('\n') + angleSanity.warning;
 	return result;
 }
 

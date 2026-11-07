@@ -217,4 +217,29 @@ void recordedPmiTests(){
    check(junk.compared==0&&junk.warning.isEmpty()&&junk.notes.isEmpty(),"Unusable ratios are ignored");
    check(checkAgainstMesh({}).compared==0,"No dimensions, nothing to check");
  }
+ { // Recorded angles against the extension lines drawn with them. The geometry is the 135 degree angle of the extended control (rounded):
+   // vertex (0,48,98); one extension line straight up, one along (-1,0,-1); an arrowhead, an arc piece and a text stroke around them.
+   PmiEntityGeometry g;
+   g.hasFrame=true;
+   const float lines[][3]={ {-6.402f,48,113.106f},{0,48,115.5f},{-6.832f,48,115.312f},{-6.402f,48,113.106f},   // arrowhead (4 vertices)
+                            {0,48,101.371f},{0,48,118.87f},                                                      // extension line 1
+                            {-2.383f,48,95.617f},{-14.758f,48,83.242f},                                          // extension line 2
+                            {-23.486f,48,102.267f},{-24.086f,48,102.267f} };                                     // two text-stroke vertices
+   for(const auto& p:lines){g.vertices.push_back(p[0]);g.vertices.push_back(p[1]);g.vertices.push_back(p[2]);}
+   g.indices={0,4,6,8,10};
+   g.types={3,0,4,8};   // polylines 0..2 plain, polyline 3 text
+   double degrees=0;
+   check(drawnAngleDegrees(g,QVector3D(0,48,98),degrees)&&near(degrees,135.0,0.05),"The angle between the two extension lines is read");
+   check(!drawnAngleDegrees(g,QVector3D(30,48,98),degrees),"Lines that do not pass through the vertex are not extension lines");
+   PmiEntityGeometry one=g;one.indices={0,4,6};one.types={2,0};
+   check(!drawnAngleDegrees(one,QVector3D(0,48,98),degrees),"One extension line is not an angle");
+   PmiEntityGeometry textOnly=g;textOnly.types={4,8};
+   check(!drawnAngleDegrees(textOnly,QVector3D(0,48,98),degrees),"Text strokes are never extension lines");
+   check(!drawnAngleDegrees(PmiEntityGeometry{},QVector3D(),degrees),"An empty drawing says nothing");
+   SanityReport fine=checkAngles({1.0,1.01});
+   check(fine.compared==2&&fine.off==0&&fine.notes.isEmpty()&&fine.warning.isEmpty(),"Angles that match their drawing say nothing");
+   SanityReport radians=checkAngles({57.29578});
+   check(radians.off==1&&!radians.warning.isEmpty(),"Radians read as degrees are shown to the user");
+   check(checkAngles({}).compared==0,"No angles, nothing to check");
+ }
 }

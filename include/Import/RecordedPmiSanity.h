@@ -50,4 +50,29 @@ inline SanityReport checkAgainstMesh(std::vector<double> ratios)
 			"The authored values are shown unchanged.").arg(report.medianRatio, 0, 'g', 3);
 	return report;
 }
+
+// The same kind of check for recorded angles. `ratios` holds authored / drawn for each angle whose stored drawing has two readable
+// extension lines (RecordedPmi::drawnAngleDegrees), both in degrees. This compares the authored value with the CAD system's own
+// drawing, not with the mesh, so a mismatch means a wrongly read value (for example radians shown as degrees) and not tessellation.
+inline SanityReport checkAngles(std::vector<double> ratios)
+{
+	SanityReport report;
+	ratios.erase(std::remove_if(ratios.begin(), ratios.end(), [](double r) { return !(r > 0.0) || !std::isfinite(r); }), ratios.end());
+	report.compared = int(ratios.size());
+	if (ratios.empty())
+		return report;
+	for (double r : ratios)
+		if (std::abs(r - 1.0) > OffTolerance)
+			++report.off;
+	std::sort(ratios.begin(), ratios.end());
+	const size_t mid = ratios.size() / 2;
+	report.medianRatio = ratios.size() % 2 ? ratios[mid] : 0.5 * (ratios[mid - 1] + ratios[mid]);
+	if (report.off > 0)
+		report.notes.append(QObject::tr("Recorded PMI: %1 of %2 angles differ by more than %3% from the extension lines drawn with them. "
+			"The authored values are kept.").arg(report.off).arg(report.compared).arg(int(OffTolerance * 100.0)));
+	if (report.medianRatio < GrossLow || report.medianRatio > GrossHigh)
+		report.warning = QObject::tr("The recorded angles of this file are, typically, %1 times the angle of the lines drawn with them. "
+			"The angle unit may have been read wrongly. The authored values are shown unchanged.").arg(report.medianRatio, 0, 'g', 3);
+	return report;
+}
 }
