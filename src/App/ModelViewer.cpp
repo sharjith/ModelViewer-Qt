@@ -6422,9 +6422,13 @@ void ModelViewer::exportModelDialog()
 	// Colours the viewer draws as an overlay (Plot3D, Simulation results) are not in the vertices; bake them for the file.
 	QHash<QUuid, std::vector<float>> bakedColors = simulationBakedColors();
 	bakedColors.insert(plot3DBakedColors());
+	QElapsedTimer exportProfileTimer;
+	exportProfileTimer.start();
 	aiScene* copyScene = SceneGraphExporter::buildExportScene(
 		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles, &animMatRemap, &bakedColors, nullptr,
 		selectedTopLevelNode ? QList<const SceneNode*>{ selectedTopLevelNode } : QList<const SceneNode*>());
+	qDebug().noquote() << QStringLiteral("[ExportProfile] buildExportScene (%1 meshes): %2 ms")
+		.arg(copyScene ? copyScene->mNumMeshes : 0).arg(exportProfileTimer.elapsed());
 
 	if (!copyScene)
 	{
@@ -6619,9 +6623,13 @@ void ModelViewer::exportModelDialog()
 	// selection filter (if any) applied via the resolver, preserving node transforms
 	// and tree structure for both modes.
 	AssImpMeshExporter meshExporter(this);
+	exportProfileTimer.restart();
 	aiReturn res = meshExporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
 	qDebug() << "Exporting scene result:" << res;
+	qDebug().noquote() << QStringLiteral("[ExportProfile] exportScene total: %1 ms").arg(exportProfileTimer.elapsed());
+	exportProfileTimer.restart();
 	delete copyScene;
+	qDebug().noquote() << QStringLiteral("[ExportProfile] delete export scene: %1 ms").arg(exportProfileTimer.elapsed());
 
 	if (res == aiReturn_SUCCESS)
 		QMessageBox::information(this, tr("Information"), tr("Exported %1").arg(QFileInfo(fileName).fileName()));

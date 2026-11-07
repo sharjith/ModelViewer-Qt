@@ -9,6 +9,7 @@
 
 #include <numeric>
 #include <QDebug>
+#include <QElapsedTimer>
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -23,6 +24,24 @@
 
 namespace
 {
+// Wall-clock time per export phase, one "[ExportProfile]" line each (always on: a handful of lines per export).
+class ExportProfile
+{
+public:
+    explicit ExportProfile(const char* what) : _what(what) { _timer.start(); }
+    void phase(const char* name)
+    {
+        const qint64 now = _timer.elapsed();
+        qDebug().noquote() << QStringLiteral("[ExportProfile] %1 / %2: %3 ms (total %4 ms)").arg(_what, name).arg(now - _last).arg(now);
+        _last = now;
+    }
+
+private:
+    const char* _what;
+    QElapsedTimer _timer;
+    qint64 _last = 0;
+};
+
 void setFaceIndices(aiFace& face, std::initializer_list<unsigned int> values)
 {
     face.mNumIndices = static_cast<unsigned int>(values.size());
@@ -741,6 +760,7 @@ aiReturn AssImpMeshExporter::exportScene(
     const std::string& exportPath,
     const ExportSettings& settings)
 {
+    ExportProfile profile("exportScene");
     logMessage(QString("=== AssImpMeshExporter::exportScene (GLB with Embedded Textures) ==="));
     logMessage(QString("Target: %1").arg(QString::fromStdString(exportPath)));
     logMessage(QString("Output directory: %1").arg(settings.outputDirectory));
@@ -870,8 +890,10 @@ aiReturn AssImpMeshExporter::exportScene(
     // copy may contain stale aiMesh/aiNode entries.  Prune them here so that
     // scene->mMeshes and the meshes vector are in 1-to-1 correspondence before
     // applyMaterialsToScene() rebuilds the material array.
+    profile.phase("1 package textures");
     logMessage("Step 2: Syncing scene to mesh store...");
     syncSceneToMeshStore(scene, meshes);
+    profile.phase("2 sync scene to mesh store");
 
     // ===== STEP 3: Apply materials to scene =====
     // syncSceneToMeshStore produces scene->mMeshes[] in ASCENDING sceneIndex order.
@@ -886,6 +908,7 @@ aiReturn AssImpMeshExporter::exportScene(
             return a->getSceneIndex() < b->getSceneIndex();
         });
     applyMaterialsToScene(scene, sortedMeshes, QString::fromStdString(exportPath));
+    profile.phase("3 apply materials");
 
     // ===== STEP 3b: Add variant materials (KHR_materials_variants export) =====
     _lastVariantEntries.clear();
@@ -964,6 +987,7 @@ aiReturn AssImpMeshExporter::exportScene(
         }
     }
 
+    profile.phase("3b variant materials");
     // ===== STEP 4: Embed textures in scene (CRITICAL FOR GLB) =====
     logMessage("Step 4: Embedding textures in scene...");
 
@@ -990,6 +1014,7 @@ aiReturn AssImpMeshExporter::exportScene(
         updateSceneMaterialPaths(scene, _lastTexturePackage);
     }
 
+    profile.phase("4 embed textures / update paths");
     // ===== STEP 4c: OBJ has no vertex colours: turn them into materials (vertex colours take precedence) =====
     if (ext == "obj")
     {
@@ -998,6 +1023,7 @@ aiReturn AssImpMeshExporter::exportScene(
             .arg(baked.meshesChanged).arg(baked.meshesAdded).arg(baked.materialsCreated));
     }
 
+    profile.phase("4c OBJ vertex colours -> materials");
     // ===== STEP 5: Export =====
     logMessage("Step 5: Exporting scene...");
 
@@ -1035,6 +1061,7 @@ aiReturn AssImpMeshExporter::exportScene(
         return result;
     }
 
+    profile.phase("5 Assimp write");
     logMessage(QString("Export successful!"));
     logMessage(QString("  -> File: %1").arg(QString::fromStdString(exportPath)));
     logMessage(QString("  -> Meshes: %1").arg(scene->mNumMeshes));
@@ -1060,6 +1087,7 @@ aiReturn AssImpMeshExporter::exportScene(
         }
     }
 
+    profile.phase("5b patch image names / MTL");
     // ===== STEP 6: Post-process glTF/GLB to add missing optional properties and write transforms =====
     logMessage("Step 6: Post-processing exported file with material transforms...");
 
@@ -1123,6 +1151,7 @@ aiReturn AssImpMeshExporter::exportScene(
     GltfPostProcessor::clearVariantExportData();
     GltfPostProcessor::clearGltfCameraData();
     GltfPostProcessor::clearPointerAnimationData();
+    profile.phase("6 glTF post-process");
 
     // ===== STEP 6: Cleanup temp texture folder for GLB exports =====
     if (isGLB && settings.copyTextures && !_lastTexturePackage.textures.empty())
@@ -1141,6 +1170,7 @@ aiReturn AssImpMeshExporter::exportScene(
                 .arg(_lastTexturePackage.textureDirectory));
         }
     }
+    profile.phase("6b cleanup temp textures");
 
     return aiReturn_SUCCESS;
 }
