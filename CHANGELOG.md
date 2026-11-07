@@ -4,6 +4,13 @@
 
 ### Added
 
+- 3DXML import: native reader for CATIA and 3DEXPERIENCE archives and loose XML
+  assemblies (assembly structure, tessellation, colours, normals, texture
+  coordinates, edge polylines). Unreadable representations are skipped and listed
+  in the import report. Not supported: exact B-Rep, texture image display, and
+  layouts that none of the supplied exporters produced; the length unit is inferred
+  as millimetres.
+
 - JT import: textures within defined bounds (UV sets, common image formats, wrapping,
   borders, filtering, mip levels, affine and model-linear mapping, bounded combiners,
   one normal-map role) with GLB/glTF export of the result. Not supported: the general

@@ -115,3 +115,14 @@ branch/checkpoint request authorizes research-only Git checkpoints.
 
 Research and Python analysis can continue on this branch. Application builds,
 owner-run checks, C++ integration and release remain subsequent work.
+
+## Closure, 7 November 2026
+
+The owner tested the four additional archives in the viewer (screenshots reviewed; no defects seen) (two 3DEXPERIENCE-style exports, one NIST test part and one
+press assembly) and closed the importer for now. Observation, not conformance:
+the checks are the supplied exporters only. Retained open questions, none of which affects display: the meaning of the
+15 attribute floats per part, the kind-0 tail group of one tire body, the difference between edge groups 1 and 2,
+cross-document occurrence ids, the float-normal count formula (inferred from one body), the length unit (millimetres
+inferred, with an import warning) and display of texture images (the coordinates are read, the pixels are skipped).
+Further work starts from a real file that fails or from new CATIA evidence. The user-facing limits are in the README
+and the changelog.
