@@ -50,6 +50,149 @@ SelectionManager::~SelectionManager()
 // Public Methods - Selection Operations
 // ============================================================================
 
+namespace
+{
+bool isPointOrLineMode(unsigned int mode)
+{
+    return mode == GL_POINTS || mode == GL_LINES || mode == GL_LINE_STRIP || mode == GL_LINE_LOOP;
+}
+
+// Box and lasso selection of point and line meshes. The usual tests use the mesh's bounding sphere, which says nothing useful for
+// a single point (radius 0) or a thin polyline, so these meshes are tested on their own vertices and segments instead.
+struct ProjectedWire
+{
+    std::vector<QPointF> screen;
+    std::vector<char> valid;
+    std::vector<std::pair<int, int>> segments; // vertex pairs; (v, -1) for a point
+};
+
+ProjectedWire projectWireMesh(const SceneMesh& mesh, const QMatrix4x4& projMatrix, const QMatrix4x4& viewMatrix, const QRect& viewport)
+{
+    ProjectedWire wire;
+    const std::vector<float> points = mesh.getPoints();
+    const size_t vertexCount = points.size() / 3;
+    wire.screen.resize(vertexCount);
+    wire.valid.assign(vertexCount, 0);
+    const QMatrix4x4 mvp = projMatrix * viewMatrix * mesh.combinedRenderTransform();
+    for (size_t i = 0; i < vertexCount; ++i)
+    {
+        const QVector4D clip = mvp * QVector4D(points[i * 3], points[i * 3 + 1], points[i * 3 + 2], 1.0f);
+        if (clip.w() <= 0.0f)
+            continue;
+        const QVector3D ndc = clip.toVector3DAffine();
+        wire.screen[i] = QPointF((ndc.x() * 0.5f + 0.5f) * viewport.width(), (1.0f - (ndc.y() * 0.5f + 0.5f)) * viewport.height());
+        wire.valid[i] = 1;
+    }
+
+    const std::vector<unsigned int>& indices = mesh.getIndices();
+    const size_t count = indices.empty() ? vertexCount : indices.size();
+    const auto vertexAt = [&](size_t k) { return static_cast<int>(indices.empty() ? k : indices[k]); };
+    const unsigned int mode = mesh.getPrimitiveMode();
+    if (mode == GL_POINTS)
+    {
+        for (size_t k = 0; k < count; ++k)
+            wire.segments.emplace_back(vertexAt(k), -1);
+    }
+    else if (mode == GL_LINES)
+    {
+        for (size_t k = 0; k + 1 < count; k += 2)
+            wire.segments.emplace_back(vertexAt(k), vertexAt(k + 1));
+    }
+    else // GL_LINE_STRIP, GL_LINE_LOOP
+    {
+        for (size_t k = 0; k + 1 < count; ++k)
+            wire.segments.emplace_back(vertexAt(k), vertexAt(k + 1));
+        if (mode == GL_LINE_LOOP && count > 2)
+            wire.segments.emplace_back(vertexAt(count - 1), vertexAt(0));
+    }
+    return wire;
+}
+
+bool segmentCrossesRect(const QLineF& line, const QRectF& rect)
+{
+    // Liang-Barsky clipping: true when any part of the segment lies inside the rectangle.
+    double t0 = 0.0, t1 = 1.0;
+    const double dx = line.dx(), dy = line.dy();
+    const double p[4] = { -dx, dx, -dy, dy };
+    const double q[4] = { line.x1() - rect.left(), rect.right() - line.x1(), line.y1() - rect.top(), rect.bottom() - line.y1() };
+    for (int k = 0; k < 4; ++k)
+    {
+        if (p[k] == 0.0)
+        {
+            if (q[k] < 0.0)
+                return false;
+        }
+        else
+        {
+            const double t = q[k] / p[k];
+            if (p[k] < 0.0)
+                t0 = std::max(t0, t);
+            else
+                t1 = std::min(t1, t);
+            if (t0 > t1)
+                return false;
+        }
+    }
+    return true;
+}
+
+bool wireTouchesRect(const SceneMesh& mesh, const QMatrix4x4& projMatrix, const QMatrix4x4& viewMatrix, const QRect& viewport,
+                     const QRectF& rect)
+{
+    const ProjectedWire wire = projectWireMesh(mesh, projMatrix, viewMatrix, viewport);
+    const auto inRange = [&](int v) { return v >= 0 && static_cast<size_t>(v) < wire.valid.size() && wire.valid[static_cast<size_t>(v)]; };
+    for (const auto& segment : wire.segments)
+    {
+        const bool aOk = inRange(segment.first);
+        if (segment.second < 0)
+        {
+            if (aOk && rect.contains(wire.screen[static_cast<size_t>(segment.first)]))
+                return true;
+            continue;
+        }
+        const bool bOk = inRange(segment.second);
+        if (aOk && rect.contains(wire.screen[static_cast<size_t>(segment.first)]))
+            return true;
+        if (bOk && rect.contains(wire.screen[static_cast<size_t>(segment.second)]))
+            return true;
+        if (aOk && bOk && segmentCrossesRect(QLineF(wire.screen[static_cast<size_t>(segment.first)], wire.screen[static_cast<size_t>(segment.second)]), rect))
+            return true;
+    }
+    return false;
+}
+
+bool wireTouchesPolygon(const SceneMesh& mesh, const QMatrix4x4& projMatrix, const QMatrix4x4& viewMatrix, const QRect& viewport,
+                        const QPolygon& polygon)
+{
+    const ProjectedWire wire = projectWireMesh(mesh, projMatrix, viewMatrix, viewport);
+    const auto inRange = [&](int v) { return v >= 0 && static_cast<size_t>(v) < wire.valid.size() && wire.valid[static_cast<size_t>(v)]; };
+    // Segment/edge crossing is only worth its cost for moderate sizes; beyond that the vertices alone decide.
+    const bool testCrossings = wire.segments.size() * static_cast<size_t>(polygon.size()) <= 4000000u;
+    for (const auto& segment : wire.segments)
+    {
+        const bool aOk = inRange(segment.first);
+        if (aOk && polygon.containsPoint(wire.screen[static_cast<size_t>(segment.first)].toPoint(), Qt::OddEvenFill))
+            return true;
+        if (segment.second < 0)
+            continue;
+        const bool bOk = inRange(segment.second);
+        if (bOk && polygon.containsPoint(wire.screen[static_cast<size_t>(segment.second)].toPoint(), Qt::OddEvenFill))
+            return true;
+        if (testCrossings && aOk && bOk)
+        {
+            const QLineF line(wire.screen[static_cast<size_t>(segment.first)], wire.screen[static_cast<size_t>(segment.second)]);
+            for (int e = 0; e < polygon.size(); ++e)
+            {
+                const QLineF edge(polygon.at(e), polygon.at((e + 1) % polygon.size()));
+                if (line.intersects(edge, nullptr) == QLineF::BoundedIntersection)
+                    return true;
+            }
+        }
+    }
+    return false;
+}
+}
+
 int SelectionManager::clickSelect(const QPoint& pixel)
 {
     int id = -1;
@@ -668,10 +811,13 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
 
         // === Ray-based intersection test (performance-optimized) ===
         QMap<int, float> hitDistances;
+        bool anyPointOrLineMesh = false;
         for (int i : ids) {
             SceneMesh* mesh = _meshStore.at(i).mesh;
             if (!mesh)
                 continue;
+            if (isPointOrLineMode(mesh->getPrimitiveMode()))
+                anyPointOrLineMesh = true;
             if (mesh->getBoundingSphere().intersectsWithRay(rayPos, rayDir)) {
                 if (mesh->intersectsWithRay(rayPos, rayDir, intersectionPoint)) {
                     hitDistances[i] = intersectionPoint.distanceToPoint(rayPos);
@@ -680,11 +826,27 @@ int SelectionManager::hoverSelect(const QPoint& pixel)
         }
 
         // Return the closest hit
+        float nearestTriangleHit = std::numeric_limits<float>::max();
         if (!hitDistances.isEmpty()) {
             auto it = std::min_element(
                 hitDistances.constBegin(), hitDistances.constEnd(),
                 [](auto a, auto b) { return a < b; });
             hoveredId = it.key();
+            nearestTriangleHit = it.value();
+        }
+
+        // The ray test only hits triangles, so point and line meshes (JT polylines and point sets, glTF points and lines) never
+        // hover in this mode. Supplement it with a colour pass over just those meshes; it costs nothing when there are none. The
+        // pass does not know about the surfaces in front, so a wire hit counts only when the nearest triangle hit is not clearly in
+        // front of the wire mesh (compared with the near side of its bounding sphere).
+        if (anyPointOrLineMesh) {
+            const int wireId = processSelection(pixel, true);
+            if (wireId >= 0 && wireId < static_cast<int>(_meshStore.size()) && _meshStore.at(wireId).mesh) {
+                const BoundingSphere sphere = _meshStore.at(wireId).mesh->getBoundingSphere();
+                const float nearSide = std::max(0.0f, sphere.getCenter().distanceToPoint(rayPos) - sphere.getRadius());
+                if (hoveredId < 0 || nearestTriangleHit >= nearSide)
+                    hoveredId = wireId;
+            }
         }
     }
 
@@ -754,6 +916,14 @@ QList<int> SelectionManager::sweepSelect(const QPoint& p1, const QPoint& p2, Sel
         SceneMesh* mesh = _meshStore.at(i).mesh;
         if (!mesh)
             continue;
+
+        // Points and polylines: selected when a vertex or segment lies inside the rubber band (the sphere test below is useless for them).
+        if (isPointOrLineMode(mesh->getPrimitiveMode()))
+        {
+            if (wireTouchesRect(*mesh, projMatrix, viewMatrix, viewport, QRectF(rubberRect)))
+                applyCoverage(i);
+            continue;
+        }
 
         const BoundingSphere sphere = mesh->getBoundingSphere();
         const QVector3D center = sphere.getCenter();
@@ -840,11 +1010,37 @@ QList<int> SelectionManager::lassoSelect(const QPolygon& lassoPath, SelectionCom
     }
     bool removedAny = false;
 
+    const auto applyLassoCoverage = [&](int i) {
+        if (i < 0 || i >= static_cast<int>(member.size()))
+            return;
+        if (mode == SelectionCombineMode::Subtract)
+        {
+            if (member[static_cast<size_t>(i)])
+            {
+                member[static_cast<size_t>(i)] = 0;
+                removedAny = true;
+            }
+        }
+        else if (!member[static_cast<size_t>(i)])
+        {
+            member[static_cast<size_t>(i)] = 1;
+            selectedIds.push_back(i);
+        }
+    };
+
     for (int i : ids)
     {
         SceneMesh* mesh = _meshStore.at(i).mesh;
         if (!mesh)
             continue;
+
+        // Points and polylines: selected when a vertex lies inside the lasso or a segment crosses it (a sphere centre says little).
+        if (isPointOrLineMode(mesh->getPrimitiveMode()))
+        {
+            if (wireTouchesPolygon(*mesh, projMatrix, viewMatrix, viewport, lassoPath))
+                applyLassoCoverage(i);
+            continue;
+        }
 
         const BoundingSphere sphere = mesh->getBoundingSphere();
         const QVector3D center = sphere.getCenter();
@@ -859,23 +1055,7 @@ QList<int> SelectionManager::lassoSelect(const QPolygon& lassoPath, SelectionCom
             (1.0f - (ndcCenter.y() * 0.5f + 0.5f)) * viewport.height());
 
         if (lassoPath.containsPoint(screenCenter.toPoint(), Qt::OddEvenFill))
-        {
-            if (i < 0 || i >= static_cast<int>(member.size()))
-                continue;
-            if (mode == SelectionCombineMode::Subtract)
-            {
-                if (member[static_cast<size_t>(i)])
-                {
-                    member[static_cast<size_t>(i)] = 0;
-                    removedAny = true;
-                }
-            }
-            else if (!member[static_cast<size_t>(i)])
-            {
-                member[static_cast<size_t>(i)] = 1;
-                selectedIds.push_back(i);
-            }
-        }
+            applyLassoCoverage(i);
     }
 
     if (removedAny)
@@ -1069,7 +1249,7 @@ void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewp
 // Helper Methods - Color Picking
 // ============================================================================
 
-int SelectionManager::processSelection(const QPoint& pixel)
+int SelectionManager::processSelection(const QPoint& pixel, bool onlyPointsAndLines)
 {
     if (!_viewportWidget)
         return -1;
@@ -1191,6 +1371,18 @@ int SelectionManager::processSelection(const QPoint& pixel)
         return std::hypot(cx - pickGlX, cy - pickGlY) <= radiusPx;
     };
 
+    // Point and line meshes (JT polylines and point sets, glTF points/lines, plots) have no area, so the pick pass would draw them
+    // one pixel wide, while the display draws them 3 and 1.5 pixels wide: a click or hover had to land on the exact pixel. Draw them
+    // at least kPickPointPixels / kPickLinePixels wide here (within what the driver supports); the pick image is never shown.
+    constexpr float kPickPointPixels = 12.0f;
+    constexpr float kPickLinePixels = 8.0f;
+    GLfloat pointSizeRange[2] = { 1.0f, 1.0f };
+    GLfloat lineWidthRange[2] = { 1.0f, 1.0f };
+    f->glGetFloatv(GL_POINT_SIZE_RANGE, pointSizeRange);
+    f->glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, lineWidthRange);
+    const GLboolean programPointSizeWasOn = f->glIsEnabled(GL_PROGRAM_POINT_SIZE);
+    f->glDisable(GL_PROGRAM_POINT_SIZE); // the selection shader writes no gl_PointSize, so the fixed-function size applies
+
     unsigned int drawnSinceFlush = 0;
     int culledForPick = 0;
     QElapsedTimer passClock;
@@ -1200,6 +1392,8 @@ int SelectionManager::processSelection(const QPoint& pixel)
         try
         {
             SceneMesh* mesh = _meshStore.at(i).mesh;
+            if (mesh && onlyPointsAndLines && !isPointOrLineMode(mesh->getPrimitiveMode()))
+                continue;
             if (mesh && !mayCoverPixel(mesh))
             {
                 ++culledForPick;
@@ -1225,6 +1419,11 @@ int SelectionManager::processSelection(const QPoint& pixel)
                 }
                 mesh->setProg(selectionShader);
                 mesh->getVAO().bind();
+                const GLenum primitiveMode = mesh->getPrimitiveMode();
+                if (primitiveMode == GL_POINTS)
+                    f->glPointSize(std::clamp(std::max(mesh->primitivePointSize(), kPickPointPixels), pointSizeRange[0], pointSizeRange[1]));
+                else if (primitiveMode == GL_LINES || primitiveMode == GL_LINE_STRIP || primitiveMode == GL_LINE_LOOP)
+                    f->glLineWidth(std::clamp(std::max(mesh->primitiveLineWidth(), kPickLinePixels), lineWidthRange[0], lineWidthRange[1]));
                 if (mesh->getIndices().empty())
                     f->glDrawArrays(mesh->getPrimitiveMode(), 0, static_cast<int>(mesh->getPoints().size() / 3));
                 else
@@ -1247,6 +1446,11 @@ int SelectionManager::processSelection(const QPoint& pixel)
             std::cout << "Exception raised in SelectionManager::processSelection\n" << ex.what() << std::endl;
         }
     }
+
+    f->glPointSize(1.0f);
+    f->glLineWidth(1.0f);
+    if (programPointSizeWasOn)
+        f->glEnable(GL_PROGRAM_POINT_SIZE);
 
     const qint64 drawLoopMs = passClock.elapsed();
     f->glReadBuffer(GL_COLOR_ATTACHMENT0);

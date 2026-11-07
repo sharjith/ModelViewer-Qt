@@ -296,6 +296,13 @@ public:
 	// there's anything to split and to build each fragment's geometry.
 	std::vector<std::vector<int>> findConnectedTriangleGroups() const;
 
+	// The same for any primitive kind: groups of triangle indices (triangle meshes, as above), of line-segment indices (segments
+	// that share a vertex, by index or by identical position, form one polyline group) or of point indices (points have no
+	// connectivity, so every point is its own group). The indices count primitives in the mesh's index order (index pairs for
+	// lines, single indices for points), so extractFragment() can build each group. Other primitive modes (strips, loops) return
+	// the triangle result.
+	std::vector<std::vector<int>> findConnectedPrimitiveGroups() const;
+
 	// Builds a new SceneMesh containing only the given triangles (deduped/
 	// reindexed into a compact vertex list), with the same material,
 	// textures, import provenance and full world transform as this mesh -
@@ -305,6 +312,7 @@ public:
 	// targets or precomputed OCC edge/face data (see the .cpp doc comment
 	// for why - both are keyed to this mesh's FULL vertex/triangle index
 	// space, which a triangle subset invalidates).
+	// Takes primitive indices (triangles, line segments or points by the mesh's primitive mode), as findConnectedPrimitiveGroups() returns.
 	SceneMesh* extractFragment(const std::vector<int>& triangleIndices, const QString& fragmentName) const;
 
 	// The merge counterpart to extractFragment(): combines several separate

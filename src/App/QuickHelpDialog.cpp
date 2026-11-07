@@ -1119,7 +1119,8 @@ void QuickHelpDialog::setupMeshEditingTab()
 	QStringList opsHeaders = { tr("Operation"), tr("What It Does"), tr("Selection Requirement") };
 	QList<QStringList> opsRows = {
 		{tr("Split by Connectivity"), tr("Splits each selected mesh into its disconnected pieces, one "
-		 "new mesh per piece. A mesh already a single connected piece is left untouched"),
+		 "new mesh per piece: separate surface islands, separate connected polylines for line meshes, "
+		 "and one mesh per point for point meshes. A mesh already a single connected piece is left untouched"),
 		 tr("One or more meshes, each evaluated independently")},
 		{tr("Merge by Adjacency"), tr("Groups the selection into touching clusters (by shared vertex "
 		 "position) and merges each touching cluster into one mesh; non-touching meshes are left alone"),

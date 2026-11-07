@@ -88,7 +88,9 @@ public:
     void select(int id);
     void deselect(int id);
     void syncMeshSelectionVisualState();
-    int processSelection(const QPoint& pixel);
+    // GPU colour pick of the mesh under the pixel (-1: none). onlyPointsAndLines limits the pass to point and line meshes, the
+    // cheap supplement the raycast-only hover mode needs because the CPU ray test only hits triangles.
+    int processSelection(const QPoint& pixel, bool onlyPointsAndLines = false);
 
     // Pick a precise surface anchor at the given pixel: the closest
     // ray-triangle hit across all visible meshes, with vertex-snapping

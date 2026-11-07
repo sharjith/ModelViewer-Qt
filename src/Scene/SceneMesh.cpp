@@ -23,6 +23,9 @@
 #include <QOpenGLFunctions>
 
 #include <algorithm>
+#include <array>
+#include <map>
+#include <unordered_map>
 #include <cmath>
 #include <cstdint>
 #include <cstring>
@@ -525,16 +528,20 @@ SceneMesh* SceneMesh::extractFragment(const std::vector<int>& triangleIndices, c
 	std::unordered_map<unsigned int, unsigned int> oldToNew;
 	std::vector<Vertex> fragVertices;
 	std::vector<unsigned int> fragIndices;
+	// A "triangle" index here is a primitive index: 3 vertex indices for triangles, 2 for line segments, 1 for points. A mesh drawn
+	// without an index buffer (glTF points and lines) uses the vertex order itself.
+	const unsigned int primitiveMode = getPrimitiveMode();
+	const size_t perPrimitive = primitiveMode == GL_POINTS ? 1u : (primitiveMode == GL_LINES ? 2u : 3u);
 	oldToNew.reserve(triangleIndices.size() * 2);
 	fragVertices.reserve(triangleIndices.size() * 2);
-	fragIndices.reserve(triangleIndices.size() * 3);
+	fragIndices.reserve(triangleIndices.size() * perPrimitive);
 
 	for (int tri : triangleIndices)
 	{
-		const size_t base = static_cast<size_t>(tri) * 3;
-		for (int k = 0; k < 3; ++k)
+		const size_t base = static_cast<size_t>(tri) * perPrimitive;
+		for (size_t k = 0; k < perPrimitive; ++k)
 		{
-			const unsigned int oldIdx = _indices[base + k];
+			const unsigned int oldIdx = _indices.empty() ? static_cast<unsigned int>(base + k) : _indices[base + k];
 			auto it = oldToNew.find(oldIdx);
 			unsigned int newIdx;
 			if (it == oldToNew.end())
@@ -3778,6 +3785,102 @@ std::vector<std::vector<int>> SceneMesh::findConnectedTriangleGroups() const
 		}
 	}
 
+	return groups;
+}
+
+namespace
+{
+struct UnionFind
+{
+	std::vector<int> parent;
+	explicit UnionFind(size_t n) : parent(n)
+	{
+		for (size_t i = 0; i < n; ++i)
+			parent[i] = static_cast<int>(i);
+	}
+	int find(int x)
+	{
+		while (parent[static_cast<size_t>(x)] != x)
+		{
+			parent[static_cast<size_t>(x)] = parent[static_cast<size_t>(parent[static_cast<size_t>(x)])];
+			x = parent[static_cast<size_t>(x)];
+		}
+		return x;
+	}
+	void unite(int a, int b)
+	{
+		a = find(a);
+		b = find(b);
+		if (a != b)
+			parent[static_cast<size_t>(std::max(a, b))] = std::min(a, b);
+	}
+};
+
+// Groups items 0..count-1 by the union-find roots, in order of first appearance.
+std::vector<std::vector<int>> groupsFromUnionFind(UnionFind& uf, int count)
+{
+	std::vector<std::vector<int>> groups;
+	std::unordered_map<int, size_t> groupOfRoot;
+	for (int i = 0; i < count; ++i)
+	{
+		const int root = uf.find(i);
+		auto it = groupOfRoot.find(root);
+		if (it == groupOfRoot.end())
+		{
+			it = groupOfRoot.emplace(root, groups.size()).first;
+			groups.emplace_back();
+		}
+		groups[it->second].push_back(i);
+	}
+	return groups;
+}
+}
+
+std::vector<std::vector<int>> SceneMesh::findConnectedPrimitiveGroups() const
+{
+	const unsigned int mode = getPrimitiveMode();
+	if (mode != GL_POINTS && mode != GL_LINES)
+		return findConnectedTriangleGroups();
+
+	const std::vector<float> points = getPoints();
+	const size_t vertexCount = points.size() / 3;
+	const auto vertexOf = [this](size_t slot) -> size_t { return _indices.empty() ? slot : static_cast<size_t>(_indices[slot]); };
+
+	if (mode == GL_LINES)
+	{
+		const size_t indexCount = _indices.empty() ? vertexCount : _indices.size(); // not "slots": a Qt keyword macro
+		const int segmentCount = static_cast<int>(indexCount / 2);
+		if (segmentCount <= 0)
+			return {};
+		UnionFind uf(static_cast<size_t>(segmentCount));
+		// A vertex joins the segments that use it; vertices at the same position (exactly) join them too.
+		std::unordered_map<size_t, int> firstSegmentOfVertex;
+		std::map<std::array<float, 3>, int> firstSegmentAtPosition;
+		for (int s = 0; s < segmentCount; ++s)
+		{
+			for (size_t k = 0; k < 2; ++k)
+			{
+				const size_t v = vertexOf(static_cast<size_t>(s) * 2 + k);
+				if (v >= vertexCount)
+					continue;
+				const auto byVertex = firstSegmentOfVertex.emplace(v, s);
+				if (!byVertex.second)
+					uf.unite(byVertex.first->second, s);
+				const std::array<float, 3> position = { points[v * 3], points[v * 3 + 1], points[v * 3 + 2] };
+				const auto byPosition = firstSegmentAtPosition.emplace(position, s);
+				if (!byPosition.second)
+					uf.unite(byPosition.first->second, s);
+			}
+		}
+		return groupsFromUnionFind(uf, segmentCount);
+	}
+
+	// Points have no connectivity: every point is its own group.
+	const int pointCount = static_cast<int>(_indices.empty() ? vertexCount : _indices.size());
+	std::vector<std::vector<int>> groups;
+	groups.reserve(static_cast<size_t>(std::max(pointCount, 0)));
+	for (int i = 0; i < pointCount; ++i)
+		groups.push_back({ i });
 	return groups;
 }
 

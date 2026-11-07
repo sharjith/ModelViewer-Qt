@@ -3535,6 +3535,33 @@ void ModelViewer::splitSelectedMeshesByConnectivity()
 
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
+	// The pieces of every selected mesh, by primitive kind: connected triangle islands, connected polylines for line meshes, and
+	// one piece per point for point meshes (points have no connectivity). Worked out first so a split that would create a very
+	// large number of meshes can be confirmed before anything changes.
+	QHash<QUuid, std::vector<std::vector<int>>> plannedGroups;
+	size_t plannedFragments = 0;
+	for (const QUuid& srcUuid : selectedUuids)
+	{
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(srcUuid);
+		if (!mesh)
+			continue;
+		std::vector<std::vector<int>> groups = mesh->findConnectedPrimitiveGroups();
+		if (groups.size() > 1)
+			plannedFragments += groups.size();
+		plannedGroups.insert(srcUuid, std::move(groups));
+	}
+	constexpr size_t kConfirmFragmentCount = 500;
+	if (plannedFragments > kConfirmFragmentCount)
+	{
+		QApplication::restoreOverrideCursor();
+		const auto answer = QMessageBox::question(this, tr("Split by Connectivity"),
+			tr("This will create %1 separate meshes. Continue?").arg(static_cast<qulonglong>(plannedFragments)),
+			QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+		if (answer != QMessageBox::Yes)
+			return;
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+	}
+
 	QVector<SplitByConnectivityCommand*> commands;
 	int fragmentCount = 0;
 	int alreadyConnectedCount = 0;
@@ -3550,7 +3577,7 @@ void ModelViewer::splitSelectedMeshesByConnectivity()
 		if (!original)
 			continue;
 
-		const std::vector<std::vector<int>> groups = original->findConnectedTriangleGroups();
+		const std::vector<std::vector<int>>& groups = plannedGroups[srcUuid];
 		if (groups.size() <= 1)
 		{
 			++alreadyConnectedCount;
