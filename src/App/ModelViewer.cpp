@@ -8126,6 +8126,37 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_viewportWidget->setCameraMode(Camera::CameraMode::Orbit);
 			break;
 		}
+
+		// View state saved since later than the rest (a file without a key keeps the viewport's current value). After the projection and the
+		// camera mode, which the oblique mode builds on, and after the display list, which the clipping positions are relative to.
+		_viewportWidget->makeCurrent();
+		if (viewerState.contains(QStringLiteral("shadingNormalMode")))
+		{
+			const int mode = qBound(0, viewerState[QStringLiteral("shadingNormalMode")].toInt(0), 1);
+			_viewportWidget->setShadingNormalMode(static_cast<ShadingNormalMode>(mode));
+		}
+		if (viewerState.contains(QStringLiteral("showAxis")))
+			_viewportWidget->showAxis(viewerState[QStringLiteral("showAxis")].toBool(true));
+		if (viewerState.contains(QStringLiteral("obliqueMode")))
+		{
+			const ObliqueMode oblique = static_cast<ObliqueMode>(qBound(0, viewerState[QStringLiteral("obliqueMode")].toInt(0), 2));
+			if (oblique != ObliqueMode::NONE && oblique != _viewportWidget->obliqueMode())
+				_viewportWidget->setObliqueMode(oblique);
+		}
+		if (viewerState.contains(QStringLiteral("clipping")))
+		{
+			const ClippingState clipping = clippingStateFromJson(viewerState[QStringLiteral("clipping")].toObject());
+			if (clipping.isActive())
+				_viewportWidget->applyClippingState(clipping);
+		}
+		// Ray tracing is armed last. Only the arming: the PBR setup, the ground and the lights it needs were saved with the rest of the
+		// state above (onRenderingModeSelected("RayTraced") would re-apply the mode's defaults over them).
+		if (viewerState[QStringLiteral("rayTracedArmed")].toBool(false) && !_viewportWidget->isRayTracedRenderingModeArmed())
+		{
+			_viewportWidget->armRayTracedRenderingMode();
+			if (_viewportWidget->getViewToolbar())
+				_viewportWidget->getViewToolbar()->updateRenderingModeButton(QStringLiteral("RayTraced"));
+		}
 	}
 
 	if (!result.activeGltfCameraFile.isEmpty() && result.activeGltfCameraIndex >= 0)
@@ -8228,6 +8259,12 @@ QJsonObject ModelViewer::buildViewerStateJson() const
 		lightOffset.x(), lightOffset.y(), lightOffset.z()});
 	viewerState.insert(QStringLiteral("bgTopColor"), colorToJson(_viewportWidget->getBgTopColor()));
 	viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_viewportWidget->getBgBotColor()));
+	// Saved since later than the settings above (a file without them keeps the viewport's current value when it loads).
+	viewerState.insert(QStringLiteral("shadingNormalMode"), static_cast<int>(_viewportWidget->shadingNormalMode()));
+	viewerState.insert(QStringLiteral("obliqueMode"), static_cast<int>(_viewportWidget->obliqueMode()));
+	viewerState.insert(QStringLiteral("showAxis"), _viewportWidget->isAxisShown());
+	viewerState.insert(QStringLiteral("rayTracedArmed"), _viewportWidget->isRayTracedRenderingModeArmed());
+	viewerState.insert(QStringLiteral("clipping"), clippingStateToJson(_viewportWidget->currentClippingState()));
 	// Only-write-if-non-default, same convention SceneNode::importUnit
 	// uses on the per-node side - an old MVF reader/file simply lacks
 	// this key, correctly falling through to the hardcoded Millimeter

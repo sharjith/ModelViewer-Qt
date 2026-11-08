@@ -300,6 +300,7 @@ public:
 	void setHatchTexture(const QString& path);
 
 	void showAxis(bool show);
+	bool isAxisShown() const { return _viewCtrl.showAxis(); }
 	void showTransformGizmoForSelection(bool show);
 	bool beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids = {});
 	void finishExplodedViewManualPlacement();
