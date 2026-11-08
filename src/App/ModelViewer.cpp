@@ -890,6 +890,10 @@ void ModelViewer::updateTransformationValues()
 				objectTransformPanel->setScaleValues(scale);
 			}
 		}
+		else
+		{
+			objectTransformPanel->resetAllValues();   // nothing selected: do not keep showing the previously selected mesh's values
+		}
 	}
 	catch (const std::exception& ex)
 	{
@@ -5739,6 +5743,9 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 	// Notify panels connected to ViewportWidget::selectionChanged (e.g. TextureDebugPanel).
 	emit _viewportWidget->selectionChanged(selectedIds);
 	ImportDiagnostics::checkpoint("tree.selection-panels-end");
+	// The Transformations panel follows the selection however it changed (tree click, Esc, load); it used to refresh only on a tab switch
+	// or a click in the viewport.
+	updateTransformationValues();
 
 	if (selectedVec.empty())
 	{
@@ -8134,6 +8141,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	visualizationEnvironmentPanel->syncFromViewport();
 	emit _viewportWidget->viewStateChanged();
 	resetViewerStateBaseline();
+	emit documentStateRestored();
 
 
 	MainWindow::hideProgressBar();

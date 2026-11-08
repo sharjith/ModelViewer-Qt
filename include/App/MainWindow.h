@@ -272,6 +272,8 @@ private:
 	SimulationPanel* _simulationPanel = nullptr;
 	QMetaObject::Connection _simulationSessionConnection;
 	void refreshSimulationPanel(ModelViewer* viewer);
+	// Refreshes the document panels from the active document's restored state after an MVF load (see ModelViewer::documentStateRestored()).
+	void refreshDocumentPanelsAfterLoad(ModelViewer* viewer);
 	// Persistent manager beside Simulation; the separate import dialog is opened from both this panel and the
 	// Tools action through showAdd3DPlotDialog().
 	Plot3DControlsPanel* _plot3DControlsPanel = nullptr;

@@ -1180,9 +1180,30 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event)
 	return QMainWindow::eventFilter(watched, event);
 }
 
+void MainWindow::refreshDocumentPanelsAfterLoad(ModelViewer* viewer)
+{
+    // A document that is not the active one is refreshed when it is activated (rebindSharedPanelsTo()).
+    if (_shuttingDown || !viewer || viewer != activeMdiChild() || !_sharedPanelsBound)
+        return;
+    // The panels were bound while the document was empty, and the load sets "active" state (the active variant, animation clip and camera,
+    // the active selection set) after the signals that refresh them: show it now.
+    _materialVariantsPanel->refresh();
+    _animationsPanel->refresh();
+    _camerasPanel->refresh();
+    _selectionSetsPanel->refresh();
+    _sceneStatesPanel->refresh();
+    _selectionSetsPanel->syncActiveSet(viewer->getSelectedUuids());
+    ui->actionSaveSelectionSet->setEnabled(viewer->hasSelection());
+    viewer->updateTransformationValues();
+    refreshSimulationPanel(viewer);
+    updateViewMenus();
+    refreshDocumentDockTabStyling(viewer);
+}
+
 QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)
 {
     _viewers.append(viewer);
+    connect(viewer, &ModelViewer::documentStateRestored, this, [this, viewer]() { refreshDocumentPanelsAfterLoad(viewer); });
     const QPointer<ViewportWidget> view = viewer->getViewportWidget();
     connect(view.data(), &ViewportWidget::viewStateChanged, this, [this, view]() {
         if (!_shuttingDown && view && activeMdiChild() && activeMdiChild()->getViewportWidget() == view)

@@ -268,6 +268,9 @@ signals:
 	// The document-owned Plot3D session list or active plot changed.  `activateTab`
 	// is true only when a newly built plot should bring the persistent plot tab forward.
 	void plot3DSessionsChanged(bool activateTab);
+	// An MVF finished loading: everything it restores (view state, variants, animations, cameras, selection sets, scene states, selection) is
+	// in place. The shared panels were bound to the document while it was still empty, so MainWindow refreshes them from here.
+	void documentStateRestored();
 	// Emitted from updateVisibilityUiFromState() alongside its own overlay
 	// labelMeshCount update - lets MainWindow's Document dock mirror the
 	// same count for whichever document is currently active, without
