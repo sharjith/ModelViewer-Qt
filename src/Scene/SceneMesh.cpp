@@ -1250,10 +1250,26 @@ void SceneMesh::setProg(QOpenGLShaderProgram* prog)
 	}
 }
 
+void SceneMesh::ensureTextureVertexAttributes()
+{
+	// An evicted mesh is drawn from a batch (DrawBatcher calls this before it builds one); one without points has nothing to upload.
+	if (_textures.empty() || hasUvAndTangentBuffers() || _points.empty() || _gpuEvicted || !QOpenGLContext::currentContext())
+		return;
+	qDebug() << "[VertexLayout]" << _name << "has textures but no UV/tangent buffers: uploading them";
+	setupMesh(); // a texture-bearing mesh uploads its UV sets and tangents (zeros for a mesh without UVs)
+}
+
+void SceneMesh::prepareForDraw()
+{
+	if (!_textures.empty() && !hasUvAndTangentBuffers())
+		ensureTextureVertexAttributes();
+}
+
 void SceneMesh::render()
 {
 	if (!_vertexArrayObject.isCreated())
 		return;
+	prepareForDraw();
 
 	QElapsedTimer renderTimer;
 	const bool profiling = renderDiagnosticsEnabled();
@@ -2166,7 +2182,11 @@ void SceneMesh::setupMesh()
 	// through setMeshData() and this function again. For a CAD part (no UVs, no skin) that is 64 of the 128 bytes a
 	// vertex took in each of the CPU copy and the GPU buffers. MODELVIEWER_FULL_VERTEX_ATTRIBUTES=1 uploads everything.
 	static const bool fullAttributes = qEnvironmentVariableIntValue("MODELVIEWER_FULL_VERTEX_ATTRIBUTES") != 0;
-	bool hasUvs = fullAttributes, hasSkin = fullAttributes;
+	// A mesh that has textures always gets its UV and tangent buffers, zero or not: the NVIDIA driver (RTX 4060 Ti, 617.42) aborted at the
+	// next buffer swap or readback after a textured material, with a normal or height map, was applied to a mesh whose UV and tangent
+	// buffers had been left out (crashes of 2026-11-08; gone with MODELVIEWER_FULL_VERTEX_ATTRIBUTES=1). Texture-less meshes, the CAD
+	// parts this saving is for, are unaffected.
+	bool hasUvs = fullAttributes || !_textures.empty(), hasSkin = fullAttributes;
 	if (!fullAttributes)
 	{
 		for (const Vertex& v : _vertices)
@@ -5480,6 +5500,8 @@ void SceneMesh::setTextureMaps(const Material& material)
 
 	markTexturesDirty();
 	markUniformsDirty();
+	// the textures are new: the vertex buffers must have what they are sampled with (a no-op without a GL context; the draw passes retry)
+	ensureTextureVertexAttributes();
 }
 
 void SceneMesh::replaceOrAppendTexture(const std::string& type, GLuint id, bool hasAlpha)

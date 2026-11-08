@@ -153,6 +153,8 @@ bool DrawBatcher::advanceScan(const MeshLookup& meshAt, const Settings& settings
 	{
 		const int id = _scanIds[_scanPos++];
 		SceneMesh* mesh = meshAt(id);
+		if (mesh)
+			mesh->ensureTextureVertexAttributes(); // a batch takes its attribute flags from the CPU arrays: a textured mesh must have them
 		const bool opaqueCandidate = mesh && mesh->isStaticBatchCandidate();
 		const bool transparentCandidate = mesh && !opaqueCandidate && mesh->isBatchCandidate(true);
 		if (opaqueCandidate || transparentCandidate)

@@ -83,6 +83,14 @@ public:
 	virtual SceneMesh* clone();
 	void setProg(QOpenGLShaderProgram* prog) override;
 	void render();
+	// The rule that keeps the vertex buffers and the textures in step: a mesh that has textures needs its UV and tangent buffers, even
+	// when they are all zero (a CAD part has no UVs; setupMesh() leaves the buffers out of a texture-less mesh to save memory). A textured
+	// material applied to such a mesh without the buffers made the NVIDIA driver abort a few seconds later (crashes of 2026-11-08).
+	// This uploads them when a mesh has textures and lacks them; it does nothing otherwise and without a current GL context (the draw
+	// passes call it again). Called when textures are set (setTextureMaps()), at the top of every draw pass (prepareForDraw()) and by
+	// DrawBatcher before it groups meshes.
+	void ensureTextureVertexAttributes();
+	void prepareForDraw() override;
 	void renderWireframeFast(QOpenGLShaderProgram* wireProg) override;
 	void renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg) override;
 	quint64 getRenderMaterialSortKey() const override;

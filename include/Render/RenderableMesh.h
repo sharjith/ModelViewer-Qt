@@ -148,6 +148,11 @@ public:
 
 	virtual void render();
 	virtual void renderShadow(); // Lightweight render for shadow mapping
+	// Runs at the top of every draw pass of this mesh (render(), renderShadow()), on the GL thread with the context current: a subclass
+	// puts the GPU state in order for what it is about to be drawn with (see SceneMesh::ensureTextureVertexAttributes()).
+	virtual void prepareForDraw() {}
+	// True when the UV sets and the tangents are in the GPU buffers (setupMesh() leaves them out of a mesh that has none, and no textures).
+	bool hasUvAndTangentBuffers() const { return !_texCoords.empty() && !_tangents.empty(); }
 	virtual void renderWireframeFast(QOpenGLShaderProgram* wireProg); // Lightweight render for wireframe/wireshaded passes
 	virtual void renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg) { Q_UNUSED(wireProg) } // Feature-edge render (subclass provides implementation)
 

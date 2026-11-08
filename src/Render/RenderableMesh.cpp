@@ -2080,6 +2080,7 @@ void RenderableMesh::renderShadow()
 {
 	if (!_vertexArrayObject.isCreated())
 		return;
+	prepareForDraw();
 
 	const QMatrix4x4& globalModelMatrix = currentGlobalModelMatrix();
 	if (uniformLocationCached("model") >= 0)
