@@ -217,6 +217,10 @@ SceneMesh* AssImpMeshBuilder::build(AssImpMeshData meshData,
     mesh->setSourceFile(meshData.sourceFile);
     mesh->setSourceNodeName(meshData.sourceNodeName);
     mesh->setNodeProperties(std::move(meshData.nodeProperties));
+    if (meshData.declaredMassKg >= 0.0)
+        mesh->setDeclaredMass(meshData.declaredMassKg, meshData.declaredMassSource, meshData.declaredMassGroup);
+    if (!meshData.declaredMaterialName.isEmpty())
+        mesh->setDeclaredMaterial(meshData.declaredMaterialName, meshData.declaredMaterialSource);
     mesh->setSkinJoints(meshData.skinJoints);
     mesh->setMorphTargets(meshData.morphTargets, meshData.defaultMorphWeights);
     if (meshData.preserveNodeTransform)

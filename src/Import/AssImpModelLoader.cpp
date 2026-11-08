@@ -4,6 +4,7 @@
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
 #include <QElapsedTimer>
+#include <QUuid>
 #include "Logger.h"
 #include <QSettings>
 #include <algorithm>
@@ -1812,6 +1813,8 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 	{
 		_nodePath.clear();
 		_nodePropertyCache.clear();
+		_massAggregateNodes.clear();
+		_massAggregatePassDone = false;
 	}
 	_nodePath.push_back(node);
 	struct PathPop
@@ -1820,6 +1823,8 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		~PathPop() { path.pop_back(); }
 	} pathPop{ _nodePath };
 	NodePropertyChainPtr nodeProperties;
+	DeclaredMass declaredMass;
+	DeclaredMaterial declaredMaterial;
 	bool nodePropertiesBuilt = false;
 
 	for (unsigned int i = 0; i < node->mNumMeshes; i++)
@@ -1837,9 +1842,28 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		if (!nodePropertiesBuilt)
 		{
 			nodeProperties = nodePropertyChain();
+			if (nodeProperties)
+			{
+				declaredMass = NodeProperties::declaredMass(*nodeProperties);
+				declaredMaterial = NodeProperties::declaredMaterial(*nodeProperties);
+			}
 			nodePropertiesBuilt = true;
 		}
 		myMesh.nodeProperties = nodeProperties;
+		if (declaredMass.valid())
+		{
+			myMesh.declaredMassKg = declaredMass.kilograms;
+			myMesh.declaredMassSource = declaredMass.sourceKey;
+			QString& group = _declaredMassGroups[declaredMass.holder];
+			if (group.isEmpty())
+				group = QUuid::createUuid().toString(QUuid::WithoutBraces);
+			myMesh.declaredMassGroup = group;
+		}
+		if (declaredMaterial.valid())
+		{
+			myMesh.declaredMaterialName = declaredMaterial.name;
+			myMesh.declaredMaterialSource = declaredMaterial.sourceKey;
+		}
 
 		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
 		_importStage = "worker.mesh-stage";
@@ -1886,8 +1910,29 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 
 // Chain for the node at the end of _nodePath: its own flattened metadata first, then each ancestor's. Each node is
 // flattened once per load; null when none of them has metadata.
+// True when the node or anything below it declares a mass; a node that declares one while something below it does too is an assembly.
+bool AssImpModelLoader::markMassAggregates(const aiNode* node, int depth)
+{
+	bool below = false;
+	if (depth < 512)
+	{
+		for (unsigned i = 0; i < node->mNumChildren; ++i)
+			below = markMassAggregates(node->mChildren[i], depth + 1) || below;
+	}
+	const bool own = NodeProperties::declaresMassKey(*node);
+	if (own && below)
+		_massAggregateNodes.insert(node);
+	return own || below;
+}
+
 NodePropertyChainPtr AssImpModelLoader::nodePropertyChain()
 {
+	if (!_massAggregatePassDone)
+	{
+		_massAggregatePassDone = true;
+		if (!_nodePath.empty())
+			markMassAggregates(_nodePath.front(), 0);   // the first node of the path is the root of the scene
+	}
 	auto chain = std::make_shared<NodePropertyChain>();
 	for (auto it = _nodePath.rbegin(); it != _nodePath.rend(); ++it)
 	{
@@ -1895,7 +1940,7 @@ NodePropertyChainPtr AssImpModelLoader::nodePropertyChain()
 		if (cached == _nodePropertyCache.end())
 		{
 			const auto drawings = _jt.pmiGeometry.find(*it);
-			cached = _nodePropertyCache.emplace(*it, NodeProperties::fromNode(**it, drawings != _jt.pmiGeometry.end() ? drawings->second : nullptr)).first;
+			cached = _nodePropertyCache.emplace(*it, NodeProperties::fromNode(**it, drawings != _jt.pmiGeometry.end() ? drawings->second : nullptr, _massAggregateNodes.count(*it) != 0)).first;
 		}
 		if (cached->second)
 			chain->push_back(cached->second);

@@ -4,7 +4,10 @@
 #include "NodeProperties.h"
 #include "Jt/JtLengthUnit.h"
 #include <assimp/scene.h>
+#include <cmath>
+#include <initializer_list>
 #include <memory>
+#include <utility>
 #include <string>
 #include <stdexcept>
 namespace {
@@ -110,4 +113,69 @@ void nodePropertiesTests(){
  check(Jt::declaredLengthUnit({QStringLiteral("yards")},notes)==LengthUnit::Unknown && notes.size()==2,"A listed unit the viewer cannot represent stays unknown and is explained");
  notes.clear();
  check(Jt::declaredLengthUnit({QStringLiteral("meters"),QStringLiteral("millimeters")},notes)==LengthUnit::Unknown && notes.size()==1,"Disagreeing nodes leave the unit unknown and explain why");
+
+ // Declared part mass: the JT "CAD_MASS::" property in kilograms, taken from the innermost property set that has a usable one.
+ {
+  const auto makeSet=[](const char* nodeName,std::initializer_list<std::pair<const char*,const char*>> rows){
+   auto s=std::make_shared<NodePropertySet>();s->nodeName=QString::fromLatin1(nodeName);
+   for(const auto& r:rows)s->rows.push_back({QString::fromLatin1(r.first),QString::fromLatin1(r.second),QStringLiteral("text")});
+   return NodePropertySetPtr(s);
+  };
+  check(!NodeProperties::declaredMass(NodePropertyChain{}).valid(),"An empty chain declares no mass");
+  check(!NodeProperties::declaredMass(NodePropertyChain{makeSet("a",{{"Mass","2.5"},{"JT_PROP_NAME","x"}})}).valid(),"Only the CAD_MASS:: key is a declared mass");
+  const auto one=NodeProperties::declaredMass(NodePropertyChain{makeSet("part",{{"CAD_MASS::","3.460496e-03"}})});
+  check(one.valid() && std::abs(one.kilograms-0.003460496)<1e-12 && one.sourceKey=="CAD_MASS::" && one.sourceNode=="part","A declared mass keeps its value, key and node");
+  check(NodeProperties::declaredMass(NodePropertyChain{makeSet("p",{{"CAD_MASS::","6.063884944029302e-05"}})}).valid(),"Exponent notation is read");
+  check(!NodeProperties::declaredMass(NodePropertyChain{makeSet("p",{{"CAD_MASS::","0"}})}).valid(),"A mass of zero is not a usable mass (the CAD has none to give)");
+  check(NodeProperties::declaredMass(NodePropertyChain{makeSet("p",{{"CAD_MASS::","2"},{"CAD_MASS_UNITS::","kilograms"}})}).valid(),"The unit key, when present, may say kilograms");
+  check(NodeProperties::declaredMass(NodePropertyChain{makeSet("p",{{"CAD_MASS::","2"},{"CAD_MASS_UNITS::"," Kilograms "}})}).valid(),"The unit is read without regard to case and spaces");
+  check(!NodeProperties::declaredMass(NodePropertyChain{makeSet("p",{{"CAD_MASS::","2"},{"CAD_MASS_UNITS::","pounds"}})}).valid(),"Any other unit is not taken, nothing is converted by guess");
+  check(!NodeProperties::declaredMass(NodePropertyChain{makeSet("p",{{"CAD_MASS::","2"},{"CAD_MASS_UNITS::",""}})}).valid(),"An empty unit entry is an unknown unit");
+  {
+   // an assembly's mass is not a part's: a set flagged massAggregate is skipped, so a part without a mass of its own gets none
+   auto leaf=std::make_shared<NodePropertySet>();leaf->nodeName="leaf";leaf->rows.push_back({QStringLiteral("JT_PROP_NAME"),QStringLiteral("x"),QStringLiteral("text")});
+   auto assembly=std::make_shared<NodePropertySet>();assembly->nodeName="assembly";assembly->rows.push_back({QStringLiteral("CAD_MASS::"),QStringLiteral("1305053.8"),QStringLiteral("text")});
+   check(NodeProperties::declaredMass(NodePropertyChain{leaf,assembly}).valid(),"Without the aggregate flag the ancestor's mass would be taken");
+   assembly->massAggregate=true;
+   check(!NodeProperties::declaredMass(NodePropertyChain{leaf,assembly}).valid(),"An assembly's mass is never taken by a part below it");
+   auto zeroLeaf=std::make_shared<NodePropertySet>();zeroLeaf->nodeName="zeroLeaf";zeroLeaf->rows.push_back({QStringLiteral("CAD_MASS::"),QStringLiteral("0"),QStringLiteral("text")});
+   check(!NodeProperties::declaredMass(NodePropertyChain{zeroLeaf,assembly}).valid(),"A part with a zero mass does not fall back to its assembly's mass");
+   check(NodeProperties::declaresMassKey(*zeroLeaf) && !NodeProperties::declaresMassKey(*leaf),"A zero still counts as a mass entry when looking for assemblies");
+   // the flag travels through fromNode
+   aiNode flagged;flagged.mName=aiString("flagged");flagged.mMetaData=aiMetadata::Alloc(1);flagged.mMetaData->Set(0,"Key",aiString("v"));
+   check(!NodeProperties::fromNode(flagged)->massAggregate && NodeProperties::fromNode(flagged,nullptr,true)->massAggregate,"fromNode records the aggregate flag");
+   aiNode massNode;massNode.mName=aiString("massNode");massNode.mMetaData=aiMetadata::Alloc(1);
+   std::unique_ptr<aiMetadata> massList(aiMetadata::Alloc(1));
+   const aiString massText("2.5");massList->Set(0,"0",*record("CAD_MASS::",&massText,nullptr,nullptr));
+   massNode.mMetaData->Set(0,"JTProperties",*massList);
+   check(NodeProperties::declaresMassKey(massNode) && !NodeProperties::declaresMassKey(flagged),"declaresMassKey reads the node's JT properties");
+  }
+  const auto inner=NodeProperties::declaredMass(NodePropertyChain{makeSet("inner",{{"CAD_MASS::","1.5"}}),makeSet("outer",{{"CAD_MASS::","9"}})});
+  check(inner.valid() && inner.kilograms==1.5 && inner.sourceNode=="inner","The innermost node's mass wins over an ancestor's");
+  const auto outer=NodeProperties::declaredMass(NodePropertyChain{makeSet("inner",{{"JT_PROP_NAME","x"}}),nullptr,makeSet("outer",{{"CAD_MASS::","9"}})});
+  check(outer.valid() && outer.kilograms==9.0 && outer.sourceNode=="outer","A mass is found on an ancestor when the inner nodes have none; null sets are skipped");
+  for(const char* unusable:{"","abc","-1","nan","inf","1,5","2 kg"})
+   check(!NodeProperties::declaredMass(NodePropertyChain{makeSet("p",{{"CAD_MASS::",unusable}})}).valid(),"A value that is not a finite number >= 0 is not a mass");
+  const auto fallThrough=NodeProperties::declaredMass(NodePropertyChain{makeSet("inner",{{"CAD_MASS::","abc"}}),makeSet("outer",{{"CAD_MASS::","4"}})});
+  check(fallThrough.valid() && fallThrough.sourceNode=="outer","An unusable value on the inner node does not hide a usable one further out");
+ }
+
+ // Declared material: the STEP importer's "STEP_MATERIAL_NAME", taken as written from the innermost property set that has a non-empty one.
+ {
+  const auto makeSet=[](const char* nodeName,std::initializer_list<std::pair<const char*,const char*>> rows){
+   auto s=std::make_shared<NodePropertySet>();s->nodeName=QString::fromLatin1(nodeName);
+   for(const auto& r:rows)s->rows.push_back({QString::fromLatin1(r.first),QString::fromLatin1(r.second),QStringLiteral("text")});
+   return NodePropertySetPtr(s);
+  };
+  check(!NodeProperties::declaredMaterial(NodePropertyChain{}).valid(),"An empty chain declares no material");
+  check(!NodeProperties::declaredMaterial(NodePropertyChain{makeSet("a",{{"Material","Steel"},{"CAD_MASS::","1"}})}).valid(),"Only the STEP_MATERIAL_NAME key is a declared material");
+  const auto one=NodeProperties::declaredMaterial(NodePropertyChain{makeSet("part",{{"STEP_MATERIAL_NAME","  Steel, Mild "}})});
+  check(one.valid() && one.name=="Steel, Mild" && one.sourceKey=="STEP_MATERIAL_NAME" && one.sourceNode=="part","A declared material keeps its text (trimmed), key and node; no catalogue matching");
+  check(NodeProperties::declaredMaterial(NodePropertyChain{makeSet("p",{{"STEP_MATERIAL_NAME","Generic"}})}).name=="Generic","A placeholder designation such as Generic is reported as written");
+  check(!NodeProperties::declaredMaterial(NodePropertyChain{makeSet("p",{{"STEP_MATERIAL_NAME","   "}})}).valid(),"A blank name is no material");
+  const auto inner=NodeProperties::declaredMaterial(NodePropertyChain{makeSet("inner",{{"STEP_MATERIAL_NAME","Brass"}}),makeSet("outer",{{"STEP_MATERIAL_NAME","Steel"}})});
+  check(inner.valid() && inner.name=="Brass" && inner.sourceNode=="inner","The innermost node's material wins over an ancestor's");
+  const auto outer=NodeProperties::declaredMaterial(NodePropertyChain{makeSet("inner",{{"JT_PROP_NAME","x"}}),nullptr,makeSet("outer",{{"STEP_MATERIAL_NAME","Steel"}})});
+  check(outer.valid() && outer.name=="Steel" && outer.sourceNode=="outer","A material is found on an ancestor when the inner nodes have none; null sets are skipped");
+ }
 }

@@ -342,6 +342,7 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 	reader.SetLayerMode(false);        // Layer assignments — not consumed by the viewer
 	reader.SetMetaMode(false);         // Metadata attributes — not consumed by the viewer
 	reader.SetProductMetaMode(false);  // Product metadata — not consumed by the viewer
+	reader.SetMatMode(true);          // Materials: only the name of each part's material is used (see XCAFDocProcessor.cxx)
 
 	// Phase D: Tune the OCCT 7.9.x shape-fix pipeline via DE_ShapeFixParameters.
 	// By default OCCT runs FixShellOrientationMode = FixOrNot, meaning it will attempt

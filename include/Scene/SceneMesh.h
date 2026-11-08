@@ -510,6 +510,15 @@ public:
 	QString getSourceFile() const                  { return _importState.sourceFile(); }
 	void    setSourceNodeName(const QString& name) { _importState.setSourceNodeName(name); }
 	QString getSourceNodeName() const              { return _importState.sourceNodeName(); }
+	void    setDeclaredMass(double kilograms, const QString& sourceKey, const QString& group = QString()) { _importState.setDeclaredMass(kilograms, sourceKey, group); }
+	QString declaredMassGroup() const    { return _importState.declaredMassGroup(); }
+	bool    hasDeclaredMass() const      { return _importState.hasDeclaredMass(); }
+	double  declaredMassKg() const       { return _importState.declaredMassKg(); }
+	QString declaredMassSource() const   { return _importState.declaredMassSource(); }
+	void    setDeclaredMaterial(const QString& name, const QString& sourceKey) { _importState.setDeclaredMaterial(name, sourceKey); }
+	bool    hasDeclaredMaterial() const      { return _importState.hasDeclaredMaterial(); }
+	QString declaredMaterialName() const     { return _importState.declaredMaterialName(); }
+	QString declaredMaterialSource() const   { return _importState.declaredMaterialSource(); }
 	size_t pointCount() const { return vertexCount(); }
 	void setNodeProperties(NodePropertyChainPtr chain) { _importState.setNodeProperties(std::move(chain)); }
 	const NodePropertyChainPtr& getNodeProperties() const { return _importState.nodeProperties(); }

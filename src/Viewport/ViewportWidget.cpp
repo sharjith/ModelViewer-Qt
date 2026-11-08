@@ -21996,6 +21996,10 @@ bool ViewportWidget::uploadPreparedMvfMeshes(const QVector<PreparedMvfMesh>& mes
         mesh->setOriginalMaterialIndex(pm.originalMaterialIndex);
         mesh->setSourceFile(pm.sourceFile);
         mesh->setSourceNodeName(pm.sourceNodeName);
+        if (pm.declaredMassKg >= 0.0)
+            mesh->setDeclaredMass(pm.declaredMassKg, pm.declaredMassSource, pm.declaredMassGroup);
+        if (!pm.declaredMaterialName.isEmpty())
+            mesh->setDeclaredMaterial(pm.declaredMaterialName, pm.declaredMaterialSource);
         mesh->setMeshData(pm.vertices, pm.indices);
         // Restore source-mesh provenance - see the equivalent call in
         // uploadOneMvfMesh() for why no remap is needed (setMeshData() never
@@ -22114,6 +22118,10 @@ void ViewportWidget::uploadOneMvfMesh(const PreparedMvfMesh& pm)
     mesh->setOriginalMaterialIndex(pm.originalMaterialIndex);
     mesh->setSourceFile(pm.sourceFile);
     mesh->setSourceNodeName(pm.sourceNodeName);
+    if (pm.declaredMassKg >= 0.0)
+        mesh->setDeclaredMass(pm.declaredMassKg, pm.declaredMassSource, pm.declaredMassGroup);
+    if (!pm.declaredMaterialName.isEmpty())
+        mesh->setDeclaredMaterial(pm.declaredMaterialName, pm.declaredMaterialSource);
     mesh->setVariantMappings(pm.variantMappings);
     mesh->setAllVariantMaterials(pm.allVariantMaterials);
 

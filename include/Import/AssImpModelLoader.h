@@ -10,6 +10,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -133,6 +134,13 @@ struct AssImpMeshData
 	QString sourceNodeName;
 	// Metadata of the source node and its ancestors for the read-only property table; null when there is none.
 	NodePropertyChainPtr nodeProperties;
+	// The part mass the source declares, in kilograms (see NodeProperties::declaredMass()); -1 when none.
+	double declaredMassKg = -1.0;
+	QString declaredMassSource;
+	QString declaredMassGroup;   // meshes of one part share it (see MeshImportAdaptor::setDeclaredMass())
+	// The material designation the source declares for the part (STEP); empty when none.
+	QString declaredMaterialName;
+	QString declaredMaterialSource;
 	bool preserveNodeTransform = false;
 	QMatrix4x4 nodeWorldTransform;
 
@@ -424,6 +432,11 @@ private:
 	std::vector<const aiNode*> _nodePath;
 	std::unordered_map<const aiNode*, NodePropertySetPtr> _nodePropertyCache;
 	NodePropertyChainPtr nodePropertyChain();
+	std::unordered_map<const void*, QString> _declaredMassGroups;   // mass-holding property set -> group id of the part
+	// Assemblies that declare a mass of their own while parts below them do too: their mass is not a part's (NodePropertySet::massAggregate).
+	std::unordered_set<const aiNode*> _massAggregateNodes;
+	bool _massAggregatePassDone = false;
+	bool markMassAggregates(const aiNode* node, int depth);
 	// Progress is reported at most every 50 ms: one queued signal per mesh and node left the viewer thread draining
 	// tens of thousands of status-bar updates long after a 40,000-part import had finished.
 	void emitNodeMeshProgress(bool uvProcessed, bool force = false);

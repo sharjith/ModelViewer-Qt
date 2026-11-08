@@ -483,6 +483,10 @@ SceneMesh* SceneMesh::clone()
 	mesh->setSourceFile(getSourceFile());
 	mesh->setSourceNodeName(getSourceNodeName());
 	mesh->setSkinJoints(skinJoints());
+	if (hasDeclaredMass())
+		mesh->setDeclaredMass(declaredMassKg(), declaredMassSource(), declaredMassGroup());   // a clone is the same part
+	if (hasDeclaredMaterial())
+		mesh->setDeclaredMaterial(declaredMaterialName(), declaredMaterialSource());
 	mesh->setTopologyRepaired(_topologyRepaired);
 
 	// Copy material variant tables.

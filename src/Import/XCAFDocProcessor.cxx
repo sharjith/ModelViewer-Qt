@@ -1,7 +1,12 @@
 #include "XCAFDocProcessor.hxx"
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
+#include <TCollection_HAsciiString.hxx>
 #include <TDF_Tool.hxx>
+#include <TDataStd_TreeNode.hxx>
+#include <XCAFDoc.hxx>
+#include <XCAFDoc_MaterialTool.hxx>
+#include <assimp/metadata.h>
 #include <TCollection_AsciiString.hxx>
 #include "MainWindow.h"
 #include <algorithm>
@@ -18,6 +23,45 @@ std::string trimmedName(const std::string& value)
 
     const std::size_t last = value.find_last_not_of(" \t\r\n");
     return value.substr(first, last - first + 1);
+}
+
+// The material name the source declares for a part: the XCAF material reference of the part definition, or failing that of the instance.
+// Only the name (a free-text designation) is taken. The density is NOT read here: OpenCASCADE's reader returns it in a unit that depends
+// on how the file writes it (see research/materials/MATERIAL_AND_MASS_SOURCES.md). Empty when the file declares none.
+std::string declaredMaterialName(const TDF_Label& definition, const TDF_Label& instance)
+{
+    for (const TDF_Label* label : { &definition, &instance })
+    {
+        if (label->IsNull())
+            continue;
+        Handle(TDataStd_TreeNode) node;
+        if (!label->FindAttribute(XCAFDoc::MaterialRefGUID(), node) || node.IsNull() || !node->HasFather())
+            continue;
+        Handle(TCollection_HAsciiString) name, description, densityName, densityType;
+        double density = 0.0;
+        if (!XCAFDoc_MaterialTool::GetMaterial(node->Father()->Label(), name, description, density, densityName, densityType))
+            continue;
+        std::string text = trimmedName(name.IsNull() ? std::string() : std::string(name->ToCString()));
+        if (text.empty() && !description.IsNull())
+            text = trimmedName(description->ToCString());
+        if (!text.empty())
+            return text;
+    }
+    return std::string();
+}
+
+// Adds "STEP_MATERIAL_NAME" to a node's metadata. An aiMetadata cannot grow, so a node that already has metadata keeps it as a nested
+// "SourceMetadata" block next to the new entry.
+void attachDeclaredMaterial(aiNode* node, const std::string& name)
+{
+    aiMetadata* fresh = aiMetadata::Alloc(node->mMetaData ? 2 : 1);
+    fresh->Set(0, "STEP_MATERIAL_NAME", aiString(name));
+    if (node->mMetaData)
+    {
+        fresh->Set(1, "SourceMetadata", *node->mMetaData);
+        delete node->mMetaData;
+    }
+    node->mMetaData = fresh;
 }
 
 std::string labelAttributeName(const TDF_Label& label)
@@ -390,6 +434,11 @@ void XCAFDocProcessor::traverseXCAFAssembly(
 
         // Use the name from TDF_Label for the node
         nodeCopy->mName = aiString(leafNodeName);
+
+        // The material the file declares for this part (STEP), kept as a node property
+        const std::string declaredMaterial = declaredMaterialName(defLabel, label);
+        if (!declaredMaterial.empty())
+            attachDeclaredMaterial(nodeCopy, declaredMaterial);
 
         // Direct assignment — parentNode's array was pre-allocated by its creator.
         parentNode->mChildren[parentNode->mNumChildren++] = nodeCopy;

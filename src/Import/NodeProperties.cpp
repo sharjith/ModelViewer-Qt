@@ -2,6 +2,7 @@
 
 #include <assimp/scene.h>
 #include <QObject>
+#include <cmath>
 #include <cstring>
 
 namespace
@@ -83,12 +84,13 @@ bool hasEntries(const aiMetadata* metadata)
 	return metadata && metadata->mNumProperties > 0 && metadata->mKeys && metadata->mValues;
 }
 
-NodePropertySetPtr fromNode(const aiNode& node, std::shared_ptr<const PmiGeometry> pmiGeometry)
+NodePropertySetPtr fromNode(const aiNode& node, std::shared_ptr<const PmiGeometry> pmiGeometry, bool massAggregate)
 {
 	if (!hasEntries(node.mMetaData))
 		return nullptr;
 	auto set = std::make_shared<NodePropertySet>();
 	set->nodeName = text(node.mName);
+	set->massAggregate = massAggregate;
 	set->pmiGeometry = std::move(pmiGeometry);
 	const aiMetadata& block = *node.mMetaData;
 	set->rows.reserve(block.mNumProperties);
@@ -193,5 +195,88 @@ NodePropertySetPtr fromNode(const aiNode& node, std::shared_ptr<const PmiGeometr
 	if (set->rows.empty())
 		return nullptr;
 	return set;
+}
+}
+
+namespace
+{
+// The CAD_MASS:: number of a property set; false when it has none or it is not a finite number >= 0.
+bool massNumber(const NodePropertySet& set, double* value)
+{
+	for (const NodePropertyRow& row : set.rows)
+	{
+		if (row.key != QLatin1String("CAD_MASS::"))
+			continue;
+		bool ok = false;
+		const double number = row.value.trimmed().toDouble(&ok);
+		if (ok && std::isfinite(number) && number >= 0.0)
+		{
+			*value = number;
+			return true;
+		}
+	}
+	return false;
+}
+
+// The set's CAD_MASS_UNITS:: when it has one must be kilograms; no entry means kilograms (the NX files).
+bool massUnitIsKilograms(const NodePropertySet& set)
+{
+	for (const NodePropertyRow& row : set.rows)
+	{
+		if (row.key != QLatin1String("CAD_MASS_UNITS::"))
+			continue;
+		const QString unit = row.value.trimmed().toLower();
+		return unit == QLatin1String("kilograms") || unit == QLatin1String("kilogram") || unit == QLatin1String("kg");
+	}
+	return true;
+}
+}
+
+namespace NodeProperties
+{
+bool declaresMassKey(const NodePropertySet& set)
+{
+	double ignored = 0.0;
+	return massNumber(set, &ignored);
+}
+
+bool declaresMassKey(const aiNode& node)
+{
+	const NodePropertySetPtr set = fromNode(node);
+	return set && declaresMassKey(*set);
+}
+
+DeclaredMass declaredMass(const NodePropertyChain& chain)
+{
+	for (const NodePropertySetPtr& set : chain)
+	{
+		if (!set || set->massAggregate)
+			continue;
+		double value = 0.0;
+		if (massNumber(*set, &value) && value > 0.0 && massUnitIsKilograms(*set))
+			return { value, QStringLiteral("CAD_MASS::"), set->nodeName, set.get() };
+	}
+	return {};
+}
+}
+
+namespace NodeProperties
+{
+DeclaredMaterial declaredMaterial(const NodePropertyChain& chain)
+{
+	for (const NodePropertySetPtr& set : chain)
+	{
+		if (!set)
+			continue;
+		for (const NodePropertyRow& row : set->rows)
+		{
+			if (row.key != QLatin1String("STEP_MATERIAL_NAME"))
+				continue;
+			const QString name = row.value.trimmed();
+			if (!name.isEmpty())
+				return { name, row.key, set->nodeName };
+		}
+	}
+	return {};
 }
 }

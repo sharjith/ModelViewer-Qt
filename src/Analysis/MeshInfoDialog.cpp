@@ -273,6 +273,10 @@ void MeshInfoDialog::populate()
 			add(name, meshSource, tr("Source file"), mesh->getSourceFile(), QStringLiteral("text"));
 		if (!mesh->getSourceNodeName().isEmpty())
 			add(name, meshSource, tr("Source node"), mesh->getSourceNodeName(), QStringLiteral("text"));
+		if (mesh->hasDeclaredMass())
+			add(name, meshSource, tr("Declared mass (kg)"), QString::number(mesh->declaredMassKg(), 'g', 10), QStringLiteral("real"));
+		if (mesh->hasDeclaredMaterial())
+			add(name, meshSource, tr("Declared material"), mesh->declaredMaterialName(), QStringLiteral("text"));
 	}
 	if (meshes > 1)
 	{
