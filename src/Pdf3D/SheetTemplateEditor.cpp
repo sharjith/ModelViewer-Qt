@@ -1,6 +1,7 @@
 #include "SheetTemplateEditor.h"
 
 #include "SheetPreviewWidget.h"
+#include "ui_SheetTemplateEditor.h"
 
 #include <QCheckBox>
 #include <QColorDialog>
@@ -62,6 +63,7 @@ QString elided(const QString& s, int n)
 
 SheetTemplateEditor::SheetTemplateEditor(const SheetTemplate& tpl, const QMap<QString, QString>& sampleValues, const QString& folder, const QLocale& locale, QWidget* parent)
     : QDialog(parent)
+    , ui(std::make_unique<Ui::SheetTemplateEditor>())
     , _tpl(tpl)
     , _valid(tpl)
     , _values(sampleValues)
@@ -69,7 +71,6 @@ SheetTemplateEditor::SheetTemplateEditor(const SheetTemplate& tpl, const QMap<QS
     , _locale(locale)
     , _isUser(tpl.id.startsWith(QLatin1String("user:")))
 {
-    setWindowTitle(tr("Edit sheet template"));
     buildUi();
 
     QSettings settings;
@@ -87,179 +88,41 @@ SheetTemplateEditor::SheetTemplateEditor(const SheetTemplate& tpl, const QMap<QS
     revalidate();
 }
 
+SheetTemplateEditor::~SheetTemplateEditor() = default;
+
 void SheetTemplateEditor::buildUi()
 {
-    auto* outer = new QHBoxLayout(this);
+    ui->setupUi(this);
 
     // left: the preview
-    auto* left = new QVBoxLayout;
-    _preview = new SheetPreviewWidget(this);
-    _preview->setMinimumSize(420, 300);
-    _preview->setTemplate(_tpl);
-    _preview->setValues(_values);
-    _preview->setEditable(true);
-    left->addWidget(_preview, 1);
-    auto* hint = new QLabel(tr("Click a cell in the sheet to select it. Drag it to move it, drag its edges or corners to resize it, or nudge it with the "
-                               "arrow keys (Shift for larger steps). Edges snap to the title block and to the other cells. The 3D area is shown grey."), this);
-    hint->setWordWrap(true);
-    left->addWidget(hint);
-    outer->addLayout(left, 5);
-    connect(_preview, &SheetPreviewWidget::cellGeometryChanged, this, [this](int index, const QRectF& rect, const QSizeF& size) { moveCellTo(index, rect, size); });
-    connect(_preview, &SheetPreviewWidget::cellClicked, this, [this](int index) {
-        if (index >= 0 && index < _cellList->count())
-            _cellList->setCurrentRow(index);
+    ui->preview->setTemplate(_tpl);
+    ui->preview->setValues(_values);
+    ui->preview->setEditable(true);
+    connect(ui->preview, &SheetPreviewWidget::cellGeometryChanged, this, [this](int index, const QRectF& rect, const QSizeF& size) { moveCellTo(index, rect, size); });
+    connect(ui->preview, &SheetPreviewWidget::cellClicked, this, [this](int index) {
+        if (index >= 0 && index < ui->cellList->count())
+            ui->cellList->setCurrentRow(index);
     });
 
-    // right: name, cell list, properties, buttons
-    auto* right = new QVBoxLayout;
-    auto* nameRow = new QFormLayout;
-    _nameEdit = new QLineEdit(_tpl.name, this);
-    _nameEdit->setToolTip(tr("The name of the template, as listed in the Save as 3D PDF dialog."));
-    nameRow->addRow(tr("Template name:"), _nameEdit);
-    right->addLayout(nameRow);
-    connect(_nameEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
+    // right: name, tabs, error line, buttons
+    ui->nameEdit->setText(_tpl.name);
+    connect(ui->nameEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
         _tpl.name = text;
         revalidate();
     });
+    setupCellsTab();
+    setupPageTab();
+    setupLogoTab();
+    setupFieldsTab();
 
-    _tabs = new QTabWidget(this);
-    auto* cellsTab = new QWidget(_tabs);
-    auto* cellsTabLayout = new QVBoxLayout(cellsTab);
-    auto* cellsBox = new QGroupBox(tr("Title block cells"), this);
-    auto* cellsLayout = new QVBoxLayout(cellsBox);
-    _cellList = new QListWidget(cellsBox);
-    _cellList->setMinimumHeight(110);
-    cellsLayout->addWidget(_cellList, 1);
-    auto* listButtons = new QHBoxLayout;
-    _addButton = new QPushButton(tr("Add"), cellsBox);
-    _duplicateButton = new QPushButton(tr("Duplicate"), cellsBox);
-    _deleteButton = new QPushButton(tr("Delete"), cellsBox);
-    _upButton = new QPushButton(tr("Up"), cellsBox);
-    _downButton = new QPushButton(tr("Down"), cellsBox);
-    _upButton->setToolTip(tr("Move the cell up in the list. Cells drawn later are on top of earlier ones."));
-    _downButton->setToolTip(tr("Move the cell down in the list."));
-    for (QPushButton* b : { _addButton, _duplicateButton, _deleteButton, _upButton, _downButton })
-        listButtons->addWidget(b);
-    cellsLayout->addLayout(listButtons);
-    cellsTabLayout->addWidget(cellsBox, 1);
-    connect(_cellList, &QListWidget::currentRowChanged, this, [this](int row) { loadCell(row); });
-    connect(_addButton, &QPushButton::clicked, this, [this]() { addCell(); });
-    connect(_duplicateButton, &QPushButton::clicked, this, [this]() { duplicateCell(); });
-    connect(_deleteButton, &QPushButton::clicked, this, [this]() { deleteCell(); });
-    connect(_upButton, &QPushButton::clicked, this, [this]() { moveCell(-1); });
-    connect(_downButton, &QPushButton::clicked, this, [this]() { moveCell(1); });
-
-    auto* propsBox = new QGroupBox(tr("Selected cell"), this);
-    auto* form = new QFormLayout(propsBox);
-    _labelEdit = new QLineEdit(propsBox);
-    _labelEdit->setToolTip(tr("A small caption in the corner of the cell. A cell with a caption is drawn as a field of the title block."));
-    form->addRow(tr("Caption:"), _labelEdit);
-
-    _textEdit = new QLineEdit(propsBox);
-    _textEdit->setToolTip(tr("The text of the cell. {title}, {author} ... are replaced by the values of the dialog;\n"
-                             "{name|-} prints a dash when the value is empty."));
-    _insertCombo = new QComboBox(propsBox);
-    _insertCombo->setToolTip(tr("Insert a field at the cursor of the text."));
-    _insertCombo->addItem(tr("Insert field..."));
-    QStringList names = standardSheetPlaceholders();
-    names += sceneSheetPlaceholders();
-    for (const SheetField& field : _tpl.fields)
-        if (!names.contains(field.id))
-            names << field.id;
-    for (const QString& n : names)
-        _insertCombo->addItem(QStringLiteral("{%1}").arg(n), n);
-    auto* textRow = new QHBoxLayout;
-    textRow->addWidget(_textEdit, 1);
-    textRow->addWidget(_insertCombo);
-    form->addRow(tr("Text:"), textRow);
-    connect(_insertCombo, &QComboBox::activated, this, [this](int index) { insertPlaceholder(index); });
-
-    _fontSize = new QDoubleSpinBox(propsBox);
-    _fontSize->setRange(4.0, 72.0);
-    _fontSize->setDecimals(1);
-    _fontSize->setSuffix(tr(" pt"));
-    _bold = new QCheckBox(tr("Bold"), propsBox);
-    _colourButton = new QPushButton(propsBox);
-    _colourButton->setToolTip(tr("The text colour."));
-    _align = new QComboBox(propsBox);
-    _align->addItem(tr("Left"), static_cast<int>(Qt::AlignLeft));
-    _align->addItem(tr("Centre"), static_cast<int>(Qt::AlignHCenter));
-    _align->addItem(tr("Right"), static_cast<int>(Qt::AlignRight));
-    auto* fontRow = new QHBoxLayout;
-    fontRow->addWidget(_fontSize);
-    fontRow->addWidget(_bold);
-    fontRow->addWidget(_colourButton);
-    fontRow->addWidget(_align);
-    fontRow->addStretch(1);
-    form->addRow(tr("Font:"), fontRow);
-
-    _wrap = new QCheckBox(tr("Wrap long text"), propsBox);
-    _scroll = new QCheckBox(tr("Scrollable when it does not fit"), propsBox);
-    _scroll->setToolTip(tr("Text that does not fit becomes a scrollable form field over the cell. One cell per template."));
-    _grow = new QCheckBox(tr("The title block grows with this cell"), propsBox);
-    _grow->setToolTip(tr("A long text enlarges the title block (up to its maximum height) and takes room from the 3D area. One cell per template."));
-    form->addRow(QString(), _wrap);
-    form->addRow(QString(), _scroll);
-    form->addRow(QString(), _grow);
-
-    const QString edgeTip = tr("Distance from the left or top edge of the title block, in millimetres or as a percentage of the block.\n"
-                               "A negative number is measured from the right or bottom edge instead.");
-    _leftEdit = new SheetEdgeBox(propsBox);
-    _topEdit = new SheetEdgeBox(propsBox);
-    _rightEdit = new SheetEdgeBox(propsBox);
-    _bottomEdit = new SheetEdgeBox(propsBox);
-    for (SheetEdgeBox* e : { _leftEdit, _topEdit, _rightEdit, _bottomEdit })
-        e->setToolTip(edgeTip);
-    auto* positionGrid = new QGridLayout;
-    positionGrid->addWidget(new QLabel(tr("Left"), propsBox), 0, 0);
-    positionGrid->addWidget(_leftEdit, 0, 1);
-    positionGrid->addWidget(new QLabel(tr("Top"), propsBox), 0, 2);
-    positionGrid->addWidget(_topEdit, 0, 3);
-    positionGrid->addWidget(new QLabel(tr("Right"), propsBox), 1, 0);
-    positionGrid->addWidget(_rightEdit, 1, 1);
-    positionGrid->addWidget(new QLabel(tr("Bottom"), propsBox), 1, 2);
-    positionGrid->addWidget(_bottomEdit, 1, 3);
-    positionGrid->setColumnStretch(4, 1);
-    form->addRow(tr("Position:"), positionGrid);
-    cellsTabLayout->addWidget(propsBox);
-    _tabs->addTab(cellsTab, tr("Cells"));
-    buildPageTab();
-    buildLogoTab();
-    buildFieldsTab();
-    right->addWidget(_tabs, 1);
-
-    for (QLineEdit* e : { _labelEdit, _textEdit })
-        connect(e, &QLineEdit::textChanged, this, [this]() { applyCellEdits(); });
-    for (SheetEdgeBox* e : { _leftEdit, _topEdit, _rightEdit, _bottomEdit })
-        connect(e, &SheetEdgeBox::edgeChanged, this, [this]() { applyCellEdits(); });
-    connect(_fontSize, &QDoubleSpinBox::valueChanged, this, [this]() { applyCellEdits(); });
-    connect(_align, &QComboBox::currentIndexChanged, this, [this]() { applyCellEdits(); });
-    for (QCheckBox* c : { _bold, _wrap, _scroll, _grow })
-        connect(c, &QCheckBox::toggled, this, [this]() { applyCellEdits(); });
-    connect(_colourButton, &QPushButton::clicked, this, [this]() { chooseColour(); });
-
-    _errorLabel = new QLabel(this);
-    _errorLabel->setWordWrap(true);
-    QPalette errorPalette = _errorLabel->palette();
+    QPalette errorPalette = ui->errorLabel->palette();
     errorPalette.setColor(QPalette::WindowText, QColor(220, 80, 80));
-    _errorLabel->setPalette(errorPalette);
-    right->addWidget(_errorLabel);
+    ui->errorLabel->setPalette(errorPalette);
 
-    auto* buttons = new QHBoxLayout;
-    buttons->addStretch(1);
-    _saveButton = new QPushButton(tr("Save"), this);
-    _saveButton->setToolTip(_isUser ? tr("Writes the changes into your template.") : tr("A built-in template cannot be changed: use Save as."));
-    _saveAsButton = new QPushButton(tr("Save as..."), this);
-    _saveAsButton->setToolTip(tr("Saves the edited template as a new template of yours."));
-    auto* cancel = new QPushButton(tr("Cancel"), this);
-    buttons->addWidget(_saveButton);
-    buttons->addWidget(_saveAsButton);
-    buttons->addWidget(cancel);
-    right->addLayout(buttons);
-    connect(_saveButton, &QPushButton::clicked, this, [this]() { save(); });
-    connect(_saveAsButton, &QPushButton::clicked, this, [this]() { saveAs(); });
-    connect(cancel, &QPushButton::clicked, this, &QDialog::reject);
-    outer->addLayout(right, 3);
+    ui->saveButton->setToolTip(_isUser ? tr("Writes the changes into your template.") : tr("A built-in template cannot be changed: use Save as."));
+    connect(ui->saveButton, &QPushButton::clicked, this, [this]() { save(); });
+    connect(ui->saveAsButton, &QPushButton::clicked, this, [this]() { saveAs(); });
+    connect(ui->cancelButton, &QPushButton::clicked, this, &QDialog::reject);
     for (QPushButton* b : findChildren<QPushButton*>())
         b->setAutoDefault(false);   // Enter in a text box must not press Add or Save
 
@@ -273,6 +136,48 @@ void SheetTemplateEditor::buildUi()
     resize(wanted);
 }
 
+// ---- the Cells tab ----------------------------------------------------------------------------------------------------------------
+
+void SheetTemplateEditor::setupCellsTab()
+{
+    connect(ui->cellList, &QListWidget::currentRowChanged, this, [this](int row) { loadCell(row); });
+    connect(ui->addButton, &QPushButton::clicked, this, [this]() { addCell(); });
+    connect(ui->duplicateButton, &QPushButton::clicked, this, [this]() { duplicateCell(); });
+    connect(ui->deleteButton, &QPushButton::clicked, this, [this]() { deleteCell(); });
+    connect(ui->upButton, &QPushButton::clicked, this, [this]() { moveCell(-1); });
+    connect(ui->downButton, &QPushButton::clicked, this, [this]() { moveCell(1); });
+
+    // the entries of the "Insert field" menu are made by refreshInsertCombo() (the template's own fields change)
+    ui->insertCombo->addItem(tr("Insert field..."));
+    QStringList names = standardSheetPlaceholders();
+    names += sceneSheetPlaceholders();
+    for (const SheetField& field : _tpl.fields)
+        if (!names.contains(field.id))
+            names << field.id;
+    for (const QString& n : names)
+        ui->insertCombo->addItem(QStringLiteral("{%1}").arg(n), n);
+    connect(ui->insertCombo, &QComboBox::activated, this, [this](int index) { insertPlaceholder(index); });
+
+    ui->align->addItem(tr("Left"), static_cast<int>(Qt::AlignLeft));
+    ui->align->addItem(tr("Centre"), static_cast<int>(Qt::AlignHCenter));
+    ui->align->addItem(tr("Right"), static_cast<int>(Qt::AlignRight));
+
+    const QString edgeTip = tr("Distance from the left or top edge of the title block, in millimetres or as a percentage of the block.\n"
+                               "A negative number is measured from the right or bottom edge instead.");
+    for (SheetEdgeBox* e : { ui->leftEdit, ui->topEdit, ui->rightEdit, ui->bottomEdit })
+        e->setToolTip(edgeTip);
+
+    for (QLineEdit* e : { ui->labelEdit, ui->textEdit })
+        connect(e, &QLineEdit::textChanged, this, [this]() { applyCellEdits(); });
+    for (SheetEdgeBox* e : { ui->leftEdit, ui->topEdit, ui->rightEdit, ui->bottomEdit })
+        connect(e, &SheetEdgeBox::edgeChanged, this, [this]() { applyCellEdits(); });
+    connect(ui->fontSize, &QDoubleSpinBox::valueChanged, this, [this]() { applyCellEdits(); });
+    connect(ui->align, &QComboBox::currentIndexChanged, this, [this]() { applyCellEdits(); });
+    for (QCheckBox* c : { ui->bold, ui->wrap, ui->scroll, ui->grow })
+        connect(c, &QCheckBox::toggled, this, [this]() { applyCellEdits(); });
+    connect(ui->colourButton, &QPushButton::clicked, this, [this]() { chooseColour(); });
+}
+
 QString SheetTemplateEditor::listText(const SheetCell& cell) const
 {
     const QString caption = cell.label.isEmpty() ? QString() : cell.label + QStringLiteral(": ");
@@ -281,12 +186,12 @@ QString SheetTemplateEditor::listText(const SheetCell& cell) const
 
 void SheetTemplateEditor::fillList(int selectRow)
 {
-    const QSignalBlocker blocker(_cellList);
-    _cellList->clear();
+    const QSignalBlocker blocker(ui->cellList);
+    ui->cellList->clear();
     for (const SheetCell& c : std::as_const(_tpl.cells))
-        _cellList->addItem(listText(c));
+        ui->cellList->addItem(listText(c));
     const int row = (selectRow >= 0 && selectRow < _tpl.cells.size()) ? selectRow : -1;
-    _cellList->setCurrentRow(row);
+    ui->cellList->setCurrentRow(row);
     loadCell(row);
 }
 
@@ -294,76 +199,76 @@ void SheetTemplateEditor::loadCell(int row)
 {
     const bool have = row >= 0 && row < _tpl.cells.size();
     _loading = true;
-    for (QWidget* w : { static_cast<QWidget*>(_labelEdit), static_cast<QWidget*>(_textEdit), static_cast<QWidget*>(_insertCombo),
-                        static_cast<QWidget*>(_fontSize), static_cast<QWidget*>(_bold), static_cast<QWidget*>(_colourButton),
-                        static_cast<QWidget*>(_align), static_cast<QWidget*>(_wrap), static_cast<QWidget*>(_scroll),
-                        static_cast<QWidget*>(_grow), static_cast<QWidget*>(_leftEdit), static_cast<QWidget*>(_topEdit),
-                        static_cast<QWidget*>(_rightEdit), static_cast<QWidget*>(_bottomEdit) })
+    for (QWidget* w : { static_cast<QWidget*>(ui->labelEdit), static_cast<QWidget*>(ui->textEdit), static_cast<QWidget*>(ui->insertCombo),
+                        static_cast<QWidget*>(ui->fontSize), static_cast<QWidget*>(ui->bold), static_cast<QWidget*>(ui->colourButton),
+                        static_cast<QWidget*>(ui->align), static_cast<QWidget*>(ui->wrap), static_cast<QWidget*>(ui->scroll),
+                        static_cast<QWidget*>(ui->grow), static_cast<QWidget*>(ui->leftEdit), static_cast<QWidget*>(ui->topEdit),
+                        static_cast<QWidget*>(ui->rightEdit), static_cast<QWidget*>(ui->bottomEdit) })
         w->setEnabled(have);
     if (have)
     {
         const SheetCell& c = _tpl.cells[row];
-        _labelEdit->setText(c.label);
-        _textEdit->setText(c.text);
-        _fontSize->setValue(c.fontSize);
-        _bold->setChecked(c.bold);
+        ui->labelEdit->setText(c.label);
+        ui->textEdit->setText(c.text);
+        ui->fontSize->setValue(c.fontSize);
+        ui->bold->setChecked(c.bold);
         const Qt::Alignment h = c.align & Qt::AlignHorizontal_Mask;
-        _align->setCurrentIndex(h == Qt::AlignHCenter ? 1 : h == Qt::AlignRight ? 2 : 0);
-        _wrap->setChecked(c.wrap);
-        _scroll->setChecked(c.scrollWhenOverflow);
-        _grow->setChecked(!c.id.isEmpty() && _tpl.growWithCell == c.id);
-        _leftEdit->setEdge(c.rect.left);
-        _topEdit->setEdge(c.rect.top);
-        _rightEdit->setEdge(c.rect.right);
-        _bottomEdit->setEdge(c.rect.bottom);
+        ui->align->setCurrentIndex(h == Qt::AlignHCenter ? 1 : h == Qt::AlignRight ? 2 : 0);
+        ui->wrap->setChecked(c.wrap);
+        ui->scroll->setChecked(c.scrollWhenOverflow);
+        ui->grow->setChecked(!c.id.isEmpty() && _tpl.growWithCell == c.id);
+        ui->leftEdit->setEdge(c.rect.left);
+        ui->topEdit->setEdge(c.rect.top);
+        ui->rightEdit->setEdge(c.rect.right);
+        ui->bottomEdit->setEdge(c.rect.bottom);
     }
     else
     {
-        for (QLineEdit* e : { _labelEdit, _textEdit })
+        for (QLineEdit* e : { ui->labelEdit, ui->textEdit })
             e->clear();
-        for (SheetEdgeBox* e : { _leftEdit, _topEdit, _rightEdit, _bottomEdit })
+        for (SheetEdgeBox* e : { ui->leftEdit, ui->topEdit, ui->rightEdit, ui->bottomEdit })
             e->setEdge(SheetEdge());
     }
     _loading = false;
     updateColourButton();
-    _deleteButton->setEnabled(have);
-    _duplicateButton->setEnabled(have);
-    _upButton->setEnabled(have && row > 0);
-    _downButton->setEnabled(have && row + 1 < _tpl.cells.size());
-    _preview->setSelectedCell(have ? row : -1);
+    ui->deleteButton->setEnabled(have);
+    ui->duplicateButton->setEnabled(have);
+    ui->upButton->setEnabled(have && row > 0);
+    ui->downButton->setEnabled(have && row + 1 < _tpl.cells.size());
+    ui->preview->setSelectedCell(have ? row : -1);
 }
 
 void SheetTemplateEditor::updateColourButton()
 {
-    const int row = _cellList->currentRow();
+    const int row = ui->cellList->currentRow();
     const QColor colour = (row >= 0 && row < _tpl.cells.size()) ? _tpl.cells[row].color : QColor(Qt::black);
-    _colourButton->setText(colour.name());
+    ui->colourButton->setText(colour.name());
     const QColor text = colour.lightness() > 140 ? QColor(Qt::black) : QColor(Qt::white);
-    _colourButton->setStyleSheet(QStringLiteral("background-color: %1; color: %2;").arg(colour.name(), text.name()));
+    ui->colourButton->setStyleSheet(QStringLiteral("background-color: %1; color: %2;").arg(colour.name(), text.name()));
 }
 
 // Reads the property widgets into the selected cell, then checks the template. A position that cannot be read keeps the old value of
 // that edge, is marked red and is reported.
 void SheetTemplateEditor::applyCellEdits()
 {
-    const int row = _cellList->currentRow();
+    const int row = ui->cellList->currentRow();
     if (_loading || row < 0 || row >= _tpl.cells.size())
         return;
     SheetCell& c = _tpl.cells[row];
-    c.label = _labelEdit->text();
-    c.text = _textEdit->text();
-    c.fontSize = _fontSize->value();
-    c.bold = _bold->isChecked();
-    c.align = Qt::Alignment(static_cast<Qt::AlignmentFlag>(_align->currentData().toInt()));
-    c.wrap = _wrap->isChecked();
-    c.scrollWhenOverflow = _scroll->isChecked();
+    c.label = ui->labelEdit->text();
+    c.text = ui->textEdit->text();
+    c.fontSize = ui->fontSize->value();
+    c.bold = ui->bold->isChecked();
+    c.align = Qt::Alignment(static_cast<Qt::AlignmentFlag>(ui->align->currentData().toInt()));
+    c.wrap = ui->wrap->isChecked();
+    c.scrollWhenOverflow = ui->scroll->isChecked();
 
     // one cell per template may scroll and one may grow the block: choosing it here releases the others
     if (c.scrollWhenOverflow)
         for (int i = 0; i < _tpl.cells.size(); ++i)
             if (i != row)
                 _tpl.cells[i].scrollWhenOverflow = false;
-    if (_grow->isChecked())
+    if (ui->grow->isChecked())
     {
         if (c.id.isEmpty())
         {
@@ -387,7 +292,7 @@ void SheetTemplateEditor::applyCellEdits()
         SheetEdgeBox* box;
         SheetEdge* target;
     };
-    const EdgeBox edges[] = { { _leftEdit, &c.rect.left }, { _topEdit, &c.rect.top }, { _rightEdit, &c.rect.right }, { _bottomEdit, &c.rect.bottom } };
+    const EdgeBox edges[] = { { ui->leftEdit, &c.rect.left }, { ui->topEdit, &c.rect.top }, { ui->rightEdit, &c.rect.right }, { ui->bottomEdit, &c.rect.bottom } };
     for (const EdgeBox& e : edges)
     {
         const SheetEdge value = e.box->edge();
@@ -397,7 +302,7 @@ void SheetTemplateEditor::applyCellEdits()
         *e.target = value;
     }
 
-    if (QListWidgetItem* item = _cellList->item(row))
+    if (QListWidgetItem* item = ui->cellList->item(row))
         item->setText(listText(c));
     revalidate();
 }
@@ -410,9 +315,9 @@ void SheetTemplateEditor::revalidate(const QString& extraError)
     if (valid)
     {
         _valid = _tpl;
-        _preview->setTemplate(_valid);
-        _preview->setValues(previewValues());
-        _preview->setSelectedCell(_cellList->currentRow());
+        ui->preview->setTemplate(_valid);
+        ui->preview->setValues(previewValues());
+        ui->preview->setSelectedCell(ui->cellList->currentRow());
     }
     // An error about a cell names it by number: say which cell that is, and select it so its position is at hand on the Cells tab (the
     // error stays on screen while another tab is edited, so it must say where the problem is).
@@ -426,25 +331,25 @@ void SheetTemplateEditor::revalidate(const QString& extraError)
             if (row >= 0 && row < _tpl.cells.size())
             {
                 error += tr("  (%1 on the Cells tab)").arg(listText(_tpl.cells[row]));
-                if (_cellList->currentRow() != row)
-                    _cellList->setCurrentRow(row);
+                if (ui->cellList->currentRow() != row)
+                    ui->cellList->setCurrentRow(row);
             }
         }
     }
     QString shown = !extraError.isEmpty() ? extraError : error;
     if (!shown.isEmpty())
         shown[0] = shown.at(0).toUpper();
-    _errorLabel->setText(shown);
+    ui->errorLabel->setText(shown);
     const bool ok = valid && extraError.isEmpty();
-    _saveButton->setEnabled(ok && _isUser);
-    _saveAsButton->setEnabled(ok);
+    ui->saveButton->setEnabled(ok && _isUser);
+    ui->saveAsButton->setEnabled(ok);
 }
 
 // A new cell goes directly under the selected one, with the same left and right edges, so it only has to be dragged into place; with no
 // cell selected it starts at the top left of the block.
 void SheetTemplateEditor::addCell()
 {
-    const int row = _cellList->currentRow();
+    const int row = ui->cellList->currentRow();
     const int at = (row >= 0 && row < _tpl.cells.size()) ? row + 1 : _tpl.cells.size();
     SheetCell cell = newCell();
     if (row >= 0 && row < _valid.cells.size() && _valid.cells.size() == _tpl.cells.size())
@@ -473,21 +378,21 @@ void SheetTemplateEditor::moveCellTo(int index, const QRectF& blockRect, const Q
         return;
     _tpl.cells[index].rect = sheetRectFromBlockRect(blockRect, _tpl.cells[index].rect, blockSize);
     _cellsEdited = true;
-    if (_cellList->currentRow() != index)
-        _cellList->setCurrentRow(index);   // loads the cell, positions included
+    if (ui->cellList->currentRow() != index)
+        ui->cellList->setCurrentRow(index);   // loads the cell, positions included
     const SheetCell& c = _tpl.cells[index];
     _loading = true;
-    _leftEdit->setEdge(c.rect.left);
-    _topEdit->setEdge(c.rect.top);
-    _rightEdit->setEdge(c.rect.right);
-    _bottomEdit->setEdge(c.rect.bottom);
+    ui->leftEdit->setEdge(c.rect.left);
+    ui->topEdit->setEdge(c.rect.top);
+    ui->rightEdit->setEdge(c.rect.right);
+    ui->bottomEdit->setEdge(c.rect.bottom);
     _loading = false;
     revalidate();
 }
 
 void SheetTemplateEditor::duplicateCell()
 {
-    const int row = _cellList->currentRow();
+    const int row = ui->cellList->currentRow();
     if (row < 0 || row >= _tpl.cells.size())
         return;
     SheetCell copy = _tpl.cells[row];
@@ -503,7 +408,7 @@ void SheetTemplateEditor::duplicateCell()
 
 void SheetTemplateEditor::deleteCell()
 {
-    const int row = _cellList->currentRow();
+    const int row = ui->cellList->currentRow();
     if (row < 0 || row >= _tpl.cells.size())
         return;
     if (!_tpl.cells[row].id.isEmpty() && _tpl.growWithCell == _tpl.cells[row].id)
@@ -516,7 +421,7 @@ void SheetTemplateEditor::deleteCell()
 
 void SheetTemplateEditor::moveCell(int delta)
 {
-    const int row = _cellList->currentRow();
+    const int row = ui->cellList->currentRow();
     const int to = row + delta;
     if (row < 0 || to < 0 || row >= _tpl.cells.size() || to >= _tpl.cells.size())
         return;
@@ -527,7 +432,7 @@ void SheetTemplateEditor::moveCell(int delta)
 
 void SheetTemplateEditor::chooseColour()
 {
-    const int row = _cellList->currentRow();
+    const int row = ui->cellList->currentRow();
     if (row < 0 || row >= _tpl.cells.size())
         return;
     const QColor picked = QColorDialog::getColor(_tpl.cells[row].color, this, tr("Text colour"));
@@ -542,12 +447,12 @@ void SheetTemplateEditor::insertPlaceholder(int comboIndex)
 {
     if (comboIndex <= 0)
         return;
-    const QString name = _insertCombo->itemData(comboIndex).toString();
-    _insertCombo->setCurrentIndex(0);
+    const QString name = ui->insertCombo->itemData(comboIndex).toString();
+    ui->insertCombo->setCurrentIndex(0);
     if (!name.isEmpty())
     {
-        _textEdit->insert(QStringLiteral("{%1}").arg(name));
-        _textEdit->setFocus();
+        ui->textEdit->insert(QStringLiteral("{%1}").arg(name));
+        ui->textEdit->setFocus();
     }
 }
 
@@ -647,118 +552,48 @@ namespace
 {
 constexpr double kPtPerMm = 72.0 / 25.4;
 
-QDoubleSpinBox* mmSpin(QWidget* parent, double minimum, double maximum)
-{
-    auto* s = new QDoubleSpinBox(parent);
-    s->setRange(minimum, maximum);
-    s->setDecimals(1);
-    s->setSingleStep(1.0);
-    s->setSuffix(QStringLiteral(" mm"));
-    s->setKeyboardTracking(false);   // report a typed value when it is finished, not on every digit
-    return s;
-}
 }
 
-void SheetTemplateEditor::buildPageTab()
+void SheetTemplateEditor::setupPageTab()
 {
-    auto* page = new QWidget(_tabs);
-    auto* form = new QFormLayout(page);
-
-    _pageSize = new QComboBox(page);
     for (const auto& choice : sheetPageSizeChoices())
-        _pageSize->addItem(choice.first, static_cast<int>(choice.second));
-    _pageSize->addItem(tr("Custom"), static_cast<int>(QPageSize::Custom));
-    _orientation = new QComboBox(page);
-    _orientation->addItem(tr("Landscape"), true);
-    _orientation->addItem(tr("Portrait"), false);
-    _customWidth = mmSpin(page, 100.0, 5000.0);
-    _customHeight = mmSpin(page, 100.0, 5000.0);
-    _customWidth->setToolTip(tr("Width of the page in millimetres, before the orientation is applied. Editable for a custom page (100 to 5000 mm);\n"
-                                "for a named size it shows that size for reference."));
-    _customHeight->setToolTip(tr("Height of the page in millimetres, before the orientation is applied. Editable for a custom page (100 to 5000 mm);\n"
-                                 "for a named size it shows that size for reference."));
-    auto* sizeRow = new QHBoxLayout;
-    sizeRow->addWidget(_pageSize);
-    sizeRow->addWidget(_orientation);
-    sizeRow->addWidget(_customWidth);
-    sizeRow->addWidget(new QLabel(QStringLiteral("x"), page));
-    sizeRow->addWidget(_customHeight);
-    sizeRow->addStretch(1);
-    form->addRow(tr("Page:"), sizeRow);
+        ui->pageSize->addItem(choice.first, static_cast<int>(choice.second));
+    ui->pageSize->addItem(tr("Custom"), static_cast<int>(QPageSize::Custom));
+    ui->orientation->addItem(tr("Landscape"), true);
+    ui->orientation->addItem(tr("Portrait"), false);
+    ui->anchor->addItem(tr("Full width"), static_cast<int>(TitleBlockAnchor::Bottom));
+    ui->anchor->addItem(tr("Corner, left"), static_cast<int>(TitleBlockAnchor::BottomLeft));
+    ui->anchor->addItem(tr("Corner, right"), static_cast<int>(TitleBlockAnchor::BottomRight));
 
-    _borderInset = mmSpin(page, 0.0, 70.0);
-    _borderInset->setToolTip(tr("Distance from the page edge to the border line."));
-    _margin = mmSpin(page, 0.0, 140.0);
-    _margin->setToolTip(tr("Distance from the page edge to the 3D area and the title block."));
-    _areaGap = mmSpin(page, 0.0, 70.0);
-    _areaGap->setToolTip(tr("Space between the 3D area and the title block."));
-    _lineWidth = new QDoubleSpinBox(page);
-    _lineWidth->setRange(0.05, 5.0);
-    _lineWidth->setDecimals(2);
-    _lineWidth->setSingleStep(0.1);
-    _lineWidth->setSuffix(tr(" pt"));
-    _lineWidth->setKeyboardTracking(false);
-    _lineWidth->setToolTip(tr("Thickness of the border, the 3D area frame, the title block and its lines."));
-    form->addRow(tr("Border inset:"), _borderInset);
-    form->addRow(tr("Margin:"), _margin);
-    form->addRow(tr("Gap above the title block:"), _areaGap);
-    form->addRow(tr("Line width:"), _lineWidth);
-
-    auto* block = new QGroupBox(tr("Title block"), page);
-    auto* blockForm = new QFormLayout(block);
-    _anchor = new QComboBox(block);
-    _anchor->addItem(tr("Full width"), static_cast<int>(TitleBlockAnchor::Bottom));
-    _anchor->addItem(tr("Corner, left"), static_cast<int>(TitleBlockAnchor::BottomLeft));
-    _anchor->addItem(tr("Corner, right"), static_cast<int>(TitleBlockAnchor::BottomRight));
-    _blockWidth = mmSpin(block, 17.0, 5000.0);
-    _blockWidth->setToolTip(tr("Width of a title block in a corner of the page (a full width block spans the margins)."));
-    _blockHeight = mmSpin(block, 7.0, 2500.0);
-    _blockHeight->setToolTip(tr("Height of the title block. At most half the page height."));
-    _blockMaxHeight = mmSpin(block, 7.0, 2500.0);
-    _blockMaxHeight->setToolTip(tr("The title block grows up to this height when the cell chosen on the Cells tab needs more room."));
-    _growPadding = mmSpin(block, 0.0, 35.0);
-    _growPadding->setToolTip(tr("Space left below the text of the growing cell."));
-    blockForm->addRow(tr("Position:"), _anchor);
-    blockForm->addRow(tr("Width:"), _blockWidth);
-    blockForm->addRow(tr("Height:"), _blockHeight);
-    blockForm->addRow(tr("Largest height:"), _blockMaxHeight);
-    blockForm->addRow(tr("Space under growing text:"), _growPadding);
-    form->addRow(block);
-
-    auto* note = new QLabel(tr("Cell positions are measured from the title block, so a larger or smaller block or page may need the cells moved."), page);
-    note->setWordWrap(true);
-    form->addRow(note);
-
-    for (QDoubleSpinBox* s : { _customWidth, _customHeight, _borderInset, _margin, _areaGap, _lineWidth, _blockWidth, _blockHeight, _blockMaxHeight, _growPadding })
+    for (QDoubleSpinBox* s : { ui->customWidth, ui->customHeight, ui->borderInset, ui->margin, ui->areaGap, ui->lineWidth, ui->blockWidth, ui->blockHeight, ui->blockMaxHeight, ui->growPadding })
         connect(s, &QDoubleSpinBox::valueChanged, this, [this]() { applyPage(); });
-    for (QComboBox* c : { _pageSize, _orientation, _anchor })
+    for (QComboBox* c : { ui->pageSize, ui->orientation, ui->anchor })
         connect(c, &QComboBox::currentIndexChanged, this, [this]() { applyPage(); });
-    _tabs->addTab(page, tr("Page"));
 }
 
 void SheetTemplateEditor::loadPage()
 {
     _loading = true;
-    const int sizeIndex = _pageSize->findData(static_cast<int>(_tpl.pageSizeId));
-    _pageSize->setCurrentIndex(sizeIndex >= 0 ? sizeIndex : _pageSize->count() - 1);
-    _orientation->setCurrentIndex(_tpl.landscape ? 0 : 1);
+    const int sizeIndex = ui->pageSize->findData(static_cast<int>(_tpl.pageSizeId));
+    ui->pageSize->setCurrentIndex(sizeIndex >= 0 ? sizeIndex : ui->pageSize->count() - 1);
+    ui->orientation->setCurrentIndex(_tpl.landscape ? 0 : 1);
     // a custom page shows its own size; a named page shows its size for reference (the boxes are read-only then)
     const QSizeF shownSize = _tpl.pageSizeId == QPageSize::Custom ? _tpl.customSizeMm : QPageSize(_tpl.pageSizeId).size(QPageSize::Millimeter);
-    _customWidth->setValue(shownSize.width());
-    _customHeight->setValue(shownSize.height());
-    _borderInset->setValue(_tpl.borderInset / kPtPerMm);
-    _margin->setValue(_tpl.margin / kPtPerMm);
-    _areaGap->setValue(_tpl.areaGap / kPtPerMm);
-    _lineWidth->setValue(_tpl.lineWidth);
-    _anchor->setCurrentIndex(std::max(0, _anchor->findData(static_cast<int>(_tpl.anchor))));
-    _blockWidth->setValue(_tpl.blockWidth / kPtPerMm);
-    _blockHeight->setValue(_tpl.blockHeight / kPtPerMm);
-    _blockMaxHeight->setValue(_tpl.blockMaxHeight / kPtPerMm);
-    _growPadding->setValue(_tpl.growPadding / kPtPerMm);
-    const bool custom = _pageSize->currentData().toInt() == static_cast<int>(QPageSize::Custom);
-    _customWidth->setEnabled(custom);
-    _customHeight->setEnabled(custom);
-    _blockWidth->setEnabled(_tpl.anchor != TitleBlockAnchor::Bottom);
+    ui->customWidth->setValue(shownSize.width());
+    ui->customHeight->setValue(shownSize.height());
+    ui->borderInset->setValue(_tpl.borderInset / kPtPerMm);
+    ui->margin->setValue(_tpl.margin / kPtPerMm);
+    ui->areaGap->setValue(_tpl.areaGap / kPtPerMm);
+    ui->lineWidth->setValue(_tpl.lineWidth);
+    ui->anchor->setCurrentIndex(std::max(0, ui->anchor->findData(static_cast<int>(_tpl.anchor))));
+    ui->blockWidth->setValue(_tpl.blockWidth / kPtPerMm);
+    ui->blockHeight->setValue(_tpl.blockHeight / kPtPerMm);
+    ui->blockMaxHeight->setValue(_tpl.blockMaxHeight / kPtPerMm);
+    ui->growPadding->setValue(_tpl.growPadding / kPtPerMm);
+    const bool custom = ui->pageSize->currentData().toInt() == static_cast<int>(QPageSize::Custom);
+    ui->customWidth->setEnabled(custom);
+    ui->customHeight->setEnabled(custom);
+    ui->blockWidth->setEnabled(_tpl.anchor != TitleBlockAnchor::Bottom);
     _loading = false;
 }
 
@@ -767,50 +602,50 @@ void SheetTemplateEditor::applyPage()
     if (_loading)
         return;
     const SheetTemplate before = _tpl;
-    _tpl.pageSizeId = static_cast<QPageSize::PageSizeId>(_pageSize->currentData().toInt());
+    _tpl.pageSizeId = static_cast<QPageSize::PageSizeId>(ui->pageSize->currentData().toInt());
     if (_tpl.pageSizeId == QPageSize::Custom && before.pageSizeId != QPageSize::Custom)
     {
         // switching to Custom: start from the size the page had, so the page does not jump to the smallest custom size
         const QSizeF current = QPageSize(before.pageSizeId).size(QPageSize::Millimeter);
-        const QSignalBlocker widthBlocker(_customWidth);
-        const QSignalBlocker heightBlocker(_customHeight);
-        _customWidth->setValue(current.width());
-        _customHeight->setValue(current.height());
+        const QSignalBlocker widthBlocker(ui->customWidth);
+        const QSignalBlocker heightBlocker(ui->customHeight);
+        ui->customWidth->setValue(current.width());
+        ui->customHeight->setValue(current.height());
     }
     if (_tpl.pageSizeId == QPageSize::Custom)
     {
-        _tpl.customSizeMm = QSizeF(_customWidth->value(), _customHeight->value());
+        _tpl.customSizeMm = QSizeF(ui->customWidth->value(), ui->customHeight->value());
     }
     else
     {
         // the boxes follow the chosen size, for reference
         const QSizeF named = QPageSize(_tpl.pageSizeId).size(QPageSize::Millimeter);
-        const QSignalBlocker widthBlocker(_customWidth);
-        const QSignalBlocker heightBlocker(_customHeight);
-        _customWidth->setValue(named.width());
-        _customHeight->setValue(named.height());
+        const QSignalBlocker widthBlocker(ui->customWidth);
+        const QSignalBlocker heightBlocker(ui->customHeight);
+        ui->customWidth->setValue(named.width());
+        ui->customHeight->setValue(named.height());
     }
-    _tpl.landscape = _orientation->currentData().toBool();
-    _tpl.borderInset = _borderInset->value() * kPtPerMm;
-    _tpl.margin = _margin->value() * kPtPerMm;
-    _tpl.areaGap = _areaGap->value() * kPtPerMm;
-    _tpl.lineWidth = _lineWidth->value();
-    _tpl.anchor = static_cast<TitleBlockAnchor>(_anchor->currentData().toInt());
-    _tpl.blockWidth = _tpl.anchor == TitleBlockAnchor::Bottom ? 0.0 : _blockWidth->value() * kPtPerMm;
+    _tpl.landscape = ui->orientation->currentData().toBool();
+    _tpl.borderInset = ui->borderInset->value() * kPtPerMm;
+    _tpl.margin = ui->margin->value() * kPtPerMm;
+    _tpl.areaGap = ui->areaGap->value() * kPtPerMm;
+    _tpl.lineWidth = ui->lineWidth->value();
+    _tpl.anchor = static_cast<TitleBlockAnchor>(ui->anchor->currentData().toInt());
+    _tpl.blockWidth = _tpl.anchor == TitleBlockAnchor::Bottom ? 0.0 : ui->blockWidth->value() * kPtPerMm;
     if (_tpl.anchor != TitleBlockAnchor::Bottom && _tpl.blockWidth <= 0.0)
         _tpl.blockWidth = 100.0 * kPtPerMm;   // a corner block needs a width of its own
-    _tpl.blockHeight = _blockHeight->value() * kPtPerMm;
-    _tpl.blockMaxHeight = std::max(_blockMaxHeight->value() * kPtPerMm, _tpl.blockHeight);   // the largest height is never below the height
-    _tpl.growPadding = _growPadding->value() * kPtPerMm;
+    _tpl.blockHeight = ui->blockHeight->value() * kPtPerMm;
+    _tpl.blockMaxHeight = std::max(ui->blockMaxHeight->value() * kPtPerMm, _tpl.blockHeight);   // the largest height is never below the height
+    _tpl.growPadding = ui->growPadding->value() * kPtPerMm;
     {
         const bool custom = _tpl.pageSizeId == QPageSize::Custom;
-        _customWidth->setEnabled(custom);
-        _customHeight->setEnabled(custom);
-        _blockWidth->setEnabled(_tpl.anchor != TitleBlockAnchor::Bottom);
-        if (_blockMaxHeight->value() * kPtPerMm < _tpl.blockHeight)
+        ui->customWidth->setEnabled(custom);
+        ui->customHeight->setEnabled(custom);
+        ui->blockWidth->setEnabled(_tpl.anchor != TitleBlockAnchor::Bottom);
+        if (ui->blockMaxHeight->value() * kPtPerMm < _tpl.blockHeight)
         {
-            const QSignalBlocker blocker(_blockMaxHeight);
-            _blockMaxHeight->setValue(_tpl.blockHeight / kPtPerMm);
+            const QSignalBlocker blocker(ui->blockMaxHeight);
+            ui->blockMaxHeight->setValue(_tpl.blockHeight / kPtPerMm);
         }
     }
     adaptCellsToPage(before);
@@ -866,81 +701,46 @@ void SheetTemplateEditor::adaptCellsToPage(const SheetTemplate& before)
 // The cell list, the cell properties and the logo position follow the template after it was changed as a whole.
 void SheetTemplateEditor::refreshCellViews()
 {
-    fillList(_tpl.cells.isEmpty() ? -1 : std::max(0, _cellList->currentRow()));
+    fillList(_tpl.cells.isEmpty() ? -1 : std::max(0, ui->cellList->currentRow()));
     loadLogo();
 }
 
 // ---- the Logo tab -----------------------------------------------------------------------------------------------------------------
 
-void SheetTemplateEditor::buildLogoTab()
+void SheetTemplateEditor::setupLogoTab()
 {
-    auto* page = new QWidget(_tabs);
-    auto* form = new QFormLayout(page);
-    _logoFileLabel = new QLabel(page);
-    _logoFileLabel->setWordWrap(true);
-    _logoChoose = new QPushButton(tr("Choose logo..."), page);
-    _logoChoose->setToolTip(tr("A PNG, JPEG or SVG file. A template without a logo gets a logo cell at the left of the title block."));
-    _logoRemove = new QPushButton(tr("Remove logo"), page);
-    auto* buttonRow = new QHBoxLayout;
-    buttonRow->addWidget(_logoChoose);
-    buttonRow->addWidget(_logoRemove);
-    buttonRow->addStretch(1);
-    form->addRow(tr("Logo:"), _logoFileLabel);
-    form->addRow(QString(), buttonRow);
-
     const QString edgeTip = tr("Distance from the left or top edge of the title block, in millimetres or as a percentage of the block.\n"
                                "A negative number is measured from the right or bottom edge instead.");
-    _logoLeft = new SheetEdgeBox(page);
-    _logoTop = new SheetEdgeBox(page);
-    _logoRight = new SheetEdgeBox(page);
-    _logoBottom = new SheetEdgeBox(page);
-    for (SheetEdgeBox* e : { _logoLeft, _logoTop, _logoRight, _logoBottom })
+    for (SheetEdgeBox* e : { ui->logoLeft, ui->logoTop, ui->logoRight, ui->logoBottom })
         e->setToolTip(edgeTip);
-    auto* positionGrid = new QGridLayout;
-    positionGrid->addWidget(new QLabel(tr("Left"), page), 0, 0);
-    positionGrid->addWidget(_logoLeft, 0, 1);
-    positionGrid->addWidget(new QLabel(tr("Top"), page), 0, 2);
-    positionGrid->addWidget(_logoTop, 0, 3);
-    positionGrid->addWidget(new QLabel(tr("Right"), page), 1, 0);
-    positionGrid->addWidget(_logoRight, 1, 1);
-    positionGrid->addWidget(new QLabel(tr("Bottom"), page), 1, 2);
-    positionGrid->addWidget(_logoBottom, 1, 3);
-    positionGrid->setColumnStretch(4, 1);
-    form->addRow(tr("Position:"), positionGrid);
-    _logoContain = new QCheckBox(tr("Keep the proportions of the picture"), page);
-    form->addRow(QString(), _logoContain);
-    auto* note = new QLabel(tr("The picture is copied next to the template when it is saved."), page);
-    note->setWordWrap(true);
-    form->addRow(note);
 
-    connect(_logoChoose, &QPushButton::clicked, this, [this]() { chooseLogo(); });
-    connect(_logoRemove, &QPushButton::clicked, this, [this]() { removeLogo(); });
-    for (SheetEdgeBox* e : { _logoLeft, _logoTop, _logoRight, _logoBottom })
+    connect(ui->logoChoose, &QPushButton::clicked, this, [this]() { chooseLogo(); });
+    connect(ui->logoRemove, &QPushButton::clicked, this, [this]() { removeLogo(); });
+    for (SheetEdgeBox* e : { ui->logoLeft, ui->logoTop, ui->logoRight, ui->logoBottom })
         connect(e, &SheetEdgeBox::edgeChanged, this, [this]() { applyLogoEdits(); });
-    connect(_logoContain, &QCheckBox::toggled, this, [this]() { applyLogoEdits(); });
-    _tabs->addTab(page, tr("Logo"));
+    connect(ui->logoContain, &QCheckBox::toggled, this, [this]() { applyLogoEdits(); });
 }
 
 void SheetTemplateEditor::loadLogo()
 {
     _loading = true;
     const bool has = _tpl.hasLogo;
-    _logoFileLabel->setText(has ? QFileInfo(_tpl.logo.file).fileName() : tr("none"));
-    _logoRemove->setEnabled(has);
-    for (QWidget* w : { static_cast<QWidget*>(_logoLeft), static_cast<QWidget*>(_logoTop), static_cast<QWidget*>(_logoRight),
-                        static_cast<QWidget*>(_logoBottom), static_cast<QWidget*>(_logoContain) })
+    ui->logoFileLabel->setText(has ? QFileInfo(_tpl.logo.file).fileName() : tr("none"));
+    ui->logoRemove->setEnabled(has);
+    for (QWidget* w : { static_cast<QWidget*>(ui->logoLeft), static_cast<QWidget*>(ui->logoTop), static_cast<QWidget*>(ui->logoRight),
+                        static_cast<QWidget*>(ui->logoBottom), static_cast<QWidget*>(ui->logoContain) })
         w->setEnabled(has);
     if (has)
     {
-        _logoLeft->setEdge(_tpl.logo.rect.left);
-        _logoTop->setEdge(_tpl.logo.rect.top);
-        _logoRight->setEdge(_tpl.logo.rect.right);
-        _logoBottom->setEdge(_tpl.logo.rect.bottom);
-        _logoContain->setChecked(_tpl.logo.contain);
+        ui->logoLeft->setEdge(_tpl.logo.rect.left);
+        ui->logoTop->setEdge(_tpl.logo.rect.top);
+        ui->logoRight->setEdge(_tpl.logo.rect.right);
+        ui->logoBottom->setEdge(_tpl.logo.rect.bottom);
+        ui->logoContain->setChecked(_tpl.logo.contain);
     }
     else
     {
-        for (SheetEdgeBox* e : { _logoLeft, _logoTop, _logoRight, _logoBottom })
+        for (SheetEdgeBox* e : { ui->logoLeft, ui->logoTop, ui->logoRight, ui->logoBottom })
             e->setEdge(SheetEdge());
     }
     _loading = false;
@@ -950,14 +750,14 @@ void SheetTemplateEditor::applyLogoEdits()
 {
     if (_loading || !_tpl.hasLogo)
         return;
-    _tpl.logo.contain = _logoContain->isChecked();
+    _tpl.logo.contain = ui->logoContain->isChecked();
     struct EdgeBox
     {
         SheetEdgeBox* box;
         SheetEdge* target;
     };
-    const EdgeBox edges[] = { { _logoLeft, &_tpl.logo.rect.left }, { _logoTop, &_tpl.logo.rect.top },
-                              { _logoRight, &_tpl.logo.rect.right }, { _logoBottom, &_tpl.logo.rect.bottom } };
+    const EdgeBox edges[] = { { ui->logoLeft, &_tpl.logo.rect.left }, { ui->logoTop, &_tpl.logo.rect.top },
+                              { ui->logoRight, &_tpl.logo.rect.right }, { ui->logoBottom, &_tpl.logo.rect.bottom } };
     for (const EdgeBox& e : edges)
     {
         const SheetEdge value = e.box->edge();
@@ -995,7 +795,7 @@ void SheetTemplateEditor::chooseLogo()
     }
     _tpl = trial;
     _cellsEdited = true;   // adding a logo made room by moving the cells
-    fillList(std::max(0, _cellList->currentRow()));
+    fillList(std::max(0, ui->cellList->currentRow()));
     loadPage();
     loadLogo();
     revalidate();
@@ -1030,95 +830,37 @@ bool SheetTemplateEditor::ensureLogoInFolder(QString* error)
 
 // ---- the Fields tab ---------------------------------------------------------------------------------------------------------------
 
-void SheetTemplateEditor::buildFieldsTab()
+void SheetTemplateEditor::setupFieldsTab()
 {
-    auto* page = new QWidget(_tabs);
-    auto* layout = new QVBoxLayout(page);
-    auto* intro = new QLabel(tr("Extra values the Save as 3D PDF dialog asks for. Use {id} in the text of a cell to print one."), page);
-    intro->setWordWrap(true);
-    layout->addWidget(intro);
+    ui->fieldType->addItem(tr("Text"), QStringLiteral("text"));
+    ui->fieldType->addItem(tr("Several lines"), QStringLiteral("multiline"));
+    ui->fieldType->addItem(tr("Date"), QStringLiteral("date"));
+    ui->fieldType->addItem(tr("Choice from a list"), QStringLiteral("choice"));
+    ui->fieldType->addItem(tr("Number"), QStringLiteral("number"));
 
-    _fieldList = new QListWidget(page);
-    _fieldList->setMinimumHeight(90);
-    layout->addWidget(_fieldList, 1);
-    auto* listButtons = new QHBoxLayout;
-    _fieldAdd = new QPushButton(tr("Add"), page);
-    _fieldDelete = new QPushButton(tr("Delete"), page);
-    _fieldUp = new QPushButton(tr("Up"), page);
-    _fieldDown = new QPushButton(tr("Down"), page);
-    for (QPushButton* b : { _fieldAdd, _fieldDelete, _fieldUp, _fieldDown })
-        listButtons->addWidget(b);
-    layout->addLayout(listButtons);
-    _fieldAddCell = new QPushButton(tr("Add a cell for this field"), page);
-    _fieldAddCell->setToolTip(tr("Adds a cell that prints this field to the Cells tab, below the cell selected there. Drag it into place in the preview."));
-    layout->addWidget(_fieldAddCell);
-
-    auto* form = new QFormLayout;
-    _fieldId = new QLineEdit(page);
-    _fieldId->setToolTip(tr("Letters, digits and underscores, starting with a letter. The names title, author, date ... are taken.\n"
-                            "\"material\" and \"mass\" are filled from the model; a field with one of these names overrides them when it is not empty."));
-    _fieldLabel = new QLineEdit(page);
-    _fieldType = new QComboBox(page);
-    _fieldType->addItem(tr("Text"), QStringLiteral("text"));
-    _fieldType->addItem(tr("Several lines"), QStringLiteral("multiline"));
-    _fieldType->addItem(tr("Date"), QStringLiteral("date"));
-    _fieldType->addItem(tr("Choice from a list"), QStringLiteral("choice"));
-    _fieldType->addItem(tr("Number"), QStringLiteral("number"));
-    _fieldDefault = new QLineEdit(page);
-    _fieldOptions = new QPlainTextEdit(page);
-    _fieldOptions->setPlaceholderText(tr("One choice per line"));
-    _fieldOptions->setMaximumHeight(90);
-    _fieldDecimals = new QSpinBox(page);
-    _fieldDecimals->setRange(0, 6);
-    _fieldDecimals->setToolTip(tr("Digits after the decimal separator when the number is printed."));
-    _fieldUnit = new QLineEdit(page);
-    _fieldUnit->setMaxLength(20);
-    _fieldUnit->setToolTip(tr("Printed after the number, for example kg."));
-    _fieldMin = new QLineEdit(page);
-    _fieldMin->setPlaceholderText(tr("no limit"));
-    _fieldMax = new QLineEdit(page);
-    _fieldMax->setPlaceholderText(tr("no limit"));
-    form->addRow(tr("Id:"), _fieldId);
-    form->addRow(tr("Label:"), _fieldLabel);
-    form->addRow(tr("Type:"), _fieldType);
-    form->addRow(tr("Default value:"), _fieldDefault);
-    form->addRow(tr("Choices:"), _fieldOptions);
-    auto* numberRow = new QHBoxLayout;
-    numberRow->addWidget(new QLabel(tr("Decimals"), page));
-    numberRow->addWidget(_fieldDecimals);
-    numberRow->addWidget(new QLabel(tr("Unit"), page));
-    numberRow->addWidget(_fieldUnit);
-    numberRow->addWidget(new QLabel(tr("Min"), page));
-    numberRow->addWidget(_fieldMin);
-    numberRow->addWidget(new QLabel(tr("Max"), page));
-    numberRow->addWidget(_fieldMax);
-    form->addRow(tr("Number:"), numberRow);
-    layout->addLayout(form);
-
-    connect(_fieldList, &QListWidget::currentRowChanged, this, [this](int row) { loadField(row); });
-    connect(_fieldAdd, &QPushButton::clicked, this, [this]() { addField(); });
-    connect(_fieldAddCell, &QPushButton::clicked, this, [this]() { addCellForField(); });
-    connect(_fieldDelete, &QPushButton::clicked, this, [this]() { deleteField(); });
-    connect(_fieldUp, &QPushButton::clicked, this, [this]() { moveField(-1); });
-    connect(_fieldDown, &QPushButton::clicked, this, [this]() { moveField(1); });
-    for (QLineEdit* e : { _fieldId, _fieldLabel, _fieldDefault })
+    connect(ui->fieldList, &QListWidget::currentRowChanged, this, [this](int row) { loadField(row); });
+    connect(ui->fieldAdd, &QPushButton::clicked, this, [this]() { addField(); });
+    connect(ui->fieldAddCell, &QPushButton::clicked, this, [this]() { addCellForField(); });
+    connect(ui->fieldDelete, &QPushButton::clicked, this, [this]() { deleteField(); });
+    connect(ui->fieldUp, &QPushButton::clicked, this, [this]() { moveField(-1); });
+    connect(ui->fieldDown, &QPushButton::clicked, this, [this]() { moveField(1); });
+    for (QLineEdit* e : { ui->fieldId, ui->fieldLabel, ui->fieldDefault })
         connect(e, &QLineEdit::textChanged, this, [this]() { applyFieldEdits(); });
-    connect(_fieldType, &QComboBox::currentIndexChanged, this, [this]() { applyFieldEdits(); });
-    connect(_fieldOptions, &QPlainTextEdit::textChanged, this, [this]() { applyFieldEdits(); });
-    connect(_fieldDecimals, &QSpinBox::valueChanged, this, [this]() { applyFieldEdits(); });
-    for (QLineEdit* e : { _fieldUnit, _fieldMin, _fieldMax })
+    connect(ui->fieldType, &QComboBox::currentIndexChanged, this, [this]() { applyFieldEdits(); });
+    connect(ui->fieldOptions, &QPlainTextEdit::textChanged, this, [this]() { applyFieldEdits(); });
+    connect(ui->fieldDecimals, &QSpinBox::valueChanged, this, [this]() { applyFieldEdits(); });
+    for (QLineEdit* e : { ui->fieldUnit, ui->fieldMin, ui->fieldMax })
         connect(e, &QLineEdit::textChanged, this, [this]() { applyFieldEdits(); });
-    _tabs->addTab(page, tr("Fields"));
 }
 
 void SheetTemplateEditor::fillFieldList(int selectRow)
 {
-    const QSignalBlocker blocker(_fieldList);
-    _fieldList->clear();
+    const QSignalBlocker blocker(ui->fieldList);
+    ui->fieldList->clear();
     for (const SheetField& f : std::as_const(_tpl.fields))
-        _fieldList->addItem(QStringLiteral("{%1}  %2").arg(f.id, f.label));
+        ui->fieldList->addItem(QStringLiteral("{%1}  %2").arg(f.id, f.label));
     const int row = (selectRow >= 0 && selectRow < _tpl.fields.size()) ? selectRow : -1;
-    _fieldList->setCurrentRow(row);
+    ui->fieldList->setCurrentRow(row);
     loadField(row);
 }
 
@@ -1126,70 +868,70 @@ void SheetTemplateEditor::loadField(int row)
 {
     const bool have = row >= 0 && row < _tpl.fields.size();
     _loading = true;
-    for (QWidget* w : { static_cast<QWidget*>(_fieldId), static_cast<QWidget*>(_fieldLabel), static_cast<QWidget*>(_fieldType),
-                        static_cast<QWidget*>(_fieldDefault), static_cast<QWidget*>(_fieldOptions) })
+    for (QWidget* w : { static_cast<QWidget*>(ui->fieldId), static_cast<QWidget*>(ui->fieldLabel), static_cast<QWidget*>(ui->fieldType),
+                        static_cast<QWidget*>(ui->fieldDefault), static_cast<QWidget*>(ui->fieldOptions) })
         w->setEnabled(have);
-    _fieldAddCell->setEnabled(have);
+    ui->fieldAddCell->setEnabled(have);
     if (have)
     {
         const SheetField& f = _tpl.fields[row];
-        _fieldId->setText(f.id);
-        _fieldLabel->setText(f.label);
-        _fieldType->setCurrentIndex(std::max(0, _fieldType->findData(f.type)));
-        _fieldDefault->setText(f.defaultValue);
-        _fieldOptions->setPlainText(f.options.join(QLatin1Char('\n')));
-        _fieldDecimals->setValue(f.decimals);
-        _fieldUnit->setText(f.unit);
-        _fieldMin->setText(f.minimum == -1e9 ? QString() : _locale.toString(f.minimum, 'g', 10));
-        _fieldMax->setText(f.maximum == 1e9 ? QString() : _locale.toString(f.maximum, 'g', 10));
+        ui->fieldId->setText(f.id);
+        ui->fieldLabel->setText(f.label);
+        ui->fieldType->setCurrentIndex(std::max(0, ui->fieldType->findData(f.type)));
+        ui->fieldDefault->setText(f.defaultValue);
+        ui->fieldOptions->setPlainText(f.options.join(QLatin1Char('\n')));
+        ui->fieldDecimals->setValue(f.decimals);
+        ui->fieldUnit->setText(f.unit);
+        ui->fieldMin->setText(f.minimum == -1e9 ? QString() : _locale.toString(f.minimum, 'g', 10));
+        ui->fieldMax->setText(f.maximum == 1e9 ? QString() : _locale.toString(f.maximum, 'g', 10));
     }
     else
     {
-        _fieldId->clear();
-        _fieldLabel->clear();
-        _fieldDefault->clear();
-        _fieldOptions->clear();
-        _fieldUnit->clear();
-        _fieldMin->clear();
-        _fieldMax->clear();
+        ui->fieldId->clear();
+        ui->fieldLabel->clear();
+        ui->fieldDefault->clear();
+        ui->fieldOptions->clear();
+        ui->fieldUnit->clear();
+        ui->fieldMin->clear();
+        ui->fieldMax->clear();
     }
-    const QString loadedType = _fieldType->currentData().toString();
-    _fieldOptions->setEnabled(have && loadedType == QLatin1String("choice"));
-    for (QWidget* w : { static_cast<QWidget*>(_fieldDecimals), static_cast<QWidget*>(_fieldUnit), static_cast<QWidget*>(_fieldMin), static_cast<QWidget*>(_fieldMax) })
+    const QString loadedType = ui->fieldType->currentData().toString();
+    ui->fieldOptions->setEnabled(have && loadedType == QLatin1String("choice"));
+    for (QWidget* w : { static_cast<QWidget*>(ui->fieldDecimals), static_cast<QWidget*>(ui->fieldUnit), static_cast<QWidget*>(ui->fieldMin), static_cast<QWidget*>(ui->fieldMax) })
         w->setEnabled(have && loadedType == QLatin1String("number"));
     _loading = false;
-    _fieldAdd->setEnabled(_tpl.fields.size() < 16);
-    _fieldDelete->setEnabled(have);
-    _fieldUp->setEnabled(have && row > 0);
-    _fieldDown->setEnabled(have && row + 1 < _tpl.fields.size());
+    ui->fieldAdd->setEnabled(_tpl.fields.size() < 16);
+    ui->fieldDelete->setEnabled(have);
+    ui->fieldUp->setEnabled(have && row > 0);
+    ui->fieldDown->setEnabled(have && row + 1 < _tpl.fields.size());
 }
 
 void SheetTemplateEditor::applyFieldEdits()
 {
-    const int row = _fieldList->currentRow();
+    const int row = ui->fieldList->currentRow();
     if (_loading || row < 0 || row >= _tpl.fields.size())
         return;
     SheetField& f = _tpl.fields[row];
-    f.id = _fieldId->text().trimmed();
-    f.label = _fieldLabel->text();
-    f.type = _fieldType->currentData().toString();
-    f.defaultValue = _fieldDefault->text();
+    f.id = ui->fieldId->text().trimmed();
+    f.label = ui->fieldLabel->text();
+    f.type = ui->fieldType->currentData().toString();
+    f.defaultValue = ui->fieldDefault->text();
     f.options.clear();
     if (f.type == QLatin1String("choice"))
     {
-        for (const QString& line : _fieldOptions->toPlainText().split(QLatin1Char('\n')))
+        for (const QString& line : ui->fieldOptions->toPlainText().split(QLatin1Char('\n')))
             if (!line.trimmed().isEmpty())
                 f.options.append(line.trimmed());
     }
-    _fieldOptions->setEnabled(f.type == QLatin1String("choice"));
+    ui->fieldOptions->setEnabled(f.type == QLatin1String("choice"));
     QString numberError;
     const bool isNumber = f.type == QLatin1String("number");
-    for (QWidget* w : { static_cast<QWidget*>(_fieldDecimals), static_cast<QWidget*>(_fieldUnit), static_cast<QWidget*>(_fieldMin), static_cast<QWidget*>(_fieldMax) })
+    for (QWidget* w : { static_cast<QWidget*>(ui->fieldDecimals), static_cast<QWidget*>(ui->fieldUnit), static_cast<QWidget*>(ui->fieldMin), static_cast<QWidget*>(ui->fieldMax) })
         w->setEnabled(isNumber);
     if (isNumber)
     {
-        f.decimals = _fieldDecimals->value();
-        f.unit = _fieldUnit->text().trimmed();
+        f.decimals = ui->fieldDecimals->value();
+        f.unit = ui->fieldUnit->text().trimmed();
         const auto limit = [&](QLineEdit* edit, double* target, double none, const QString& name) {
             const QString text = edit->text().trimmed();
             double value = 0.0;
@@ -1200,8 +942,8 @@ void SheetTemplateEditor::applyFieldEdits()
             else if (numberError.isEmpty())
                 numberError = tr("%1 is not a number").arg(name);
         };
-        limit(_fieldMin, &f.minimum, -1e9, tr("Minimum"));
-        limit(_fieldMax, &f.maximum, 1e9, tr("Maximum"));
+        limit(ui->fieldMin, &f.minimum, -1e9, tr("Minimum"));
+        limit(ui->fieldMax, &f.maximum, 1e9, tr("Maximum"));
     }
     else
     {
@@ -1210,7 +952,7 @@ void SheetTemplateEditor::applyFieldEdits()
         f.minimum = -1e9;
         f.maximum = 1e9;
     }
-    if (QListWidgetItem* item = _fieldList->item(row))
+    if (QListWidgetItem* item = ui->fieldList->item(row))
         item->setText(QStringLiteral("{%1}  %2").arg(f.id, f.label));
     refreshInsertCombo();
     revalidate(numberError);
@@ -1229,7 +971,7 @@ void SheetTemplateEditor::addField()
             f.id = candidate;
     }
     f.label = tr("New field");
-    const int row = _fieldList->currentRow();
+    const int row = ui->fieldList->currentRow();
     const int at = (row >= 0 && row < _tpl.fields.size()) ? row + 1 : _tpl.fields.size();
     _tpl.fields.insert(at, f);
     fillFieldList(at);
@@ -1239,13 +981,13 @@ void SheetTemplateEditor::addField()
 
 void SheetTemplateEditor::addCellForField()
 {
-    const int fieldRow = _fieldList->currentRow();
+    const int fieldRow = ui->fieldList->currentRow();
     if (fieldRow < 0 || fieldRow >= _tpl.fields.size())
         return;
     const SheetField field = _tpl.fields[fieldRow];
-    _tabs->setCurrentIndex(0);   // the Cells tab
+    ui->tabs->setCurrentIndex(0);   // the Cells tab
     addCell();                   // inserts below the selected cell and selects the new one
-    const int cellRow = _cellList->currentRow();
+    const int cellRow = ui->cellList->currentRow();
     if (cellRow < 0 || cellRow >= _tpl.cells.size())
         return;
     _tpl.cells[cellRow].label = field.label;
@@ -1256,7 +998,7 @@ void SheetTemplateEditor::addCellForField()
 
 void SheetTemplateEditor::deleteField()
 {
-    const int row = _fieldList->currentRow();
+    const int row = ui->fieldList->currentRow();
     if (row < 0 || row >= _tpl.fields.size())
         return;
     _tpl.fields.removeAt(row);
@@ -1267,7 +1009,7 @@ void SheetTemplateEditor::deleteField()
 
 void SheetTemplateEditor::moveField(int delta)
 {
-    const int row = _fieldList->currentRow();
+    const int row = ui->fieldList->currentRow();
     const int to = row + delta;
     if (row < 0 || to < 0 || row >= _tpl.fields.size() || to >= _tpl.fields.size())
         return;
@@ -1279,16 +1021,16 @@ void SheetTemplateEditor::moveField(int delta)
 // The "Insert field" menu of the Cells tab: the standard and scene placeholders, then the template's own fields.
 void SheetTemplateEditor::refreshInsertCombo()
 {
-    const QSignalBlocker blocker(_insertCombo);
-    _insertCombo->clear();
-    _insertCombo->addItem(tr("Insert field..."));
+    const QSignalBlocker blocker(ui->insertCombo);
+    ui->insertCombo->clear();
+    ui->insertCombo->addItem(tr("Insert field..."));
     QStringList names = standardSheetPlaceholders();
     names += sceneSheetPlaceholders();
     for (const SheetField& field : std::as_const(_tpl.fields))
         if (!field.id.isEmpty() && !names.contains(field.id))
             names << field.id;
     for (const QString& n : names)
-        _insertCombo->addItem(QStringLiteral("{%1}").arg(n), n);
+        ui->insertCombo->addItem(QStringLiteral("{%1}").arg(n), n);
 }
 
 // The values the preview prints: the export dialog's, and a field's default (or first choice) where the dialog has nothing for it yet.

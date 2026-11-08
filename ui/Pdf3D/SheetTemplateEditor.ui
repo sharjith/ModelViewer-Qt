@@ -1,0 +1,1105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SheetTemplateEditor</class>
+ <widget class="QDialog" name="SheetTemplateEditor">
+  <property name="windowTitle">
+   <string>Edit sheet template</string>
+  </property>
+  <layout class="QHBoxLayout" name="outerLayout" stretch="5,3">
+   <item>
+    <layout class="QVBoxLayout" name="leftLayout" stretch="1,0">
+     <item>
+      <widget class="Pdf3D::SheetPreviewWidget" name="preview">
+       <property name="minimumSize">
+        <size>
+         <width>420</width>
+         <height>300</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="hintLabel">
+       <property name="text">
+        <string>Click a cell in the sheet to select it. Drag it to move it, drag its edges or corners to resize it, or nudge it with the arrow keys (Shift for larger steps). Edges snap to the title block and to the other cells. The 3D area is shown grey.</string>
+       </property>
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QVBoxLayout" name="rightLayout" stretch="0,1,0,0">
+     <item>
+      <layout class="QFormLayout" name="nameLayout">
+       <item row="0" column="0">
+        <widget class="QLabel" name="nameLabel">
+         <property name="text">
+          <string>Template name:</string>
+         </property>
+        </widget>
+       </item>
+       <item row="0" column="1">
+        <widget class="QLineEdit" name="nameEdit">
+         <property name="toolTip">
+          <string>The name of the template, as listed in the Save as 3D PDF dialog.</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+     <item>
+      <widget class="QTabWidget" name="tabs">
+       <property name="currentIndex">
+        <number>0</number>
+       </property>
+       <widget class="QWidget" name="cellsTab">
+        <attribute name="title">
+         <string>Cells</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="cellsTabLayout" stretch="1,0">
+         <item>
+          <widget class="QGroupBox" name="cellsBox">
+           <property name="title">
+            <string>Title block cells</string>
+           </property>
+           <layout class="QVBoxLayout" name="cellsBoxLayout">
+            <item>
+             <widget class="QListWidget" name="cellList">
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>110</height>
+               </size>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="cellButtonsLayout">
+              <item>
+               <widget class="QPushButton" name="addButton">
+                <property name="text">
+                 <string>Add</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="duplicateButton">
+                <property name="text">
+                 <string>Duplicate</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="deleteButton">
+                <property name="text">
+                 <string>Delete</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="upButton">
+                <property name="toolTip">
+                 <string>Move the cell up in the list. Cells drawn later are on top of earlier ones.</string>
+                </property>
+                <property name="text">
+                 <string>Up</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="downButton">
+                <property name="toolTip">
+                 <string>Move the cell down in the list.</string>
+                </property>
+                <property name="text">
+                 <string>Down</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item>
+          <widget class="QGroupBox" name="propsBox">
+           <property name="title">
+            <string>Selected cell</string>
+           </property>
+           <layout class="QFormLayout" name="propsLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="labelLabel">
+              <property name="text">
+               <string>Caption:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLineEdit" name="labelEdit">
+              <property name="toolTip">
+               <string>A small caption in the corner of the cell. A cell with a caption is drawn as a field of the title block.</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="textLabel">
+              <property name="text">
+               <string>Text:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <layout class="QHBoxLayout" name="textRowLayout">
+              <item>
+               <widget class="QLineEdit" name="textEdit">
+                <property name="toolTip">
+                 <string>The text of the cell. {title}, {author} ... are replaced by the values of the dialog;
+{name|-} prints a dash when the value is empty.</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QComboBox" name="insertCombo">
+                <property name="toolTip">
+                 <string>Insert a field at the cursor of the text.</string>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="fontLabel">
+              <property name="text">
+               <string>Font:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <layout class="QHBoxLayout" name="fontRowLayout">
+              <item>
+               <widget class="QDoubleSpinBox" name="fontSize">
+                <property name="suffix">
+                 <string> pt</string>
+                </property>
+                <property name="keyboardTracking">
+                 <bool>true</bool>
+                </property>
+                <property name="decimals">
+                 <number>1</number>
+                </property>
+                <property name="minimum">
+                 <double>4.0</double>
+                </property>
+                <property name="maximum">
+                 <double>72.0</double>
+                </property>
+                <property name="singleStep">
+                 <double>1.0</double>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QCheckBox" name="bold">
+                <property name="text">
+                 <string>Bold</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="colourButton">
+                <property name="toolTip">
+                 <string>The text colour.</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QComboBox" name="align"/>
+              </item>
+              <item>
+               <spacer name="fontRowSpacer">
+                <property name="orientation">
+                 <enum>Qt::Horizontal</enum>
+                </property>
+                <property name="sizeHint" stdset="0">
+                 <size>
+                  <width>40</width>
+                  <height>20</height>
+                 </size>
+                </property>
+               </spacer>
+              </item>
+             </layout>
+            </item>
+            <item row="3" column="1">
+             <widget class="QCheckBox" name="wrap">
+              <property name="text">
+               <string>Wrap long text</string>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="1">
+             <widget class="QCheckBox" name="scroll">
+              <property name="toolTip">
+               <string>Text that does not fit becomes a scrollable form field over the cell. One cell per template.</string>
+              </property>
+              <property name="text">
+               <string>Scrollable when it does not fit</string>
+              </property>
+             </widget>
+            </item>
+            <item row="5" column="1">
+             <widget class="QCheckBox" name="grow">
+              <property name="toolTip">
+               <string>A long text enlarges the title block (up to its maximum height) and takes room from the 3D area. One cell per template.</string>
+              </property>
+              <property name="text">
+               <string>The title block grows with this cell</string>
+              </property>
+             </widget>
+            </item>
+            <item row="6" column="0">
+             <widget class="QLabel" name="positionLabel">
+              <property name="text">
+               <string>Position:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="6" column="1">
+             <layout class="QGridLayout" name="positionGrid" columnstretch="0,0,0,0,1">
+              <item row="0" column="0">
+               <widget class="QLabel" name="LabelLeft">
+                <property name="text">
+                 <string>Left</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="1">
+               <widget class="Pdf3D::SheetEdgeBox" name="leftEdit"/>
+              </item>
+              <item row="0" column="2">
+               <widget class="QLabel" name="LabelTop">
+                <property name="text">
+                 <string>Top</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="3">
+               <widget class="Pdf3D::SheetEdgeBox" name="topEdit"/>
+              </item>
+              <item row="1" column="0">
+               <widget class="QLabel" name="LabelRight">
+                <property name="text">
+                 <string>Right</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="1">
+               <widget class="Pdf3D::SheetEdgeBox" name="rightEdit"/>
+              </item>
+              <item row="1" column="2">
+               <widget class="QLabel" name="LabelBottom">
+                <property name="text">
+                 <string>Bottom</string>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="3">
+               <widget class="Pdf3D::SheetEdgeBox" name="bottomEdit"/>
+              </item>
+             </layout>
+            </item>
+           </layout>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="pageTab">
+        <attribute name="title">
+         <string>Page</string>
+        </attribute>
+        <layout class="QFormLayout" name="pageTabLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="pageLabel">
+           <property name="text">
+            <string>Page:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <layout class="QHBoxLayout" name="sizeRowLayout">
+           <item>
+            <widget class="QComboBox" name="pageSize"/>
+           </item>
+           <item>
+            <widget class="QComboBox" name="orientation"/>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="customWidth">
+             <property name="suffix">
+              <string> mm</string>
+             </property>
+             <property name="toolTip">
+              <string>Width of the page in millimetres, before the orientation is applied. Editable for a custom page (100 to 5000 mm);
+for a named size it shows that size for reference.</string>
+             </property>
+             <property name="keyboardTracking">
+              <bool>false</bool>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>100.0</double>
+             </property>
+             <property name="maximum">
+              <double>5000.0</double>
+             </property>
+             <property name="singleStep">
+              <double>1.0</double>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QLabel" name="sizeByLabel">
+             <property name="text">
+              <string>x</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QDoubleSpinBox" name="customHeight">
+             <property name="suffix">
+              <string> mm</string>
+             </property>
+             <property name="toolTip">
+              <string>Height of the page in millimetres, before the orientation is applied. Editable for a custom page (100 to 5000 mm);
+for a named size it shows that size for reference.</string>
+             </property>
+             <property name="keyboardTracking">
+              <bool>false</bool>
+             </property>
+             <property name="decimals">
+              <number>1</number>
+             </property>
+             <property name="minimum">
+              <double>100.0</double>
+             </property>
+             <property name="maximum">
+              <double>5000.0</double>
+             </property>
+             <property name="singleStep">
+              <double>1.0</double>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="sizeRowSpacer">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="borderInsetLabel">
+           <property name="text">
+            <string>Border inset:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QDoubleSpinBox" name="borderInset">
+           <property name="suffix">
+            <string> mm</string>
+           </property>
+           <property name="toolTip">
+            <string>Distance from the page edge to the border line.</string>
+           </property>
+           <property name="keyboardTracking">
+            <bool>false</bool>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>0.0</double>
+           </property>
+           <property name="maximum">
+            <double>70.0</double>
+           </property>
+           <property name="singleStep">
+            <double>1.0</double>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="marginLabel">
+           <property name="text">
+            <string>Margin:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QDoubleSpinBox" name="margin">
+           <property name="suffix">
+            <string> mm</string>
+           </property>
+           <property name="toolTip">
+            <string>Distance from the page edge to the 3D area and the title block.</string>
+           </property>
+           <property name="keyboardTracking">
+            <bool>false</bool>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>0.0</double>
+           </property>
+           <property name="maximum">
+            <double>140.0</double>
+           </property>
+           <property name="singleStep">
+            <double>1.0</double>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="areaGapLabel">
+           <property name="text">
+            <string>Gap above the title block:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QDoubleSpinBox" name="areaGap">
+           <property name="suffix">
+            <string> mm</string>
+           </property>
+           <property name="toolTip">
+            <string>Space between the 3D area and the title block.</string>
+           </property>
+           <property name="keyboardTracking">
+            <bool>false</bool>
+           </property>
+           <property name="decimals">
+            <number>1</number>
+           </property>
+           <property name="minimum">
+            <double>0.0</double>
+           </property>
+           <property name="maximum">
+            <double>70.0</double>
+           </property>
+           <property name="singleStep">
+            <double>1.0</double>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="lineWidthLabel">
+           <property name="text">
+            <string>Line width:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QDoubleSpinBox" name="lineWidth">
+           <property name="suffix">
+            <string> pt</string>
+           </property>
+           <property name="toolTip">
+            <string>Thickness of the border, the 3D area frame, the title block and its lines.</string>
+           </property>
+           <property name="keyboardTracking">
+            <bool>false</bool>
+           </property>
+           <property name="decimals">
+            <number>2</number>
+           </property>
+           <property name="minimum">
+            <double>0.05</double>
+           </property>
+           <property name="maximum">
+            <double>5.0</double>
+           </property>
+           <property name="singleStep">
+            <double>0.1</double>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="0" colspan="2">
+          <widget class="QGroupBox" name="blockBox">
+           <property name="title">
+            <string>Title block</string>
+           </property>
+           <layout class="QFormLayout" name="blockLayout">
+            <item row="0" column="0">
+             <widget class="QLabel" name="anchorLabel">
+              <property name="text">
+               <string>Position:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QComboBox" name="anchor"/>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="blockWidthLabel">
+              <property name="text">
+               <string>Width:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
+             <widget class="QDoubleSpinBox" name="blockWidth">
+              <property name="suffix">
+               <string> mm</string>
+              </property>
+              <property name="toolTip">
+               <string>Width of a title block in a corner of the page (a full width block spans the margins).</string>
+              </property>
+              <property name="keyboardTracking">
+               <bool>false</bool>
+              </property>
+              <property name="decimals">
+               <number>1</number>
+              </property>
+              <property name="minimum">
+               <double>17.0</double>
+              </property>
+              <property name="maximum">
+               <double>5000.0</double>
+              </property>
+              <property name="singleStep">
+               <double>1.0</double>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="0">
+             <widget class="QLabel" name="blockHeightLabel">
+              <property name="text">
+               <string>Height:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QDoubleSpinBox" name="blockHeight">
+              <property name="suffix">
+               <string> mm</string>
+              </property>
+              <property name="toolTip">
+               <string>Height of the title block. At most half the page height.</string>
+              </property>
+              <property name="keyboardTracking">
+               <bool>false</bool>
+              </property>
+              <property name="decimals">
+               <number>1</number>
+              </property>
+              <property name="minimum">
+               <double>7.0</double>
+              </property>
+              <property name="maximum">
+               <double>2500.0</double>
+              </property>
+              <property name="singleStep">
+               <double>1.0</double>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="0">
+             <widget class="QLabel" name="blockMaxHeightLabel">
+              <property name="text">
+               <string>Largest height:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
+             <widget class="QDoubleSpinBox" name="blockMaxHeight">
+              <property name="suffix">
+               <string> mm</string>
+              </property>
+              <property name="toolTip">
+               <string>The title block grows up to this height when the cell chosen on the Cells tab needs more room.</string>
+              </property>
+              <property name="keyboardTracking">
+               <bool>false</bool>
+              </property>
+              <property name="decimals">
+               <number>1</number>
+              </property>
+              <property name="minimum">
+               <double>7.0</double>
+              </property>
+              <property name="maximum">
+               <double>2500.0</double>
+              </property>
+              <property name="singleStep">
+               <double>1.0</double>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="0">
+             <widget class="QLabel" name="growPaddingLabel">
+              <property name="text">
+               <string>Space under growing text:</string>
+              </property>
+             </widget>
+            </item>
+            <item row="4" column="1">
+             <widget class="QDoubleSpinBox" name="growPadding">
+              <property name="suffix">
+               <string> mm</string>
+              </property>
+              <property name="toolTip">
+               <string>Space left below the text of the growing cell.</string>
+              </property>
+              <property name="keyboardTracking">
+               <bool>false</bool>
+              </property>
+              <property name="decimals">
+               <number>1</number>
+              </property>
+              <property name="minimum">
+               <double>0.0</double>
+              </property>
+              <property name="maximum">
+               <double>35.0</double>
+              </property>
+              <property name="singleStep">
+               <double>1.0</double>
+              </property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </item>
+         <item row="6" column="0" colspan="2">
+          <widget class="QLabel" name="pageNote">
+           <property name="text">
+            <string>Cell positions are measured from the title block, so a larger or smaller block or page may need the cells moved.</string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="logoTab">
+        <attribute name="title">
+         <string>Logo</string>
+        </attribute>
+        <layout class="QFormLayout" name="logoTabLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="logoLabel">
+           <property name="text">
+            <string>Logo:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLabel" name="logoFileLabel">
+           <property name="text">
+            <string></string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <layout class="QHBoxLayout" name="logoButtonsLayout">
+           <item>
+            <widget class="QPushButton" name="logoChoose">
+             <property name="toolTip">
+              <string>A PNG, JPEG or SVG file. A template without a logo gets a logo cell at the left of the title block.</string>
+             </property>
+             <property name="text">
+              <string>Choose logo...</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="logoRemove">
+             <property name="text">
+              <string>Remove logo</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <spacer name="logoButtonsSpacer">
+             <property name="orientation">
+              <enum>Qt::Horizontal</enum>
+             </property>
+             <property name="sizeHint" stdset="0">
+              <size>
+               <width>40</width>
+               <height>20</height>
+              </size>
+             </property>
+            </spacer>
+           </item>
+          </layout>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="logoPositionLabel">
+           <property name="text">
+            <string>Position:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <layout class="QGridLayout" name="logoPositionGrid" columnstretch="0,0,0,0,1">
+           <item row="0" column="0">
+            <widget class="QLabel" name="logoLabelLeft">
+             <property name="text">
+              <string>Left</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="Pdf3D::SheetEdgeBox" name="logoLeft"/>
+           </item>
+           <item row="0" column="2">
+            <widget class="QLabel" name="logoLabelTop">
+             <property name="text">
+              <string>Top</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="3">
+            <widget class="Pdf3D::SheetEdgeBox" name="logoTop"/>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="logoLabelRight">
+             <property name="text">
+              <string>Right</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="Pdf3D::SheetEdgeBox" name="logoRight"/>
+           </item>
+           <item row="1" column="2">
+            <widget class="QLabel" name="logoLabelBottom">
+             <property name="text">
+              <string>Bottom</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="3">
+            <widget class="Pdf3D::SheetEdgeBox" name="logoBottom"/>
+           </item>
+          </layout>
+         </item>
+         <item row="3" column="1">
+          <widget class="QCheckBox" name="logoContain">
+           <property name="text">
+            <string>Keep the proportions of the picture</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="0" colspan="2">
+          <widget class="QLabel" name="logoNote">
+           <property name="text">
+            <string>The picture is copied next to the template when it is saved.</string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+       <widget class="QWidget" name="fieldsTab">
+        <attribute name="title">
+         <string>Fields</string>
+        </attribute>
+        <layout class="QVBoxLayout" name="fieldsTabLayout" stretch="0,1,0,0,0">
+         <item>
+          <widget class="QLabel" name="fieldsIntro">
+           <property name="text">
+            <string>Extra values the Save as 3D PDF dialog asks for. Use {id} in the text of a cell to print one.</string>
+           </property>
+           <property name="wordWrap">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QListWidget" name="fieldList">
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>90</height>
+            </size>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QHBoxLayout" name="fieldButtonsLayout">
+           <item>
+            <widget class="QPushButton" name="fieldAdd">
+             <property name="text">
+              <string>Add</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="fieldDelete">
+             <property name="text">
+              <string>Delete</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="fieldUp">
+             <property name="text">
+              <string>Up</string>
+             </property>
+            </widget>
+           </item>
+           <item>
+            <widget class="QPushButton" name="fieldDown">
+             <property name="text">
+              <string>Down</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </item>
+         <item>
+          <widget class="QPushButton" name="fieldAddCell">
+           <property name="toolTip">
+            <string>Adds a cell that prints this field to the Cells tab, below the cell selected there. Drag it into place in the preview.</string>
+           </property>
+           <property name="text">
+            <string>Add a cell for this field</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <layout class="QFormLayout" name="fieldFormLayout">
+           <item row="0" column="0">
+            <widget class="QLabel" name="fieldIdLabel">
+             <property name="text">
+              <string>Id:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLineEdit" name="fieldId">
+             <property name="toolTip">
+              <string>Letters, digits and underscores, starting with a letter. The names title, author, date ... are taken.
+"material" and "mass" are filled from the model; a field with one of these names overrides them when it is not empty.</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="fieldLabelLabel">
+             <property name="text">
+              <string>Label:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLineEdit" name="fieldLabel"/>
+           </item>
+           <item row="2" column="0">
+            <widget class="QLabel" name="fieldTypeLabel">
+             <property name="text">
+              <string>Type:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QComboBox" name="fieldType"/>
+           </item>
+           <item row="3" column="0">
+            <widget class="QLabel" name="fieldDefaultLabel">
+             <property name="text">
+              <string>Default value:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="3" column="1">
+            <widget class="QLineEdit" name="fieldDefault"/>
+           </item>
+           <item row="4" column="0">
+            <widget class="QLabel" name="fieldOptionsLabel">
+             <property name="text">
+              <string>Choices:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="4" column="1">
+            <widget class="QPlainTextEdit" name="fieldOptions">
+             <property name="maximumSize">
+              <size>
+               <width>16777215</width>
+               <height>90</height>
+              </size>
+             </property>
+             <property name="placeholderText">
+              <string>One choice per line</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="0">
+            <widget class="QLabel" name="fieldNumberLabel">
+             <property name="text">
+              <string>Number:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="5" column="1">
+            <layout class="QHBoxLayout" name="numberRowLayout">
+             <item>
+              <widget class="QLabel" name="decimalsLabel">
+               <property name="text">
+                <string>Decimals</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QSpinBox" name="fieldDecimals">
+               <property name="toolTip">
+                <string>Digits after the decimal separator when the number is printed.</string>
+               </property>
+               <property name="maximum">
+                <number>6</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="unitLabel">
+               <property name="text">
+                <string>Unit</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="fieldUnit">
+               <property name="toolTip">
+                <string>Printed after the number, for example kg.</string>
+               </property>
+               <property name="maxLength">
+                <number>20</number>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="minLabel">
+               <property name="text">
+                <string>Min</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="fieldMin">
+               <property name="placeholderText">
+                <string>no limit</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLabel" name="maxLabel">
+               <property name="text">
+                <string>Max</string>
+               </property>
+              </widget>
+             </item>
+             <item>
+              <widget class="QLineEdit" name="fieldMax">
+               <property name="placeholderText">
+                <string>no limit</string>
+               </property>
+              </widget>
+             </item>
+            </layout>
+           </item>
+          </layout>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLabel" name="errorLabel">
+       <property name="wordWrap">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="buttonsLayout">
+       <item>
+        <spacer name="buttonsSpacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QPushButton" name="saveButton">
+         <property name="text">
+          <string>Save</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="saveAsButton">
+         <property name="toolTip">
+          <string>Saves the edited template as a new template of yours.</string>
+         </property>
+         <property name="text">
+          <string>Save as...</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="cancelButton">
+         <property name="text">
+          <string>Cancel</string>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>Pdf3D::SheetPreviewWidget</class>
+   <extends>QWidget</extends>
+   <header>SheetPreviewWidget.h</header>
+  </customwidget>
+  <customwidget>
+   <class>Pdf3D::SheetEdgeBox</class>
+   <extends>QWidget</extends>
+   <header>SheetTemplateEditor.h</header>
+  </customwidget>
+ </customwidgets>
+ <resources/>
+ <connections/>
+</ui>

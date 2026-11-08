@@ -8,21 +8,18 @@
 #include <QString>
 #include <QTemporaryDir>
 
-class QCheckBox;
+#include <memory>
+
 class QComboBox;
 class QDoubleSpinBox;
-class QLabel;
-class QLineEdit;
-class QListWidget;
-class QPlainTextEdit;
-class QPushButton;
-class QSpinBox;
-class QTabWidget;
+
+namespace Ui
+{
+class SheetTemplateEditor;
+}
 
 namespace Pdf3D
 {
-
-class SheetPreviewWidget;
 
 // One coordinate of a cell or of the logo: a spin box and a unit switch, millimetres or a percentage of the block. A negative number is
 // measured from the opposite edge (the right or bottom of the title block).
@@ -47,7 +44,7 @@ private:
 // cells, the properties of the selected one (label, text with {placeholders}, font size, bold, colour, alignment, wrapping, position)
 // and Add / Duplicate / Delete / Move. Clicking a cell in the preview selects it in the list. The template is checked after every
 // edit the way saving checks it; while it is not valid the reason is shown and Save is off. A built-in template can only be saved
-// under a new name. Pure code, no .ui file. Design: research/3dpdf/3D_PDF_EXPORT_RESEARCH.md, section 11.
+// under a new name. Layout: ui/Pdf3D/SheetTemplateEditor.ui. Design: research/3dpdf/3D_PDF_EXPORT_RESEARCH.md, section 11.
 class SheetTemplateEditor : public QDialog
 {
     Q_OBJECT
@@ -56,6 +53,7 @@ public:
     // `sampleValues` fills the placeholders in the preview (what the export dialog would print now).
     SheetTemplateEditor(const SheetTemplate& tpl, const QMap<QString, QString>& sampleValues, const QString& folder, const QLocale& locale,
                         QWidget* parent = nullptr);
+    ~SheetTemplateEditor() override;
 
     // The id of the template the user saved (the edited one, or the new copy); empty when the dialog was cancelled.
     QString savedTemplateId() const { return _savedId; }
@@ -78,10 +76,11 @@ private:
     void save();
     void saveAs();
 
-    // the Page, Logo and Fields tabs
-    void buildPageTab();
-    void buildLogoTab();
-    void buildFieldsTab();
+    // the other tabs
+    void setupCellsTab();
+    void setupPageTab();
+    void setupLogoTab();
+    void setupFieldsTab();
     void loadPage();
     void applyPage();
     void adaptCellsToPage(const SheetTemplate& before);
@@ -101,6 +100,8 @@ private:
     void refreshInsertCombo();
     QMap<QString, QString> previewValues() const;
 
+    std::unique_ptr<Ui::SheetTemplateEditor> ui;
+
     SheetTemplate _tpl;     // the template being edited
     SheetTemplate _valid;   // the last state of it that passed the check; what the preview draws
     QMap<QString, QString> _values;
@@ -110,77 +111,10 @@ private:
     bool _isUser = false;
     bool _loading = false;  // the property widgets are being filled: their change signals are ignored
     bool _cellsEdited = false;   // the user changed a cell position (or added or deleted a cell) since the editor opened or the cells were last adapted
-
-    SheetPreviewWidget* _preview = nullptr;
-    QLineEdit* _nameEdit = nullptr;
-    QListWidget* _cellList = nullptr;
-    QPushButton* _addButton = nullptr;
-    QPushButton* _duplicateButton = nullptr;
-    QPushButton* _deleteButton = nullptr;
-    QPushButton* _upButton = nullptr;
-    QPushButton* _downButton = nullptr;
-    QLineEdit* _labelEdit = nullptr;
-    QLineEdit* _textEdit = nullptr;
-    QComboBox* _insertCombo = nullptr;
-    QDoubleSpinBox* _fontSize = nullptr;
-    QCheckBox* _bold = nullptr;
-    QPushButton* _colourButton = nullptr;
-    QComboBox* _align = nullptr;
-    QCheckBox* _wrap = nullptr;
-    QCheckBox* _scroll = nullptr;
-    QCheckBox* _grow = nullptr;
-    SheetEdgeBox* _leftEdit = nullptr;
-    SheetEdgeBox* _topEdit = nullptr;
-    SheetEdgeBox* _rightEdit = nullptr;
-    SheetEdgeBox* _bottomEdit = nullptr;
-    QLabel* _errorLabel = nullptr;
-    QPushButton* _saveButton = nullptr;
-    QPushButton* _saveAsButton = nullptr;
-
-    QTabWidget* _tabs = nullptr;
     QTemporaryDir _scratch;   // a logo chosen in the editor is copied here first, into the template's folder only when saved
 
-    // Page tab (lengths in millimetres, converted from and to points)
-    QComboBox* _pageSize = nullptr;
-    QComboBox* _orientation = nullptr;
-    QDoubleSpinBox* _customWidth = nullptr;
-    QDoubleSpinBox* _customHeight = nullptr;
-    QDoubleSpinBox* _borderInset = nullptr;
-    QDoubleSpinBox* _margin = nullptr;
-    QDoubleSpinBox* _areaGap = nullptr;
-    QDoubleSpinBox* _lineWidth = nullptr;
-    QComboBox* _anchor = nullptr;
-    QDoubleSpinBox* _blockWidth = nullptr;
-    QDoubleSpinBox* _blockHeight = nullptr;
-    QDoubleSpinBox* _blockMaxHeight = nullptr;
-    QDoubleSpinBox* _growPadding = nullptr;
 
-    // Logo tab
-    QLabel* _logoFileLabel = nullptr;
-    QPushButton* _logoChoose = nullptr;
-    QPushButton* _logoRemove = nullptr;
-    SheetEdgeBox* _logoLeft = nullptr;
-    SheetEdgeBox* _logoTop = nullptr;
-    SheetEdgeBox* _logoRight = nullptr;
-    SheetEdgeBox* _logoBottom = nullptr;
-    QCheckBox* _logoContain = nullptr;
 
-    // Fields tab
-    QListWidget* _fieldList = nullptr;
-    QPushButton* _fieldAdd = nullptr;
-    QPushButton* _fieldAddCell = nullptr;
-    QPushButton* _fieldDelete = nullptr;
-    QPushButton* _fieldUp = nullptr;
-    QPushButton* _fieldDown = nullptr;
-    QLineEdit* _fieldId = nullptr;
-    QLineEdit* _fieldLabel = nullptr;
-    QComboBox* _fieldType = nullptr;
-    QLineEdit* _fieldDefault = nullptr;
-    QPlainTextEdit* _fieldOptions = nullptr;
-    QSpinBox* _fieldDecimals = nullptr;
-    QLineEdit* _fieldUnit = nullptr;
-    QLineEdit* _fieldMin = nullptr;
-    QLineEdit* _fieldMax = nullptr;
 };
 
 } // namespace Pdf3D
