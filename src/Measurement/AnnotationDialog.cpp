@@ -249,6 +249,7 @@ void AnnotationDialog::toggleCheckStatesForSelection(Qt::CheckState newState)
         sceneGraph->setAnnotationVisible(id, newState == Qt::Checked);
     }
     _batchingVisibilityChanges = false;
+    _modelViewer->markNonUndoDocumentModified();   // visibility is persisted in the MVF but not undoable: mark the document modified by hand
 
     refreshResultsList();
     viewport->update();
@@ -366,8 +367,11 @@ void AnnotationDialog::onOrientationActivated(int index)
     if (!viewport || !sceneGraph || index < 0)
         return;
     const LabelOrientation mode = static_cast<LabelOrientation>(ui->orientationCombo->itemData(index).toInt());
-    for (const QUuid& id : viewport->selectedAnnotationIds())
+    const auto selectedIds = viewport->selectedAnnotationIds();
+    for (const QUuid& id : selectedIds)
         sceneGraph->setAnnotationOrientation(id, mode);
+    if (!selectedIds.isEmpty())
+        _modelViewer->markNonUndoDocumentModified();   // the label orientation is persisted in the MVF but not undoable: mark the document modified by hand
     viewport->update();
 }
 
@@ -445,6 +449,7 @@ void AnnotationDialog::onResultItemChanged(QListWidgetItem* item)
 
     const QUuid id = item->data(Qt::UserRole).toUuid();
     sceneGraph->setAnnotationVisible(id, item->checkState() == Qt::Checked);
+    _modelViewer->markNonUndoDocumentModified();   // visibility is persisted in the MVF but not undoable: mark the document modified by hand
 
     // Same reasoning as MeasurementDialog::onResultItemChanged() -
     // refreshMeasurementAnnotationBounds() both repaints AND recomputes

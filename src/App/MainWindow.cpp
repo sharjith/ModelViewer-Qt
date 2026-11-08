@@ -598,7 +598,12 @@ MainWindow::MainWindow(QWidget* parent)
 		connect(_materialVariantsPanel, &MaterialVariantsPanel::variantActivated, this,
 			[this](const QString& file, int index) {
 				if (ModelViewer* child = activeMdiChild())
+				{
 					child->applyVariant(file, index);
+					// the variant changes the meshes' materials and the active variant is saved: not undoable, so mark by hand (only
+					// here: applyVariant() also runs while an MVF loads and from undo/redo)
+					child->markNonUndoDocumentModified();
+				}
 			});
 		connect(_materialVariantsPanel, &MaterialVariantsPanel::variantDeleteRequested, this,
 			[this](const QString& file, int index) {

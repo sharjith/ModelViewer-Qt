@@ -911,6 +911,9 @@ void VisualizationEnvironmentPanel::onPunctualLightItemChanged(QTreeWidgetItem* 
 	// lightDataChanged → refreshPunctualLightsTree path.
 	_viewportWidget->applyEnabledLightList(_sceneGraph->buildEnabledLightList());
 	_viewportWidget->updateView();
+	// The per-light enabled flag is saved in the MVF; the tree is filled with signals blocked, so this slot runs only for a user toggle.
+	if (_modelViewer)
+		_modelViewer->markNonUndoDocumentModified();
 }
 
 void VisualizationEnvironmentPanel::onShowLightsChanged(bool checked)

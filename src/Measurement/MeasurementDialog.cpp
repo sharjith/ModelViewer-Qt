@@ -434,6 +434,7 @@ void MeasurementDialog::toggleCheckStatesForSelection(Qt::CheckState newState)
 		sceneGraph->setMeasurementVisible(id, newState == Qt::Checked);
 	}
 	_batchingVisibilityChanges = false;
+	_modelViewer->markNonUndoDocumentModified();   // visibility is persisted in the MVF but not undoable: mark the document modified by hand
 
 	refreshResultsList();
 	viewport->update();
@@ -514,8 +515,11 @@ void MeasurementDialog::onOrientationActivated(int index)
 	if (!viewport || !sceneGraph || index < 0)
 		return;
 	const LabelOrientation mode = static_cast<LabelOrientation>(ui->orientationCombo->itemData(index).toInt());
-	for (const QUuid& id : viewport->selectedMeasurementIds())
+	const auto selectedIds = viewport->selectedMeasurementIds();
+	for (const QUuid& id : selectedIds)
 		sceneGraph->setMeasurementOrientation(id, mode);
+	if (!selectedIds.isEmpty())
+		_modelViewer->markNonUndoDocumentModified();   // the label orientation is persisted in the MVF but not undoable: mark the document modified by hand
 	viewport->update();
 }
 
@@ -578,6 +582,7 @@ void MeasurementDialog::onResultItemChanged(QListWidgetItem* item)
 
 	const QUuid id = item->data(Qt::UserRole).toUuid();
 	sceneGraph->setMeasurementVisible(id, item->checkState() == Qt::Checked);
+	_modelViewer->markNonUndoDocumentModified();   // visibility is persisted in the MVF but not undoable: mark the document modified by hand
 
 	// setMeasurementVisible() only emits measurementsChanged() (which this
 	// dialog listens to for its OWN list, via onMeasurementsChanged()) - it

@@ -1776,8 +1776,18 @@ void ModelViewer::onUndoStackChanged()
 
 bool ModelViewer::undoCommandAffectsDocument(const QUndoCommand* command) const
 {
-	const auto* modelCommand = dynamic_cast<const ModelViewerCommand*>(command);
-	return modelCommand && modelCommand->affectsDocument();
+	if (!command)
+		return false;
+	if (const auto* modelCommand = dynamic_cast<const ModelViewerCommand*>(command))
+		return modelCommand->affectsDocument();
+	// A macro (beginMacro/endMacro, for example one Generate UVs run over several meshes) is a plain QUndoCommand: it affects the
+	// document when any of its commands does. Without this a multi-mesh macro never marked the document modified.
+	for (int i = 0; i < command->childCount(); ++i)
+	{
+		if (undoCommandAffectsDocument(command->child(i)))
+			return true;
+	}
+	return false;
 }
 
 bool ModelViewer::hasUnsavedUndoDocumentChanges() const
