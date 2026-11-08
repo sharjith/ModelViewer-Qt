@@ -1030,6 +1030,23 @@ void QuickHelpDialog::setupMeasurementTab()
 		   "were before, once finished - nothing is left toggled or parked on a captured view</li>"
 		   "</ul>"));
 
+	content += createSection(tr("Save as 3D PDF"),
+		tr("<p>Opened via File → Save as 3D PDF..., writes the visible parts as a 3D PDF drawing sheet that opens "
+		   "in Adobe Acrobat or Reader. The sheet is a title block around the 3D view, built from a <b>template</b>.</p>"
+		   "<ul>"
+		   "<li>The dialog shows a live preview of the sheet; the fields change with the chosen template</li>"
+		   "<li><b>Edit...</b> opens the template editor: the <b>Cells</b> tab edits the title block text, font, "
+		   "colour and position (drag or resize a cell in the preview, or use the arrow keys); <b>Page</b> sets the "
+		   "page size, orientation, margins and title block; <b>Logo</b> adds a picture; <b>Fields</b> adds your own "
+		   "fields (text, multi-line text, date, choice or number with unit and limits)</li>"
+		   "<li>A built-in template is never changed: use <b>Save as</b> to keep your edits under a new name. Your "
+		   "templates are JSON files in the application data folder (pdf3d-templates)</li>"
+		   "<li>Type <b>{field}</b> in a cell to print a field; <b>{material}</b> and <b>{mass}</b> come from the "
+		   "scene (values declared by the imported file, such as JT part mass or STEP material names; Mesh Info "
+		   "shows them) and print nothing when the file declares none</li>"
+		   "<li>Numbers follow the application language</li>"
+		   "</ul>"));
+
 	_measurementBrowser->setHtml(createStyledHtml(tr("Measurement & Annotation"), content));
 }
 
@@ -1160,6 +1177,7 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 		{tr("File → Export"), tr("Ctrl+E"), tr("Export selected objects")},
 		{tr("File → Save"), tr("Ctrl+S"), tr("Save current scene")},
 		{tr("File → Save As"), tr("Ctrl+Shift+S"), tr("Save scene with new name")},
+		{tr("File → Save as 3D PDF..."), tr(""), tr("Write the visible parts as a 3D PDF drawing sheet (template based)")},
 		{tr("File → Close"), tr(""), tr("Close current document")},
 		{tr("File → Exit"), tr(""), tr("Exit application")}
 	};

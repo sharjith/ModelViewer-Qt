@@ -17,6 +17,15 @@
   `Combine` mode, independently sampled texture stages, camera-dependent mappings,
   bump, gloss, environment and light maps, and textures in JT 8.x files.
 
+- Save as 3D PDF: writes the visible parts as a 3D PDF drawing sheet that opens in
+  Adobe Acrobat and Reader (title block around the 3D view). Sheets come from templates:
+  built-in Default and A3 landscape, plus your own, with a logo and custom fields (text,
+  multi-line text, date, choice, number with unit and limits). A template editor with a
+  live preview and drag placement edits them. `{material}` and `{mass}` are read from the
+  scene: JT part mass and STEP material names declared by the file; a part with no
+  declared value prints nothing. Very large assemblies take minutes to write and are
+  heavy to open.
+
 ### Fixed
 
 - GLB export: meshes that share a name (a JT part split into coloured meshes, repeated
