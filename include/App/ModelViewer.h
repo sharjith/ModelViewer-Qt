@@ -35,6 +35,7 @@
 
 class QTabWidget;
 class QTimer;
+class QJsonObject;
 struct MeshSurfaceAnchor;
 struct Plot3DMeshData;
 class SimulationLegendWidget;
@@ -1232,6 +1233,16 @@ private:
 	int _lastUndoIndex = 0;
 	int _savedUndoIndex = 0;
 	bool _nonUndoDocumentDirty = false;
+	// View settings saved in the MVF count as document changes (see checkViewerStateDirty()).
+	QJsonObject buildViewerStateJson() const;
+	void checkViewerStateDirty();
+	void resetViewerStateBaseline();
+	QTimer* _viewerStatePollTimer = nullptr;
+	QByteArray _viewerStateBaseline;
+	int _viewerStateBaselineMeshCount = 0;
+	int _viewerStateSettleTicks = 0;
+	bool _viewerStateDirty = false;
+	bool _documentLoading = false;   // an MVF is loading: no view-state checks until its baseline is taken
 	// Cleanup optimization
 	int _lastStackCount = 0;
 	QSet<QUuid> _cachedReferencedUuids;  // Meshes referenced in undo stack

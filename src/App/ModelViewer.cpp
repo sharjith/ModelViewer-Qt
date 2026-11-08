@@ -102,6 +102,8 @@
 #include <QSignalBlocker>
 #include <QThread>
 #include <QTimer>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QToolButton>
 #include <QToolTip>
 #include <QStyleOptionButton>
@@ -479,6 +481,11 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	        this, &ModelViewer::handleTreeWidgetMeshRenamed);
 	connect(treeWidgetModel, &SceneTreeWidget::nodeRenamed,
 	        this, &ModelViewer::handleTreeWidgetNodeRenamed);
+
+	_viewerStatePollTimer = new QTimer(this);
+	_viewerStatePollTimer->setInterval(1000);
+	connect(_viewerStatePollTimer, &QTimer::timeout, this, &ModelViewer::checkViewerStateDirty);
+	_viewerStatePollTimer->start();
 
 	QTimer* searchTimer = new QTimer(this);
 	searchTimer->setSingleShot(true);
@@ -1733,7 +1740,7 @@ void ModelViewer::onUndoStackChanged()
 		}
 	}
 
-	setDocumentModified(_nonUndoDocumentDirty || hasUnsavedUndoDocumentChanges());
+	setDocumentModified(_nonUndoDocumentDirty || _viewerStateDirty || hasUnsavedUndoDocumentChanges());
 
 	// Only cleanup when stack size changes (commands added/purged)
 	// Not on every undo/redo (which just changes index)
@@ -2413,6 +2420,7 @@ void ModelViewer::setCurrentFile(const QString& fileName)
 	_currentFile = fileName;
 	_documentSaved = true;
 	_nonUndoDocumentDirty = false;
+	resetViewerStateBaseline();
 	_savedUndoIndex = _undoStack ? _undoStack->index() : 0;
 	setDocumentModified(false);
 }
@@ -2460,6 +2468,60 @@ void ModelViewer::setSessionNumber(int number)
 	refreshDocumentTitle();
 }
 
+// View settings the MVF saves (display and rendering mode, ground, floor, shadows, environment, skybox, lights, tone mapping, background, camera
+// mode, projection) are part of the document: changing one makes it modified. They are changed from many places (the panels, the toolbars, the
+// menus), so the state is compared against the one at the last load or save instead of hooking every setter. A change of what the document holds
+// (meshes added or removed, an import, an undo) re-bases the comparison for a couple of seconds, because those operations change the view too.
+void ModelViewer::resetViewerStateBaseline()
+{
+	_viewerStateDirty = false;
+	if (!_viewportWidget)
+		return;
+	_viewerStateBaseline = QJsonDocument(buildViewerStateJson()).toJson(QJsonDocument::Compact);
+	_viewerStateBaselineMeshCount = static_cast<int>(_viewportWidget->getMeshStore().size());
+	_viewerStateSettleTicks = 0;
+}
+
+void ModelViewer::checkViewerStateDirty()
+{
+	if (_documentLoading || !_viewportWidget || !isVisible())
+		return;
+	const int meshCount = static_cast<int>(_viewportWidget->getMeshStore().size());
+	if (meshCount == 0)
+	{
+		resetViewerStateBaseline();
+		return;
+	}
+	const QByteArray current = QJsonDocument(buildViewerStateJson()).toJson(QJsonDocument::Compact);
+	if (meshCount != _viewerStateBaselineMeshCount)
+	{
+		_viewerStateBaseline = current;
+		_viewerStateBaselineMeshCount = meshCount;
+		_viewerStateSettleTicks = 2;
+		if (_viewerStateDirty)
+		{
+			_viewerStateDirty = false;
+			const bool undoDirty = hasUnsavedUndoDocumentChanges();
+			setDocumentModified(_nonUndoDocumentDirty || undoDirty);
+		}
+		return;
+	}
+	if (_viewerStateBaseline.isEmpty() || _viewerStateSettleTicks > 0)
+	{
+		if (_viewerStateSettleTicks > 0)
+			--_viewerStateSettleTicks;
+		_viewerStateBaseline = current;
+		return;
+	}
+	const bool differs = current != _viewerStateBaseline;
+	if (differs == _viewerStateDirty)
+		return;
+	_viewerStateDirty = differs;
+	if (differs)
+		_documentSaved = false;
+	setDocumentModified(_nonUndoDocumentDirty || _viewerStateDirty || hasUnsavedUndoDocumentChanges());
+}
+
 void ModelViewer::markNonUndoDocumentModified()
 {
 	_nonUndoDocumentDirty = true;
@@ -2489,6 +2551,7 @@ bool ModelViewer::save()
 	{
 		_documentSaved = true;
 		_nonUndoDocumentDirty = false;
+		resetViewerStateBaseline();
 		_savedUndoIndex = _undoStack ? _undoStack->index() : 0;
 		setDocumentModified(false);
 		if (!_simulationSaveNotes.isEmpty())
@@ -6701,6 +6764,13 @@ bool ModelViewer::loadFile(const QString& fileName)
 
 bool ModelViewer::loadFromFile(const QString& fileName)
 {
+	// no view-state checks while an MVF loads (the state is restored in steps): the baseline is taken once it is complete
+	struct LoadingScope
+	{
+		bool& flag;
+		explicit LoadingScope(bool& f) : flag(f) { flag = true; }
+		~LoadingScope() { flag = false; }
+	} loadingScope(_documentLoading);
 	// -- Show progress bar (no cancel button for MVF) ------------------
 	QString displayFileName = QFileInfo(fileName).fileName();
 	MainWindow::showStatusMessage(tr("Reading file: ") + displayFileName);
@@ -7637,6 +7707,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_currentFile = fileName;
 			_documentSaved = true;
 			_nonUndoDocumentDirty = false;
+			resetViewerStateBaseline();
 			setDocumentModified(false);
 
 			_viewportWidget->setUpdatesEnabled(true);
@@ -7999,8 +8070,19 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			visualizationEnvironmentPanel->restoreDefaultLightOffset(off);
 		}
 
-		const QString skyboxFolder =
+		QString skyboxFolder =
 			viewerState[QStringLiteral("skyBoxFolder")].toString(_viewportWidget->getCurrentSkyboxFolder());
+		// The saved folder is an absolute path of the machine (or install) that saved the file. When it does not exist here, the preset of the
+		// same name in this installation's data folder is the same skybox: use it, so the viewport and the preset combo show it.
+		if (!skyboxFolder.isEmpty() && !QDir(skyboxFolder).exists())
+		{
+			const bool savedHdri = viewerState[QStringLiteral("skyBoxHDRIEnabled")].toBool(_viewportWidget->isSkyBoxHDRIEnabled());
+			const QString localFolder = PathUtils::getDataDirectory()
+				+ (savedHdri ? QStringLiteral("/textures/envmap/skyboxes/HDRI/") : QStringLiteral("/textures/envmap/skyboxes/LDRI/"))
+				+ QFileInfo(skyboxFolder).fileName();
+			if (QDir(localFolder).exists())
+				skyboxFolder = localFolder;
+		}
 		if (!skyboxFolder.isEmpty() && skyboxFolder != _viewportWidget->getCurrentSkyboxFolder())
 			_viewportWidget->setSkyBoxTextureFolder(skyboxFolder);
 
@@ -8047,9 +8129,88 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	// No automatic purge here: a restored session keeps the hierarchy it was saved with (exploded views and
 	// other saved data refer to its nodes by UUID, and the user may have deliberately undone an earlier purge).
 
+	// The saved view state is applied to the viewport directly: show it in the panel (skybox preset, exposures, shadow quality, ...) and let the
+	// toolbars and menus refresh from it, then take the baseline the view-state dirty check compares against.
+	visualizationEnvironmentPanel->syncFromViewport();
+	emit _viewportWidget->viewStateChanged();
+	resetViewerStateBaseline();
+
+
 	MainWindow::hideProgressBar();
 	mvfProfile.mark(QStringLiteral("phase 4: scene graph, session restore and UI state"));
 	return true;
+}
+
+// Everything about the view that the MVF saves ("viewerState"): camera mode and projection, display and rendering mode, ground, floor, shadows,
+// environment, skybox, lights, tone mapping, background. Also what checkViewerStateDirty() compares against the state at the last load or save.
+QJsonObject ModelViewer::buildViewerStateJson() const
+{
+	QJsonObject viewerState;
+	if (!_viewportWidget)
+		return viewerState;
+	auto colorToJson = [](const QColor& color) {
+		return QJsonArray{ color.red(), color.green(), color.blue(), color.alpha() };
+	};
+
+	viewerState.insert(QStringLiteral("cameraUpAxisZUp"), _viewportWidget->isCameraUpAxisZUp());
+	viewerState.insert(QStringLiteral("projection"), static_cast<int>(_viewportWidget->projection()));
+	viewerState.insert(QStringLiteral("cameraMode"), static_cast<int>(_viewportWidget->cameraMode()));
+	viewerState.insert(QStringLiteral("displayMode"), static_cast<int>(_viewportWidget->getDisplayMode()));
+	viewerState.insert(QStringLiteral("realismEnabled"), _viewportWidget->isRealismEnabled());
+	viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_viewportWidget->getRenderingMode()));
+	viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_viewportWidget->groundMode()));
+	viewerState.insert(QStringLiteral("floorTextureShown"), _viewportWidget->isFloorTextureShown());
+	viewerState.insert(QStringLiteral("floorTexturePath"), _viewportWidget->getFloorTexturePath());
+	viewerState.insert(QStringLiteral("floorTexRepeatS"), _viewportWidget->getFloorTexRepeatS());
+	viewerState.insert(QStringLiteral("floorTexRepeatT"), _viewportWidget->getFloorTexRepeatT());
+	viewerState.insert(QStringLiteral("floorOffsetPercent"), _viewportWidget->getFloorOffsetPercent());
+	viewerState.insert(QStringLiteral("shadowQuality"), static_cast<int>(_viewportWidget->getShadowQuality()));
+	viewerState.insert(QStringLiteral("reflectionsEnabled"), _viewportWidget->areReflectionsEnabled());
+	viewerState.insert(QStringLiteral("shadowCatcherEnabled"), _viewportWidget->isShadowCatcherEnabled());
+	viewerState.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(_viewportWidget->shadowCatcherDarkness()));
+	{
+		const QVector3D catcherColor = _viewportWidget->shadowCatcherBaseColor();
+		viewerState.insert(QStringLiteral("shadowCatcherBaseColor"),
+			QJsonArray{ static_cast<double>(catcherColor.x()), static_cast<double>(catcherColor.y()), static_cast<double>(catcherColor.z()) });
+	}
+	viewerState.insert(QStringLiteral("shadowCatcherMetalness"), static_cast<double>(_viewportWidget->shadowCatcherMetalness()));
+	viewerState.insert(QStringLiteral("shadowCatcherRoughness"), static_cast<double>(_viewportWidget->shadowCatcherRoughness()));
+	viewerState.insert(QStringLiteral("shadowsEnabled"), _viewportWidget->areShadowsEnabled());
+	viewerState.insert(QStringLiteral("selfShadowsEnabled"), _viewportWidget->areSelfShadowsEnabled());
+	viewerState.insert(QStringLiteral("environmentEnabled"), _viewportWidget->isEnvironmentMapEnabled());
+	viewerState.insert(QStringLiteral("iblEnabled"), _viewportWidget->isIBLEnabled());
+	viewerState.insert(QStringLiteral("skyBoxEnabled"), _viewportWidget->isSkyBoxShown());
+	viewerState.insert(QStringLiteral("skyBoxHDRIEnabled"), _viewportWidget->isSkyBoxHDRIEnabled());
+	viewerState.insert(QStringLiteral("skyBoxBlurPercent"), _viewportWidget->getSkyBoxBlurPercent());
+	viewerState.insert(QStringLiteral("skyBoxFOV"), _viewportWidget->getSkyBoxFOV());
+	viewerState.insert(QStringLiteral("skyBoxZRotationDegrees"), _viewportWidget->getSkyBoxZRotationDegrees());
+	viewerState.insert(QStringLiteral("skyBoxFolder"), _viewportWidget->getCurrentSkyboxFolder());
+	viewerState.insert(QStringLiteral("defaultLightsEnabled"), _viewportWidget->areDefaultLightsEnabled());
+	viewerState.insert(QStringLiteral("punctualLightsEnabled"), _viewportWidget->arePunctualLightsEnabled());
+	viewerState.insert(QStringLiteral("showLights"), _viewportWidget->areLightsShown());
+	viewerState.insert(QStringLiteral("hdrToneMapping"), _viewportWidget->getHdrToneMapping());
+	viewerState.insert(QStringLiteral("hdrToneMappingMode"), static_cast<int>(_viewportWidget->getHDRToneMappingMode()));
+	viewerState.insert(QStringLiteral("gammaCorrection"), _viewportWidget->getGammaCorrection());
+	viewerState.insert(QStringLiteral("screenGamma"), _viewportWidget->getScreenGamma());
+	viewerState.insert(QStringLiteral("envMapExposureStops"), std::log2(std::max(_viewportWidget->getEnvMapExposure(), 1.0e-6f)));
+	viewerState.insert(QStringLiteral("iblExposureStops"), std::log2(std::max(_viewportWidget->getIBLExposure(), 1.0e-6f)));
+	viewerState.insert(QStringLiteral("defaultLightColor"), QJsonArray{
+		_viewportWidget->getDefaultLightColor().x(),
+		_viewportWidget->getDefaultLightColor().y(),
+		_viewportWidget->getDefaultLightColor().z(),
+		_viewportWidget->getDefaultLightColor().w()});
+	const QVector3D lightOffset = _viewportWidget->getLightOffset();
+	viewerState.insert(QStringLiteral("defaultLightOffset"), QJsonArray{
+		lightOffset.x(), lightOffset.y(), lightOffset.z()});
+	viewerState.insert(QStringLiteral("bgTopColor"), colorToJson(_viewportWidget->getBgTopColor()));
+	viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_viewportWidget->getBgBotColor()));
+	// Only-write-if-non-default, same convention SceneNode::importUnit
+	// uses on the per-node side - an old MVF reader/file simply lacks
+	// this key, correctly falling through to the hardcoded Millimeter
+	// default (see resolveEffectiveImportUnit()'s own doc comment).
+	if (_defaultImportUnit != LengthUnit::Unknown)
+		viewerState.insert(QStringLiteral("defaultImportUnit"), lengthUnitToString(_defaultImportUnit));
+	return viewerState;
 }
 
 Mvf::MVFPackage ModelViewer::buildMVFPackage() const
@@ -8352,72 +8513,7 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	// without a viewport, matching the explodedViews/activeGltfCamera
 	// blocks just above.
 	if (_viewportWidget)
-	{
-		auto colorToJson = [](const QColor& color) {
-			return QJsonArray{ color.red(), color.green(), color.blue(), color.alpha() };
-		};
-
-		QJsonObject viewerState;
-		viewerState.insert(QStringLiteral("cameraUpAxisZUp"), _viewportWidget->isCameraUpAxisZUp());
-		viewerState.insert(QStringLiteral("projection"), static_cast<int>(_viewportWidget->projection()));
-		viewerState.insert(QStringLiteral("cameraMode"), static_cast<int>(_viewportWidget->cameraMode()));
-		viewerState.insert(QStringLiteral("displayMode"), static_cast<int>(_viewportWidget->getDisplayMode()));
-		viewerState.insert(QStringLiteral("realismEnabled"), _viewportWidget->isRealismEnabled());
-		viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_viewportWidget->getRenderingMode()));
-		viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_viewportWidget->groundMode()));
-		viewerState.insert(QStringLiteral("floorTextureShown"), _viewportWidget->isFloorTextureShown());
-		viewerState.insert(QStringLiteral("floorTexturePath"), _viewportWidget->getFloorTexturePath());
-		viewerState.insert(QStringLiteral("floorTexRepeatS"), _viewportWidget->getFloorTexRepeatS());
-		viewerState.insert(QStringLiteral("floorTexRepeatT"), _viewportWidget->getFloorTexRepeatT());
-		viewerState.insert(QStringLiteral("floorOffsetPercent"), _viewportWidget->getFloorOffsetPercent());
-		viewerState.insert(QStringLiteral("shadowQuality"), static_cast<int>(_viewportWidget->getShadowQuality()));
-		viewerState.insert(QStringLiteral("reflectionsEnabled"), _viewportWidget->areReflectionsEnabled());
-		viewerState.insert(QStringLiteral("shadowCatcherEnabled"), _viewportWidget->isShadowCatcherEnabled());
-		viewerState.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(_viewportWidget->shadowCatcherDarkness()));
-		{
-			const QVector3D catcherColor = _viewportWidget->shadowCatcherBaseColor();
-			viewerState.insert(QStringLiteral("shadowCatcherBaseColor"),
-				QJsonArray{ static_cast<double>(catcherColor.x()), static_cast<double>(catcherColor.y()), static_cast<double>(catcherColor.z()) });
-		}
-		viewerState.insert(QStringLiteral("shadowCatcherMetalness"), static_cast<double>(_viewportWidget->shadowCatcherMetalness()));
-		viewerState.insert(QStringLiteral("shadowCatcherRoughness"), static_cast<double>(_viewportWidget->shadowCatcherRoughness()));
-		viewerState.insert(QStringLiteral("shadowsEnabled"), _viewportWidget->areShadowsEnabled());
-		viewerState.insert(QStringLiteral("selfShadowsEnabled"), _viewportWidget->areSelfShadowsEnabled());
-		viewerState.insert(QStringLiteral("environmentEnabled"), _viewportWidget->isEnvironmentMapEnabled());
-		viewerState.insert(QStringLiteral("iblEnabled"), _viewportWidget->isIBLEnabled());
-		viewerState.insert(QStringLiteral("skyBoxEnabled"), _viewportWidget->isSkyBoxShown());
-		viewerState.insert(QStringLiteral("skyBoxHDRIEnabled"), _viewportWidget->isSkyBoxHDRIEnabled());
-		viewerState.insert(QStringLiteral("skyBoxBlurPercent"), _viewportWidget->getSkyBoxBlurPercent());
-		viewerState.insert(QStringLiteral("skyBoxFOV"), _viewportWidget->getSkyBoxFOV());
-		viewerState.insert(QStringLiteral("skyBoxZRotationDegrees"), _viewportWidget->getSkyBoxZRotationDegrees());
-		viewerState.insert(QStringLiteral("skyBoxFolder"), _viewportWidget->getCurrentSkyboxFolder());
-		viewerState.insert(QStringLiteral("defaultLightsEnabled"), _viewportWidget->areDefaultLightsEnabled());
-		viewerState.insert(QStringLiteral("punctualLightsEnabled"), _viewportWidget->arePunctualLightsEnabled());
-		viewerState.insert(QStringLiteral("showLights"), _viewportWidget->areLightsShown());
-		viewerState.insert(QStringLiteral("hdrToneMapping"), _viewportWidget->getHdrToneMapping());
-		viewerState.insert(QStringLiteral("hdrToneMappingMode"), static_cast<int>(_viewportWidget->getHDRToneMappingMode()));
-		viewerState.insert(QStringLiteral("gammaCorrection"), _viewportWidget->getGammaCorrection());
-		viewerState.insert(QStringLiteral("screenGamma"), _viewportWidget->getScreenGamma());
-		viewerState.insert(QStringLiteral("envMapExposureStops"), std::log2(std::max(_viewportWidget->getEnvMapExposure(), 1.0e-6f)));
-		viewerState.insert(QStringLiteral("iblExposureStops"), std::log2(std::max(_viewportWidget->getIBLExposure(), 1.0e-6f)));
-		viewerState.insert(QStringLiteral("defaultLightColor"), QJsonArray{
-			_viewportWidget->getDefaultLightColor().x(),
-			_viewportWidget->getDefaultLightColor().y(),
-			_viewportWidget->getDefaultLightColor().z(),
-			_viewportWidget->getDefaultLightColor().w()});
-		const QVector3D lightOffset = _viewportWidget->getLightOffset();
-		viewerState.insert(QStringLiteral("defaultLightOffset"), QJsonArray{
-			lightOffset.x(), lightOffset.y(), lightOffset.z()});
-		viewerState.insert(QStringLiteral("bgTopColor"), colorToJson(_viewportWidget->getBgTopColor()));
-		viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_viewportWidget->getBgBotColor()));
-		// Only-write-if-non-default, same convention SceneNode::importUnit
-		// uses on the per-node side - an old MVF reader/file simply lacks
-		// this key, correctly falling through to the hardcoded Millimeter
-		// default (see resolveEffectiveImportUnit()'s own doc comment).
-		if (_defaultImportUnit != LengthUnit::Unknown)
-			viewerState.insert(QStringLiteral("defaultImportUnit"), lengthUnitToString(_defaultImportUnit));
-		package.document.mvfSession.insert(QStringLiteral("viewerState"), viewerState);
-	}
+		package.document.mvfSession.insert(QStringLiteral("viewerState"), buildViewerStateJson());
 
 	// ---- Per-file punctual light data ----
 	// Save the ORIGINAL parsed positions together with each light's display
