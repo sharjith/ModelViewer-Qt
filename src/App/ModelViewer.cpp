@@ -8143,6 +8143,22 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	resetViewerStateBaseline();
 	emit documentStateRestored();
 
+	// The load starts several animated fits (Phase 3.5, the refit above, setCameraMode()). An animated fit takes its pan from the camera
+	// position at the animation's start and only updates that baseline when it completes; setCameraMode()/setProjection() reset the zoom
+	// baseline in the middle of one, and a later fitAll() retargets the running animation instead of restarting it, so the camera ends
+	// wherever the steps taken against the changing baselines add up to: sometimes a tiny model (the fit targets themselves were identical in
+	// every run). Finish with one immediate fit once the load is done: it stops the animation and sets the camera directly. The camera is not
+	// part of the MVF, so the load's own framing is the intended one.
+	QPointer<ModelViewer> fitSelf(this);
+	QTimer::singleShot(0, this, [fitSelf]() {
+		if (!fitSelf || !fitSelf->_viewportWidget)
+			return;
+		ViewportWidget* viewport = fitSelf->_viewportWidget;
+		if (viewport->getMeshStore().empty() || !viewport->autoFitViewOnUpdate() || viewport->isGltfCameraActive()
+			|| viewport->cameraMode() != Camera::CameraMode::Orbit)
+			return;
+		viewport->fitAllImmediate();
+	});
 
 	MainWindow::hideProgressBar();
 	mvfProfile.mark(QStringLiteral("phase 4: scene graph, session restore and UI state"));
