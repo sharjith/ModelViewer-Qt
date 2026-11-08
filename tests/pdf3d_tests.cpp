@@ -10,6 +10,8 @@
 #include "Pdf3DExporter.h"
 #include "Pdf3DViews.h"
 #include "SceneToU3d.h"
+#include "PartData.h"
+#include "SheetRenderer.h"
 #include "SheetTemplate.h"
 #include "U3dWriter.h"
 
@@ -1328,6 +1330,210 @@ void testSheetTemplates()
     }
 }
 
+// The shared sheet layout and drawing (SheetRenderer.h): the title block grows with the notes like the exporter's did, and the preview
+// picture is the page with the 3D area greyed out, the frame and the text.
+void testSheetRenderer()
+{
+    using namespace Pdf3D;
+    const SheetTemplate def = builtInSheetTemplates().value(0);
+    const QSizeF page = sheetPageSizePt(def);
+
+    // a 72 dpi painter measures text like the PDF writer does (font sizes in points are pixels)
+    QImage measureImage(16, 16, QImage::Format_ARGB32);
+    measureImage.setDotsPerMeterX(2835);
+    measureImage.setDotsPerMeterY(2835);
+    QPainter measure(&measureImage);
+
+    QMap<QString, QString> values;
+    values.insert(QStringLiteral("title"), QStringLiteral("Skate-Board-Assy"));
+    values.insert(QStringLiteral("subtitle"), QStringLiteral("model.stp"));
+    values.insert(QStringLiteral("notes"), QString());
+    values.insert(QStringLiteral("drawingNumber"), QStringLiteral("DWG-1"));
+    values.insert(QStringLiteral("revision"), QStringLiteral("A"));
+    values.insert(QStringLiteral("author"), QStringLiteral("N. N."));
+    values.insert(QStringLiteral("company"), QStringLiteral("ACME"));
+    values.insert(QStringLiteral("scale"), QString());
+    values.insert(QStringLiteral("date"), QStringLiteral("2026-11-07"));
+    values.insert(QStringLiteral("parts"), QStringLiteral("19"));
+    values.insert(QStringLiteral("sheet"), QStringLiteral("1"));
+    values.insert(QStringLiteral("sheets"), QStringLiteral("2"));
+
+    const SheetLayout none = layoutSheet(measure, def, page, values);
+    CHECK(almostEqual(none.sheet.titleBlock.height(), 90.0) && !none.scroll);
+    CHECK(sameRect(none.sheet.titleBlock, resolveSheet(def, page, 90.0).titleBlock) && sameRect(none.sheet.area3d, resolveSheet(def, page, 90.0).area3d));
+
+    values.insert(QStringLiteral("notes"), QStringLiteral("one line"));
+    CHECK(almostEqual(layoutSheet(measure, def, page, values).sheet.titleBlock.height(), 90.0));   // 52 + one line + 6 is still within the minimum block
+
+    values.insert(QStringLiteral("notes"), QStringLiteral("first\nsecond\nthird\nfourth"));
+    const SheetLayout few = layoutSheet(measure, def, page, values);
+    CHECK(few.sheet.titleBlock.height() > 90.0 && few.sheet.titleBlock.height() < 120.0 && !few.scroll);   // grows with the text
+
+    QString longNotes(2000, QLatin1Char('n'));
+    for (int i = 20; i < longNotes.size(); i += 20)
+        longNotes[i] = QLatin1Char(' ');
+    values.insert(QStringLiteral("notes"), longNotes);
+    const SheetLayout many = layoutSheet(measure, def, page, values);
+    CHECK(almostEqual(many.sheet.titleBlock.height(), 120.0) && many.scroll && many.scrollText == longNotes && many.scrollRect.height() > 40.0);
+    CHECK(many.sheet.area3d.height() < none.sheet.area3d.height());   // the taller block leaves less room for the 3D area
+    measure.end();
+
+    // the preview picture: size, background, the greyed 3D area, dark text in the title block, the selection frame, the logo
+    values.insert(QStringLiteral("notes"), QString());
+    SheetLayout shown;
+    const QImage image = renderSheetPreview(def, values, 420, -1, &shown);
+    CHECK(image.width() == 420 && std::abs(image.height() - 297) <= 1);
+    CHECK(QColor(image.pixelColor(2, 2)) == QColor(Qt::white));
+    const double zoom = 420.0 / page.width();
+    const QColor greyArea = image.pixelColor(static_cast<int>((shown.sheet.area3d.left() + 20.0) * zoom), static_cast<int>((shown.sheet.area3d.top() + 20.0) * zoom));
+    CHECK(greyArea == QColor(238, 241, 245));
+    int dark = 0;
+    const QRectF block = shown.sheet.titleBlock;
+    for (int y = static_cast<int>(block.top() * zoom); y < static_cast<int>(block.bottom() * zoom); ++y)
+        for (int x = static_cast<int>(block.left() * zoom); x < static_cast<int>(block.right() * zoom); ++x)
+            dark += image.pixelColor(x, y).value() < 100 ? 1 : 0;
+    CHECK(dark > 10);
+    CHECK(renderSheetPreview(def, values, 420) == image);                                  // deterministic
+    CHECK(renderSheetPreview(def, values, 420, 0) != image);                               // a selected cell is framed
+    CHECK(renderSheetPreview(def, values, 420, 99) == image && renderSheetPreview(def, values, 420, -5) == image);   // out of range: none
+    CHECK(renderSheetPreview(def, values, 840).width() == 840);
+
+    // a template with a logo draws something in the logo cell that the same template without it does not
+    QTemporaryDir root;
+    CHECK(root.isValid());
+    if (root.isValid())
+    {
+        const QString folder = QDir(root.path()).filePath(QStringLiteral("t"));
+        CHECK(writeSampleSheetTemplate(folder) == QLatin1String("user:sample-company"));
+        const QVector<SheetTemplate> user = loadUserSheetTemplates(folder);
+        CHECK(user.size() == 1);
+        if (user.size() == 1)
+        {
+            SheetTemplate withLogo = user[0];
+            SheetTemplate withoutLogo = withLogo;
+            withoutLogo.hasLogo = false;
+            values.insert(QStringLiteral("approvedBy"), QStringLiteral("A. B."));
+            values.insert(QStringLiteral("material"), QStringLiteral("Steel"));
+            const QImage a = renderSheetPreview(withLogo, values, 900), b = renderSheetPreview(withoutLogo, values, 900);
+            CHECK(a != b && a.size() == b.size());
+        }
+    }
+}
+
+// What the exported parts declare (PartData.h) and how it reaches the sheet: {material} and {mass} come from the parts, the user's own entry in
+// a custom field of the same id wins, and a mass is counted once per part however many meshes the part became.
+void testPartData()
+{
+    using namespace Pdf3D;
+    U3dScene scene;
+    scene.meshes.resize(1);
+    const auto addNode = [&](const char* name, double kg, const char* group, const char* material, bool overlay = false) {
+        U3dNode n;
+        n.name = QString::fromLatin1(name);
+        n.displayName = n.name;
+        n.meshIndex = 0;
+        n.overlay = overlay;
+        n.declaredMassKg = kg;
+        n.declaredMassGroup = QString::fromLatin1(group);
+        n.declaredMaterial = QString::fromLatin1(material);
+        scene.nodes.push_back(n);
+    };
+
+    addNode("a", -1.0, "", "");
+    PartSummary s = summarisePartData(scene);
+    CHECK(s.parts == 1 && s.withMass == 0 && s.withMaterial == 0 && s.mass.isEmpty() && s.material.isEmpty());   // nothing declared: nothing shown
+
+    scene.nodes.clear();
+    addNode("a", 2.5, "g1", "Steel");
+    addNode("b", 0.5, "g2", "Steel");
+    s = summarisePartData(scene);
+    CHECK(s.parts == 2 && s.withMass == 2 && almostEqual(s.massKg, 3.0) && s.mass == QLatin1String("3 kg") && s.material == QLatin1String("Steel"));
+
+    addNode("c", 4.0, "g3", "Brass");
+    addNode("d", 4.0, "g3", "Brass");   // a second mesh of the same part: its mass is counted once
+    s = summarisePartData(scene);
+    CHECK(s.parts == 4 && s.withMass == 4 && almostEqual(s.massKg, 7.0) && s.mass == QLatin1String("7 kg"));
+    CHECK(s.materials.size() == 2 && s.material == QLatin1String("2 materials"));
+
+    addNode("e", -1.0, "", "");   // a part that declares nothing: the totals say how many parts they cover
+    s = summarisePartData(scene);
+    CHECK(s.parts == 5 && s.withMass == 4 && s.mass == QLatin1String("7 kg (4 of 5 parts)") && s.material == QLatin1String("2 materials (4 of 5 parts)"));
+
+    addNode("ov", 100.0, "gx", "Gold", true);   // an overlay node is not a part
+    s = summarisePartData(scene);
+    CHECK(s.parts == 5 && almostEqual(s.massKg, 7.0));
+
+    scene.nodes.clear();
+    addNode("a", 1.0, "", "");
+    addNode("b", 1.0, "", "");   // no group: each node counts on its own
+    s = summarisePartData(scene);
+    CHECK(almostEqual(s.massKg, 2.0) && s.mass == QLatin1String("2 kg") && s.material.isEmpty());
+
+    scene.nodes.clear();
+    addNode("a", std::nan(""), "", "Steel");   // an unusable number is not a mass
+    s = summarisePartData(scene);
+    CHECK(s.withMass == 0 && s.mass.isEmpty() && s.material == QLatin1String("Steel"));
+
+    CHECK(formatMass(418.0762388) == QLatin1String("418.1 kg"));
+    CHECK(formatMass(0.00346) == QLatin1String("0.00346 kg"));
+    CHECK(formatMass(0.0004748) == QLatin1String("0.4748 g"));
+    CHECK(formatMass(12345.6) == QLatin1String("12346 kg"));
+    CHECK(formatMass(0.0) == QLatin1String("0 kg") && formatMass(-1.0).isEmpty());
+
+    // the parts list's Material entry from the viewer's render material name: the importers' part-named materials are not materials
+    const QStringList bases{ QStringLiteral("GX200 engine") };
+    CHECK(renderMaterialLabel(QStringLiteral("GX200 engine (SOLID)"), bases).isEmpty());
+    CHECK(renderMaterialLabel(QStringLiteral("GX200 engine (SOLID) (vertex colours)"), bases).isEmpty());
+    CHECK(renderMaterialLabel(QStringLiteral("Material3"), bases).isEmpty());
+    CHECK(renderMaterialLabel(QStringLiteral("Steel"), bases) == QLatin1String("Steel"));
+    CHECK(renderMaterialLabel(QStringLiteral("Steel (vertex colours)"), bases) == QLatin1String("Steel"));
+    CHECK(renderMaterialLabel(QStringLiteral("Brushed (alloy)"), bases) == QLatin1String("Brushed (alloy)"));
+    CHECK(renderMaterialLabel(QStringLiteral("Materials"), bases) == QLatin1String("Materials") && renderMaterialLabel(QStringLiteral("Material"), bases) == QLatin1String("Material"));
+    CHECK(renderMaterialLabel(QStringLiteral("GX200 engine (SOLID)"), QStringList()) == QLatin1String("GX200 engine (SOLID)"));   // another file's name is not recognised
+
+    // the sheet values: from the parts, overridden by a non-empty custom field of the same id, never blanked by an empty one
+    Pdf3DOptions options;
+    options.sceneMaterial = QStringLiteral("Steel");
+    options.sceneMass = QStringLiteral("3 kg");
+    QMap<QString, QString> v = sheetValues(options, 1, 1, 1);
+    CHECK(v.value(QStringLiteral("material")) == QLatin1String("Steel") && v.value(QStringLiteral("mass")) == QLatin1String("3 kg"));
+    options.fieldValues.insert(QStringLiteral("material"), QStringLiteral("   "));
+    v = sheetValues(options, 1, 1, 1);
+    CHECK(v.value(QStringLiteral("material")) == QLatin1String("Steel"));
+    options.fieldValues.insert(QStringLiteral("material"), QStringLiteral("Titanium"));
+    options.fieldValues.insert(QStringLiteral("approvedBy"), QStringLiteral("A. B."));
+    v = sheetValues(options, 1, 1, 1);
+    CHECK(v.value(QStringLiteral("material")) == QLatin1String("Titanium") && v.value(QStringLiteral("approvedBy")) == QLatin1String("A. B."));
+    options.fieldValues.insert(QStringLiteral("title"), QStringLiteral("not allowed to replace"));
+    options.title = QStringLiteral("Real title");
+    v = sheetValues(options, 1, 1, 1);
+    CHECK(v.value(QStringLiteral("title")) == QLatin1String("Real title"));   // the standard values keep their precedence
+
+    // templates: {material} and {mass} are known placeholders; a custom field with the id "material" (the sample template has one) still loads
+    CHECK(sceneSheetPlaceholders() == QStringList({ QStringLiteral("material"), QStringLiteral("mass") }));
+    SheetTemplate tpl;
+    QString error;
+    QStringList warnings;
+    CHECK(parseSheetTemplate(sheetJson([](QJsonObject& o) {
+        editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("text"), QStringLiteral("{material} {mass|-}")); });
+    }), QStringLiteral("test"), &tpl, &error, &warnings) && warnings.isEmpty());
+    CHECK(parseSheetTemplate(sheetJson([](QJsonObject& o) {
+        QJsonObject field;
+        field.insert(QStringLiteral("id"), QStringLiteral("material"));
+        field.insert(QStringLiteral("label"), QStringLiteral("Material"));
+        field.insert(QStringLiteral("type"), QStringLiteral("choice"));
+        field.insert(QStringLiteral("options"), QJsonArray{ QStringLiteral("Steel"), QStringLiteral("Other") });
+        o.insert(QStringLiteral("fields"), QJsonArray{ field });
+        editFirstCell(o, [](QJsonObject& c) { c.insert(QStringLiteral("text"), QStringLiteral("{material}")); });
+    }), QStringLiteral("test"), &tpl, &error, &warnings) && tpl.fields.size() == 1);
+    CHECK(rejects(sheetJson([](QJsonObject& o) {
+        QJsonObject field;
+        field.insert(QStringLiteral("id"), QStringLiteral("title"));
+        field.insert(QStringLiteral("label"), QStringLiteral("T"));
+        o.insert(QStringLiteral("fields"), QJsonArray{ field });
+    }), QStringLiteral("already a placeholder name")));   // the standard names stay reserved
+}
+
 int main(int argc, char** argv)
 {
     bool full = false;
@@ -1371,6 +1577,8 @@ int main(int argc, char** argv)
     testAppender();
     testU3dWriter();
     testSheetTemplates();
+    testSheetRenderer();
+    testPartData();
     if (full)
         testFullExport();
 

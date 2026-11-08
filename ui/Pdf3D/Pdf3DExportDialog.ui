@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>560</width>
-    <height>520</height>
+    <width>1000</width>
+    <height>560</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -111,6 +111,10 @@ to copy and change for your own sheets.</string>
         </widget>
        </item>
        <item>
+        <layout class="QHBoxLayout" name="sheetBodyLayout">
+         <item>
+          <layout class="QVBoxLayout" name="fieldsLayout">
+       <item>
         <widget class="QLabel" name="introLabel">
          <property name="text">
           <string>These fields fill the title block of the sheet. Empty fields stay blank.</string>
@@ -198,7 +202,7 @@ to copy and change for your own sheets.</string>
            <property name="minimumSize">
             <size>
              <width>0</width>
-             <height>110</height>
+             <height>64</height>
             </size>
            </property>
           </widget>
@@ -245,6 +249,10 @@ item number, part name, material and quantity.</string>
           </size>
          </property>
         </spacer>
+       </item>
+          </layout>
+         </item>
+        </layout>
        </item>
       </layout>
      </widget>

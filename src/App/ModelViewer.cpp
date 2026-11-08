@@ -5654,6 +5654,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "Pdf3DExporter.h"
 #include "Pdf3DExportDialog.h"
 #include "OverlayToU3d.h"
+#include "PartData.h"
 #include "SceneToU3d.h"
 #include "U3dWriter.h"
 #include <QDialog>
@@ -6222,6 +6223,34 @@ void ModelViewer::exportAs3DPdf()
 	if (!_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
 	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, this);
+	{
+		// What each exported part declares about its mass and material (the viewer's meshes carry what the source file declared),
+		// so the sheet can show {material} and {mass}; the export node of a mesh is named like its mesh node.
+		QHash<QString, QVector<int>> nodesByExportName;
+		for (int i = 0; i < u3dScene.nodes.size(); ++i)
+			if (!u3dScene.nodes[i].overlay)
+				nodesByExportName[u3dScene.nodes[i].displayName].append(i);
+		for (auto it = meshNodeNames.constBegin(); it != meshNodeNames.constEnd(); ++it)
+		{
+			const SceneMesh* mesh = _viewportWidget->getMeshByUuid(it.key());
+			if (!mesh || (!mesh->hasDeclaredMass() && !mesh->hasDeclaredMaterial()))
+				continue;
+			for (int index : nodesByExportName.value(it.value()))
+			{
+				Pdf3D::U3dNode& node = u3dScene.nodes[index];
+				if (mesh->hasDeclaredMass())
+				{
+					node.declaredMassKg = mesh->declaredMassKg();
+					node.declaredMassGroup = mesh->declaredMassGroup();
+				}
+				if (mesh->hasDeclaredMaterial())
+					node.declaredMaterial = mesh->declaredMaterialName();
+			}
+		}
+		const Pdf3D::PartSummary summary = Pdf3D::summarisePartData(u3dScene);
+		// what the sheet preview shows for {parts}, {subtitle}, {material} and {mass}
+		optionsDialog.setSheetSample(summary.parts, sourceNames.join(QStringLiteral(", ")), summary.material, summary.mass);
+	}
 	if (optionsDialog.exec() != QDialog::Accepted)
 		return;
 	Pdf3D::Pdf3DOptions options;

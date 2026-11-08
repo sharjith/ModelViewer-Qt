@@ -137,6 +137,7 @@ double titleBlockHeightFor(const SheetTemplate& tpl, const QSizeF& pageSizePt, d
 double resolveSheetEdge(const SheetEdge& edge, double size);
 
 // Placeholders.
+QStringList sceneSheetPlaceholders();      // material, mass: filled from the exported parts, not asked for; a custom field of the same id may override them
 QStringList standardSheetPlaceholders();   // title, subtitle, notes, drawingNumber, revision, author, company, scale, date, parts, sheet, sheets
 QSet<QString> usedSheetPlaceholders(const SheetTemplate& tpl);
 // Replaces {name} and {name|fallback}. A name that is not a key of `values` is reported in `unknown` (may be null) and prints nothing.

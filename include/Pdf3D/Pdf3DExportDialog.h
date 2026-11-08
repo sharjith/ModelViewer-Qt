@@ -18,6 +18,7 @@ namespace Ui
 namespace Pdf3D
 {
 	struct Pdf3DOptions;
+	class SheetPreviewWidget;
 }
 
 // ---------------------------------------------------------------------------
@@ -69,6 +70,10 @@ public:
 	// notes, includePartsList), the chosen template id and the values of its custom fields. The other options are left untouched.
 	void applyTo(Pdf3D::Pdf3DOptions& options) const;
 
+	// What the sheet preview shows for the values the dialog does not ask for: the number of parts and the source file names (the
+	// {parts} and {subtitle} placeholders).
+	void setSheetSample(int partCount, const QString& subtitle, const QString& material = QString(), const QString& mass = QString());
+
 	// For each ViewItem passed to the constructor, in order: whether it is ticked.
 	QVector<bool> viewSelection() const;
 
@@ -94,6 +99,7 @@ private:
 	void applyTemplateSelection();                   // shows the fields the chosen template uses and builds its custom fields
 	void templateNameEntered();                      // the combo's text was edited: select that template, or save a copy under the new name
 	void chooseLogo();                               // the Logo button
+	void updatePreview();                            // redraws the sheet preview from the chosen template and the current values
 	QString currentTemplateId() const;
 
 	std::unique_ptr<Ui::Pdf3DExportDialog> ui;
@@ -102,4 +108,9 @@ private:
 	QVector<Pdf3D::SheetTemplate> _templates;   // parallel to the combo
 	QStringList _templateProblems;              // files of the user folder that could not be used, and warnings
 	QMap<QString, QWidget*> _customFields;      // custom field id -> its editor (owned by the form layout)
+	Pdf3D::SheetPreviewWidget* _preview = nullptr;   // below the fields, owned by the Sheet tab's layout
+	int _sampleParts = 12;
+	QString _sampleSubtitle;
+	QString _sampleMaterial;   // what the exported parts declare ({material} and {mass} of the sheet), see PartData.h
+	QString _sampleMass;
 };

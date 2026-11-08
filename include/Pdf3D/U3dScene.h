@@ -43,6 +43,9 @@ struct U3dNode
     QString    parent;               // name of the group node this node sits in (empty: the scene root); the world matrix is then relative to it
     int        overlayItem = -1;     // for an overlay node: which measurement/annotation it belongs to (several nodes share one item)
     QStringList follows;             // for an overlay node: the part nodes (names) its item is attached to, so it can move with them
+    double     declaredMassKg = -1.0;   // the mass the source file declares for this node's part, in kilograms; -1 when none
+    QString    declaredMassGroup;       // nodes of one part share it and carry its one mass, so a total counts it once; empty: this node alone
+    QString    declaredMaterial;        // the material designation the source file declares, as written (STEP); empty when none
     QMatrix4x4 world;                // local-to-world; Qt layout, written as the row-vector matrix u3d expects
 };
 

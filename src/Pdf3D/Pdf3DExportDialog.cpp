@@ -2,6 +2,8 @@
 #include "ui_Pdf3DExportDialog.h"
 
 #include "Pdf3DExporter.h"
+#include "SheetPreviewWidget.h"
+#include "SheetRenderer.h"
 
 #include <QComboBox>
 #include <QDate>
@@ -57,7 +59,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	ui->setupUi(this);
 
 	QSettings settings;
-	restoreGeometry(settings.value(QStringLiteral("pdf3d/dialogGeometry")).toByteArray());
+	restoreGeometry(settings.value(QStringLiteral("pdf3d/dialogGeometry2")).toByteArray());
 	ui->titleEdit->setText(defaultTitle);
 	ui->drawingNumberEdit->setText(settings.value(QStringLiteral("pdf3d/drawingNumber")).toString());
 	ui->revisionEdit->setText(settings.value(QStringLiteral("pdf3d/revision")).toString());
@@ -100,6 +102,14 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 		}
 		reloadTemplates(id);
 	});
+	// the sheet preview below the fields, drawn by the exporter's own code; it follows every edit
+	_preview = new Pdf3D::SheetPreviewWidget(this);
+	_preview->setMinimumSize(380, 270);
+	ui->sheetBodyLayout->setStretch(0, 2);   // the fields at the left, the preview taking the larger share at the right
+	ui->sheetBodyLayout->addWidget(_preview, 3);
+	for (QLineEdit* edit : { ui->titleEdit, ui->drawingNumberEdit, ui->revisionEdit, ui->authorEdit, ui->companyEdit, ui->scaleEdit })
+		connect(edit, &QLineEdit::textChanged, this, [this]() { updatePreview(); });
+	connect(ui->notesEdit, &QPlainTextEdit::textChanged, this, [this]() { updatePreview(); });
 	reloadTemplates(settings.value(QStringLiteral("pdf3d/template")).toString());
 
 	// Views the user unticked earlier (and views they switched the measurements off for) stay unticked: remembered by group and name,
@@ -357,6 +367,14 @@ void Pdf3DExportDialog::applyTemplateSelection()
 		}
 		ui->formLayout->addRow(f.label + QLatin1Char(':'), editor);
 		_customFields.insert(f.id, editor);
+		if (const auto* line = qobject_cast<QLineEdit*>(editor))
+			connect(line, &QLineEdit::textChanged, this, [this]() { updatePreview(); });
+		else if (const auto* plain = qobject_cast<QPlainTextEdit*>(editor))
+			connect(plain, &QPlainTextEdit::textChanged, this, [this]() { updatePreview(); });
+		else if (const auto* combo = qobject_cast<QComboBox*>(editor))
+			connect(combo, &QComboBox::currentIndexChanged, this, [this]() { updatePreview(); });
+		else if (const auto* date = qobject_cast<QDateEdit*>(editor))
+			connect(date, &QDateEdit::dateChanged, this, [this]() { updatePreview(); });
 	}
 
 	const bool isUser = t.id.startsWith(QLatin1String("user:"));
@@ -371,6 +389,28 @@ void Pdf3DExportDialog::applyTemplateSelection()
 	QPalette infoPalette = ui->templateInfoLabel->palette();
 	infoPalette.setColor(QPalette::WindowText, palette().color(QPalette::Disabled, QPalette::Text));
 	ui->templateInfoLabel->setPalette(infoPalette);
+	updatePreview();
+}
+
+void Pdf3DExportDialog::setSheetSample(int partCount, const QString& subtitle, const QString& material, const QString& mass)
+{
+	_sampleParts = partCount;
+	_sampleSubtitle = subtitle;
+	_sampleMaterial = material;
+	_sampleMass = mass;
+	updatePreview();
+}
+
+void Pdf3DExportDialog::updatePreview()
+{
+	const int index = ui->templateCombo->currentIndex();
+	if (!_preview || index < 0 || index >= _templates.size())
+		return;
+	Pdf3D::Pdf3DOptions options;
+	applyTo(options);
+	options.subtitle = _sampleSubtitle;
+	_preview->setTemplate(_templates[index]);
+	_preview->setValues(Pdf3D::sheetValues(options, _sampleParts, 1, 1));
 }
 
 void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
@@ -385,6 +425,8 @@ void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
 	options.includePartsList = ui->partsListCheck->isChecked();
 	options.viewButtons = ui->viewButtonsCheck->isChecked();
 	options.templateId = currentTemplateId();
+	options.sceneMaterial = _sampleMaterial;
+	options.sceneMass = _sampleMass;
 	options.fieldValues.clear();
 	for (auto it = _customFields.constBegin(); it != _customFields.constEnd(); ++it)
 		options.fieldValues.insert(it.key(), editorValue(it.value()));
@@ -477,7 +519,7 @@ void Pdf3DExportDialog::updateOkEnabled()
 void Pdf3DExportDialog::done(int result)
 {
 	QSettings settings;
-	settings.setValue(QStringLiteral("pdf3d/dialogGeometry"), saveGeometry());
+	settings.setValue(QStringLiteral("pdf3d/dialogGeometry2"), saveGeometry());
 	if (result == QDialog::Accepted)
 	{
 		settings.setValue(QStringLiteral("pdf3d/drawingNumber"), ui->drawingNumberEdit->text().trimmed());

@@ -1,6 +1,8 @@
 #include "Pdf3DExporter.h"
 
 #include "PdfAppender.h"
+#include "PartData.h"
+#include "SheetRenderer.h"
 #include "SheetTemplate.h"
 #include "U3dWriter.h"
 
@@ -45,40 +47,6 @@ struct Layout
     QString scrollText;
     qreal  scrollFontSize = 8.0;
 };
-
-// Every placeholder value of the sheet: the standard ones from the options, then the custom fields of the template.
-QMap<QString, QString> sheetValues(const Pdf3DOptions& options, int partCount, int sheet, int sheetCount)
-{
-    QMap<QString, QString> v;
-    v.insert(QStringLiteral("title"), options.title);
-    v.insert(QStringLiteral("subtitle"), options.subtitle);
-    v.insert(QStringLiteral("notes"), options.notes);
-    v.insert(QStringLiteral("drawingNumber"), options.drawingNumber);
-    v.insert(QStringLiteral("revision"), options.revision);
-    v.insert(QStringLiteral("author"), options.author);
-    v.insert(QStringLiteral("company"), options.company);
-    v.insert(QStringLiteral("scale"), options.scale);
-    v.insert(QStringLiteral("date"), options.date.isEmpty() ? QDate::currentDate().toString(Qt::ISODate) : options.date);
-    v.insert(QStringLiteral("parts"), QString::number(partCount));
-    v.insert(QStringLiteral("sheet"), QString::number(sheet));
-    v.insert(QStringLiteral("sheets"), QString::number(sheetCount));
-    for (auto it = options.fieldValues.constBegin(); it != options.fieldValues.constEnd(); ++it)
-    {
-        if (!v.contains(it.key()))
-            v.insert(it.key(), it.value());
-    }
-    return v;
-}
-
-int cellIndexById(const SheetTemplate& tpl, const QString& id)
-{
-    if (id.isEmpty())
-        return -1;
-    for (int i = 0; i < tpl.cells.size(); ++i)
-        if (tpl.cells[i].id == id)
-            return i;
-    return -1;
-}
 
 QRectF toPdfRect(const QRectF& painterRect, qreal pageHeightPt)
 {
@@ -148,18 +116,6 @@ struct PartRow
 };
 
 // One row per distinct (name, mesh) pair, in first-appearance order; instances of the same part add to the quantity.
-// The importers name materials "<file base name> (<part>)"; the parts list shows just the part.
-QString shortMaterialName(const QString& name, const QStringList& fileBaseNames)
-{
-    for (const QString& base : fileBaseNames)
-    {
-        const QString prefix = base + QStringLiteral(" (");
-        if (!base.isEmpty() && name.startsWith(prefix) && name.endsWith(QLatin1Char(')')))
-            return name.mid(prefix.size(), name.size() - prefix.size() - 1);
-    }
-    return name;
-}
-
 QVector<PartRow> buildPartRows(const U3dScene& scene, const QString& sourceFiles)
 {
     QStringList fileBaseNames;
@@ -172,7 +128,7 @@ QVector<PartRow> buildPartRows(const U3dScene& scene, const QString& sourceFiles
     {
         if (n.overlay || n.meshIndex < 0 || n.meshIndex >= scene.meshes.size())
             continue;
-        const QString key = n.displayName + QLatin1Char('|') + QString::number(n.meshIndex);
+        const QString key = n.displayName + QLatin1Char('|') + QString::number(n.meshIndex) + QLatin1Char('|') + n.declaredMaterial;
         auto it = index.constFind(key);
         if (it != index.constEnd())
         {
@@ -182,7 +138,9 @@ QVector<PartRow> buildPartRows(const U3dScene& scene, const QString& sourceFiles
         PartRow r;
         r.name = n.displayName;
         const int mat = scene.meshes[n.meshIndex].materialIndex;
-        r.material = (mat >= 0 && mat < scene.materials.size()) ? shortMaterialName(scene.materials[mat].name, fileBaseNames) : QString();
+        r.material = (mat >= 0 && mat < scene.materials.size()) ? renderMaterialLabel(scene.materials[mat].name, fileBaseNames) : QString();
+        if (!n.declaredMaterial.isEmpty())
+            r.material = n.declaredMaterial;   // the designation the source file declares replaces the viewer's render material name
         r.quantity = 1;
         index.insert(key, rows.size());
         rows.push_back(r);
@@ -198,100 +156,10 @@ int partsRowsPerSheet(const Layout& l)
     return qMax(1, static_cast<int>((l.area3d.height() - kPartsHeaderHeight) / kPartsRowHeight));
 }
 
-// The template's logo (SVG as vectors, PNG or JPEG as an image) in its rectangle. A missing or unreadable file leaves the space empty.
-void drawLogo(QPainter& p, const SheetTemplate& tpl, const QRectF& rect)
-{
-    const QString path = sheetLogoPath(tpl);
-    if (path.isEmpty() || !QFileInfo::exists(path))
-        return;
-    const QFileInfo info(path);
-    const auto fitted = [&](const QSizeF& natural) -> QRectF {
-        if (!tpl.logo.contain || natural.isEmpty())
-            return rect;
-        QSizeF size = natural;
-        size.scale(rect.size(), Qt::KeepAspectRatio);
-        return QRectF(QPointF(rect.center().x() - size.width() / 2.0, rect.center().y() - size.height() / 2.0), size);
-    };
-    if (info.suffix().compare(QLatin1String("svg"), Qt::CaseInsensitive) == 0)
-    {
-        QSvgRenderer renderer(path);
-        if (renderer.isValid())
-            renderer.render(&p, fitted(QSizeF(renderer.defaultSize())));
-        return;
-    }
-    const QImage image(path);
-    if (!image.isNull())
-        p.drawImage(fitted(QSizeF(image.size())), image);
-}
-
-// A title block cell with a caption (small, grey, top left) and its value below, as the field grid of the sheet has always looked.
-void drawFieldCell(QPainter& p, const QRectF& cell, const QString& label, const QString& value, const SheetCell& c)
-{
-    p.save();
-    QFont f = p.font();
-    f.setBold(false);
-    f.setPointSizeF(6.5);
-    p.setFont(f);
-    p.setPen(QColor(110, 110, 110));
-    p.drawText(cell.adjusted(5, 2, -3, 0), Qt::AlignLeft | Qt::AlignTop | Qt::TextSingleLine, label);
-    f.setBold(c.bold);
-    f.setPointSizeF(c.fontSize);
-    p.setFont(f);
-    p.setPen(c.color);
-    const QRectF v = cell.adjusted(5, 10, -3, -2);
-    p.drawText(v, static_cast<int>(c.align) | Qt::AlignVCenter | Qt::TextSingleLine,
-               p.fontMetrics().elidedText(value, Qt::ElideRight, static_cast<int>(v.width())));
-    p.restore();
-}
-
-// Border, 3D area frame and title block, identical on every sheet; the cells come from the sheet template.
+// Border, 3D area frame and title block, identical on every sheet; the drawing is shared with the template preview (SheetRenderer.h).
 void drawFrame(QPainter& p, const Layout& l, const Pdf3DOptions& options, int partCount, int sheet, int sheetCount)
 {
-    const SheetTemplate& tpl = l.tpl;
-    const ResolvedSheet& s = l.sheet;
-    p.setRenderHint(QPainter::Antialiasing, true);
-    const QPen thin(Qt::black, tpl.lineWidth);
-    p.setPen(thin);
-    p.setBrush(Qt::NoBrush);
-    p.drawRect(s.border);
-    p.drawRect(l.area3d);
-    p.drawRect(s.titleBlock);
-    for (const QLineF& line : s.lines)
-        p.drawLine(line);
-    if (tpl.hasLogo && !s.logo.isEmpty())
-        drawLogo(p, tpl, s.logo);
-
-    const QMap<QString, QString> values = sheetValues(options, partCount, sheet, sheetCount);
-    const QFont base = p.font();
-    for (int i = 0; i < tpl.cells.size() && i < s.cells.size(); ++i)
-    {
-        const SheetCell& c = tpl.cells[i];
-        const QRectF rect = s.cells[i];
-        const QString text = substituteSheetText(c.text, values);
-        if (!c.label.isEmpty())
-        {
-            p.setFont(base);
-            drawFieldCell(p, rect, sheetLabelText(tpl, c.label), text, c);
-            continue;
-        }
-        p.save();
-        QFont f = base;
-        f.setBold(c.bold);
-        f.setPointSizeF(c.fontSize);
-        p.setFont(f);
-        p.setPen(c.color);
-        if (c.wrap)
-        {
-            p.setClipRect(rect);   // overflowing text is cut (a scrollable field with the full text sits on top of it, see exportToFile)
-            p.drawText(rect, static_cast<int>(c.align) | Qt::AlignTop | Qt::TextWordWrap, text);
-        }
-        else
-        {
-            p.drawText(rect, static_cast<int>(c.align) | Qt::AlignVCenter | Qt::TextSingleLine,
-                       p.fontMetrics().elidedText(text, Qt::ElideRight, static_cast<int>(rect.width())));
-        }
-        p.restore();
-    }
+    drawSheetFrame(p, l.tpl, l.sheet, l.area3d, sheetValues(options, partCount, sheet, sheetCount));
 }
 
 // Sheet 1: the frame plus the placeholder under the 3D annotation (the poster when there is one, otherwise a hint for readers
@@ -427,46 +295,13 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         int partCount = 0;
         for (const U3dNode& n : scene.nodes)
             partCount += n.overlay ? 0 : 1;
-        const QMap<QString, QString> firstSheetValues = sheetValues(options, partCount, 1, 1);
-
-        // The title block grows with the text of its grow cell (the notes) up to the template's maximum; the 3D area takes the rest
-        // of the page.
-        const int growCell = cellIndexById(tpl, tpl.growWithCell);
-        const int scrollCell = [&] {
-            for (int i = 0; i < tpl.cells.size(); ++i)
-                if (tpl.cells[i].scrollWhenOverflow)
-                    return i;
-            return -1;
-        }();
-        const auto textHeightIn = [&](int cellIndex, const QRectF& rect) {
-            const SheetCell& c = tpl.cells[cellIndex];
-            const QString text = substituteSheetText(c.text, firstSheetValues);
-            if (text.trimmed().isEmpty())
-                return 0.0;
-            painter.save();
-            QFont nf = painter.font();
-            nf.setBold(c.bold);
-            nf.setPointSizeF(c.fontSize);
-            painter.setFont(nf);
-            const qreal h = painter.boundingRect(QRectF(0, 0, rect.width(), 10000), Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, text).height();
-            painter.restore();
-            return h;
-        };
-        double neededText = 0.0;
-        if (growCell >= 0)
-            neededText = textHeightIn(growCell, resolveSheet(tpl, pagePt, tpl.blockHeight).cells[growCell]);
-        bool growOverflows = false;
-        const double blockHeight = titleBlockHeightFor(tpl, pagePt, neededText, &growOverflows);
-        layout.sheet = resolveSheet(tpl, pagePt, blockHeight);
-        layout.area3d = layout.sheet.area3d;
-        if (scrollCell >= 0)
-        {
-            layout.scrollRect = layout.sheet.cells[scrollCell];
-            layout.scrollText = substituteSheetText(tpl.cells[scrollCell].text, firstSheetValues);
-            layout.scrollFontSize = tpl.cells[scrollCell].fontSize;
-            // the grow cell overflows when its text needs more than the maximum block; any other scroll cell when its text needs more than it has
-            layout.notesScroll = scrollCell == growCell ? growOverflows : textHeightIn(scrollCell, layout.scrollRect) > layout.scrollRect.height();
-        }
+        const SheetLayout sheetLayout = layoutSheet(painter, tpl, pagePt, sheetValues(options, partCount, 1, 1));
+        layout.sheet = sheetLayout.sheet;
+        layout.area3d = sheetLayout.sheet.area3d;
+        layout.notesScroll = sheetLayout.scroll;
+        layout.scrollRect = sheetLayout.scrollRect;
+        layout.scrollText = sheetLayout.scrollText;
+        layout.scrollFontSize = sheetLayout.scrollFontSize;
         // the button strip, when there is something to switch: more than one view, or an animation
         int viewCount = static_cast<int>(options.extraViews.size());
         for (const QString& n : standardViewNames())

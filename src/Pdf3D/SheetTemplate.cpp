@@ -311,6 +311,11 @@ QStringList standardSheetPlaceholders()
              QStringLiteral("date"), QStringLiteral("parts"), QStringLiteral("sheet"), QStringLiteral("sheets") };
 }
 
+QStringList sceneSheetPlaceholders()
+{
+    return { QStringLiteral("material"), QStringLiteral("mass") };
+}
+
 QSet<QString> usedSheetPlaceholders(const SheetTemplate& tpl)
 {
     QSet<QString> names;
@@ -616,7 +621,7 @@ bool parseSheetTemplate(const QByteArray& json, const QString& id, SheetTemplate
         while (it.hasNext())
         {
             const QString name = it.next().captured(1);
-            if (!knownNames.contains(name) && warnings)
+            if (!knownNames.contains(name) && !sceneSheetPlaceholders().contains(name) && warnings)
                 warnings->append(QStringLiteral("unknown placeholder {%1} in %2 (it prints nothing)").arg(name, what));
         }
         t.cells.append(c);

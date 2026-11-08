@@ -692,3 +692,16 @@ Second round, written, not yet built or run:
 - `SheetTemplate`: `sheetTemplateToJson` (points, always parses again: `writeUserSheetTemplate` parses what it is about to write and refuses a template that would not load, for example a logo that leaves no room), `saveSheetTemplateAs`, `setSheetTemplateLogo`, `sheetLogoPath`, `sanitizedTemplateFileName`.
 - Tests: round trip of the built-ins (same page, rectangles, lines, texts, styles, fields at two block heights), Save as (new name, same name selects, built-in name refused, bad names, sanitised file names), logo placement numbers (title moves by 116 pt, grid unchanged, logo inside the block, second logo keeps the place), a copy takes its logo file along, a broken template is never written.
 Still not covered: moving cells or changing fonts without a text editor (a cell table or visual editor, a later option).
+
+### 11.13 Step 6e-1: shared sheet renderer and live preview, 7 November 2026
+
+Owner: after trying 6c (logo, custom fields and the sample worked in Acrobat; `pdf3d_tests` 364 checks, 0 failures; 6c committed as `13e6149`) the owner said a template editing UI would be far more reasonable than editing JSON. Plan: Phase 6e, three steps, each with the owner's build and test: (1) shared renderer and live preview, (2) cell editing, (3) the Page, Logo, Fields and Save tabs; dragging cells in the preview afterwards if wanted.
+
+6e-1, written, not yet built or run:
+- `SheetRenderer.h/.cpp`: `sheetValues`, `layoutSheet` (title block height from the grow cell's text, the scroll cell), `drawSheetFrame` (border, 3D area frame, block, lines, logo, cells), `renderSheetPreview` (the page as an image with the 3D area greyed and an optional blue frame on a selected cell). The exporter's own drawing and layout code moved there unchanged, so `Pdf3DExporter.cpp` calls the same functions as the preview: the PDF must come out exactly as before (the owner re-checks one sheet).
+- Painter device: 72 dpi (a `QPdfWriter` at 72 dpi, or a `QImage` with 72 dpi dots per metre), so font sizes in points and text measurements agree between the PDF and the preview.
+- `SheetPreviewWidget`: shows the picture scaled to the widget, re-renders when the template, the values or the size change; a click selects the cell under it (`cellClicked`), used by the cell editor in 6e-2.
+- The export dialog's Sheet tab shows the preview below the fields; it follows every edit (title, fields, custom fields, template). `setSheetSample(partCount, subtitle)` gives the preview the real part count and file names.
+- Tests (`testSheetRenderer`): the grow rule (90 for no or one line, between 90 and 120 for four lines, 120 with the scroll flag for 2000 characters), the preview picture's size, background, grey 3D area, dark text in the block, determinism, the selection frame (out-of-range ignored), the logo cell drawing something.
+
+Gate for 6e-1 (owner): build, run `pdf3d_tests --full`, export one sheet with Default and compare it with an earlier one (must be identical), and look at the preview in the dialog while typing and when switching templates.

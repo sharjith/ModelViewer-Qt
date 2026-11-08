@@ -100,6 +100,8 @@ add_executable(pdf3d_tests
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/OverlayToU3d.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/Pdf3DExporter.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/SheetTemplate.cpp
+    ${CMAKE_SOURCE_DIR}/src/Pdf3D/SheetRenderer.cpp
+    ${CMAKE_SOURCE_DIR}/src/Pdf3D/PartData.cpp
 )
 target_include_directories(pdf3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Pdf3D ${CMAKE_SOURCE_DIR}/include/Scene)
 target_link_libraries(pdf3d_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Svg assimp::assimp u3d::idtf)
@@ -138,6 +140,15 @@ target_include_directories(exploded_view_tests PRIVATE ${CMAKE_SOURCE_DIR}/inclu
 target_link_libraries(exploded_view_tests PRIVATE Qt6::Core Qt6::Gui)
 set_target_properties(exploded_view_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 add_test(NAME exploded_view_tests COMMAND exploded_view_tests)
+
+# Evidence tool (not a test): the materials OpenCASCADE's STEP reader finds in a STEP file. Build on request: ninja step_material_probe
+add_executable(step_material_probe step/step_material_probe.cpp)
+target_link_libraries(step_material_probe PRIVATE
+    ${OpenCASCADE_FoundationClasses_LIBRARIES}
+    ${OpenCASCADE_ModelingData_LIBRARIES}
+    ${OpenCASCADE_DataExchange_LIBRARIES}
+    ${OpenCASCADE_ApplicationFramework_LIBRARIES})
+set_target_properties(step_material_probe PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 
 # Native 3DXML codec and scene parity checks (QtCore, Assimp and ZIP; no GL).
 add_subdirectory(3dxml)

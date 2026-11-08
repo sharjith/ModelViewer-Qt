@@ -35,6 +35,8 @@ struct Pdf3DOptions
     QString date;                      // empty = today (ISO)
     QString templateId = QStringLiteral("builtin:default");   // the sheet template (SheetTemplate.h); an unknown id falls back to Default
     QMap<QString, QString> fieldValues;   // values of the template's custom fields, by field id
+    QString sceneMaterial;             // what the exported parts declare (PartData.h): the {material} and {mass} values; a custom field with
+    QString sceneMass;                 // the same id and a non-empty value takes precedence (the user's own entry)
     QVector<CameraViewSpec> extraViews; // saved camera views, scene states and exploded views, added after the standard views
     QSet<QString> excludedStandardViews; // names (standardViewNames()) of standard views left out of the PDF
     QSet<QString> standardViewsWithoutOverlays; // standard views that hide the measurement and annotation nodes
