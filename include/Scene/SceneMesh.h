@@ -108,6 +108,7 @@ public:
     const std::vector<unsigned int>& indices() const;
 
     std::vector<Material::Texture> textures() const;
+    bool hasTextures() const { return !_textures.empty(); }
 
 	void getMeshData(std::vector<Vertex>& vertices,
 		std::vector<unsigned int>& indices) const;

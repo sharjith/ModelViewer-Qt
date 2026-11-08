@@ -813,6 +813,10 @@ public slots:
 	// populated afterward, and Generate can be clicked repeatedly with
 	// different methods/settings without relaunching.
 	void openUVGenerationDialog();
+	// After a user-initiated material apply: if some of these meshes now have textures but no UV coordinates (a CAD part), asks whether to
+	// generate UVs for them (suppressible for the session). Not called from undo/redo, file loading or glTF variants.
+	void offerUvGenerationForTexturedMeshes(const QVector<QUuid>& meshUuids);
+	void generateUvsAutomatically(const QVector<QUuid>& meshUuids); // Smart Project, default settings, no dialog
 
 	// UV generation's one-line bridge into the undo stack - called by
 	// UVGenerationDialog::onGenerateClicked() once per Generate click, after

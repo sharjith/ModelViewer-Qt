@@ -63,6 +63,8 @@ public:
     // Adds the viewer's current selection to the mesh list (the selection box) - public so
     // ModelViewer can seed the list when the dialog is (re)opened.
     void addCurrentTreeSelection();
+    // Adds these meshes to the working list (those already listed stay). Used by the question asked after a textured material is applied.
+    void addMeshUuids(const QVector<QUuid>& uuids);
 
 protected:
     void closeEvent(QCloseEvent* event) override;

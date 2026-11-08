@@ -4686,6 +4686,96 @@ void ModelViewer::deleteSelectedItems()
 }
 
 #include "UVGenerationDialog.h"
+void ModelViewer::generateUvsAutomatically(const QVector<QUuid>& meshUuids)
+{
+	std::vector<int> ids;
+	for (const QUuid& uuid : meshUuids)
+	{
+		const int id = _viewportWidget->getIndexByUuid(uuid);
+		if (id >= 0)
+			ids.push_back(id);
+	}
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+	QString error;
+	const bool ok = _viewportWidget->generateUVsForMeshes(ids, UVMethod::SmartProject, UVConfig{}, error);
+	QApplication::restoreOverrideCursor();
+	if (!ok)
+		QMessageBox::warning(this, tr("Generate UV coordinates"), tr("UV generation failed: %1").arg(error));
+}
+
+void ModelViewer::offerUvGenerationForTexturedMeshes(const QVector<QUuid>& meshUuids)
+{
+	// The answer the user asked to remember; lasts until the application is closed.
+	enum class Remembered { Ask, Never, Always };
+	static Remembered remembered = Remembered::Ask;
+	if (remembered == Remembered::Never || !_viewportWidget)
+		return;
+
+	QVector<QUuid> needUvs;
+	QStringList names;
+	for (const QUuid& uuid : meshUuids)
+	{
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
+		if (!mesh || !mesh->hasTextures())
+			continue;
+		const std::vector<float>& uv = mesh->cpuTexCoords();
+		const bool hasRealUvs = std::any_of(uv.begin(), uv.end(), [](float v) { return v != 0.0f; });
+		if (hasRealUvs)
+			continue;
+		needUvs.append(uuid);
+		if (names.size() < 5)
+			names << mesh->getName();
+	}
+	if (needUvs.isEmpty())
+		return;
+
+	if (remembered == Remembered::Always)
+	{
+		generateUvsAutomatically(needUvs);
+		return;
+	}
+
+	QMessageBox box(QMessageBox::Question, tr("Generate UV coordinates?"),
+		tr("%n selected mesh(es) have no UV coordinates (typical for CAD parts), so the texture of this material shows no pattern on them.\n\n"
+		   "Generate UV coordinates for them now?", nullptr, needUvs.size()),
+		QMessageBox::NoButton, this);
+	if (needUvs.size() > 1 || !names.isEmpty())
+		box.setInformativeText(names.join(QStringLiteral(", ")) + (needUvs.size() > names.size() ? QStringLiteral(", ...") : QString()));
+	QPushButton* generate = box.addButton(tr("Generate UVs..."), QMessageBox::AcceptRole);
+	QPushButton* automatic = box.addButton(tr("Generate now"), QMessageBox::AcceptRole);
+	automatic->setToolTip(tr("Generates UVs with the Smart Project method and default settings, without opening the dialog."));
+	box.addButton(tr("Not now"), QMessageBox::RejectRole);
+	QCheckBox* remember = new QCheckBox(tr("Remember my choice for this session (Generate now: always generate automatically; Not now: never ask)"), &box);
+	box.setCheckBox(remember);
+	box.setDefaultButton(generate);
+	box.exec();
+	if (box.clickedButton() == automatic)
+	{
+		if (remember->isChecked())
+			remembered = Remembered::Always;
+		generateUvsAutomatically(needUvs);
+		return;
+	}
+	if (box.clickedButton() != generate)
+	{
+		if (remember->isChecked())
+			remembered = Remembered::Never;
+		return;
+	}
+
+	UVGenerationDialog* dialog = findChild<UVGenerationDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new UVGenerationDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->addMeshUuids(needUvs);
+	_viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("uv"), dialog);
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
 void ModelViewer::openUVGenerationDialog()
 {
 	UVGenerationDialog* dialog = findChild<UVGenerationDialog*>(QString(), Qt::FindDirectChildrenOnly);
@@ -8488,6 +8578,7 @@ void ModelViewer::onCustomMaterialApplied(const Material& mat)
 	));
 
 	QApplication::restoreOverrideCursor();
+	offerUvGenerationForTexturedMeshes(uuids);
 }
 
 void ModelViewer::applyMeshMaterial(const QUuid& meshUuid, const Material& material)
@@ -8506,6 +8597,7 @@ void ModelViewer::applyMeshMaterial(const QUuid& meshUuid, const Material& mater
 	QString materialName = "Mesh Material";
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _viewportWidget, selectedUuids, material, materialName));
+	offerUvGenerationForTexturedMeshes(selectedUuids);
 
 	_currentEditingMeshUuid = QUuid();
 
@@ -8538,6 +8630,7 @@ void ModelViewer::applyEyedropperStroke(const QVector<QUuid>& targetUuids, const
 	// command class needed - same as applyMeshMaterial() above.
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _viewportWidget, targetUuids, material, material.name(), tr("Apply Material (Eyedropper)")));
+	offerUvGenerationForTexturedMeshes(targetUuids);
 }
 
 void ModelViewer::replaceMaterial(const QVector<QUuid>& meshUuids, const Material& newMaterial)
@@ -8550,6 +8643,7 @@ void ModelViewer::replaceMaterial(const QVector<QUuid>& meshUuids, const Materia
 	// FilterByMaterialDialog's "Replace With..." context menu action.
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _viewportWidget, meshUuids, newMaterial, newMaterial.name(), tr("Replace Material")));
+	offerUvGenerationForTexturedMeshes(meshUuids);
 }
 
 void ModelViewer::onTexturesApplied(const Material* mat)
