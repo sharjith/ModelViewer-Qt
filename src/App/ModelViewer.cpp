@@ -27,6 +27,7 @@
 #include "RenameMeshCommand.h"
 #include "RenameNodeCommand.h"
 #include "ViewportWidget.h"
+#include "PhaseLog.h"
 #include "MeasurementDialog.h"
 #include "AnnotationDialog.h"
 #include "ShrinkWrapDialog.h"
@@ -6661,12 +6662,17 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	LoadResult result;
 	QEventLoop waitLoop;
 	QThread    workerThread;
+	PhaseLog mvfProfile(QStringLiteral("MVF load"));
+	// Phase 3 splits the time of its loop between the GL upload of the meshes and the display list updates (progressive mode).
+	double uploadMs = 0.0, displayListMs = 0.0;
+	int displayListCalls = 0;
 
 	auto* worker = new QObject();
 	worker->moveToThread(&workerThread);
 
 	connect(&workerThread, &QThread::started, worker,
-		[&result, &fileName, &waitLoop, this, &displayFileName, progressiveMode = _progressiveLoadingEnabled]()
+		[&result, &fileName, &waitLoop, this, &displayFileName, &mvfProfile, &uploadMs, &displayListMs, &displayListCalls,
+		 progressiveMode = _progressiveLoadingEnabled]()
 	{
 		// --- Phase 1: File I/O ----------------------------------------
 		QFile file(fileName);
@@ -6709,6 +6715,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		}
 		if (jsonPayload.isEmpty()) { waitLoop.quit(); return; }
 
+		mvfProfile.mark(QStringLiteral("phase 1: read the chunks from disk"));
 		// --- Phase 2: JSON parse + vertex/material assembly (CPU) ------
 		QMetaObject::invokeMethod(_viewportWidget, [&displayFileName]() {
 			MainWindow::showStatusMessage(
@@ -6717,6 +6724,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		}, Qt::BlockingQueuedConnection);
 
 		result.document = Mvf::fromJsonBytes(jsonPayload);
+		mvfProfile.mark(QStringLiteral("phase 2: JSON parse (Mvf::fromJsonBytes)"));
 		const QJsonObject session = result.document.mvfSession;
 
 		auto jsonArrayToVec3 = [](const QJsonArray& arr, const QVector3D& fallback = QVector3D()) {
@@ -7280,8 +7288,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 				fileObj[QStringLiteral("activeClip")].toInt(animationData.clips.isEmpty() ? -1 : 0));
 		}
 
+		mvfProfile.mark(QStringLiteral("phase 2: session sections (lights, variants, animations, cameras)"));
 		QVector<PreparedMvfMesh> prepared =
 			MvfMeshPreparationWorker::prepare(result.document, geomChunk, imgChunk);
+		mvfProfile.mark(QStringLiteral("phase 2: mesh preparation (MvfMeshPreparationWorker::prepare)"));
+		mvfProfile.note(QStringLiteral("%1 meshes prepared, geometry chunk %2 bytes").arg(prepared.size()).arg(geomChunk.size()));
 
 		// Simulation result snapshots (see docs/simulation_mvf_persistence_design.md): decoded here, off the UI
 		// thread, against the prepared meshes' vertex/triangle counts, then attached to their meshes at the end.
@@ -7423,6 +7434,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			}
 		}
 
+		mvfProfile.mark(QStringLiteral("phase 2: simulation/plot restores, visibility, scene graph rebuild and world transforms"));
 		// --- Phase 3: GL upload — dispatched one mesh at a time --------
 		//     BlockingQueuedConnection blocks the worker while the main
 		//     thread uploads, then returns control to waitLoop.exec()
@@ -7430,32 +7442,52 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		//     before the next mesh is dispatched.
 
 		// Clear old meshes and set visibility before uploading
-		QMetaObject::invokeMethod(_viewportWidget, [this, &visibleUuids]() {
+		// uploadOneMvfMesh() adds each mesh to the displayed set at once, and the event loop repaints the viewport between two meshes: with
+		// the progressive-loading setting off the viewport would still draw the growing set after every mesh (9k meshes: most of the
+		// load time, and the meshes appeared one by one). Without progressive loading the viewport does not repaint until Phase 3.5.
+		QMetaObject::invokeMethod(_viewportWidget, [this, &visibleUuids, progressiveMode]() {
 			_viewportWidget->clearMeshStore();
 			_visibleMeshUuids = visibleUuids;
+			if (!progressiveMode)
+				_viewportWidget->setUpdatesEnabled(false);
 		}, Qt::BlockingQueuedConnection);
 
 		const int totalMeshes = prepared.size();
 		for (int i = 0; i < totalMeshes; ++i)
 		{
 			QMetaObject::invokeMethod(_viewportWidget,
-				[this, &prepared, i, totalMeshes, &displayFileName, progressiveMode]()
+				[this, &prepared, i, totalMeshes, &displayFileName, progressiveMode, &uploadMs, &displayListMs, &displayListCalls]()
 			{
 				const PreparedMvfMesh& pm = prepared[i];
+				QElapsedTimer stepTimer;
+				stepTimer.start();
 				_viewportWidget->uploadOneMvfMesh(pm);
+				uploadMs += stepTimer.nsecsElapsed() / 1.0e6;
 
-				const int pct = 15 + (i + 1) * 75 / totalMeshes;
-				MainWindow::setProgressValue(pct);
-				MainWindow::showStatusMessage(
-					tr("Loading mesh %1 / %2").arg(i + 1).arg(totalMeshes));
+				// the progress bar and the status line are repainted by the event loop: every 20 meshes is plenty
+				if ((i + 1) % 20 == 0 || (i + 1) == totalMeshes)
+				{
+					const int pct = 15 + (i + 1) * 75 / totalMeshes;
+					MainWindow::setProgressValue(pct);
+					MainWindow::showStatusMessage(
+						tr("Loading mesh %1 / %2").arg(i + 1).arg(totalMeshes));
+				}
 
 				// In progressive mode, update display every 20 meshes (matching AssImp's
 				// batchSize) so user sees meshes appearing as they load. In non-progressive
 				// mode, defer until Phase 3.5 so all meshes appear together after loading completes.
 				if (progressiveMode && ((i + 1) % 20 == 0 || (i + 1) == totalMeshes))
+				{
+					stepTimer.restart();
 					updateDisplayList();
+					displayListMs += stepTimer.nsecsElapsed() / 1.0e6;
+					++displayListCalls;
+				}
 			}, Qt::BlockingQueuedConnection);
 		}
+		mvfProfile.mark(QStringLiteral("phase 3: GL upload loop (all meshes, including event processing between them)"));
+		mvfProfile.note(QStringLiteral("inside the loop: uploadOneMvfMesh %1 ms, updateDisplayList %2 ms in %3 calls (progressive mode %4)")
+			.arg(uploadMs, 0, 'f', 0).arg(displayListMs, 0, 'f', 0).arg(displayListCalls).arg(progressiveMode ? QStringLiteral("on") : QStringLiteral("off")));
 
 		// --- Phase 3.5: Finalize session (still in event loop) ---
 		//     Update display to show all pending meshes (either progressively
@@ -7511,8 +7543,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_nonUndoDocumentDirty = false;
 			setDocumentModified(false);
 
+			_viewportWidget->setUpdatesEnabled(true);
 			MainWindow::setProgressValue(100);
 		}, Qt::BlockingQueuedConnection);
+		mvfProfile.mark(QStringLiteral("phase 3.5: finalize (display list, visibility, selection)"));
 
 		result.ok = true;
 		waitLoop.quit();
@@ -7538,7 +7572,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		return false;
 	}
 
+	_viewportWidget->setUpdatesEnabled(true);   // idempotent; makes sure a failed load never leaves the viewport frozen
+	mvfProfile.mark(QStringLiteral("worker thread joined"));
 	_viewportWidget->updateView();
+	mvfProfile.mark(QStringLiteral("first updateView"));
 
 	// --- Phase 4: Build tree structure (after event loop exits) ---
 	//     All meshes are loaded and visible. Build the tree now.
@@ -7915,6 +7952,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	// other saved data refer to its nodes by UUID, and the user may have deliberately undone an earlier purge).
 
 	MainWindow::hideProgressBar();
+	mvfProfile.mark(QStringLiteral("phase 4: scene graph, session restore and UI state"));
 	return true;
 }
 
