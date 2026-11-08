@@ -95,6 +95,7 @@ private:
     void loadField(int row);
     void applyFieldEdits();
     void addField();
+    void addCellForField();   // a cell that prints the selected field, below the selected cell, for the owner to drag into place
     void deleteField();
     void moveField(int delta);
     void refreshInsertCombo();
@@ -167,6 +168,7 @@ private:
     // Fields tab
     QListWidget* _fieldList = nullptr;
     QPushButton* _fieldAdd = nullptr;
+    QPushButton* _fieldAddCell = nullptr;
     QPushButton* _fieldDelete = nullptr;
     QPushButton* _fieldUp = nullptr;
     QPushButton* _fieldDown = nullptr;

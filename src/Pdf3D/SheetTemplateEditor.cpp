@@ -1049,6 +1049,9 @@ void SheetTemplateEditor::buildFieldsTab()
     for (QPushButton* b : { _fieldAdd, _fieldDelete, _fieldUp, _fieldDown })
         listButtons->addWidget(b);
     layout->addLayout(listButtons);
+    _fieldAddCell = new QPushButton(tr("Add a cell for this field"), page);
+    _fieldAddCell->setToolTip(tr("Adds a cell that prints this field to the Cells tab, below the cell selected there. Drag it into place in the preview."));
+    layout->addWidget(_fieldAddCell);
 
     auto* form = new QFormLayout;
     _fieldId = new QLineEdit(page);
@@ -1094,6 +1097,7 @@ void SheetTemplateEditor::buildFieldsTab()
 
     connect(_fieldList, &QListWidget::currentRowChanged, this, [this](int row) { loadField(row); });
     connect(_fieldAdd, &QPushButton::clicked, this, [this]() { addField(); });
+    connect(_fieldAddCell, &QPushButton::clicked, this, [this]() { addCellForField(); });
     connect(_fieldDelete, &QPushButton::clicked, this, [this]() { deleteField(); });
     connect(_fieldUp, &QPushButton::clicked, this, [this]() { moveField(-1); });
     connect(_fieldDown, &QPushButton::clicked, this, [this]() { moveField(1); });
@@ -1125,6 +1129,7 @@ void SheetTemplateEditor::loadField(int row)
     for (QWidget* w : { static_cast<QWidget*>(_fieldId), static_cast<QWidget*>(_fieldLabel), static_cast<QWidget*>(_fieldType),
                         static_cast<QWidget*>(_fieldDefault), static_cast<QWidget*>(_fieldOptions) })
         w->setEnabled(have);
+    _fieldAddCell->setEnabled(have);
     if (have)
     {
         const SheetField& f = _tpl.fields[row];
@@ -1229,6 +1234,23 @@ void SheetTemplateEditor::addField()
     _tpl.fields.insert(at, f);
     fillFieldList(at);
     refreshInsertCombo();
+    revalidate();
+}
+
+void SheetTemplateEditor::addCellForField()
+{
+    const int fieldRow = _fieldList->currentRow();
+    if (fieldRow < 0 || fieldRow >= _tpl.fields.size())
+        return;
+    const SheetField field = _tpl.fields[fieldRow];
+    _tabs->setCurrentIndex(0);   // the Cells tab
+    addCell();                   // inserts below the selected cell and selects the new one
+    const int cellRow = _cellList->currentRow();
+    if (cellRow < 0 || cellRow >= _tpl.cells.size())
+        return;
+    _tpl.cells[cellRow].label = field.label;
+    _tpl.cells[cellRow].text = QStringLiteral("{%1}").arg(field.id);
+    fillList(cellRow);
     revalidate();
 }
 
