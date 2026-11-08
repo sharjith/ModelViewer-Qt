@@ -439,6 +439,9 @@ public slots:
 	// (Generate UVs) and so needs the display list refreshed but not the scene tree, whose asynchronous rebuild loses the tree selection
 	// when several run in one macro.
 	void refreshViewportDisplayList();
+	// The "Center Object List" command: shows the object list when it is collapsed (an unpinned navigation panel), shows every row when the
+	// search filter hides the selected mesh, and scrolls the list to the first selected item.
+	void revealSelectionInTree();
 	// While true, updateDisplayList() refreshes the viewport but leaves the navigation tree alone.
 	void setTreeRebuildDeferred(bool deferred) { _treeRebuildDeferred = deferred; }
 	void updateSelectionStatusMessage();
@@ -1128,6 +1131,8 @@ private:
 	// always open anyway.
 	QTimer* _navRevealDelayTimer = nullptr;
 	void revealNavigation();
+	// Ends the tree's search filter (box and rows) while keeping the selection: used when a mesh picked in the viewport lies in a filtered-out row.
+	void releaseTreeFilter();
 	void tryHideNavigation();
 	// The actual collapse - animates to the narrow strip and flips
 	// _navigationRevealed unconditionally, with none of tryHideNavigation()'s

@@ -514,7 +514,7 @@ QList<QUuid> SceneTreeWidget::selectedMeshUuids() const
     if (_selectedMeshCacheValid)
         return _selectedMeshCache;
 
-    const QList<QTreeWidgetItem*> selected = selectedItems();
+    const QList<QTreeWidgetItem*> selected = allSelectedItems();
     const QSet<QTreeWidgetItem*> selectedSet(selected.cbegin(), selected.cend());
 
     QList<QUuid> result;
@@ -564,7 +564,7 @@ QList<QUuid> SceneTreeWidget::selectedMeshUuids() const
 
 bool SceneTreeWidget::hasMeshSelection() const
 {
-    for (QTreeWidgetItem* item : selectedItems())
+    for (QTreeWidgetItem* item : allSelectedItems())
     {
         if (item->data(0, IsLeafRole).toBool())
             return true;
@@ -609,7 +609,7 @@ void SceneTreeWidget::setSelectionByUuids(const QSet<QUuid>& uuids)
     blockSignals(false);
 
     _prevSelection.clear();
-    for (QTreeWidgetItem* it : selectedItems())
+    for (QTreeWidgetItem* it : allSelectedItems())
         _prevSelection.insert(it);
     // Bulk selection set by mesh identity, not a deliberate single-assembly
     // click - any resulting assembly selection is a fresh closure, never
@@ -650,7 +650,7 @@ void SceneTreeWidget::clearMeshSelection()
     blockSignals(false);
 
     _prevSelection.clear();
-    for (QTreeWidgetItem* it : selectedItems())
+    for (QTreeWidgetItem* it : allSelectedItems())
         _prevSelection.insert(it);
     _explicitlySelectedAssemblyUuids.clear();
 
@@ -822,6 +822,12 @@ int SceneTreeWidget::visibleMeshCount() const
 
 void SceneTreeWidget::filterItems(const QString& filter)
 {
+    // An empty filter while none is applied (the box was emptied after the filter was already released, for example by a viewport
+    // selection that lay outside it) has nothing to undo, and must not clear the selection the way a real "clear filter" does.
+    if (filter.isEmpty() && !_filterActive)
+        return;
+    _filterActive = !filter.isEmpty();
+
     _updatingTree = true;
     viewport()->setUpdatesEnabled(false);
     {
@@ -891,7 +897,7 @@ void SceneTreeWidget::filterItems(const QString& filter)
     refreshSelectionClosureAll();
 
     _prevSelection.clear();
-    for (QTreeWidgetItem* it : selectedItems())
+    for (QTreeWidgetItem* it : allSelectedItems())
         _prevSelection.insert(it);
     // A search match, not a deliberate click on this specific assembly (see
     // onItemClicked()'s own doc comment).
@@ -938,7 +944,7 @@ void SceneTreeWidget::ensureAssemblySelectionAt(const QPoint& localPos)
         blockSignals(false);
 
         _prevSelection.clear();
-        for (QTreeWidgetItem* it : selectedItems())
+        for (QTreeWidgetItem* it : allSelectedItems())
             _prevSelection.insert(it);
         // item is the exact target of the right-click that invoked this (see
         // showContextMenu()) - as deliberate a targeting as a left-click
@@ -1005,7 +1011,7 @@ bool SceneTreeWidget::selectNodeByUuid(const QUuid& nodeUuid)
     scrollToItem(target);
 
     _prevSelection.clear();
-    for (QTreeWidgetItem* it : selectedItems())
+    for (QTreeWidgetItem* it : allSelectedItems())
         _prevSelection.insert(it);
     // target is exactly what the caller (ModelViewer::showContextMenu()'s
     // "Select Parent" action) asked to select, by nodeUuid - as deliberate a
@@ -1035,13 +1041,38 @@ void SceneTreeWidget::collapseAllBelowAt(const QPoint& localPos)
     collapseAllBelow(itemAt(localPos));
 }
 
-void SceneTreeWidget::scrollFirstSelectedToCenter()
+bool SceneTreeWidget::selectionHasHiddenRows() const
+{
+    for (QTreeWidgetItem* item : allSelectedItems())
+    {
+        for (QTreeWidgetItem* p = item; p; p = p->parent())
+        {
+            if (p->isHidden())
+                return true;
+        }
+    }
+    return false;
+}
+
+void SceneTreeWidget::clearFilterKeepingSelection()
+{
+    _filterActive = false;
+    _updatingTree = true;
+    viewport()->setUpdatesEnabled(false);
+    for (int i = 0; i < topLevelItemCount(); ++i)
+        showSubtree(topLevelItem(i));
+    viewport()->setUpdatesEnabled(true);
+    viewport()->update();
+    _updatingTree = false;
+}
+
+void SceneTreeWidget::scrollFirstSelectedToCenter(bool force)
 {
     // scrollToItem() expands every ancestor of the item, which undoes Collapse / 1st Level.
-    if (!_revealOnSelect)
+    if (!_revealOnSelect && !force)
         return;
 
-    const QList<QTreeWidgetItem*> sel = selectedItems();
+    const QList<QTreeWidgetItem*> sel = allSelectedItems();
     if (sel.isEmpty())
         return;
 
@@ -1224,7 +1255,7 @@ void SceneTreeWidget::keyPressEvent(QKeyEvent* event)
     if (event->key() == Qt::Key_Space)
     {
         // Toggle visibility of all selected mesh leaves
-        QList<QTreeWidgetItem*> sel = selectedItems();
+        QList<QTreeWidgetItem*> sel = allSelectedItems();
         if (!sel.isEmpty())
         {
             _updatingTree = true;
@@ -1351,7 +1382,7 @@ void SceneTreeWidget::mousePressEvent(QMouseEvent* event)
         if (clicked && clicked->isSelected())
         {
             // Allow toggle-off if ALL currently selected items lie within clicked's subtree
-            const QList<QTreeWidgetItem*> sel = selectedItems();
+            const QList<QTreeWidgetItem*> sel = allSelectedItems();
             bool onlyWithinSubtree = true;
             for (QTreeWidgetItem* s : sel)
             {
@@ -1635,7 +1666,7 @@ void SceneTreeWidget::onItemSelectionChanged()
         return;
 
     // Snapshot current selection
-    const QList<QTreeWidgetItem*> selList = selectedItems();
+    const QList<QTreeWidgetItem*> selList = allSelectedItems();
     QSet<QTreeWidgetItem*> curSel;
     curSel.reserve(selList.size() * 2);
     for (QTreeWidgetItem* it : selList)
@@ -1725,7 +1756,7 @@ void SceneTreeWidget::onItemSelectionChanged()
     // Refresh prev selection snapshot AFTER propagation
     _prevSelection.clear();
     QSet<QUuid> stillSelectedAssemblyUuids;
-    for (QTreeWidgetItem* it : selectedItems())
+    for (QTreeWidgetItem* it : allSelectedItems())
     {
         _prevSelection.insert(it);
         if (!it->data(0, IsLeafRole).toBool())
@@ -1917,7 +1948,7 @@ void SceneTreeWidget::finalizeRebuild()
 
     ImportDiagnostics::checkpoint("tree.finalize-selection-end");
     _prevSelection.clear();
-    for (QTreeWidgetItem* it : selectedItems())
+    for (QTreeWidgetItem* it : allSelectedItems())
         _prevSelection.insert(it);
 
     _pendingBuildTasks.clear();
@@ -2583,6 +2614,28 @@ void SceneTreeWidget::refreshParentSelectionUpward(QTreeWidgetItem* startParent)
     }
 }
 
+QList<QTreeWidgetItem*> SceneTreeWidget::allSelectedItems() const
+{
+    QList<QTreeWidgetItem*> items;
+    if (!selectionModel())
+        return items;
+    const QModelIndexList indexes = selectionModel()->selectedIndexes();
+    items.reserve(indexes.size());
+    QSet<QTreeWidgetItem*> seen;
+    for (const QModelIndex& index : indexes)
+    {
+        if (index.column() != 0)
+            continue;
+        QTreeWidgetItem* item = itemFromIndex(index);
+        if (item && !seen.contains(item))
+        {
+            seen.insert(item);
+            items.append(item);
+        }
+    }
+    return items;
+}
+
 void SceneTreeWidget::setItemsSelected(const QList<QTreeWidgetItem*>& items, bool select)
 {
     if (items.isEmpty())
@@ -2653,7 +2706,7 @@ void SceneTreeWidget::setSubtreeSelected(QTreeWidgetItem* root, bool select)
 void SceneTreeWidget::refreshSelectionClosureAll()
 {
     QSet<QTreeWidgetItem*> selected;
-    for (QTreeWidgetItem* item : selectedItems())
+    for (QTreeWidgetItem* item : allSelectedItems())
         selected.insert(item);
 
     QList<QTreeWidgetItem*> toSelect, toDeselect;
@@ -2768,7 +2821,7 @@ QList<const SceneNode*> SceneTreeWidget::selectedAssemblyNodes() const
     if (!_sceneGraph)
         return result;
 
-    for (QTreeWidgetItem* item : selectedItems())
+    for (QTreeWidgetItem* item : allSelectedItems())
     {
         if (item->data(0, IsLeafRole).toBool())
             continue;
@@ -2786,7 +2839,7 @@ QList<const SceneNode*> SceneTreeWidget::selectedAssemblyNodes() const
 QList<const SceneNode*> SceneTreeWidget::explicitlySelectedAssemblyNodes() const
 {
     QList<const SceneNode*> result;
-    // Nothing was clicked as an assembly (a rubber-band or viewport selection): skip building selectedItems(), which on a
+    // Nothing was clicked as an assembly (a rubber-band or viewport selection): skip building allSelectedItems(), which on a
     // selection of tens of thousands of leaves took most of a second per call.
     if (_explicitlySelectedAssemblyUuids.isEmpty())
         return result;

@@ -1252,7 +1252,7 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 	QList<QStringList> contextRows = {
 		{tr("When object selected:"), "", tr("")},
 		{tr("  Center Screen"), tr(""), tr("Center view on selected object")},
-		{tr("  Center Object List"), tr(""), tr("Scroll object list to selected item")},
+		{tr("  Center Object List"), tr(""), tr("Show the object list if it is hidden or filtered, and scroll it to the selected item")},
 		{tr("  Hide/Show"), tr("Space"), tr("Toggle visibility of selected objects")},
 		{tr("  Show Only"), tr("Shift+Space"), tr("Show only selected, hide all others")},
 		{tr("  Transformations"), tr(""), tr("Open transformation panel (move/rotate/scale)")},

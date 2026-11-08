@@ -21525,14 +21525,8 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			(_sceneRuntime.visibleSwapped() ? _sceneRuntime.hiddenObjectsIds().size() != 0 : _sceneRuntime.displayedObjectsIds().size() != 0))
 		{
 			contextMenu.addAction(QIcon(":/icons/res/center_screen.png"), tr("Center Screen"), _viewer, &ModelViewer::centerScreen);
-			QList<QUuid> selUuids = treeWidgetModel->selectedMeshUuids();
-			if (selUuids.count() <= 1)
-			{
-				// Show "Center Object List" only when the selected mesh is visible
-				QSet<QUuid> visibleUuids = treeWidgetModel->getVisibleUuids();
-				if (selUuids.isEmpty() || visibleUuids.contains(selUuids.first()))
-					contextMenu.addAction(QIcon(":/icons/res/center_object_list.png"), tr("Center Object List"), this, &ViewportWidget::centerDisplayList);
-			}
+			// Shows the object list (when it is collapsed or filtered) and scrolls it to the selection: useful at any selection size
+			contextMenu.addAction(QIcon(":/icons/res/center_object_list.png"), tr("Center Object List"), this, &ViewportWidget::centerDisplayList);
 			contextMenu.addSeparator();
 			if (_sceneRuntime.visibleSwapped())
 				contextMenu.addAction(QIcon(":/icons/res/show.png"), tr("Show"), _viewer, &ModelViewer::showSelectedItems);
@@ -21667,9 +21661,8 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 
 void ViewportWidget::centerDisplayList()
 {
-	SceneTreeWidget* treeWidgetModel = _viewer->getTreeModel();
-	if (treeWidgetModel && treeWidgetModel->hasMeshSelection())
-		treeWidgetModel->scrollFirstSelectedToCenter();
+	if (_viewer)
+		_viewer->revealSelectionInTree();
 }
 
 #include "BackgroundColor.h"

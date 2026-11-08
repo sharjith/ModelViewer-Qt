@@ -211,7 +211,14 @@ public:
     void expandOneLevelAt(const QPoint& localPos);
     void expandSubtreeAt(const QPoint& localPos);
     void collapseAllBelowAt(const QPoint& localPos);
-    void scrollFirstSelectedToCenter();
+    // `force` also scrolls when the tree was collapsed on purpose (setRevealOnSelect(false)): used by the explicit "Center Object List" command.
+    void scrollFirstSelectedToCenter(bool force = false);
+    // The search filter: filterItems() with a non-empty text hides the rows that do not match. The selection is the document's, the filter is
+    // only a view of the tree, so a mesh selected elsewhere (the viewport) can lie in a hidden row.
+    bool isFilterActive() const { return _filterActive; }
+    bool selectionHasHiddenRows() const;
+    // Shows every row again WITHOUT touching the selection (filterItems("") clears it) and without emitting selectionUpdated().
+    void clearFilterKeepingSelection();
 
     // When false, setting a selection does not scroll to (and so does not expand the
     // ancestors of) the first selected item. Used while restoring a selection that the
@@ -436,6 +443,11 @@ private:
     // call, so selecting N items one by one is O(N^2) - tens of seconds for a 34 000-part assembly. These build ONE
     // QItemSelection (contiguous sibling rows become a single range) and apply it with one selection-model call.
     void setItemsSelected(const QList<QTreeWidgetItem*>& items, bool select);
+    // The selected items read straight from the selection model. QTreeWidget::selectedItems() leaves out items that are hidden (a row the
+    // search filter hid, or inside a hidden parent) even though they ARE selected, so a mesh clicked in the viewport while the filter hid
+    // its row looked unselected to everything built on selectedItems(). The tree's selection is the document's mesh selection: it must not
+    // depend on which rows are visible.
+    QList<QTreeWidgetItem*> allSelectedItems() const;
     void setSubtreeSelected(QTreeWidgetItem* root, bool select);
     // Whole-tree equivalent of calling refreshSelectionClosureBottomUp() on every top-level item: an assembly is selected
     // iff all its direct children are. Works from one snapshot of the selection and applies the result in two bulk calls.
@@ -539,6 +551,7 @@ private:
 
     bool _updatingTree = false; // suppress re-entrant signal handling
     bool _revealOnSelect = true; // see setRevealOnSelect()
+    bool _filterActive = false;  // a non-empty search filter is applied (rows are hidden)
     QTreeWidgetItem* _renamingAssembly = nullptr; // assembly item being edited (made editable only meanwhile)
     bool _inRename     = false; // suppress itemChanged during delegate setModelData
     bool _detachedOverlayMode = false;

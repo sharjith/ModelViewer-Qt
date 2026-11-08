@@ -5617,8 +5617,47 @@ void ModelViewer::handleTreeWidgetVisibilityChanged()
 	ImportDiagnostics::checkpoint("tree.visibility-changed-end");
 }
 
+void ModelViewer::releaseTreeFilter()
+{
+	if (!treeWidgetModel)
+		return;
+	treeWidgetModel->clearFilterKeepingSelection();
+	if (searchBox)
+	{
+		const QSignalBlocker blocker(searchBox);
+		searchBox->clear();
+		searchBox->setStyleSheet(QString());
+	}
+	treeWidgetModel->scrollFirstSelectedToCenter();
+}
+
+void ModelViewer::revealSelectionInTree()
+{
+	if (!treeWidgetModel || !treeWidgetModel->hasMeshSelection())
+		return;
+	const bool wasRevealed = _navigationRevealed;
+	// The tree is the navigation panel, which collapses when it is not pinned: bring it back, and keep it open long enough to be read.
+	revealNavigation();
+	if (!_navigationPinned && _navHideTimer)
+		_navHideTimer->start();
+	if (treeWidgetModel->isFilterActive() && treeWidgetModel->selectionHasHiddenRows())
+		releaseTreeFilter();
+	// A panel that was collapsed gets its size from the reveal animation (220 ms): scroll when it has it.
+	QPointer<ModelViewer> self(this);
+	QTimer::singleShot(wasRevealed ? 0 : 260, this, [self]() {
+		if (self && self->treeWidgetModel)
+			self->treeWidgetModel->scrollFirstSelectedToCenter(true);
+	});
+}
+
 void ModelViewer::handleTreeWidgetSelectionChanged()
 {
+	// A mesh picked in the viewport can lie in a row the search filter hid. The selection is the document's and the filter only a view of the
+	// tree, so the filter ends (the selection stays) instead of leaving a selection the tree cannot show. A selection made inside the filter
+	// (its own matches, or a click on a visible row) leaves the filter alone.
+	if (treeWidgetModel->isFilterActive() && treeWidgetModel->selectionHasHiddenRows())
+		releaseTreeFilter();
+
 	ImportDiagnostics::checkpoint("tree.selection-changed-begin");
 	const std::vector<int> selectedVec = treeWidgetModel->getSelectedIndices();
 	ImportDiagnostics::checkpoint("tree.selection-indices-end", -1, selectedVec.size());
