@@ -1306,6 +1306,20 @@ void testSheetTemplates()
         CHECK(almostEqual(after.cells[0].left() - before.cells[0].left(), 116.0));   // 4 + max(60, 1.2 x 90) + 4 points: the title moved right
         CHECK(sameRect(after.cells[3], before.cells[3]));                              // the field grid did not move
         CHECK(after.logo.right() < after.cells[0].left());
+        // a narrow cell at the left whose right edge stays put (a fraction here) is moved clear of the logo as a whole, not squeezed to nothing
+        SheetTemplate narrowCase = saved.value(0);
+        SheetCell narrowCell;
+        narrowCell.text = QStringLiteral("{date}");
+        narrowCell.rect.left = SheetEdge{ 10.0, false };
+        narrowCell.rect.right = SheetEdge{ 0.04, true };
+        narrowCell.rect.top = SheetEdge{ 4.0, false };
+        narrowCell.rect.bottom = SheetEdge{ 18.0, false };
+        narrowCase.cells.append(narrowCell);
+        CHECK(validateSheetTemplate(narrowCase, &saveError));
+        const ResolvedSheet narrowBefore = resolveSheet(narrowCase, sheetPageSizePt(narrowCase), narrowCase.blockHeight);
+        CHECK(setSheetTemplateLogo(&narrowCase, logoFile, folder, &saveError) && validateSheetTemplate(narrowCase, &saveError));
+        const ResolvedSheet narrowAfter = resolveSheet(narrowCase, sheetPageSizePt(narrowCase), narrowCase.blockHeight);
+        CHECK(narrowAfter.cells.last().left() >= narrowAfter.logo.right() && narrowAfter.cells.last().width() >= narrowBefore.cells.last().width() - 0.5);
         CHECK(writeUserSheetTemplate(withLogo, folder, &saveError) == withLogo.id);
         const QVector<SheetTemplate> reloaded = loadUserSheetTemplates(folder, &loadProblems);
         SheetTemplate found;
@@ -1534,6 +1548,323 @@ void testPartData()
     }), QStringLiteral("already a placeholder name")));   // the standard names stay reserved
 }
 
+// What the template editor relies on: coordinates written and read as text, and the validity check of an edited template.
+void testSheetEditing()
+{
+    using namespace Pdf3D;
+    const double pt = 72.0 / 25.4;
+    SheetEdge e;
+    QString error;
+    CHECK(parseSheetEdgeText(QStringLiteral("12.5"), &e, &error) && !e.fraction && almostEqual(e.value, 12.5 * pt));
+    CHECK(parseSheetEdgeText(QStringLiteral(" -99 "), &e) && !e.fraction && almostEqual(e.value, -99.0 * pt));
+    CHECK(parseSheetEdgeText(QStringLiteral("12,5"), &e) && almostEqual(e.value, 12.5 * pt));   // a decimal comma
+    CHECK(parseSheetEdgeText(QStringLiteral("1/4"), &e) && e.fraction && almostEqual(e.value, 0.25));
+    CHECK(parseSheetEdgeText(QStringLiteral("-1/3"), &e) && e.fraction && almostEqual(e.value, -1.0 / 3.0));
+    CHECK(parseSheetEdgeText(QStringLiteral("37.5%"), &e) && e.fraction && almostEqual(e.value, 0.375));
+    CHECK(parseSheetEdgeText(QStringLiteral("100 %"), &e) && e.fraction && almostEqual(e.value, 1.0));
+    for (const char* bad : { "", "abc", "12mm", "1e3", "1/0", "1//2", "--5", "%", "1000000", "5%%" })
+        CHECK(!parseSheetEdgeText(QString::fromLatin1(bad), &e, &error) && !error.isEmpty());
+
+    // written text reads back to the same coordinate
+    for (const char* text : { "0", "12.5", "-99", "3.25", "1/4", "-1/3", "3/10", "1/2", "100%", "-100%", "37.51%" })
+    {
+        SheetEdge a, b;
+        CHECK(parseSheetEdgeText(QString::fromLatin1(text), &a));
+        const QString written = sheetEdgeToText(a);
+        CHECK(parseSheetEdgeText(written, &b) && b.fraction == a.fraction && almostEqual(a.value, b.value));
+    }
+    CHECK(sheetEdgeToText(SheetEdge{ 12.5 * pt, false }) == QLatin1String("12.5"));
+    CHECK(sheetEdgeToText(SheetEdge{ 0.25, true }) == QLatin1String("1/4"));
+    CHECK(sheetEdgeToText(SheetEdge{ 0.5, true }) == QLatin1String("1/2"));
+    CHECK(sheetEdgeToText(SheetEdge{ -0.25, true }) == QLatin1String("-1/4"));
+    CHECK(sheetEdgeToText(SheetEdge{ 1.0, true }) == QLatin1String("100%"));
+    CHECK(sheetEdgeToText(SheetEdge{ 0.375, true }) == QLatin1String("3/8"));
+    CHECK(sheetEdgeToText(SheetEdge{ 0.3751, true }) == QLatin1String("37.51%"));
+
+    // the validity check an edit goes through
+    const QVector<SheetTemplate> builtIns = builtInSheetTemplates();
+    CHECK(!builtIns.isEmpty());
+    for (const SheetTemplate& b : builtIns)
+        CHECK(validateSheetTemplate(b, &error));   // what is edited must be valid to begin with
+    SheetTemplate tpl = builtIns.value(0);
+    tpl.name = QString();
+    CHECK(!validateSheetTemplate(tpl, &error) && error.contains(QLatin1String("name")));
+    tpl = builtIns.value(0);
+    tpl.cells[0].rect.right = SheetEdge{ 5000.0, false };   // reaches outside the title block
+    CHECK(!validateSheetTemplate(tpl, &error) && error.contains(QLatin1String("outside the title block")));
+    tpl = builtIns.value(0);
+    tpl.cells[0].rect.left = SheetEdge{ 0.9, true };
+    tpl.cells[0].rect.right = SheetEdge{ 0.1, true };   // right of the left edge is required
+    CHECK(!validateSheetTemplate(tpl, &error) && error.contains(QLatin1String("no area")));
+    tpl = builtIns.value(0);
+    SheetCell added;   // the cell the editor's Add creates: valid inside the Default block
+    added.text = QStringLiteral("{title}");
+    added.rect.left = SheetEdge{ 10.0, false };
+    added.rect.top = SheetEdge{ 10.0, false };
+    added.rect.right = SheetEdge{ 0.3, true };
+    added.rect.bottom = SheetEdge{ 0.5, true };
+    tpl.cells.append(added);
+    CHECK(validateSheetTemplate(tpl, &error));
+    // an edited template survives writing and reading
+    tpl.cells.last().text = QStringLiteral("{material|-} / {mass|-}");
+    tpl.cells.last().color = QColor(200, 30, 30);
+    tpl.cells.last().align = Qt::AlignRight;
+    tpl.id = QStringLiteral("user:edited");
+    SheetTemplate back;
+    QStringList warnings;
+    CHECK(parseSheetTemplate(sheetTemplateToJson(tpl), tpl.id, &back, &error, &warnings) && back.cells.size() == tpl.cells.size());
+    if (back.cells.size() == tpl.cells.size())
+    {
+        const SheetCell& c = back.cells.last();
+        CHECK(c.text == tpl.cells.last().text && c.color == QColor(200, 30, 30) && (c.align & Qt::AlignHorizontal_Mask) == Qt::AlignRight);
+    }
+
+    // what the Page tab changes: every named page size, a custom size, orientation, the block anchor and heights
+    const QVector<QPair<QString, QPageSize::PageSizeId>> sizes = sheetPageSizeChoices();
+    CHECK(sizes.size() == 9 && sizes.first().first == QLatin1String("A0") && sizes.first().second == QPageSize::A0);
+    bool hasA4 = false, hasLetter = false;
+    for (const auto& s : sizes)
+    {
+        hasA4 = hasA4 || (s.first == QLatin1String("A4") && s.second == QPageSize::A4);
+        hasLetter = hasLetter || (s.first == QLatin1String("Letter") && s.second == QPageSize::Letter);
+        SheetTemplate sized = builtIns.value(0);
+        sized.pageSizeId = s.second;
+        SheetTemplate readBack;
+        CHECK(parseSheetTemplate(sheetTemplateToJson(sized), QStringLiteral("user:s"), &readBack, &error) && readBack.pageSizeId == s.second);
+    }
+    CHECK(hasA4 && hasLetter);
+    SheetTemplate paged = builtIns.value(0);
+    paged.pageSizeId = QPageSize::Custom;
+    paged.customSizeMm = QSizeF(300.0, 200.0);
+    paged.landscape = false;
+    SheetTemplate pagedBack;
+    CHECK(parseSheetTemplate(sheetTemplateToJson(paged), QStringLiteral("user:p"), &pagedBack, &error) && pagedBack.pageSizeId == QPageSize::Custom
+          && almostEqual(pagedBack.customSizeMm.width(), 300.0) && almostEqual(pagedBack.customSizeMm.height(), 200.0) && !pagedBack.landscape);
+    // the limits themselves are allowed (100 mm must survive the trip through points); the Default cells need not fit such a page,
+    // so only the page size check is looked at
+    paged.customSizeMm = QSizeF(100.0, 100.0);
+    CHECK(validateSheetTemplate(paged, &error) || !error.contains(QLatin1String("custom page size")));
+    paged.customSizeMm = QSizeF(5000.0, 5000.0);
+    CHECK(validateSheetTemplate(paged, &error) || !error.contains(QLatin1String("custom page size")));
+    paged.customSizeMm = QSizeF(99.0, 200.0);
+    CHECK(!validateSheetTemplate(paged, &error) && error.contains(QLatin1String("custom page size")));
+    paged.customSizeMm = QSizeF(50.0, 200.0);
+    CHECK(!validateSheetTemplate(paged, &error) && error.contains(QLatin1String("custom page size")));
+    paged.customSizeMm = QSizeF(5001.0, 200.0);
+    CHECK(!validateSheetTemplate(paged, &error) && error.contains(QLatin1String("custom page size")));
+    SheetTemplate corner = builtIns.value(0);
+    corner.anchor = TitleBlockAnchor::BottomRight;
+    corner.blockWidth = 300.0;
+    CHECK(validateSheetTemplate(corner, &error) || !error.isEmpty());   // either way the editor gets an answer it can show
+    corner.blockWidth = 5.0;
+    CHECK(!validateSheetTemplate(corner, &error) && error.contains(QLatin1String("width")));
+    SheetTemplate tall = builtIns.value(0);
+    tall.blockHeight = 600.0;
+    tall.blockMaxHeight = 600.0;
+    CHECK(!validateSheetTemplate(tall, &error) && error.contains(QLatin1String("height")));
+
+    // what the Fields tab changes: a field of each type, a choice list, a taken name, too many fields
+    SheetTemplate withFields = builtIns.value(0);
+    withFields.id = QStringLiteral("user:f");
+    SheetField text;
+    text.id = QStringLiteral("projectNo");
+    text.label = QStringLiteral("Project");
+    SheetField choice;
+    choice.id = QStringLiteral("grade");
+    choice.label = QStringLiteral("Grade");
+    choice.type = QStringLiteral("choice");
+    choice.options = QStringList{ QStringLiteral("S235"), QStringLiteral("S355") };
+    choice.defaultValue = QStringLiteral("S235");
+    SheetField date;
+    date.id = QStringLiteral("issued");
+    date.label = QStringLiteral("Issued");
+    date.type = QStringLiteral("date");
+    SheetField multi;
+    multi.id = QStringLiteral("remarks");
+    multi.label = QStringLiteral("Remarks");
+    multi.type = QStringLiteral("multiline");
+    withFields.fields = { text, choice, date, multi };
+    SheetTemplate fieldsBack;
+    CHECK(parseSheetTemplate(sheetTemplateToJson(withFields), withFields.id, &fieldsBack, &error) && fieldsBack.fields.size() == 4
+          && fieldsBack.fields[1].options == choice.options && fieldsBack.fields[1].defaultValue == QLatin1String("S235")
+          && fieldsBack.fields[2].type == QLatin1String("date") && fieldsBack.fields[3].type == QLatin1String("multiline"));
+    SheetTemplate bad = withFields;
+    bad.fields[0].id = QStringLiteral("author");   // a standard placeholder name
+    CHECK(!validateSheetTemplate(bad, &error) && error.contains(QLatin1String("already a placeholder name")));
+    bad = withFields;
+    bad.fields[1].options.clear();   // a choice needs its list
+    CHECK(!validateSheetTemplate(bad, &error) && error.contains(QLatin1String("choice")));
+    bad = withFields;
+    bad.fields[0].id = QStringLiteral("1st");
+    CHECK(!validateSheetTemplate(bad, &error) && error.contains(QLatin1String("id")));
+    bad = withFields;
+    bad.fields[2].id = bad.fields[0].id;   // two fields with one id
+    CHECK(!validateSheetTemplate(bad, &error));
+    bad = withFields;
+    bad.fields.clear();
+    for (int i = 0; i < 17; ++i)
+    {
+        SheetField f;
+        f.id = QStringLiteral("f%1").arg(i);
+        f.label = QStringLiteral("F");
+        bad.fields.append(f);
+    }
+    CHECK(!validateSheetTemplate(bad, &error) && error.contains(QLatin1String("custom fields")));
+    withFields.fields[0].id = QStringLiteral("material");   // a field that takes over a scene value is allowed
+    CHECK(validateSheetTemplate(withFields, &error));
+
+    // what the Logo tab changes: a logo and its position round trip, and a template without one has none
+    SheetTemplate logoed = builtIns.value(0);
+    logoed.id = QStringLiteral("user:l");
+    logoed.hasLogo = true;
+    logoed.logo.file = QStringLiteral("mark.svg");
+    logoed.logo.rect.left = SheetEdge{ 4.0, false };
+    logoed.logo.rect.right = SheetEdge{ 0.25, true };
+    logoed.logo.rect.top = SheetEdge{ 4.0, false };
+    logoed.logo.rect.bottom = SheetEdge{ -4.0, false };
+    logoed.logo.contain = false;
+    SheetTemplate logoBack;
+    CHECK(parseSheetTemplate(sheetTemplateToJson(logoed), logoed.id, &logoBack, &error) && logoBack.hasLogo && logoBack.logo.file == QLatin1String("mark.svg")
+          && logoBack.logo.rect.right.fraction && almostEqual(logoBack.logo.rect.right.value, 0.25) && !logoBack.logo.contain);
+    logoed.hasLogo = false;
+    CHECK(parseSheetTemplate(sheetTemplateToJson(logoed), logoed.id, &logoBack, &error) && !logoBack.hasLogo);
+
+    // changing the page carries the layout over: the cells scaled to the new block width stay valid for every named size and orientation
+    for (const SheetTemplate& base : builtIns)
+    {
+        for (const auto& s : sizes)
+        {
+            for (const bool landscape : { true, false })
+            {
+                SheetTemplate moved = base;
+                moved.pageSizeId = s.second;
+                moved.landscape = landscape;
+                const double ratio = sheetBlockWidthPt(moved) / sheetBlockWidthPt(base);
+                CHECK(sheetBlockWidthPt(moved) > 0.0 && ratio > 0.0);
+                const SheetTemplate scaled = scaleSheetTemplateWidth(moved, ratio);
+                CHECK(validateSheetTemplate(scaled, &error));
+                if (!error.isEmpty() && !validateSheetTemplate(scaled))
+                    std::printf("  scaled %s %s %s: %s\n", qPrintable(base.name), qPrintable(s.first), landscape ? "landscape" : "portrait", qPrintable(error));
+            }
+        }
+    }
+    // the scaling itself: lengths scale, fractions and heights do not, and scaling by the inverse gives the template back
+    SheetTemplate def = builtIns.value(0);
+    const SheetTemplate twice = scaleSheetTemplateWidth(def, 2.0);
+    CHECK(almostEqual(twice.cells[3].rect.left.value, def.cells[3].rect.left.value * 2.0) && almostEqual(twice.cells[3].rect.top.value, def.cells[3].rect.top.value));
+    const SheetTemplate roundTrip = scaleSheetTemplateWidth(twice, 0.5);
+    bool same = roundTrip.cells.size() == def.cells.size();
+    for (int i = 0; same && i < def.cells.size(); ++i)
+        same = almostEqual(roundTrip.cells[i].rect.left.value, def.cells[i].rect.left.value) && almostEqual(roundTrip.cells[i].rect.right.value, def.cells[i].rect.right.value)
+               && roundTrip.cells[i].rect.left.fraction == def.cells[i].rect.left.fraction;
+    CHECK(same);
+    SheetTemplate fractional = def;
+    fractional.cells[0].rect.right = SheetEdge{ 0.4, true };
+    CHECK(almostEqual(scaleSheetTemplateWidth(fractional, 3.0).cells[0].rect.right.value, 0.4));
+    // the width of the block: between the margins for a full width block, its own width (at most that) for a corner block
+    SheetTemplate widthTpl = def;
+    CHECK(almostEqual(sheetBlockWidthPt(widthTpl), sheetPageSizePt(widthTpl).width() - 2.0 * widthTpl.margin));
+    widthTpl.anchor = TitleBlockAnchor::BottomLeft;
+    widthTpl.blockWidth = 200.0;
+    CHECK(almostEqual(sheetBlockWidthPt(widthTpl), 200.0));
+    widthTpl.blockWidth = 5000.0;
+    CHECK(almostEqual(sheetBlockWidthPt(widthTpl), sheetPageSizePt(widthTpl).width() - 2.0 * widthTpl.margin));
+
+    // number fields: the type, its settings and limits, and reading and printing in the style of a language
+    SheetField number;
+    number.id = QStringLiteral("massKg");
+    number.label = QStringLiteral("Mass");
+    number.type = QStringLiteral("number");
+    number.decimals = 2;
+    number.unit = QStringLiteral("kg");
+    number.minimum = 0.0;
+    number.maximum = 100000.0;
+    number.defaultValue = QStringLiteral("12.5");
+    SheetTemplate withNumber = builtIns.value(0);
+    withNumber.id = QStringLiteral("user:n");
+    withNumber.fields = { number };
+    SheetTemplate numberBack;
+    CHECK(parseSheetTemplate(sheetTemplateToJson(withNumber), withNumber.id, &numberBack, &error) && numberBack.fields.size() == 1);
+    if (numberBack.fields.size() == 1)
+    {
+        const SheetField& n = numberBack.fields[0];
+        CHECK(n.type == QLatin1String("number") && n.decimals == 2 && n.unit == QLatin1String("kg") && almostEqual(n.minimum, 0.0) && almostEqual(n.maximum, 100000.0)
+              && n.defaultValue == QLatin1String("12.5"));
+    }
+    SheetTemplate plainNumber = withNumber;
+    plainNumber.fields[0].minimum = -1e9;
+    plainNumber.fields[0].maximum = 1e9;
+    plainNumber.fields[0].unit.clear();
+    plainNumber.fields[0].defaultValue.clear();
+    const QString plainJson = QString::fromUtf8(sheetTemplateToJson(plainNumber));
+    CHECK(!plainJson.contains(QLatin1String("\"min\"")) && !plainJson.contains(QLatin1String("\"max\"")) && !plainJson.contains(QLatin1String("\"unit\""))
+          && !plainJson.contains(QLatin1String("\"decimals\"")));   // the defaults are not written
+    CHECK(parseSheetTemplate(sheetTemplateToJson(plainNumber), withNumber.id, &numberBack, &error) && numberBack.fields[0].minimum == -1e9 && numberBack.fields[0].maximum == 1e9);
+    SheetTemplate badNumber = withNumber;
+    badNumber.fields[0].decimals = 7;
+    CHECK(!validateSheetTemplate(badNumber, &error) && error.contains(QLatin1String("decimals")));
+    badNumber = withNumber;
+    badNumber.fields[0].minimum = 10.0;
+    badNumber.fields[0].maximum = 5.0;
+    CHECK(!validateSheetTemplate(badNumber, &error) && error.contains(QLatin1String("minimum")));
+    badNumber = withNumber;
+    badNumber.fields[0].defaultValue = QStringLiteral("abc");
+    CHECK(!validateSheetTemplate(badNumber, &error) && error.contains(QLatin1String("default")));
+    badNumber.fields[0].defaultValue = QStringLiteral("-5");   // below the minimum
+    CHECK(!validateSheetTemplate(badNumber, &error) && error.contains(QLatin1String("default")));
+    badNumber = withNumber;
+    badNumber.fields[0].unit = QString(30, QLatin1Char('u'));
+    CHECK(!validateSheetTemplate(badNumber, &error));
+    badNumber = withNumber;
+    badNumber.fields[0].type = QStringLiteral("integer");
+    CHECK(!validateSheetTemplate(badNumber, &error) && error.contains(QLatin1String("number")));
+
+    const QLocale german(QLocale::German, QLocale::Germany), english(QLocale::English, QLocale::UnitedStates);
+    double parsed = 0.0;
+    CHECK(parseSheetNumber(QStringLiteral("12,5"), german, &parsed) && almostEqual(parsed, 12.5));
+    CHECK(parseSheetNumber(QStringLiteral("12.5"), german, &parsed) && almostEqual(parsed, 12.5));      // a plain point is accepted in every language
+    CHECK(parseSheetNumber(QStringLiteral("1.234,5"), german, &parsed) && almostEqual(parsed, 1234.5));
+    CHECK(parseSheetNumber(QStringLiteral("12.5"), english, &parsed) && almostEqual(parsed, 12.5));
+    CHECK(parseSheetNumber(QStringLiteral(" 7 "), english, &parsed) && almostEqual(parsed, 7.0));
+    CHECK(!parseSheetNumber(QString(), english, &parsed) && !parseSheetNumber(QStringLiteral("abc"), english, &parsed) && !parseSheetNumber(QStringLiteral("1 2"), english, &parsed));
+    CHECK(formatSheetNumber(number, 12.5, german) == QLatin1String("12,50 kg"));
+    CHECK(formatSheetNumber(number, 12.5, english) == QLatin1String("12.50 kg"));
+    CHECK(formatSheetNumber(number, 1234567.891, english) == QLatin1String("1234567.89 kg"));        // no digit grouping on a sheet
+    CHECK(formatSheetNumber(number, 1234567.891, german) == QLatin1String("1234567,89 kg"));
+    number.unit.clear();
+    number.decimals = 0;
+    CHECK(formatSheetNumber(number, 2.4, english) == QLatin1String("2") && formatSheetNumber(number, 2.6, english) == QLatin1String("3"));
+    number.decimals = 3;
+    CHECK(formatSheetNumber(number, -0.5, german) == QLatin1String("-0,500"));
+
+    // placing a cell with the mouse: a rectangle goes back to edges written like the cell's own, and resolves to the same rectangle
+    const QSizeF dragBlock(400.0, 100.0);
+    SheetRect like;
+    like.left = SheetEdge{ 10.0, false };      // from the left
+    like.right = SheetEdge{ -50.0, false };    // from the right
+    like.top = SheetEdge{ 0.1, true };         // a fraction from the top
+    like.bottom = SheetEdge{ -0.2, true };     // a fraction from the bottom
+    const QRectF dragged(30.0, 20.0, 200.0, 40.0);
+    const SheetRect edges = sheetRectFromBlockRect(dragged, like, dragBlock);
+    CHECK(!edges.left.fraction && edges.left.value > 0.0 && !edges.right.fraction && edges.right.value < 0.0
+          && edges.top.fraction && edges.top.value > 0.0 && edges.bottom.fraction && edges.bottom.value < 0.0);
+    CHECK(almostEqual(resolveSheetEdge(edges.left, dragBlock.width()), 30.0) && almostEqual(resolveSheetEdge(edges.right, dragBlock.width()), 230.0)
+          && almostEqual(resolveSheetEdge(edges.top, dragBlock.height()), 20.0) && almostEqual(resolveSheetEdge(edges.bottom, dragBlock.height()), 60.0));
+    const SheetRect fromNear = sheetRectFromBlockRect(dragged, SheetRect(), dragBlock);   // a default rectangle: lengths from the left and top
+    CHECK(!fromNear.right.fraction && fromNear.right.value > 0.0 && almostEqual(resolveSheetEdge(fromNear.right, dragBlock.width()), 230.0)
+          && almostEqual(resolveSheetEdge(fromNear.bottom, dragBlock.height()), 60.0));
+    // the edited template stays valid after a drag
+    SheetTemplate moved = builtIns.value(0);
+    const QSizeF movedBlock(sheetBlockWidthPt(moved), moved.blockHeight);
+    moved.cells[0].rect = sheetRectFromBlockRect(QRectF(20.0, 12.0, 150.0, 22.0), moved.cells[0].rect, movedBlock);
+    CHECK(validateSheetTemplate(moved, &error));
+    // positions are written in millimetres with at most two decimals
+    CHECK(sheetEdgeToText(SheetEdge{ 10.0, false }) == QLatin1String("3.53"));
+    CHECK(sheetEdgeToText(SheetEdge{ -10.0, false }) == QLatin1String("-3.53"));
+    CHECK(sheetEdgeToText(SheetEdge{ 28.3464567, false }) == QLatin1String("10"));
+    CHECK(sheetEdgeToText(SheetEdge{ 0.0, false }) == QLatin1String("0") && sheetEdgeToText(SheetEdge{ -0.001, false }) == QLatin1String("0"));
+}
+
 int main(int argc, char** argv)
 {
     bool full = false;
@@ -1579,6 +1910,7 @@ int main(int argc, char** argv)
     testSheetTemplates();
     testSheetRenderer();
     testPartData();
+    testSheetEditing();
     if (full)
         testFullExport();
 

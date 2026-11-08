@@ -3,11 +3,15 @@
 
 #include "Pdf3DExporter.h"
 #include "SheetPreviewWidget.h"
+#include "SheetTemplateEditor.h"
 #include "SheetRenderer.h"
 
 #include <QComboBox>
 #include <QDate>
+#include <algorithm>
+#include <cmath>
 #include <QDateEdit>
+#include <QDoubleSpinBox>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -28,15 +32,94 @@
 #include <QTreeWidgetItemIterator>
 #include <QUrl>
 
+#include "LanguageManager.h"
+
 namespace
 {
 	constexpr int kViewIndexRole = Qt::UserRole;       // the index into the caller's ViewItem list, on the leaf items
 	constexpr int kViewKeyRole = Qt::UserRole + 1;     // "group|name" of a view, to remember its tick state
 	constexpr int kFixedFormRows = 7;                  // title .. notes in the Sheet tab's form; the template's custom fields follow
 
-	// The text of a custom field's editor, whatever its type.
-	QString editorValue(const QWidget* editor)
+	// The locale of the application's language: numbers are typed and printed in its style (the system's when no language is loaded).
+	QLocale appLocale()
 	{
+		const QString language = LanguageManager::instance().currentLanguage();
+		return language.isEmpty() ? QLocale() : QLocale(language);
+	}
+
+	// The box of a number field: a spin box in the application's language style with the field's decimals, limits and unit. It can also be
+	// empty (nothing is printed): the lowest position, one step below the minimum, stands for that and shows nothing, and the first step up
+	// from it goes to 0 (or to the minimum when that is above 0), not to the minimum of a field without limits.
+	class SheetNumberBox : public QDoubleSpinBox
+	{
+	public:
+		SheetNumberBox(const Pdf3D::SheetField& field, const QLocale& locale, QWidget* parent = nullptr)
+			: QDoubleSpinBox(parent)
+			, _minimum(field.minimum)
+			, _maximum(field.maximum)
+			, _unit(field.unit)
+		{
+			setLocale(locale);
+			setDecimals(field.decimals);
+			_step = std::pow(10.0, -field.decimals);
+			setRange(_minimum - _step, _maximum);
+			setSingleStep(std::max(_step, std::min(1.0, (_maximum - _minimum) / 10.0)));
+			setSpecialValueText(QStringLiteral(" "));
+			setGroupSeparatorShown(false);
+			if (!field.unit.isEmpty())
+				setSuffix(QLatin1Char(' ') + field.unit);
+			setEmpty();
+		}
+
+		bool isEmptyValue() const { return value() < _minimum - _step * 0.5; }
+		void setEmpty() { setValue(_minimum - _step); }
+		QString unitText() const { return _unit; }
+		void stepBy(int steps) override
+		{
+			if (isEmptyValue())
+				setValue(std::clamp(0.0, _minimum, _maximum));
+			else
+				QDoubleSpinBox::stepBy(steps);
+		}
+
+	protected:
+		// text with nothing in it but the unit is "empty": it is accepted, so the number can be deleted to print nothing
+		bool isBlankText(const QString& text) const
+		{
+			QString core = text;
+			core.remove(prefix());
+			core.remove(suffix());
+			return core.trimmed().isEmpty();
+		}
+		QValidator::State validate(QString& input, int& pos) const override
+		{
+			return isBlankText(input) ? QValidator::Acceptable : QDoubleSpinBox::validate(input, pos);
+		}
+		double valueFromText(const QString& text) const override
+		{
+			return isBlankText(text) ? _minimum - _step : QDoubleSpinBox::valueFromText(text);
+		}
+
+	private:
+		double _minimum, _maximum, _step = 0.01;
+		QString _unit;
+	};
+
+	// The text of a custom field's editor, whatever its type. A number box gives the number as the sheet prints it (`formatted`) or, for
+	// what is remembered, in the plain form with a point; empty when it is empty.
+	QString editorValue(const QWidget* editor, const QLocale& locale, bool formatted)
+	{
+		if (const auto* number = dynamic_cast<const SheetNumberBox*>(editor))
+		{
+			if (number->isEmptyValue())
+				return QString();
+			if (!formatted)
+				return QLocale::c().toString(number->value(), 'f', number->decimals());
+			Pdf3D::SheetField field;
+			field.decimals = number->decimals();
+			field.unit = number->unitText();
+			return Pdf3D::formatSheetNumber(field, number->value(), locale);
+		}
 		if (const auto* line = qobject_cast<const QLineEdit*>(editor))
 			return line->text().trimmed();
 		if (const auto* plain = qobject_cast<const QPlainTextEdit*>(editor))
@@ -77,12 +160,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	connect(ui->templateCombo, &QComboBox::currentIndexChanged, this, [this]() { applyTemplateSelection(); });
 	connect(ui->templateCombo->lineEdit(), &QLineEdit::editingFinished, this, [this]() { templateNameEntered(); });
 	connect(ui->logoTemplateButton, &QPushButton::clicked, this, [this]() { chooseLogo(); });
-	connect(ui->editTemplateButton, &QPushButton::clicked, this, [this]() {
-		const QString id = currentTemplateId();
-		if (!id.startsWith(QLatin1String("user:")))
-			return;
-		QDesktopServices::openUrl(QUrl::fromLocalFile(QDir(Pdf3D::userSheetTemplateFolder()).filePath(id.mid(5) + QStringLiteral(".json"))));
-	});
+	connect(ui->editTemplateButton, &QPushButton::clicked, this, [this]() { editTemplate(); });
 	connect(ui->reloadTemplatesButton, &QPushButton::clicked, this, [this]() { reloadTemplates(currentTemplateId()); });
 	connect(ui->openTemplatesButton, &QPushButton::clicked, this, []() {
 		const QString folder = Pdf3D::userSheetTemplateFolder();
@@ -333,6 +411,7 @@ void Pdf3DExportDialog::applyTemplateSelection()
 		ui->formLayout->removeRow(ui->formLayout->rowCount() - 1);
 	_customFields.clear();
 	const QSettings settings;
+	const QLocale locale = appLocale();
 	for (const Pdf3D::SheetField& f : t.fields)
 	{
 		const QString stored = settings.value(QStringLiteral("pdf3d/templates/%1/%2").arg(t.id, f.id), f.defaultValue).toString();
@@ -361,6 +440,18 @@ void Pdf3DExportDialog::applyTemplateSelection()
 				e->setCurrentIndex(i);
 			editor = e;
 		}
+		else if (f.type == QLatin1String("number"))
+		{
+			// a spin box in the language's style; what was used last time comes back (empty stays empty), the first time the default does
+			const QString key = QStringLiteral("pdf3d/templates/%1/%2").arg(t.id, f.id);
+			auto* e = new SheetNumberBox(f, locale);
+			double remembered = 0.0;
+			if (Pdf3D::parseSheetNumber(settings.contains(key) ? stored : f.defaultValue, QLocale::c(), &remembered)
+				|| (settings.contains(key) && Pdf3D::parseSheetNumber(stored, locale, &remembered)))
+				e->setValue(std::clamp(remembered, f.minimum, f.maximum));
+			e->setToolTip(tr("A number. Leave it empty to print nothing; %1 decimals%2.").arg(f.decimals).arg(f.unit.isEmpty() ? QString() : tr(", unit %1").arg(f.unit)));
+			editor = e;
+		}
 		else
 		{
 			editor = new QLineEdit(stored);
@@ -369,6 +460,8 @@ void Pdf3DExportDialog::applyTemplateSelection()
 		_customFields.insert(f.id, editor);
 		if (const auto* line = qobject_cast<QLineEdit*>(editor))
 			connect(line, &QLineEdit::textChanged, this, [this]() { updatePreview(); });
+		else if (const auto* spin = qobject_cast<QDoubleSpinBox*>(editor))
+			connect(spin, &QDoubleSpinBox::valueChanged, this, [this]() { updatePreview(); });
 		else if (const auto* plain = qobject_cast<QPlainTextEdit*>(editor))
 			connect(plain, &QPlainTextEdit::textChanged, this, [this]() { updatePreview(); });
 		else if (const auto* combo = qobject_cast<QComboBox*>(editor))
@@ -378,7 +471,7 @@ void Pdf3DExportDialog::applyTemplateSelection()
 	}
 
 	const bool isUser = t.id.startsWith(QLatin1String("user:"));
-	ui->editTemplateButton->setEnabled(isUser);
+	ui->editTemplateButton->setEnabled(true);   // a built-in template can be edited too, then saved under a new name
 	const QSizeF pagePt = Pdf3D::sheetPageSizePt(t);
 	QString info = tr("%1 template. Page %2 x %3 mm, %4.").arg(isUser ? tr("Your") : tr("Built-in"))
 		.arg(qRound(pagePt.width() * 25.4 / 72.0)).arg(qRound(pagePt.height() * 25.4 / 72.0))
@@ -401,16 +494,32 @@ void Pdf3DExportDialog::setSheetSample(int partCount, const QString& subtitle, c
 	updatePreview();
 }
 
+QMap<QString, QString> Pdf3DExportDialog::currentSheetValues() const
+{
+	Pdf3D::Pdf3DOptions options;
+	applyTo(options);
+	options.subtitle = _sampleSubtitle;
+	return Pdf3D::sheetValues(options, _sampleParts, 1, 1);
+}
+
 void Pdf3DExportDialog::updatePreview()
 {
 	const int index = ui->templateCombo->currentIndex();
 	if (!_preview || index < 0 || index >= _templates.size())
 		return;
-	Pdf3D::Pdf3DOptions options;
-	applyTo(options);
-	options.subtitle = _sampleSubtitle;
 	_preview->setTemplate(_templates[index]);
-	_preview->setValues(Pdf3D::sheetValues(options, _sampleParts, 1, 1));
+	_preview->setValues(currentSheetValues());
+}
+
+// Edit...: the cell editor with a live preview; a saved template is listed again and selected.
+void Pdf3DExportDialog::editTemplate()
+{
+	const int index = ui->templateCombo->currentIndex();
+	if (index < 0 || index >= _templates.size())
+		return;
+	Pdf3D::SheetTemplateEditor editor(_templates[index], currentSheetValues(), Pdf3D::userSheetTemplateFolder(), appLocale(), this);
+	if (editor.exec() == QDialog::Accepted && !editor.savedTemplateId().isEmpty())
+		reloadTemplates(editor.savedTemplateId());
 }
 
 void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
@@ -429,7 +538,7 @@ void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
 	options.sceneMass = _sampleMass;
 	options.fieldValues.clear();
 	for (auto it = _customFields.constBegin(); it != _customFields.constEnd(); ++it)
-		options.fieldValues.insert(it.key(), editorValue(it.value()));
+		options.fieldValues.insert(it.key(), editorValue(it.value(), appLocale(), true));
 }
 
 QVector<bool> Pdf3DExportDialog::viewSelection() const
@@ -534,7 +643,7 @@ void Pdf3DExportDialog::done(int result)
 		for (auto it = _customFields.constBegin(); it != _customFields.constEnd(); ++it)
 		{
 			if (!qobject_cast<const QDateEdit*>(it.value()))
-				settings.setValue(QStringLiteral("pdf3d/templates/%1/%2").arg(currentTemplateId(), it.key()), editorValue(it.value()));
+				settings.setValue(QStringLiteral("pdf3d/templates/%1/%2").arg(currentTemplateId(), it.key()), editorValue(it.value(), appLocale(), false));
 		}
 		// the view selection: forget what this list showed, then remember what is unticked in it (views of other documents stay)
 		QStringList unchecked = settings.value(QStringLiteral("pdf3d/viewsUnchecked")).toStringList();

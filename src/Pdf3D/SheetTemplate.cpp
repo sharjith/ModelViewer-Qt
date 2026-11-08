@@ -311,6 +311,166 @@ QStringList standardSheetPlaceholders()
              QStringLiteral("date"), QStringLiteral("parts"), QStringLiteral("sheet"), QStringLiteral("sheets") };
 }
 
+SheetRect sheetRectFromBlockRect(const QRectF& rect, const SheetRect& like, const QSizeF& blockSize)
+{
+    // one coordinate: measured from the near edge (positive) or from the far edge (negative), as a length or as a fraction of `size`
+    const auto edge = [](double coordinate, const SheetEdge& style, double size) {
+        SheetEdge e;
+        e.fraction = style.fraction;
+        const double offset = style.value < 0.0 ? coordinate - size : coordinate;
+        e.value = style.fraction ? (size > 0.0 ? offset / size : 0.0) : offset;
+        return e;
+    };
+    SheetRect out;
+    out.left = edge(rect.left(), like.left, blockSize.width());
+    out.right = edge(rect.right(), like.right, blockSize.width());
+    out.top = edge(rect.top(), like.top, blockSize.height());
+    out.bottom = edge(rect.bottom(), like.bottom, blockSize.height());
+    return out;
+}
+
+bool parseSheetNumber(const QString& text, const QLocale& locale, double* value)
+{
+    const QString s = text.trimmed();
+    if (s.isEmpty())
+        return false;
+    bool ok = false;
+    double v = locale.toDouble(s, &ok);
+    if (!ok)
+        v = QLocale::c().toDouble(s, &ok);   // a plain point is accepted whatever the language
+    if (!ok || !std::isfinite(v))
+        return false;
+    if (value)
+        *value = v;
+    return true;
+}
+
+QString formatSheetNumber(const SheetField& field, double value, const QLocale& locale)
+{
+    QLocale plain = locale;
+    plain.setNumberOptions(locale.numberOptions() | QLocale::OmitGroupSeparator);   // a sheet reads "1234.50 kg", not "1,234.50 kg"
+    const QString number = plain.toString(value, 'f', std::clamp(field.decimals, 0, 6));
+    return field.unit.isEmpty() ? number : number + QLatin1Char(' ') + field.unit;
+}
+
+double sheetBlockWidthPt(const SheetTemplate& tpl)
+{
+    const double available = sheetPageSizePt(tpl).width() - 2.0 * tpl.margin;
+    return tpl.anchor == TitleBlockAnchor::Bottom ? available : std::min(tpl.blockWidth, available);
+}
+
+SheetTemplate scaleSheetTemplateWidth(const SheetTemplate& tpl, double ratio)
+{
+    SheetTemplate out = tpl;
+    const auto scale = [ratio](SheetEdge& e) {
+        if (!e.fraction)
+            e.value *= ratio;
+    };
+    for (SheetCell& c : out.cells)
+    {
+        scale(c.rect.left);
+        scale(c.rect.right);
+    }
+    for (SheetLine& l : out.lines)
+    {
+        scale(l.x1);
+        scale(l.x2);
+    }
+    if (out.hasLogo)
+    {
+        scale(out.logo.rect.left);
+        scale(out.logo.rect.right);
+    }
+    return out;
+}
+
+QVector<QPair<QString, QPageSize::PageSizeId>> sheetPageSizeChoices()
+{
+    QVector<QPair<QString, QPageSize::PageSizeId>> choices;
+    for (const PageSizeName& n : kPageSizes)
+        choices.append({ QString::fromLatin1(n.name), n.id });
+    return choices;
+}
+
+QString sheetEdgeToText(const SheetEdge& edge)
+{
+    if (edge.fraction)
+    {
+        const double magnitude = std::fabs(edge.value);
+        if (magnitude < 1e-12)
+            return QStringLiteral("0");
+        const QString sign = edge.value < 0.0 ? QStringLiteral("-") : QString();
+        for (int d = 2; d <= 12; ++d)
+        {
+            const double n = std::round(magnitude * d);
+            if (n >= 1.0 && n < d && std::fabs(magnitude * d - n) < 1e-9)   // a proper fraction; whole values read better as a percentage
+                return QStringLiteral("%1%2/%3").arg(sign).arg(static_cast<int>(n)).arg(d);
+        }
+        return QString::number(edge.value * 100.0, 'g', 6) + QLatin1Char('%');
+    }
+    // millimetres with at most two decimals ("3.53"), without trailing zeros
+    QString text = QString::number(edge.value / kPointsPerMm, 'f', 2);
+    if (text.contains(QLatin1Char('.')))
+    {
+        while (text.endsWith(QLatin1Char('0')))
+            text.chop(1);
+        if (text.endsWith(QLatin1Char('.')))
+            text.chop(1);
+    }
+    return text == QLatin1String("-0") ? QStringLiteral("0") : text;
+}
+
+bool parseSheetEdgeText(const QString& text, SheetEdge* edge, QString* error)
+{
+    const auto fail = [&](const QString& message) {
+        if (error)
+            *error = message;
+        return false;
+    };
+    QString s = text.trimmed();
+    s.replace(QLatin1Char(','), QLatin1Char('.'));
+    static const QRegularExpression numberPattern(QStringLiteral("^-?\\d+(\\.\\d+)?$"));
+    static const QRegularExpression ratioPattern(QStringLiteral("^(-?\\d+(?:\\.\\d+)?)\\s*/\\s*(\\d+(?:\\.\\d+)?)$"));
+    static const QRegularExpression percentPattern(QStringLiteral("^(-?\\d+(?:\\.\\d+)?)\\s*%$"));
+    SheetEdge parsed;
+    const QRegularExpressionMatch ratio = ratioPattern.match(s);
+    const QRegularExpressionMatch percent = percentPattern.match(s);
+    if (numberPattern.match(s).hasMatch())
+    {
+        parsed.value = s.toDouble() * kPointsPerMm;
+    }
+    else if (ratio.hasMatch())
+    {
+        const double denominator = ratio.captured(2).toDouble();
+        if (denominator == 0.0)
+            return fail(QStringLiteral("a fraction cannot have 0 below the line"));
+        parsed.value = ratio.captured(1).toDouble() / denominator;
+        parsed.fraction = true;
+    }
+    else if (percent.hasMatch())
+    {
+        parsed.value = percent.captured(1).toDouble() / 100.0;
+        parsed.fraction = true;
+    }
+    else
+        return fail(QStringLiteral("write millimetres (12.5 or -99), a fraction (1/4) or a percentage (37.5%)"));
+    if (std::fabs(parsed.value) > 100000.0)
+        return fail(QStringLiteral("the number is too large"));
+    if (edge)
+        *edge = parsed;
+    return true;
+}
+
+bool validateSheetTemplate(const SheetTemplate& tpl, QString* error)
+{
+    SheetTemplate check;
+    QString message;
+    const bool ok = parseSheetTemplate(sheetTemplateToJson(tpl), tpl.id, &check, &message);
+    if (!ok && error)
+        *error = message;
+    return ok;
+}
+
 QStringList sceneSheetPlaceholders()
 {
     return { QStringLiteral("material"), QStringLiteral("mass") };
@@ -469,7 +629,8 @@ bool parseSheetTemplate(const QByteArray& json, const QString& id, SheetTemplate
         if (!p.number(size.toArray().at(0), QStringLiteral("page width"), &w, 0, 1e6) || !p.number(size.toArray().at(1), QStringLiteral("page height"), &h, 0, 1e6))
             return finish(false);
         const double wMm = w * p.unitToPt / kPointsPerMm, hMm = h * p.unitToPt / kPointsPerMm;
-        if (wMm < 100.0 || hMm < 100.0 || wMm > 5000.0 || hMm > 5000.0)
+        constexpr double kEdgeSlack = 0.001;   // 100 mm written in points and read back may land a hair below 100
+        if (wMm < 100.0 - kEdgeSlack || hMm < 100.0 - kEdgeSlack || wMm > 5000.0 + kEdgeSlack || hMm > 5000.0 + kEdgeSlack)
             return p.fail(QStringLiteral("a custom page size must be between 100 mm and 5000 mm")), finish(false);
         t.pageSizeId = QPageSize::Custom;
         t.customSizeMm = QSizeF(wMm, hMm);
@@ -552,8 +713,9 @@ bool parseSheetTemplate(const QByteArray& json, const QString& id, SheetTemplate
         if (!p.text(o.value(QLatin1String("label")), QStringLiteral("%1 \"label\"").arg(what), &f.label, kMaxNameLength))
             return finish(false);
         f.type = o.value(QLatin1String("type")).toString(QStringLiteral("text"));
-        if (f.type != QLatin1String("text") && f.type != QLatin1String("multiline") && f.type != QLatin1String("date") && f.type != QLatin1String("choice"))
-            return p.fail(QStringLiteral("%1: \"type\" must be text, multiline, date or choice").arg(what)), finish(false);
+        if (f.type != QLatin1String("text") && f.type != QLatin1String("multiline") && f.type != QLatin1String("date") && f.type != QLatin1String("choice")
+            && f.type != QLatin1String("number"))
+            return p.fail(QStringLiteral("%1: \"type\" must be text, multiline, date, choice or number").arg(what)), finish(false);
         f.defaultValue = o.value(QLatin1String("default")).toString();
         if (f.type == QLatin1String("choice"))
         {
@@ -566,6 +728,24 @@ bool parseSheetTemplate(const QByteArray& json, const QString& id, SheetTemplate
                     return p.fail(QStringLiteral("%1: an option must be a short string").arg(what)), finish(false);
                 f.options.append(v.toString());
             }
+        }
+        if (f.type == QLatin1String("number"))
+        {
+            double decimals = 2.0;
+            if (o.contains(QLatin1String("decimals")) && (!p.number(o.value(QLatin1String("decimals")), QStringLiteral("%1 \"decimals\"").arg(what), &decimals, 0.0, 6.0) || decimals != std::floor(decimals)))
+                return p.fail(QStringLiteral("%1: \"decimals\" must be a whole number from 0 to 6").arg(what)), finish(false);
+            f.decimals = static_cast<int>(decimals);
+            if (o.contains(QLatin1String("unit")) && !p.text(o.value(QLatin1String("unit")), QStringLiteral("%1 \"unit\"").arg(what), &f.unit, 20))
+                return finish(false);
+            if (o.contains(QLatin1String("min")) && !p.number(o.value(QLatin1String("min")), QStringLiteral("%1 \"min\"").arg(what), &f.minimum, -1e9, 1e9))
+                return finish(false);
+            if (o.contains(QLatin1String("max")) && !p.number(o.value(QLatin1String("max")), QStringLiteral("%1 \"max\"").arg(what), &f.maximum, -1e9, 1e9))
+                return finish(false);
+            if (f.minimum > f.maximum)
+                return p.fail(QStringLiteral("%1: the minimum is above the maximum").arg(what)), finish(false);
+            double defaultNumber = 0.0;
+            if (!f.defaultValue.isEmpty() && (!parseSheetNumber(f.defaultValue, QLocale::c(), &defaultNumber) || defaultNumber < f.minimum || defaultNumber > f.maximum))
+                return p.fail(QStringLiteral("%1: the default must be a number within the limits, written with a point").arg(what)), finish(false);
         }
         knownNames.append(f.id);
         t.fields.append(f);
@@ -869,6 +1049,17 @@ QByteArray sheetTemplateToJson(const SheetTemplate& t)
             o.insert(QStringLiteral("default"), f.defaultValue);
         if (!f.options.isEmpty())
             o.insert(QStringLiteral("options"), QJsonArray::fromStringList(f.options));
+        if (f.type == QLatin1String("number"))
+        {
+            if (f.decimals != 2)
+                o.insert(QStringLiteral("decimals"), f.decimals);
+            if (!f.unit.isEmpty())
+                o.insert(QStringLiteral("unit"), f.unit);
+            if (f.minimum != -1e9)
+                o.insert(QStringLiteral("min"), f.minimum);
+            if (f.maximum != 1e9)
+                o.insert(QStringLiteral("max"), f.maximum);
+        }
         fields.append(o);
     }
     if (!fields.isEmpty())
@@ -989,13 +1180,22 @@ bool setSheetTemplateLogo(SheetTemplate* t, const QString& logoFile, const QStri
         t->logo.rect.right = SheetEdge{ 4.0 + width, false };
         t->logo.rect.top = SheetEdge{ 4.0, false };
         t->logo.rect.bottom = SheetEdge{ -4.0, false };
+        const double blockWidth = sheetBlockWidthPt(*t);
         for (SheetCell& c : t->cells)
         {
             if (!c.rect.left.fraction && c.rect.left.value >= 0.0)
             {
+                const double oldLeft = resolveSheetEdge(c.rect.left, blockWidth);
+                const double oldRight = resolveSheetEdge(c.rect.right, blockWidth);
                 c.rect.left.value += shift;
                 if (!c.rect.right.fraction && c.rect.right.value > 0.0)
                     c.rect.right.value += shift;
+                else if (oldRight - (oldLeft + shift) < std::min(oldRight - oldLeft, 24.0))
+                {
+                    // the right edge stays where it is (it is measured from the right, or is a fraction) and the cell would be squeezed
+                    // to nothing: it moves clear of the logo as a whole instead
+                    c.rect.right = SheetEdge{ std::min(oldRight + shift, blockWidth), false };
+                }
             }
         }
         SheetLine separator;

@@ -79,8 +79,8 @@ On a built-in template this first saves a copy under a name you give.</string>
          <item>
           <widget class="QPushButton" name="editTemplateButton">
            <property name="toolTip">
-            <string>Opens your template's JSON file in the editor of your system to move cells or change fonts and fields.
-Press Reload afterwards. Built-in templates cannot be edited: save a copy first.</string>
+            <string>Edits the cells of the title block with a live preview: text and fields, font, colour, alignment and position.
+A built-in template can be edited too and is then saved under a new name. The JSON files are in the templates folder (Open folder).</string>
            </property>
            <property name="text">
             <string>Edit...</string>

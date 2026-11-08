@@ -2,8 +2,10 @@
 
 #include <QColor>
 #include <QLineF>
+#include <QLocale>
 #include <QMap>
 #include <QPageSize>
+#include <QPair>
 #include <QRectF>
 #include <QSet>
 #include <QSizeF>
@@ -64,9 +66,14 @@ struct SheetField
 {
     QString id;
     QString label;
-    QString type = QStringLiteral("text");   // text, multiline, date, choice
-    QString defaultValue;
+    QString type = QStringLiteral("text");   // text, multiline, date, choice, number
+    QString defaultValue;                     // for a number: plain text with a point ("12.5"), whatever the language
     QStringList options;                      // type choice
+    // type number: shown, typed and printed in the style of the application's language (see formatSheetNumber)
+    int     decimals = 2;                     // digits after the decimal separator when printed, 0 to 6
+    QString unit;                             // printed after the number ("kg")
+    double  minimum = -1e9;                   // the limits of the value; the defaults mean "no limit"
+    double  maximum = 1e9;
 };
 
 enum class TitleBlockAnchor
@@ -174,6 +181,37 @@ QString writeUserSheetTemplate(const SheetTemplate& tpl, const QString& folder, 
 // copied next to it. A name that belongs to a built-in template is refused; a name that belongs to a template of the user's returns
 // that template's id and changes nothing. Returns the new template's id, or an empty string with a message in `error`.
 QString saveSheetTemplateAs(const SheetTemplate& source, const QString& newName, const QString& folder, QString* error = nullptr);
+
+// Number fields: reading what a person typed (the language's separators first, then a plain point) and printing it in the language's
+// style with the field's decimals and unit and without digit grouping ("12,50 kg" in German, "12.50 kg" in English).
+bool parseSheetNumber(const QString& text, const QLocale& locale, double* value);
+QString formatSheetNumber(const SheetField& field, double value, const QLocale& locale);
+
+// The named page sizes a template may use (A0-A5, Letter, Legal, Tabloid), in the order the editor lists them; QPageSize::Custom is separate.
+QVector<QPair<QString, QPageSize::PageSizeId>> sheetPageSizeChoices();
+
+// Editing. A coordinate as the template editor shows and reads it: millimetres ("12.5", "-99": negative counts from the opposite edge), a
+// fraction of the block size ("1/4", "-1/3") or a percentage ("37.5%"). The comma is accepted as a decimal separator. Values are kept in
+// points inside a SheetEdge.
+QString sheetEdgeToText(const SheetEdge& edge);
+bool parseSheetEdgeText(const QString& text, SheetEdge* edge, QString* error = nullptr);
+
+// The width of the title block in points: the page width between the margins for a full width block, the block's own width (at most
+// that) for a corner block.
+double sheetBlockWidthPt(const SheetTemplate& tpl);
+
+// A copy of `tpl` with every horizontal measure of the cells, the lines and the logo that is a length (not a fraction of the block)
+// multiplied by `ratio`: the layout of a block of one width carried over to a block `ratio` times as wide. Heights, fonts and fractions
+// stay. Used when the page or its orientation changes.
+SheetTemplate scaleSheetTemplateWidth(const SheetTemplate& tpl, double ratio);
+
+// The edges of a rectangle given in block coordinates (points from the block's top left, in a block of `blockSize`), written the way
+// `like` writes its own: a length from the left or top (positive), a length from the right or bottom (negative), or a fraction of the
+// block size. Used when a cell is moved or resized with the mouse.
+SheetRect sheetRectFromBlockRect(const QRectF& rect, const SheetRect& like, const QSizeF& blockSize);
+
+// Checks a template the way saving does (written as JSON and read again) without writing anything. `error` names the offending key or cell.
+bool validateSheetTemplate(const SheetTemplate& tpl, QString* error = nullptr);
 
 // Gives `tpl` a logo: the file is copied into `folder`. A template without a logo gets a logo cell at the left of the title block
 // (cells measured from the left edge move right to make room, with a separating line); one that has a logo keeps its place and

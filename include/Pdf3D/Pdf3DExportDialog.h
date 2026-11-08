@@ -99,6 +99,8 @@ private:
 	void applyTemplateSelection();                   // shows the fields the chosen template uses and builds its custom fields
 	void templateNameEntered();                      // the combo's text was edited: select that template, or save a copy under the new name
 	void chooseLogo();                               // the Logo button
+	void editTemplate();                             // the Edit... button: the cell editor for the chosen template
+	QMap<QString, QString> currentSheetValues() const;   // what the sheet would print now (the preview and the editor show it)
 	void updatePreview();                            // redraws the sheet preview from the chosen template and the current values
 	QString currentTemplateId() const;
 
