@@ -219,7 +219,8 @@ void TutorialDialog::populateLessonList()
         << tr("26. Mesh Tools")
         << tr("27. Measure, Annotate and Report")
         << tr("28. Analysis, Selection and Scenes")
-        << tr("29. Ray Tracing in Practice");
+        << tr("29. Ray Tracing in Practice")
+        << tr("30. Save as 3D PDF");
 
     _lessonList->addItems(items);
 }
@@ -266,7 +267,7 @@ QString TutorialDialog::getLessonTitle(int lessonIndex) const
         "Edge & Wireframe Rendering", "Simulation Results", "Looking Inside a Result", "Charts and Probing",
         "Comparing Results, Cell and Shell Data", "3D Plots from CSV Data", "3D Plots from Formulas, Fills, Images and Notes",
         "Plots and Results Played Together", "Mesh Tools", "Measure, Annotate and Report", "Analysis, Selection and Scenes",
-        "Ray Tracing in Practice"
+        "Ray Tracing in Practice", "Save as 3D PDF"
     };
 
     if (lessonIndex >= 1 && lessonIndex <= titles.size())

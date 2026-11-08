@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lesson 30: Save as 3D PDF - ModelViewer Tutorial</title>
+    <link rel="stylesheet" href="common-styles.css">
+</head>
+<body>
+    <div id="sidebar">
+        <h1><a href="index.html">📚 Tutorial</a></h1>
+        <nav>
+            <a href="lesson01.html">1. Getting Started</a>
+            <a href="lesson02.html">2. Opening Models</a>
+            <a href="lesson03.html">3. Basic Navigation</a>
+            <a href="lesson04.html">4. Selecting Objects</a>
+            <a href="lesson05.html">5. View Modes</a>
+            <a href="lesson06.html">6. Camera Modes</a>
+            <a href="lesson07.html">7. Display Modes</a>
+            <a href="lesson08.html">8. Manipulating Objects</a>
+            <a href="lesson09.html">9. Materials &amp; Textures</a>
+            <a href="lesson10.html">10. Lighting &amp; Environment</a>
+            <a href="lesson11.html">11. Working with Visibility</a>
+            <a href="lesson12.html">12. Advanced Features</a>
+            <a href="lesson13.html">13. Performance Optimization</a>
+            <a href="lesson14.html">14. Tips &amp; Workflows</a>
+            <a href="lesson15.html">15. Exploded Views</a>
+            <a href="lesson16.html">16. Morph Target Animation</a>
+            <a href="lesson17.html">17. Node Transform Editing</a>
+            <a href="lesson18.html">18. Edge &amp; Wireframe Rendering</a>
+            <a href="lesson19.html">19. Simulation Results</a>
+            <a href="lesson20.html">20. Looking Inside a Result</a>
+            <a href="lesson21.html">21. Charts and Probing</a>
+            <a href="lesson22.html">22. Comparing Results, Cell and Shell Data</a>
+            <a href="lesson23.html">23. 3D Plots from CSV Data</a>
+            <a href="lesson24.html">24. 3D Plots from Formulas, Fills, Images and Notes</a>
+            <a href="lesson25.html">25. Plots and Results Played Together</a>
+            <a href="lesson26.html">26. Mesh Tools</a>
+            <a href="lesson27.html">27. Measure, Annotate and Report</a>
+            <a href="lesson28.html">28. Analysis, Selection and Scenes</a>
+            <a href="lesson29.html">29. Ray Tracing in Practice</a>
+            <a href="lesson30.html" class='active'>30. Save as 3D PDF</a>
+        </nav>
+    </div>
+
+    <div id="main-content">
+        <div class="progress-text">Lesson 30 of 30</div>
+        <div class="progress-bar">
+            <div class="progress-fill" style="width: 100%"></div>
+        </div>
+
+        <div class="lesson-header">
+            <h1>Lesson 30: Save as 3D PDF</h1>
+        </div>
+
+        <h2>Introduction</h2>
+        <p>A 3D PDF is a drawing sheet with a live 3D view in it: the reader rotates and sections the model in Adobe Acrobat or Reader and reads a title block (drawing number, part, material, mass, author, date) around it. <b>File → Save as 3D PDF...</b> writes the visible parts of the scene as one. The sheet around the model comes from a <b>template</b>, and you can edit the templates yourself.</p>
+        <div class="note note-info">
+            Only the parts that are visible are written. Hide what does not belong on the sheet first (Lesson 11). Very large assemblies, thousands of parts, take minutes to write and are heavy to open, so prefer a reduced assembly for them.
+        </div>
+
+        <h2>Writing a Sheet</h2>
+        <div class="step">
+            <div class="step-title">Step 1: Open the dialog</div>
+            <div class="step-content">Load a model and choose <b>File → Save as 3D PDF...</b>. The dialog shows a live preview of the sheet that follows every change you make.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 2: Choose a template</div>
+            <div class="step-content">Pick one from the template list. The input fields of the dialog change with the template: each template decides which fields (title, drawing number, notes, and so on) it asks for.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 3: Fill the fields</div>
+            <div class="step-content">Type the values; the preview updates as you type. The part count, the material, the mass and the subtitle (the name of the model file, or the names of several) are not typed: they are read from the scene. The other tabs of the dialog (<b>Views</b>, <b>Measurements</b>, <b>Animation</b>) choose what the 3D content contains; this lesson covers the <b>Sheet</b> tab.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Step 4: Save</div>
+            <div class="step-content">Click <b>OK</b> and choose the file name. Open the result in Adobe Acrobat or Reader and, if asked, allow the 3D content to run.</div>
+        </div>
+
+        <h2>Material and Mass</h2>
+        <p>The sheet can print the material and the mass of the model through the placeholders <b>{material}</b> and <b>{mass}</b>. They are read from the scene and nothing is estimated: the values are the ones the imported file declares, for example the part mass in a JT file or the material name in a STEP file. <b>Mesh Info</b> shows them for the selected mesh. A mass that belongs to a part made of several meshes is counted once. If the file declares nothing, the field prints nothing rather than a guess.</p>
+        <div class="note note-warning">
+            The sheet is only as reliable as the file it came from. Check a mass against your own records before the sheet is used for manufacturing.
+        </div>
+
+        <h2>Templates and the Buttons Beside Them</h2>
+        <p>A template is a small file that describes the page (size, orientation, border), an optional logo and the cells of the title block. ModelViewer ships built-in templates; yours are kept in the <b>pdf3d-templates</b> folder of the application data folder and appear in the same list.</p>
+        <table>
+            <thead><tr><th>Button</th><th>What it does</th></tr></thead>
+            <tbody>
+            <tr><td>Open folder</td><td>Opens your templates folder</td></tr>
+            <tr><td>Logo...</td><td>Chooses a logo for the chosen template</td></tr>
+            <tr><td>Edit...</td><td>Opens the template editor (below)</td></tr>
+            <tr><td>Reload</td><td>Reads the templates from disk again, after you changed a file by hand</td></tr>
+            <tr><td>Create sample</td><td>Writes a sample template with a logo and custom fields into your folder, to start from</td></tr>
+            </tbody>
+        </table>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_30_dialog.png" alt="tutorial_30_dialog.png" title="Capture (one picture, whole dialog): File &gt; Save as 3D PDF... with an assembly loaded and a template with custom fields chosen; fields filled at the left, the sheet preview at the right, the template list with its buttons in view." onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="screenshot-placeholder" title="Capture (one picture, whole dialog): File &gt; Save as 3D PDF... with an assembly loaded and a template with custom fields chosen; fields filled at the left, the sheet preview at the right, the template list with its buttons in view." style="display:none; width:560px; height:300px; align-items:center; justify-content:center;">Screenshot: the Save as 3D PDF dialog</div>
+            <span class="screenshot-caption">The Sheet tab: the template list and its buttons, the fields of the chosen template (including a number field, Total Weight) and the live preview of the sheet</span>
+        </div>
+
+        <h2>The Template Editor</h2>
+        <p><b>Edit...</b> opens the template with a large preview at the right and four tabs at the left.</p>
+        <table>
+            <thead><tr><th>Tab</th><th>What it holds</th></tr></thead>
+            <tbody>
+            <tr><td>Cells</td><td>The cells of the title block. Add, duplicate, delete and reorder them; set the text (the <b>Insert field</b> menu lists every field you can print), font size, bold, colour and alignment; choose whether a cell wraps, scrolls when its text does not fit, or lets the title block grow</td></tr>
+            <tr><td>Page</td><td>Page size (standard sizes or a custom size), orientation, margins and where the title block sits. Changing the page carries your cells over to it</td></tr>
+            <tr><td>Logo</td><td>Chooses a picture for the title block, or removes it</td></tr>
+            <tr><td>Fields</td><td>Your own input fields: text, multi-line text, date, choice from a list, or a number with a unit and limits. A new field asks for its value in the export dialog and can be inserted into any cell</td></tr>
+            </tbody>
+        </table>
+
+        <div class="step">
+            <div class="step-title">Move cells in the preview</div>
+            <div class="step-content">Click a cell in the preview to select it. Drag it to move it, drag its edge to resize it, or nudge it with the arrow keys; it snaps to its neighbours. The position boxes of the Cells tab always show the exact values.</div>
+        </div>
+        <div class="step">
+            <div class="step-title">Save your work</div>
+            <div class="step-content">A built-in template is never overwritten: <b>Save as</b> keeps your edits under a new name. A template that is not valid, for example a cell with no area, says why and cannot be saved until it is repaired.</div>
+        </div>
+
+        <div class="screenshot-container">
+            <img src="screenshots/tutorial_30_editor.png" alt="tutorial_30_editor.png" title="Capture (one picture, whole editor): the template editor on one of your own templates, Cells tab open with a cell selected so that its text, Insert field menu, font, colour, alignment and the four position boxes are visible, and the same cell outlined with its handles in the preview at the right; the Page, Logo and Fields tab labels in view." onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
+            <div class="screenshot-placeholder" title="Capture (one picture, whole editor): the template editor on one of your own templates, Cells tab open with a cell selected so that its text, Insert field menu, font, colour, alignment and the four position boxes are visible, and the same cell outlined with its handles in the preview at the right; the Page, Logo and Fields tab labels in view." style="display:none; width:560px; height:300px; align-items:center; justify-content:center;">Screenshot: the template editor</div>
+            <span class="screenshot-caption">The template editor: the Cells tab with a cell selected, and the same cell outlined in the preview</span>
+        </div>
+
+        <div class="note note-tip">
+            Numbers in the dialog and on the sheet follow the application language, so a decimal comma appears when the language uses one.
+        </div>
+
+        <div class="lesson-navigation">
+            <a href='lesson29.html' class='nav-button'>← Previous Lesson</a>
+            <a href="index.html" class="back-to-index">↑ Back to Index</a>
+            <span class='nav-button disabled'>Tutorial Complete ✔</span>
+        </div>
+    </div>
+</body>
+</html>
