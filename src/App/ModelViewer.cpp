@@ -314,6 +314,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
 	format.setRenderableType(QSurfaceFormat::OpenGL);
 	format.setSamples(samples); // Set MSAA samples
+	if (qEnvironmentVariableIntValue("MODELVIEWER_GL_DEBUG") != 0)
+		format.setOption(QSurfaceFormat::DebugContext);   // OpenGL debug messages go to the log (see ViewportWidget::initializeGL)
 	_viewportWidget = new ViewportWidget(this, "viewportWidget");
 	// Plot3D / Simulation colours are display overlays, not vertex data; the path tracer asks for them when it builds a scene.
 	_viewportWidget->setPathTracerColorProvider([this]() {

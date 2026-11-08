@@ -6,6 +6,8 @@
 #include <Standard_Failure.hxx>
 #include <new>
 #include <QScopeGuard>
+#include <QOpenGLDebugLogger>
+#include <QOpenGLDebugMessage>
 #include "ClippingPlanesEditor.h"
 #include "ExplodedViewPanel.h"
 #include "AssemblyRelationGraph.h"
@@ -1287,6 +1289,30 @@ void ViewportWidget::initializeGL()
 	{
 		qCritical() << "ViewportWidget::initializeGL: SceneRenderController failed to resolve OpenGL functions — skipping initialisation";
 		return;
+	}
+
+	// MODELVIEWER_GL_DEBUG=1: the driver's debug messages (invalid operations, bad state, resource problems) are written to the log
+	// synchronously, so each one lands right after the application's own log lines for the call that caused it. Off by default: it
+	// slows drawing down. For chasing crashes inside the graphics driver, which only report at the next call that waits for the GPU.
+	if (qEnvironmentVariableIntValue("MODELVIEWER_GL_DEBUG") != 0)
+	{
+		auto* logger = new QOpenGLDebugLogger(this);
+		if (logger->initialize())
+		{
+			connect(logger, &QOpenGLDebugLogger::messageLogged, this, [](const QOpenGLDebugMessage& message) {
+				const bool serious = message.severity() == QOpenGLDebugMessage::HighSeverity || message.severity() == QOpenGLDebugMessage::MediumSeverity
+					|| message.type() == QOpenGLDebugMessage::ErrorType || message.type() == QOpenGLDebugMessage::UndefinedBehaviorType;
+				const QString text = QStringLiteral("[GL] %1").arg(message.message().trimmed());
+				if (serious)
+					Logger::instance().warning(text);
+				else
+					Logger::instance().debug(text);
+			});
+			logger->startLogging(QOpenGLDebugLogger::SynchronousLogging);
+			Logger::instance().info(QStringLiteral("[GL] driver debug messages are logged (MODELVIEWER_GL_DEBUG)"));
+		}
+		else
+			Logger::instance().warning(QStringLiteral("[GL] MODELVIEWER_GL_DEBUG is set but this context has no debug output (KHR_debug)"));
 	}
 
 	int maxSamples = 0;
