@@ -4687,21 +4687,68 @@ void ModelViewer::deleteSelectedItems()
 }
 
 #include "UVGenerationDialog.h"
+#include "SetMeshUVsCommand.h"
 void ModelViewer::generateUvsAutomatically(const QVector<QUuid>& meshUuids)
 {
-	std::vector<int> ids;
+	// Same sequence as UVGenerationDialog::onGenerateClicked(): snapshot each mesh, generate (this mutates the meshes in place), then push
+	// one SetMeshUVsCommand per mesh. The command is what makes the change undoable AND marks the document modified, so a save writes it
+	// (generating without it left the document "unchanged", and the new UVs were not in the MVF).
+	struct Target
+	{
+		int id;
+		QUuid uuid;
+		SceneMesh* mesh;
+		std::vector<Vertex> beforeVertices;
+		std::vector<unsigned int> beforeIndices;
+		std::vector<quint64> beforeSourceMeshIds;
+	};
+	std::vector<Target> targets;
 	for (const QUuid& uuid : meshUuids)
 	{
 		const int id = _viewportWidget->getIndexByUuid(uuid);
-		if (id >= 0)
-			ids.push_back(id);
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
+		if (id < 0 || !mesh)
+			continue;
+		Target target;
+		target.id = id;
+		target.uuid = uuid;
+		target.mesh = mesh;
+		mesh->getMeshData(target.beforeVertices, target.beforeIndices);
+		target.beforeSourceMeshIds = mesh->getSourceMeshIds();
+		targets.push_back(std::move(target));
 	}
+	if (targets.empty())
+		return;
+
+	std::vector<int> ids;
+	for (const Target& target : targets)
+		ids.push_back(target.id);
+
+	const UVMethod method = UVMethod::SmartProject;
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 	QString error;
-	const bool ok = _viewportWidget->generateUVsForMeshes(ids, UVMethod::SmartProject, UVConfig{}, error);
+	const bool ok = _viewportWidget->generateUVsForMeshes(ids, method, UVConfig{}, error);
 	QApplication::restoreOverrideCursor();
 	if (!ok)
+	{
 		QMessageBox::warning(this, tr("Generate UV coordinates"), tr("UV generation failed: %1").arg(error));
+		return;
+	}
+
+	const QString methodName = tr("Smart Project");
+	QVector<QUndoCommand*> commands;
+	for (Target& target : targets)
+	{
+		std::vector<Vertex> afterVertices;
+		std::vector<unsigned int> afterIndices;
+		target.mesh->getMeshData(afterVertices, afterIndices);
+		commands.push_back(new SetMeshUVsCommand(this, _viewportWidget, target.uuid,
+			std::move(target.beforeVertices), std::move(target.beforeIndices),
+			std::move(afterVertices), std::move(afterIndices),
+			std::move(target.beforeSourceMeshIds), target.mesh->getSourceMeshIds(),
+			tr("Generate UVs (%1)").arg(methodName)));
+	}
+	commitUVGeneration(commands, methodName);
 }
 
 void ModelViewer::offerUvGenerationForTexturedMeshes(const QVector<QUuid>& meshUuids)
@@ -8839,6 +8886,14 @@ QSet<QUuid> ModelViewer::collectVisibleUuidsFromDisplayList() const
 	}
 
 	return visibleUuids;
+}
+
+void ModelViewer::refreshViewportDisplayList()
+{
+	const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
+	_viewportWidget->setAutoFitViewOnUpdate(false);
+	_viewportWidget->setDisplayList(visibleIndicesFromState());
+	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 }
 
 std::vector<int> ModelViewer::visibleIndicesFromState() const

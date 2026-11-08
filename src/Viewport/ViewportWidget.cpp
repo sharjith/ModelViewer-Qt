@@ -6489,7 +6489,7 @@ bool ViewportWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVM
 	// else (an orbit, a resize) happened to force a redraw.
 	doneCurrent();
 	updateView();
-	_viewer->updateDisplayList();
+	_viewer->refreshViewportDisplayList();   // not updateDisplayList(): its asynchronous tree rebuild drops the tree selection
 
 	// Informational, not a failure - success stays true. A stale mark (e.g. after a prior
 	// exploding-method Generate call in this same session changed that mesh's vertex count) just

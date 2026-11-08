@@ -435,6 +435,10 @@ public:
 
 public slots:
 	void updateDisplayList();
+	// Re-applies the visible set to the viewport only (no tree rebuild, no refit): for a command that changes a mesh's geometry in place
+	// (Generate UVs) and so needs the display list refreshed but not the scene tree, whose asynchronous rebuild loses the tree selection
+	// when several run in one macro.
+	void refreshViewportDisplayList();
 	// While true, updateDisplayList() refreshes the viewport but leaves the navigation tree alone.
 	void setTreeRebuildDeferred(bool deferred) { _treeRebuildDeferred = deferred; }
 	void updateSelectionStatusMessage();
