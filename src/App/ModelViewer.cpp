@@ -2545,6 +2545,53 @@ void ModelViewer::markNonUndoDocumentModified()
 	setDocumentModified(true);
 }
 
+void ModelViewer::rememberFileOnDisk(const QString& fileName)
+{
+	const QFileInfo info(fileName);
+	_trackedFile = fileName;
+	_trackedModified = info.exists() ? info.lastModified() : QDateTime();
+	_trackedSize = info.exists() ? info.size() : -1;
+	_diskNotice = false;
+}
+
+ModelViewer::DiskState ModelViewer::diskState() const
+{
+	if (_trackedFile.isEmpty())
+		return DiskState::Unchanged;
+	const QFileInfo info(_trackedFile);   // a fresh object: nothing cached
+	if (!info.exists())
+		return DiskState::Missing;
+	if (info.size() != _trackedSize || info.lastModified() != _trackedModified)
+		return DiskState::Changed;
+	return DiskState::Unchanged;
+}
+
+void ModelViewer::checkFileOnDisk()
+{
+	if (_documentLoading || _trackedFile.isEmpty())
+		return;
+	const DiskState state = diskState();
+	if (state == DiskState::Unchanged)
+	{
+		_diskNotice = false;
+		return;
+	}
+	if (_diskNotice)
+		return;   // reported once per difference, not on every activation
+	_diskNotice = true;
+	const QString name = QFileInfo(_trackedFile).fileName();
+	if (state == DiskState::Missing)
+	{
+		// The document is intact in memory: it counts as modified, so closing it offers to save it again, and Save writes the file again.
+		markNonUndoDocumentModified();
+		MainWindow::showStatusMessage(tr("%1 was deleted from disk. Save writes it again.").arg(name), 10000);
+	}
+	else
+	{
+		MainWindow::showStatusMessage(tr("%1 was changed on disk by another program. Saving will ask before overwriting it.").arg(name), 10000);
+	}
+}
+
 bool ModelViewer::save()
 {
 	// If current file's extension is not .mvf, call saveAs
@@ -2560,12 +2607,35 @@ bool ModelViewer::save()
 		return saveAs();
 	}
 
+	return writeDocument(false);
+}
+
+bool ModelViewer::writeDocument(bool force)
+{
 	// Nothing to write: neither the content nor any saved state (the camera included) differs from the file, and the file is still there.
 	// Save is available for every document with content, so a repeated click must not rewrite the file for nothing.
-	if (!_documentModified && !hasUnsavedViewState() && QFileInfo::exists(_currentFile))
+	if (!force && !_documentModified && !hasUnsavedViewState() && QFileInfo::exists(_currentFile))
 	{
 		MainWindow::showStatusMessage(tr("Nothing to save"), 2000);
 		return true;
+	}
+
+	// The file changed on disk since this document read or wrote it (another program, another ModelViewer): saving would overwrite that.
+	// A deleted file is simply written again.
+	if (!_trackedFile.isEmpty() && QFileInfo(_trackedFile) == QFileInfo(_currentFile) && diskState() == DiskState::Changed)
+	{
+		QMessageBox box(QMessageBox::Warning, tr("File changed on disk"),
+			tr("%1 was changed on disk since it was opened or last saved, by another program or another ModelViewer.\n\n"
+			   "Saving overwrites those changes.").arg(QFileInfo(_currentFile).fileName()), QMessageBox::NoButton, this);
+		QPushButton* overwrite = box.addButton(tr("Overwrite"), QMessageBox::DestructiveRole);
+		QPushButton* saveUnderAnotherName = box.addButton(tr("Save As..."), QMessageBox::ActionRole);
+		QPushButton* cancel = box.addButton(tr("Cancel"), QMessageBox::RejectRole);
+		box.setDefaultButton(cancel);
+		box.exec();
+		if (box.clickedButton() == saveUnderAnotherName)
+			return saveAs();
+		if (box.clickedButton() != overwrite)
+			return false;
 	}
 
 	if (!promptSimulationSaveOptions())
@@ -2573,6 +2643,7 @@ bool ModelViewer::save()
 
 	if (saveToFile(_currentFile))
 	{
+		rememberFileOnDisk(_currentFile);
 		_documentSaved = true;
 		_nonUndoDocumentDirty = false;
 		resetViewerStateBaseline();
@@ -2605,7 +2676,7 @@ bool ModelViewer::saveAs()
 		fileName += ".mvf";
 
 	_currentFile = fileName;
-	return save();
+	return writeDocument(true);   // the chosen file is written even when the document has nothing new to save
 }
 
 void ModelViewer::setDocumentSaved(bool saved)
@@ -6798,6 +6869,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		explicit LoadingScope(bool& f) : flag(f) { flag = true; }
 		~LoadingScope() { flag = false; }
 	} loadingScope(_documentLoading);
+
+	rememberFileOnDisk(fileName);   // the file as it is when this document reads it
 	// -- Show progress bar (no cancel button for MVF) ------------------
 	QString displayFileName = QFileInfo(fileName).fileName();
 	MainWindow::showStatusMessage(tr("Reading file: ") + displayFileName);
@@ -8779,21 +8852,19 @@ bool ModelViewer::saveToFile(const QString& fileName)
 		sizeof(quint32) * 2 + geometryPayload.size() +
 		sizeof(quint32) * 2 + imagePayload.size());
 
+	const auto writeAll = [&](QIODevice& device) {
+		QDataStream out(&device);
+		return Mvf::writeHeader(out, header)
+			&& Mvf::writeChunk(out, Mvf::ChunkType::Json, jsonPayload)
+			&& Mvf::writeChunk(out, Mvf::ChunkType::Geometry, geometryPayload)
+			&& Mvf::writeChunk(out, Mvf::ChunkType::Images, imagePayload)
+			&& out.status() == QDataStream::Ok;
+	};
+
 	QFile file(fileName);
 	if (!file.open(QIODevice::WriteOnly))
 		return false;
-
-	QDataStream out(&file);
-	if (!Mvf::writeHeader(out, header))
-		return false;
-	if (!Mvf::writeChunk(out, Mvf::ChunkType::Json, jsonPayload))
-		return false;
-	if (!Mvf::writeChunk(out, Mvf::ChunkType::Geometry, geometryPayload))
-		return false;
-	if (!Mvf::writeChunk(out, Mvf::ChunkType::Images, imagePayload))
-		return false;
-
-	return out.status() == QDataStream::Ok;
+	return writeAll(file);
 }
 
 void ModelViewer::setMaterialToSelectedItems(const Material& mat)

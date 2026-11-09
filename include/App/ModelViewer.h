@@ -1,6 +1,8 @@
 #pragma once
 
 
+#include <memory>
+#include <QDateTime>
 #include "ui_ModelViewer.h"
 
 #include "ViewportWidget.h"
@@ -197,6 +199,11 @@ public:
 	void exportAs3DPdf();
 
 	bool saveToFile(const QString& fileName);
+	// The .mvf file is not held while its document is open. Its size and modification time at the moment this document read or wrote it are
+	// remembered, and checked when the document's window or the application is activated (and before Save overwrites the file): a file that
+	// has been deleted marks the document modified (it is intact in memory: closing it offers to save it again, Save writes the file again),
+	// a file changed by another program is reported, and Save asks before overwriting it.
+	void checkFileOnDisk();
 	bool loadFromFile(const QString& fileName);
 
 	bool documentModified() const { return _documentModified; }
@@ -1251,6 +1258,14 @@ private:
 	int _viewerStateSettleTicks = 0;
 	bool _viewerStateDirty = false;
 	QJsonObject _savedCameraPose;    // the camera pose a loaded MVF carries, applied when the load is complete (empty: fit to view instead)
+	enum class DiskState { Unchanged, Changed, Missing };
+	void rememberFileOnDisk(const QString& fileName);   // the file as this document read or wrote it
+	DiskState diskState() const;                        // the remembered file against what is on disk now
+	QString _trackedFile;
+	QDateTime _trackedModified;
+	qint64 _trackedSize = -1;
+	bool _diskNotice = false;   // the current difference has been reported once
+	bool writeDocument(bool force);   // save() and saveAs(): force writes even when there is nothing new to save (Save As)
 	bool _documentLoading = false;   // an MVF is loading: no view-state checks until its baseline is taken
 	// Cleanup optimization
 	int _lastStackCount = 0;

@@ -1019,6 +1019,13 @@ MainWindow::MainWindow(QWidget* parent)
 
 	updateMenus();
 
+	// Coming back to the application: a file deleted or changed by another program while it was away is reported (the active document's).
+	connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+		if (state == Qt::ApplicationActive && !_shuttingDown)
+			if (ModelViewer* child = activeMdiChild())
+				child->checkFileOnDisk();
+	});
+
 	StartupSplash::report(tr("Restoring window layout..."), 55);
 	readSettings();
 
@@ -1571,6 +1578,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_animationsPanel, &AnimationsPanel::refresh);
 
 	refreshDocumentDockTabStyling(viewer);
+	viewer->checkFileOnDisk();   // switching to a document: its file may have been deleted or changed meanwhile
 }
 
 void MainWindow::handleActiveDocumentChanged(QMdiSubWindow* subWindow)
