@@ -102,6 +102,7 @@
 #include <QSignalBlocker>
 #include <QThread>
 #include <QTimer>
+#include <QScopeGuard>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QToolButton>
@@ -2485,10 +2486,17 @@ void ModelViewer::resetViewerStateBaseline()
 	if (!_viewportWidget)
 		return;
 	_viewerStateBaseline = QJsonDocument(buildViewerStateJson(true)).toJson(QJsonDocument::Compact);
+	_fullStateBaseline = QJsonDocument(buildViewerStateJson(false)).toJson(QJsonDocument::Compact);
 	_viewerStateBaselineMeshCount = static_cast<int>(_viewportWidget->getMeshStore().size());
 	_viewerStateSettleTicks = 0;
 }
 
+bool ModelViewer::hasUnsavedViewState() const
+{
+	if (!_viewportWidget || _fullStateBaseline.isEmpty())
+		return true;   // nothing to compare against: treat as unsaved
+	return QJsonDocument(buildViewerStateJson(false)).toJson(QJsonDocument::Compact) != _fullStateBaseline;
+}
 
 void ModelViewer::checkViewerStateDirty()
 {
@@ -2550,6 +2558,14 @@ bool ModelViewer::save()
 	if (_currentFile.isEmpty())
 	{
 		return saveAs();
+	}
+
+	// Nothing to write: neither the content nor any saved state (the camera included) differs from the file, and the file is still there.
+	// Save is available for every document with content, so a repeated click must not rewrite the file for nothing.
+	if (!_documentModified && !hasUnsavedViewState() && QFileInfo::exists(_currentFile))
+	{
+		MainWindow::showStatusMessage(tr("Nothing to save"), 2000);
+		return true;
 	}
 
 	if (!promptSimulationSaveOptions())
@@ -8224,6 +8240,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	const QJsonObject savedPose = _savedCameraPose;
 	_savedCameraPose = QJsonObject();
 	QTimer::singleShot(0, this, [fitSelf, savedPose]() {
+		// the load is complete once the camera is final: the baselines of the "modified" checks are taken from this state
+		const auto rebase = qScopeGuard([fitSelf]() {
+			if (fitSelf)
+				fitSelf->resetViewerStateBaseline();
+		});
 		if (!fitSelf || !fitSelf->_viewportWidget)
 			return;
 		ViewportWidget* viewport = fitSelf->_viewportWidget;

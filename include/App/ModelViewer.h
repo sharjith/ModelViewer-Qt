@@ -1241,8 +1241,12 @@ private:
 	QJsonObject buildViewerStateJson(bool forDirtyCheck = false) const;
 	void checkViewerStateDirty();
 	void resetViewerStateBaseline();
+	// The second "save needed" flag, next to the document-modified flag (the `*`): true when the saved view state differs from what was last
+	// loaded or saved, camera, projection and navigation included. Save does nothing when neither flag is set.
+	bool hasUnsavedViewState() const;
 	QTimer* _viewerStatePollTimer = nullptr;
 	QByteArray _viewerStateBaseline;
+	QByteArray _fullStateBaseline;   // the whole viewer state, navigation included, at the last load or save (see hasUnsavedViewState())
 	int _viewerStateBaselineMeshCount = 0;
 	int _viewerStateSettleTicks = 0;
 	bool _viewerStateDirty = false;

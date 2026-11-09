@@ -1561,6 +1561,8 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 			ui->actionFilterByColor->setEnabled(hasMeshes);
 			ui->actionFilterByBoundingBox->setEnabled(hasMeshes);
 			ui->actionExport3DPdf->setEnabled(hasMeshes);   // nothing to export from an empty scene
+			ui->actionSave->setEnabled(hasMeshes);
+			ui->actionSave_As->setEnabled(hasMeshes);
 		};
 		refreshFilterActionsEnabled();
 		_hasMeshesSyncConnection = connect(sceneGraph, &SceneGraph::structureChanged, this, refreshFilterActionsEnabled);
@@ -2823,8 +2825,11 @@ void MainWindow::updateMenus()
 	ui->actionSave_As->setVisible(hasMdiChild);
 	if (hasMdiChild)
 	{
-		ui->actionSave->setEnabled(activeMdiChild()->documentModified());	
-		ui->actionSave_As->setEnabled(!activeMdiChild()->getViewportWidget()->getMeshStore().empty());
+		// Save is available for every document with content, modified or not (the `*` and the close prompt say when saving is necessary; Save
+		// itself does nothing when there is nothing to write), so a view-only session can be saved on purpose.
+		const bool hasContent = !activeMdiChild()->getViewportWidget()->getMeshStore().empty();
+		ui->actionSave->setEnabled(hasContent);
+		ui->actionSave_As->setEnabled(hasContent);
 	}
 #ifndef QT_NO_CLIPBOARD
 	//pasteAct->setEnabled(hasMdiChild);
