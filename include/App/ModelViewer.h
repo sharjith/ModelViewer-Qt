@@ -198,7 +198,8 @@ public:
 	void importModel();
 	void exportModel();
 	// File > Save as 3D PDF...: the visible parts as a drawing sheet with an embedded 3D model (see Pdf3D/Pdf3DExporter.h)
-	void exportAs3DPdf();
+	// `presetFileName`: the file the export dialog already asked for; without it the export dialog is shown first, with the 3D PDF filter selected.
+	void exportAs3DPdf(const QString& presetFileName = QString());
 
 	bool saveToFile(const QString& fileName);
 	// The .mvf file is not held while its document is open. Its size and modification time at the moment this document read or wrote it are
@@ -910,6 +911,7 @@ private slots:
 	void validateCutClipboard();
 	void importFiles(QStringList& fileNames);
 	void onFileExport();
+	void exportModelDialog(bool select3dPdfFilter);   // the export file dialog; the 3D PDF filter preselected for File > Save as 3D PDF
 
 	void handleTreeWidgetVisibilityChanged();
 	void handleTreeWidgetSelectionChanged();

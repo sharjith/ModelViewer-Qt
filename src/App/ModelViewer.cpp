@@ -6035,13 +6035,17 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include <QListWidget>
 void ModelViewer::onFileExport()
 {
+	exportModelDialog(false);
+}
+
+void ModelViewer::exportModelDialog(bool select3dPdfFilter)
+{
 	if (!_sceneGraph || !_sceneGraph->root() || !_viewportWidget)
 		return;
 
 	// --- Build the format filter list (shared for all file dialogs) ---------------
 	Assimp::Exporter assimpExporter;
 	QStringList filters;
-	QStringList allExtensions;
 	QMap<QString, QString> filterToExtension;
 
 	for (unsigned int i = 0; i < assimpExporter.GetExportFormatCount(); ++i)
@@ -6051,17 +6055,59 @@ void ModelViewer::onFileExport()
 		QString descStr = QString::fromUtf8(desc->description);
 		QString filter  = QString("%1 (*.%2)").arg(descStr).arg(ext);
 		filters.append(filter);
-		allExtensions.append("*." + ext);
 		filterToExtension[filter] = ext;
 	}
-	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.join(' '));
-	filters.prepend(allSupportedFilter);
-	filterToExtension[allSupportedFilter] = "";
+	// No combined "all formats" entry: a name does not tell the exporter the format, so one format is always selected and its
+	// extension is added to the name (the name is offered without one).
+	// 3D PDF is not an Assimp format: it has its own export (and options dialog), started below once the file is chosen.
+	const QString pdf3dFilter = tr("3D PDF (*.pdf)");
+	filters.append(pdf3dFilter);
+	filterToExtension[pdf3dFilter] = "pdf";
+	// ------------------------------------------------------------------------------
+
+	// --- Filename dialog ----------------------------------------------------------
+	// The dialog opens with the format used last (3D PDF for File > Save as 3D PDF), else glTF binary, else the first format.
+	QSettings exportFilterSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	QString selectedFilter = select3dPdfFilter ? pdf3dFilter : exportFilterSettings.value(QStringLiteral("Export/lastFilter")).toString();
+	if (!filters.contains(selectedFilter))
+	{
+		selectedFilter = filters.value(0);
+		for (auto it = filterToExtension.constBegin(); it != filterToExtension.constEnd(); ++it)
+		{
+			if (it.value() == QLatin1String("glb"))
+				selectedFilter = it.key();
+		}
+	}
+	// The name offered is the loaded document's: its own file name, or the first model file in it. The format's extension is added below.
+	QString defaultName = _currentFile.isEmpty() ? QString() : QFileInfo(_currentFile).completeBaseName();
+	if (defaultName.isEmpty() && !_sceneGraph->root()->children.isEmpty())
+		defaultName = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
+	if (defaultName.isEmpty())
+		defaultName = QStringLiteral("model");
+	QString fileName = QFileDialog::getSaveFileName(
+		this, tr("Export Model"), QDir(_lastOpenedDir).filePath(defaultName),
+		filters.join(";;"), &selectedFilter);
+
+	if (fileName.isEmpty())
+		return;
+
+	exportFilterSettings.setValue(QStringLiteral("Export/lastFilter"), selectedFilter);
+	const QString extToAppend = filterToExtension.value(selectedFilter);
+	if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive))
+		fileName += "." + extToAppend;
+	// ------------------------------------------------------------------------------
+
+	// 3D PDF: its own export and options dialog, with the file chosen above.
+	if (selectedFilter == pdf3dFilter)
+	{
+		exportAs3DPdf(fileName);
+		return;
+	}
 	// ------------------------------------------------------------------------------
 
 	// --- Scene selection: if multiple files are loaded, ask which one to export ---
-	// The dialog is shown BEFORE the filename dialog so the user picks a single scene
-	// first, then provides exactly one output filename for it.
+	// Shown after the filename dialog (the 3D PDF export needs no scene choice: it exports what is visible), so the user still
+	// provides exactly one output filename for the single scene picked here.
 	QString selectedSourceFile;   // empty = no filter (single scene loaded)
 	const QList<SceneNode*>& fileNodes = _sceneGraph->root()->children;
 
@@ -6100,20 +6146,6 @@ void ModelViewer::onFileExport()
 
 		selectedSourceFile = sel->data(Qt::UserRole).toString();
 	}
-	// ------------------------------------------------------------------------------
-
-	// --- Filename dialog ----------------------------------------------------------
-	QString selectedFilter;
-	QString fileName = QFileDialog::getSaveFileName(
-		this, tr("Export Model"), _lastOpenedDir,
-		filters.join(";;"), &selectedFilter);
-
-	if (fileName.isEmpty())
-		return;
-
-	QString extToAppend = filterToExtension[selectedFilter];
-	if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive))
-		fileName += "." + extToAppend;
 	// ------------------------------------------------------------------------------
 
 	// --- Build export scene and mesh list ----------------------------------------
@@ -6346,7 +6378,7 @@ void ModelViewer::onFileExport()
 }
 
 
-void ModelViewer::exportAs3DPdf()
+void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 {
 	if (!_sceneGraph || !_sceneGraph->root() || !_viewportWidget)
 		return;
@@ -6361,7 +6393,18 @@ void ModelViewer::exportAs3DPdf()
 		return;
 	}
 
-	// The export scene is built first: the views the document can offer (scene states, exploded views, ...) are described in terms
+	// The file comes first, as for every other export format. The export dialog passes the file it asked for; File > Save as 3D PDF opens
+	// that same dialog with the 3D PDF filter selected, and it calls back here with the file.
+	if (presetFileName.isEmpty())
+	{
+		exportModelDialog(true);
+		return;
+	}
+	QString fileName = presetFileName;
+	if (!fileName.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
+		fileName += QLatin1String(".pdf");
+
+	// The export scene is built next: the views the document can offer (scene states, exploded views, ...) are described in terms
 	// of its parts, and the options dialog lists them all so the user can pick.
 	QApplication::setOverrideCursor(Qt::WaitCursor);
 
@@ -6628,13 +6671,6 @@ void ModelViewer::exportAs3DPdf()
 	Pdf3D::Pdf3DOptions options;
 	optionsDialog.applyTo(options);
 
-	QString fileName = QFileDialog::getSaveFileName(this, tr("Save as 3D PDF"),
-		QDir(_lastOpenedDir).filePath(options.title.isEmpty() ? QStringLiteral("model") : options.title),
-		tr("PDF Files (*.pdf)"));
-	if (fileName.isEmpty())
-		return;
-	if (!fileName.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
-		fileName += QLatin1String(".pdf");
 	if (options.title.isEmpty())
 		options.title = QFileInfo(fileName).completeBaseName();
 
