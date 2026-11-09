@@ -6,6 +6,7 @@
 #include <QFile>
 #include <QTemporaryDir>
 
+#include <cmath>
 #include <cstring>
 
 namespace
@@ -468,6 +469,19 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 		prepared.originalMaterialIndex = extras[QStringLiteral("originalMaterialIndex")].toInt(-1);
 		prepared.sourceFile = extras[QStringLiteral("sourceFile")].toString();
 		prepared.sourceNodeName = extras[QStringLiteral("sourceNodeName")].toString();
+		if (extras.contains(QStringLiteral("declaredMassKg")))
+		{
+			const double mass = extras[QStringLiteral("declaredMassKg")].toDouble(-1.0);
+			if (std::isfinite(mass) && mass >= 0.0)
+			{
+				prepared.declaredMassKg = mass;
+				prepared.declaredMassSource = extras[QStringLiteral("declaredMassSource")].toString();
+				prepared.declaredMassGroup = extras[QStringLiteral("declaredMassGroup")].toString();
+			}
+		}
+		prepared.declaredMaterialName = extras[QStringLiteral("declaredMaterial")].toString();
+		if (!prepared.declaredMaterialName.isEmpty())
+			prepared.declaredMaterialSource = extras[QStringLiteral("declaredMaterialSource")].toString();
 		prepared.variantMappings = parseVariantMappings(extras[QStringLiteral("variantMappings")].toArray());
 		const QString uuidStr = extras[QStringLiteral("meshUuid")].toString();
 		prepared.uuid = uuidStr.isEmpty()

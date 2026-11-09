@@ -49,8 +49,10 @@ void SetMeshUVsCommand::applySnapshot(const std::vector<Vertex>& vertices, const
     _viewportWidget->doneCurrent();
     _viewportWidget->updateView();
 
+    // Not updateDisplayList(): it rebuilds the scene tree asynchronously, and several of these in one undo macro (Generate UVs over
+    // several meshes) left the meshes highlighted but the tree without a selection, so Esc no longer cleared them.
     if (_viewer)
-        _viewer->updateDisplayList();
+        _viewer->refreshViewportDisplayList();
 }
 
 void SetMeshUVsCommand::undo()

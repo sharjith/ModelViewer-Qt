@@ -1,6 +1,6 @@
 # Third-party credits
 
-Assets used in the documentation, tutorial images and samples that are not covered by the project's GPL-3.0 licence.
+Third-party software references and assets. Individual component and asset terms apply; see [importer notices](THIRD_PARTY_NOTICES.md) and the licences shipped with each component.
 
 | Asset | Author | Licence | Used in |
 |---|---|---|---|
@@ -22,3 +22,14 @@ Assets used in the documentation, tutorial images and samples that are not cover
 | Look-up tables `lut_charlie.png`, `lut_sheen_E.png` in `textures/khronos` | The Khronos Group, glTF Sample Renderer | Apache-2.0 - https://www.apache.org/licenses/LICENSE-2.0 (text in `textures/khronos/LICENSE-Apache-2.0.txt`) | Sheen rendering (shipped with the application) |
 
 When you add an asset whose licence needs attribution, add a row here and a credit line next to the picture.
+
+## Importer references
+
+- **3DXML:** cad-in-unity (i2e-haw-hamburg contributors), Apache-2.0, [commit 43a9f0582ecafcdae5bb6f5919c0191467465f86](https://github.com/i2e-haw-hamburg/cad-in-unity/tree/43a9f0582ecafcdae5bb6f5919c0191467465f86), was consulted for XML tessellation concepts. No C# implementation is bundled. See the [consolidated provenance](research/3dxml/3DXML_PROVENANCE.md). This credit does not license third-party CAD samples or imply Dassault endorsement.
+- **JT:** Open CASCADE JT-Assistant, Copyright OPEN CASCADE SAS, GPL-2.0-or-later (GPLv3 chosen for the combined work), [commit e859e8c2d809f9d9468e6211eba0052f433978ee](https://github.com/Open-Cascade-SAS/JT-Assistant/commit/e859e8c2d809f9d9468e6211eba0052f433978ee). The [vendored subset](src/ThirdParty/occt-jt/README.md) retains upstream notices and records ModelViewer modifications.
+- **JT reference structures/operators:** Copyright 2014 Siemens Product Lifecycle Management Software Inc.; Copyright 2026 Siemens. Used under the published JT reference permissions. See [third-party notices](THIRD_PARTY_NOTICES.md) for the permission sources and limits. No Siemens endorsement or certification is claimed.
+
+- **Assimp glTF transport reference:** the existing Assimp 6.0.4 dependency's glTF2 importer/exporter source was consulted for UV/tangent transport in the original JT role adapter. No source was copied or newly bundled; existing Assimp notices remain with the dependency. See [C2af provenance and hashes](research/jt/JT_TEXTURE_ROLE_VALIDATION.md#evidence-and-provenance).
+- **JT line/point research reference:** Johannes Raida's MIT-noticed jCADlib source, retained at [commit 27a12d1970e7684ef369d0a815aee0b7a194b02b](https://github.com/Liamsi/jcadlib/tree/27a12d1970e7684ef369d0a815aee0b7a194b02b), was read for a 9.x record-layout comparison. No Java implementation was incorporated or executed. See [C3 audit provenance and file hashes](research/jt/JT_DISPLAY_PRIMITIVES_AUDIT.md#reference-provenance-and-reproduction).
+
+- **JT component-array hash:** Bob Jenkins' lookup2 word-hash algorithm (1996), described and attributed with a permissive use statement in the retained Siemens JT10 reference, Annex C. Original ModelViewer adapters use it to distinguish a hash-verified production UV transport. See [method and limits](research/jt/JT_PRODUCTION_UV_TRANSPORT.md#method-and-provenance).

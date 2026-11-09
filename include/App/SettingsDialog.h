@@ -89,8 +89,13 @@ public:
     int sectionCappingModeIndex() const { return sectionCapping_modeIndex; }
     int sectionCappingHatchPatternIndex() const { return sectionCapping_hatchPatternIndex; }
     int sectionCappingHatchTiling() const { return sectionCapping_hatchTiling; }
-    double sectionCappingHatchThickness() const { return sectionCapping_hatchThickness; }
+    int sectionCappingHatchSpacingModeIndex() const { return sectionCapping_hatchSpacingModeIndex; }
+    double sectionCappingHatchSpacingPx() const { return sectionCapping_hatchSpacingPx; }
+    double sectionCappingHatchSpacingModel() const { return sectionCapping_hatchSpacingModel; }
+    double sectionCappingHatchWidth() const { return sectionCapping_hatchWidth; }
     double sectionCappingHatchIntensity() const { return sectionCapping_hatchIntensity; }
+    int sectionCappingTextureTiling() const { return sectionCapping_textureTiling; }
+    double sectionCappingTextureBlend() const { return sectionCapping_textureBlend; }
     QColor sectionCappingHatchLineColor() const { return sectionCapping_hatchLineColor; }
 
     // Lighting
@@ -186,8 +191,13 @@ private slots:
     void on_comboBoxSectionCappingMode_currentIndexChanged();
     void on_comboBoxSectionCappingHatchPattern_currentIndexChanged();
     void on_spinBoxSectionCappingHatchTiling_valueChanged();
-    void on_doubleSpinBoxSectionCappingHatchThickness_valueChanged();
+    void on_comboBoxSectionCappingHatchSpacingMode_currentIndexChanged();
+    void on_doubleSpinBoxSectionCappingHatchSpacingPx_valueChanged();
+    void on_doubleSpinBoxSectionCappingHatchSpacingModel_valueChanged();
+    void on_doubleSpinBoxSectionCappingHatchWidth_valueChanged();
     void on_doubleSpinBoxSectionCappingHatchIntensity_valueChanged();
+    void on_spinBoxSectionCappingTextureTiling_valueChanged();
+    void on_doubleSpinBoxSectionCappingTextureBlend_valueChanged();
     void on_pushButtonSectionCappingHatchColor_clicked();
     void on_enableLightingCheckBox_stateChanged();
     void on_enableShadowsCheckBox_stateChanged();
@@ -305,8 +315,13 @@ private:
     int sectionCapping_modeIndex = 0;          // "Procedural"
     int sectionCapping_hatchPatternIndex = 0;  // "Diagonal 45"
     int sectionCapping_hatchTiling = 100;
-    double sectionCapping_hatchThickness = 0.05;
+    int sectionCapping_hatchSpacingModeIndex = 0;  // "Screen-constant"
+    double sectionCapping_hatchSpacingPx = 11.0;
+    double sectionCapping_hatchSpacingModel = 2.0;
+    double sectionCapping_hatchWidth = 1.0;
     double sectionCapping_hatchIntensity = 1.0;
+    int sectionCapping_textureTiling = 3;
+    double sectionCapping_textureBlend = 0.25;
     QColor sectionCapping_hatchLineColor = Qt::black;
 
     // Lighting

@@ -53,6 +53,9 @@
     "libjpeg-turbo",
     "freetype",
     "glm",
+    "minizip",
+    "zlib",
+    "liblzma",
     "opencascade",
     "meshoptimizer",
     "cgal",
@@ -81,6 +84,7 @@
       ]
     },
     "openimagedenoise",
+    "u3d",
     "openexr",
     {
       "name": "netcdf-c",

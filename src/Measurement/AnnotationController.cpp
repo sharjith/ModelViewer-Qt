@@ -1,4 +1,6 @@
 #include "AnnotationController.h"
+#include "InPlaneText.h"
+#include "OverlayLineWeights.h"
 
 #include "AnnotationOffsetCommand.h"
 #include "Camera.h"
@@ -172,9 +174,75 @@ float AnnotationController::defaultLeaderOffsetMagnitude(Camera* camera) const
 
 QVector3D AnnotationController::resolveAnnotationLeaderOffset(const Annotation& a, Camera* camera) const
 {
+    const LabelPlane::Basis plane = annotationPlane(a);
     if (a.leaderOffset.lengthSquared() > 1.0e-10f)
-        return a.leaderOffset;  // user has dragged this - use the exact vector (direction + magnitude)
+    {
+        if (!plane.valid)
+            return a.leaderOffset;  // user has dragged this - use the exact vector (direction + magnitude)
+        // In a plane the leader stays in it, however the offset was stored.
+        return a.leaderOffset - plane.normal * QVector3D::dotProduct(a.leaderOffset, plane.normal);
+    }
+    if (plane.valid)
+    {
+        // Up and to the right in the plane, on the side of its axes that points up in the model (+Z, else +Y, else +X).
+        QVector3D up = plane.y;
+        for (int axis = 2; axis >= 0; --axis)
+            if (std::abs(up[axis]) > 1.0e-3f)
+            {
+                if (up[axis] < 0.0f)
+                    up = -up;
+                break;
+            }
+        return (up + plane.x * 0.5f).normalized() * defaultLeaderOffsetMagnitude(camera);
+    }
     return defaultLeaderDirection(a.offsetReferenceDir) * defaultLeaderOffsetMagnitude(camera);
+}
+
+LabelPlane::Basis AnnotationController::annotationPlane(const Annotation& a) const
+{
+    return LabelPlane::forOrientation(a.orientation, a.offsetReferenceDir);
+}
+
+AnnotationController::InPlaneNote AnnotationController::layoutInPlaneNote(const Annotation& a, const QVector3D& labelPos, Camera* camera,
+    const QSize& viewportSize, float textScale) const
+{
+    InPlaneNote note;
+    if (!camera)
+        return note;
+    const LabelPlane::Basis plane = annotationPlane(a);
+    if (plane.valid)
+    {
+        const LabelPlane::Basis reading = LabelPlane::readable(plane, camera->getRenderPosition(), labelPos, camera->getRightVector());
+        note.x = reading.x;
+        note.y = reading.y;
+        note.capHeight = std::max(camera->getViewRange(), 0.0001f) * 0.01f * LabelPlane::InPlaneCapScale * textScale;
+    }
+    else
+    {
+        // A note that faces the screen lies in the camera's own plane, at a fixed size on screen.
+        const QRect viewportRect(0, 0, viewportSize.width(), viewportSize.height());
+        note.x = camera->getRightVector();
+        note.y = camera->getUpVector();
+        note.capHeight = LabelPlane::BillboardCapPixels * textScale
+            * LabelPlane::worldPerPixel(labelPos, camera->getViewMatrix(), camera->getProjectionMatrix(), viewportRect);
+    }
+
+    const QStringList lines = a.text.split(QChar('\n'));
+    float widest = 0.0f;
+    for (const QString& line : lines)
+    {
+        const InPlaneText::Outline& o = InPlaneText::outline(line);
+        widest = std::max(widest, o.right - o.left);
+    }
+    const float cap = note.capHeight;
+    const float pad = 0.45f * cap;
+    const float left = -pad, right = widest * cap + pad;
+    const float bottom = -0.3f * cap - pad;
+    const float top = cap * (1.0f + 1.6f * float(lines.size() - 1)) + pad;
+    auto at = [&](float u, float v) { return labelPos + note.x * u + note.y * v; };
+    note.corners = { at(left, top), at(right, top), at(right, bottom), at(left, bottom) };
+    note.valid = true;
+    return note;
 }
 
 QRectF AnnotationController::frameScreenRectForLabel(const QVector3D& labelPos, const QString& text,
@@ -386,6 +454,19 @@ QUuid AnnotationController::hitTestAnnotation(const QPoint& pixel, Camera* camer
         if (!isEffectivelyVisible(a))
             continue;
 
+        // A recorded (authored) note is tested where it was drawn, not at the geometry it was recorded on.
+        if (a.recordedDrawing)
+        {
+            const auto strokes = _recordedStrokes.constFind(a.id);
+            if (strokes != _recordedStrokes.constEnd())
+            {
+                for (size_t i = 0; i + 1 < strokes->size(); i += 2)
+                    if (distPointToSegment(clickPt2, toScreen((*strokes)[i]), toScreen((*strokes)[i + 1])) < static_cast<float>(pixelRadius))
+                        return a.id;
+                continue;
+            }
+        }
+
         const QVector3D anchorPos = resolveAnnotationAnchor(a.anchor);
         const QVector3D labelPos = anchorPos + resolveAnnotationLeaderOffset(a, camera);
 
@@ -394,6 +475,25 @@ QUuid AnnotationController::hitTestAnnotation(const QPoint& pixel, Camera* camer
         // discoverable grab area than a thin line alone (the ask that
         // motivated this: the old thin-leader hit test made a note
         // difficult to reliably select or drag).
+        {
+            // The frame is a quad in space; test the click against its projection.
+            const InPlaneNote note = layoutInPlaneNote(a, labelPos, camera, viewportSize,
+                axisTextRenderer ? axisTextRenderer->globalScale() : 1.0f);
+            if (note.valid)
+            {
+                QPolygonF quad;
+                for (const QVector3D& corner : note.corners)
+                {
+                    const QVector2D s = toScreen(corner);
+                    quad << QPointF(double(s.x()), double(s.y()));
+                }
+                if (quad.containsPoint(clickPtF, Qt::OddEvenFill))
+                    return a.id;
+                if (distPointToSegment(clickPt2, toScreen(anchorPos), toScreen(note.corners[3])) < static_cast<float>(pixelRadius))
+                    return a.id;
+            }
+            continue;
+        }
         const QRectF frame = frameScreenRectForLabel(labelPos, a.text, camera, viewportSize, axisTextRenderer);
         if (frame.isValid() && frame.contains(clickPtF))
             return a.id;
@@ -424,7 +524,12 @@ QUuid AnnotationController::hitTestAnnotationLeader(const QPoint& pixel, Camera*
     // distinction - see hitTestAnnotation()'s doc comment). Kept as its own
     // method to mirror ViewportWidget's existing press-vs-drag dispatch
     // shape and leave room for a future distinction.
-    return hitTestAnnotation(pixel, camera, viewportSize, axisTextRenderer, pixelRadius);
+    const QUuid hit = hitTestAnnotation(pixel, camera, viewportSize, axisTextRenderer, pixelRadius);
+    // A recorded note keeps the layout its author drew: it can be hovered and selected but has no leader to drag.
+    const int index = hit.isNull() ? -1 : _viewer->sceneGraph()->annotationIndexById(hit);
+    if (index >= 0 && _viewer->sceneGraph()->annotations().at(index).recordedDrawing)
+        return QUuid();
+    return hit;
 }
 
 void AnnotationController::updateHoverAnnotation(const QPoint& pixel, Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer)
@@ -451,7 +556,9 @@ void AnnotationController::beginAnnotationLeaderDrag(const QUuid& annotationId, 
     // normal = the measured segment's own direction, keeping the offset
     // perpendicular to it), there is no measured segment here, so the drag
     // is simply free within the screen-parallel plane.
-    _leaderDragAxis = camera->getViewDir().normalized();
+    // A note laid out in a plane slides within that plane instead.
+    const LabelPlane::Basis plane = annotationPlane(a);
+    _leaderDragAxis = plane.valid ? plane.normal : camera->getViewDir().normalized();
     _leaderDragStartOffset = resolveAnnotationLeaderOffset(a, camera);
     _leaderDragActive = true;
 }
@@ -528,9 +635,45 @@ void AnnotationController::finishAnnotationLeaderDrag(ViewportWidget* viewportWi
     _leaderDragCandidateId = QUuid();
 }
 
-void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer)
+bool AnnotationController::captureGraphic(const QUuid& id, Camera* camera, const QSize& viewportSize, OverlayGraphic* out)
 {
-    if (!_glFunctionsInitialized || !camera || !axisTextRenderer || !_renderCtrl.axisShader() || !_viewer || !_viewer->sceneGraph())
+    if (!out || !camera)
+        return false;
+    const auto savedStrokes = _recordedStrokes;   // the draw refills the live viewport's hit-testing state; keep it as it was
+
+    OverlayGraphic graphic;
+    drawAnnotationOverlay(camera, viewportSize, nullptr, &graphic, id);
+
+    _recordedStrokes = savedStrokes;
+    if (graphic.lines.empty() && graphic.triangles.empty())
+        return false;
+    graphic.id = id;
+    graphic.annotation = true;
+    *out = std::move(graphic);
+    return true;
+}
+
+QVector<QUuid> AnnotationController::visibleAnnotationIds() const
+{
+    QVector<QUuid> ids;
+    if (!_viewer || !_viewer->sceneGraph())
+        return ids;
+    for (const Annotation& a : _viewer->sceneGraph()->annotations())
+    {
+        if (isEffectivelyVisible(a))
+            ids.append(a.id);
+    }
+    return ids;
+}
+
+void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer,
+    OverlayGraphic* capture, const QUuid& captureId)
+{
+    _recordedStrokes.clear();
+    if (!camera || !_viewer || !_viewer->sceneGraph())
+        return;
+    // a capture touches no OpenGL state, so it needs neither the GL functions nor the text renderer
+    if (!capture && (!_glFunctionsInitialized || !axisTextRenderer || !_renderCtrl.axisShader()))
         return;
 
     const QVector<Annotation>& annotations = _viewer->sceneGraph()->annotations();
@@ -539,6 +682,7 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
 
     struct LabelEntry { QVector3D worldPos; QString text; };
     std::vector<float> lineVertices;
+    std::vector<float> fillVertices;  // filled letters of recorded notes, drawn as triangles after the lines
     QVector<LabelEntry> labels;
 
     const QVector3D noteColor(1.0f, 0.85f, 0.3f);       // sticky-note yellow - visually distinct from Measurement's palette
@@ -564,21 +708,61 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
     {
         if (!isEffectivelyVisible(a))
             continue;
+        if (capture && a.id != captureId)
+            continue;
 
-        const bool isSelected = _selectedAnnotationIds.contains(a.id);
+        const bool isSelected = !capture && _selectedAnnotationIds.contains(a.id);
         // Selection is the stronger cue - see MeasurementController::
         // drawMeasurementOverlay()'s identical reasoning.
-        const bool isHovered = !isSelected && (a.id == _hoveredAnnotationId || a.id == _hoveredLeaderId);
+        const bool isHovered = !capture && !isSelected && (a.id == _hoveredAnnotationId || a.id == _hoveredLeaderId);
 
         QVector3D color = isSelected ? selectedColor : noteColor;
         if (isHovered)
             color = color * 0.5f + QVector3D(1.0f, 1.0f, 1.0f) * 0.5f;  // blend toward white - lighter preview than full selection
         const float sizeMultiplier = isSelected ? 1.5f : (isHovered ? 1.25f : 1.0f);
 
+        // A recorded annotation is drawn as its author drew it, in its own annotation plane (leader, symbol and text strokes
+        // from the file), instead of with the viewer's marker, frame, leader and camera-facing label.
+        if (a.recordedDrawing)
+        {
+            if (SceneMesh* strokeOwner = getMeshByUuid(a.recordedDrawing->meshUuid))
+            {
+                const size_t strokeStart = lineVertices.size();
+                // The author's colour, unless the item is selected (selection must read); hover lightens it as it does any colour.
+                QVector3D strokeColor = color;
+                if (a.recordedDrawing->hasColor && !isSelected)
+                    strokeColor = isHovered ? a.recordedDrawing->color * 0.5f + QVector3D(1.0f, 1.0f, 1.0f) * 0.5f : a.recordedDrawing->color;
+                RecordedPmi::appendStrokes(*a.recordedDrawing, strokeOwner->combinedRenderTransform(), camera->getRenderPosition(),
+                    strokeColor, lineVertices, &fillVertices);  // authored size: a symbol's text must stay inside its circle
+                _recordedStrokes.insert(a.id, RecordedPmi::strokeSegments(lineVertices, strokeStart));
+                continue;
+            }
+        }
+
         const QVector3D anchorPos = resolveAnnotationAnchor(a.anchor);
         const QVector3D labelPos = anchorPos + resolveAnnotationLeaderOffset(a, camera);
 
         addMarker(anchorPos, color, sizeMultiplier);
+
+        {
+            // Frame, leader and text all lie in the note's plane (the camera's own plane for a note that faces the screen).
+            const InPlaneNote note = layoutInPlaneNote(a, labelPos, camera, viewportSize,
+                axisTextRenderer ? axisTextRenderer->globalScale() : 1.0f);
+            if (note.valid)
+            {
+                addSegment(anchorPos, note.corners[3], color);
+                for (int i = 0; i < 4; ++i)
+                    addSegment(note.corners[i], note.corners[(i + 1) % 4], color);
+                const QStringList noteLines = a.text.split(QChar('\n'));
+                for (int i = 0; i < noteLines.size(); ++i)
+                {
+                    const float lift = note.capHeight * 1.6f * float(noteLines.size() - 1 - i);
+                    InPlaneText::appendHaloText(noteLines[i], labelPos + note.y * lift, note.x, note.y, note.capHeight, color,
+                        QVector3D(0.06f, 0.06f, 0.08f), fillVertices, 1.0f);
+                }
+                continue;
+            }
+        }
 
         // Rectangular frame around the note's text - the primary grab
         // target for repositioning it (see hitTestAnnotation()'s doc
@@ -611,6 +795,14 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         labels.append({ labelPos, a.text });
     }
 
+    if (capture)
+    {
+        // the geometry of the one annotation (filled letters included), no live placement preview and no drawing
+        capture->lines = std::move(lineVertices);
+        capture->triangles = std::move(fillVertices);
+        return;
+    }
+
     // Live placement preview while the tool is armed - mirrors
     // MeasurementController's hover-anchor preview marker.
     if (_annotationToolArmed && _annotationHoverAnchor.isValid())
@@ -626,6 +818,9 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
     {
         // Mirrors MeasurementController::drawMeasurementOverlay()'s exact
         // upload/draw pattern, using the dedicated annotation-overlay buffer.
+        const GLsizei lineCount = static_cast<GLsizei>(lineVertices.size() / 6);
+        const GLsizei fillCount = static_cast<GLsizei>(fillVertices.size() / 6);
+        lineVertices.insert(lineVertices.end(), fillVertices.begin(), fillVertices.end());
         _renderCtrl.initAnnotationOverlayGeometry(lineVertices);
         glBindVertexArray(_renderCtrl.annotationOverlayVAO());
         glBindBuffer(GL_ARRAY_BUFFER, _renderCtrl.annotationOverlayVBO());
@@ -642,8 +837,10 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         _renderCtrl.axisShader()->setUniformValue("modelViewMatrix", camera->getViewMatrix());
         _renderCtrl.axisShader()->setUniformValue("projectionMatrix", camera->getProjectionMatrix());
         _renderCtrl.axisShader()->setUniformValue("renderCone", false);
-        glLineWidth(2.0f);
-        glDrawArrays(GL_LINES, 0, static_cast<GLsizei>(lineVertices.size() / 6));
+        glLineWidth(OverlayLineWeights::thinLine);
+        glDrawArrays(GL_LINES, 0, lineCount);
+        if (fillCount > 0)
+            glDrawArrays(GL_TRIANGLES, lineCount, fillCount);
         glLineWidth(1.0f);
         _renderCtrl.axisShader()->release();
 

@@ -208,12 +208,14 @@ ClippingPlanesEditor::ClippingPlanesEditor(ViewportWidget* parent) :
 		retranslateUi(this);
 		});
 
-	// Texture picker is only relevant when the Settings-configured default
-	// mode is Textured - see this class's own header doc comment. Checked
-	// once here (mode is no longer a live in-panel toggle), not re-checked
-	// later, matching how other Settings-seeded per-document defaults
-	// (e.g. up-axis) don't retroactively update an already-open document.
-	pushButtonTexture->setVisible(_viewportWidget->clippingPlaneHatchMode() == ClippingPlaneHatchMode::TEXTURE);
+	// Texture picker is only relevant when the Settings-configured mode is
+	// Textured - see this class's own header doc comment. Re-checked whenever
+	// Settings -> Apply reloads the Section Capping defaults.
+	auto updateTexturePickerVisibility = [this]() {
+		pushButtonTexture->setVisible(_viewportWidget->clippingPlaneHatchMode() == ClippingPlaneHatchMode::TEXTURE);
+	};
+	updateTexturePickerVisibility();
+	connect(_viewportWidget, &ViewportWidget::sectionCappingSettingsReloaded, this, updateTexturePickerVisibility);
 
 	// The box's six limit fields + Reset only take space while Box mode is on, so
 	// the panel is exactly as tall as before until the user opts in (it is a
@@ -287,6 +289,11 @@ void ClippingPlanesEditor::setCoefficientLimits(double xMin, double xMax, double
 	doubleSpinBoxZXCoeff->setSingleStep((yMax - yMin) / 50.0);
 }
 
+void ClippingPlanesEditor::setGizmoVisible(bool visible)
+{
+	checkBoxShowGizmo->setChecked(visible);
+}
+
 bool ClippingPlanesEditor::isGizmoVisible() const
 {
 	return checkBoxShowGizmo->isChecked();
@@ -348,6 +355,13 @@ void ClippingPlanesEditor::applyPreset(bool xy, bool yz, bool zx, bool box)
 	checkBoxXY->setChecked(xy);
 	checkBoxYZ->setChecked(yz);
 	checkBoxZX->setChecked(zx);
+}
+
+void ClippingPlanesEditor::applyBoxState(bool keepInside, const double limits[6])
+{
+	checkBoxBoxKeepInside->setChecked(keepInside);
+	for (int face = 0; face < 6; ++face)
+		boxSpin(face)->setValue(limits[face]);
 }
 
 QDoubleSpinBox* ClippingPlanesEditor::boxSpin(int face) const

@@ -1,5 +1,10 @@
+#include <algorithm>
 #include "ModelViewerApplication.h"
 #include <QOpenGLFunctions>
+#include <QElapsedTimer>
+#include <QEvent>
+#include <QMetaObject>
+#include "Logger.h"
 #include <QSettings>
 #include <QSurfaceFormat>
 #include <QTranslator>
@@ -47,7 +52,10 @@ ModelViewerApplication::ModelViewerApplication(int& argc, char** argv)
 
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	int values[] = {0, 2, 4, 8, 16, 32};
-	int samples = values[settings.value("msaaComboBox", 4).toInt()];
+	// Default 4x (index 2). The index is only ever saved from the settings dialog's list of supported levels, so a
+	// stored value stays valid; the clamp guards a hand-edited or stale one. No GL context exists yet, so an
+	// unsupported request is left to Qt's pixel-format selection, which falls back to the nearest supported count.
+	int samples = values[std::clamp(settings.value("msaaComboBox", 2).toInt(), 0, 5)];
 	bool vsyncEnabled = settings.value("vsyncCheckBox", true).toBool();
 
 	QSurfaceFormat format;
@@ -86,6 +94,8 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 	std::string extList;
 	importer.GetExtensionList(extList); // E.g. "*.obj;*.3ds;*.fbx;..."
 	QString allExtensions = QString::fromStdString(extList).replace(';', ' ');
+	if (!allExtensions.contains("*.3dxml", Qt::CaseInsensitive)) allExtensions += " *.3dxml";
+	if (!allExtensions.contains("*.jt", Qt::CaseInsensitive)) allExtensions += " *.jt";
 
 	// 2. Manually add STEP/IGES extensions (if not in Assimp list)
 	if (!allExtensions.contains("*.step", Qt::CaseInsensitive)) {
@@ -117,6 +127,8 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 		"DXF (*.dxf)",
 		"GLTF (*.gltf *.glb)",
 		"STEP (*.step *.stp)",
+		"3DXML (*.3dxml)",
+		"JT (*.jt)",
 		"IGES (*.iges *.igs)",
 		"BREP (*.brep *.rle)",
 		"VRML (*.wrl *.vrml)",
@@ -131,4 +143,33 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 
 	// 5. Add all filters to dialog	
 	_supportedExtensions << allSupportedFilter << commonFilters;
+}
+
+bool ModelViewerApplication::_slowEventTrace = false;
+
+bool ModelViewerApplication::notify(QObject* receiver, QEvent* event)
+{
+    if (!_slowEventTrace)
+        return QApplication::notify(receiver, event);
+
+    QElapsedTimer clock;
+    clock.start();
+    const int type = event ? static_cast<int>(event->type()) : -1;
+    const QString receiverClass = receiver ? QString::fromLatin1(receiver->metaObject()->className()) : QString();
+    const bool handled = QApplication::notify(receiver, event);
+    const qint64 ms = clock.elapsed();
+    if (ms >= 8)
+    {
+        static QElapsedTimer limiter;
+        static int logged = 0;
+        if (!limiter.isValid() || limiter.elapsed() > 1000)
+        {
+            limiter.restart();
+            logged = 0;
+        }
+        if (++logged <= 20)
+            Logger::instance().info(QStringLiteral("[SlowEvent] type=%1 receiver=%2 took %3 ms").arg(type).arg(receiverClass).arg(ms),
+                QStringLiteral("Performance"));
+    }
+    return handled;
 }

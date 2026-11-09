@@ -68,6 +68,7 @@ protected:
     void closeEvent(QCloseEvent* event) override;
 
 private slots:
+    void onOrientationActivated(int index);
     void onPlaceButtonToggled(bool checked);
     void onResultsSelectionChanged();
     void onDeleteClicked();
@@ -98,6 +99,7 @@ private:
     // or clears/disables the pane when zero or more than one row is
     // selected (editing only makes sense for exactly one at a time).
     void syncTextEditFromSelection();
+    void syncOrientationFromSelection();
 
     void loadSettings();
     void saveSettings();

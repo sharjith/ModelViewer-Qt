@@ -1,5 +1,8 @@
 #pragma once
 
+#include "LabelPlane.h"
+#include "RecordedDrawing.h"
+
 #include <QUuid>
 #include <QString>
 #include <QVector>
@@ -282,11 +285,46 @@ enum class MeasurementTool
     GeodesicDistance,
 };
 
+// Where a measurement's number comes from. Measured: the viewer computes it from the picked anchors on the mesh. Recorded: it
+// is the value the authoring system stored in the imported file (a PMI dimension); the anchors only place it on the mesh, and the
+// value is shown as authored, next to what the mesh measures at the same two points. The two are never mixed in one label.
+enum class MeasurementOrigin
+{
+    Measured = 0,
+    Recorded = 1,
+};
+
+// What a recorded measurement states. Distance: a linear dimension. Diameter and Radius: the value is the circle's diameter or
+// radius, anchored on two opposite rim points. Angle: the value is in degrees, anchored at the vertex.
+enum class RecordedKind
+{
+    Distance = 0,
+    Diameter = 1,
+    Radius = 2,
+    Angle = 3,
+};
+
 struct Measurement
 {
     QUuid                          id;
     QString                        name;
     MeasurementType                type = MeasurementType::Point;
+
+    MeasurementOrigin              origin = MeasurementOrigin::Measured;
+    // Recorded measurements only: the authored value converted to recordedUnit (empty unit means the value is still in the
+    // file's own coordinate unit, which the file did not declare), the number of decimals the source asked for, and where it
+    // came from (e.g. "JT PMI 3"). Persisted in MVF; absent for measured ones.
+    double                         recordedValue = 0.0;
+    QString                        recordedUnit;
+    int                            recordedPrecision = 2;
+    QString                        recordedSource;
+    RecordedKind                   recordedKind = RecordedKind::Distance;
+    // Recorded radius only: true when the author put the text inside the circle, so the arrow points outward at the rim; false
+    // (text outside) draws the arrow pointing inward, as drafting radius dimensions do.
+    bool                           recordedTextInside = false;
+    // Recorded measurements: the item as its author drew it (arrows, extension lines, leaders and text strokes in its annotation
+    // plane). When set, it is drawn instead of the viewer's own dimension graphics and label. Null for measured ones.
+    std::shared_ptr<const RecordedDrawing> recordedDrawing;
 
     // Anchor count is determined by type: 1 for Point or EdgeRadius, 2 for
     // Distance/FaceToFace/PointToFace, 3 for either arc type (see
@@ -360,6 +398,14 @@ struct Measurement
     // measurement from then on. Undoable, same reasoning as offsetDistance
     // above.
     QVector3D                      offsetVector;
+
+    // How the dimension's frame and value are laid out: in a model plane or the creation view's plane (they turn with the model),
+    // or with the value always facing the screen. Older sessions without the field load as FaceCamera, their original look.
+    LabelOrientation               orientation = LabelOrientation::ModelPlane;
+
+    // A 3-point angle measures between two rays, so it has two readings: the angle between them, or the angle on the other side
+    // of the same rays (360 degrees minus it). Set by dragging the arc past the vertex. Sessions without the field read as false.
+    bool                           reflexAngle = false;
 };
 
 // How many anchor picks a tool needs before a Measurement is complete - for

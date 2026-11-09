@@ -1,0 +1,14 @@
+{
+  "name": "u3d",
+  "version-string": "5c141d9",
+  "description": "Universal 3D (ECMA-363) reference library (Intel u3d, GitHub fork DmytroSytnyk/u3d) used by ModelViewer to write the 3D stream embedded in a Save as 3D PDF export. Local overlay port: no upstream vcpkg port exists. Builds the static IDTF converter library plus the four IFX run-time modules that must be shipped next to the application.",
+  "homepage": "https://github.com/DmytroSytnyk/u3d",
+  "license": "Apache-2.0",
+  "supports": "windows | linux",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    }
+  ]
+}

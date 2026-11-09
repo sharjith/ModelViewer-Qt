@@ -92,6 +92,8 @@ public:
 	// apart) is picked and the residual becomes the slider's offset, which by
 	// construction always falls within the slider's +/-45 range.
 	void restoreSkyBoxRotationDegrees(float degrees);
+	// Shows the bound viewport's state in every control (signals blocked, nothing is applied back); see the definition.
+	void syncFromViewport();
 
 public slots:
 	// ===== Light Color Buttons =====

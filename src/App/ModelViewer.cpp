@@ -1,4 +1,7 @@
 #include "FloatingPanelDialog.h"
+#include "ImportDiagnostics.h"
+#include "Logger.h"
+#include <QElapsedTimer>
 #include "AddMeasurementCommand.h"
 #include "AddAnnotationCommand.h"
 #include "MeasurementVisibilityCommand.h"
@@ -22,12 +25,16 @@
 #include "ExplodedViewPanel.h"
 #include "PasteCommand.h"
 #include "RenameMeshCommand.h"
+#include "RenameNodeCommand.h"
 #include "ViewportWidget.h"
+#include "PhaseLog.h"
 #include "MeasurementDialog.h"
 #include "AnnotationDialog.h"
 #include "ShrinkWrapDialog.h"
 #include "SurfaceAnalysisDialog.h"
 #include "MassPropertiesDialog.h"
+#include "RecordedDrawingJson.h"
+#include "MeshInfoDialog.h"
 #include "ReportExportDialog.h"
 #include "BatchRenderViewsDialog.h"
 #include "SubdivisionDialog.h"
@@ -95,6 +102,9 @@
 #include <QSignalBlocker>
 #include <QThread>
 #include <QTimer>
+#include <QScopeGuard>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QToolButton>
 #include <QToolTip>
 #include <QStyleOptionButton>
@@ -294,7 +304,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	setAttribute(Qt::WA_DeleteOnClose);
 		
 	int values[] = { 0, 2, 4, 8, 16, 32 };
-	int samples = values[settings.value("msaaComboBox", 4).toInt()];
+	int samples = values[std::clamp(settings.value("msaaComboBox", 2).toInt(), 0, 5)]; // default 4x, see ModelViewerApplication.cpp
 	bool vsyncEnabled = settings.value("vsyncCheckBox", true).toBool();
 
 	QSurfaceFormat format;
@@ -308,6 +318,8 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	format.setSwapBehavior(QSurfaceFormat::DoubleBuffer);
 	format.setRenderableType(QSurfaceFormat::OpenGL);
 	format.setSamples(samples); // Set MSAA samples
+	if (qEnvironmentVariableIntValue("MODELVIEWER_GL_DEBUG") != 0)
+		format.setOption(QSurfaceFormat::DebugContext);   // OpenGL debug messages go to the log (see ViewportWidget::initializeGL)
 	_viewportWidget = new ViewportWidget(this, "viewportWidget");
 	// Plot3D / Simulation colours are display overlays, not vertex data; the path tracer asks for them when it builds a scene.
 	_viewportWidget->setPathTracerColorProvider([this]() {
@@ -399,6 +411,13 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// but grayed out when there's nothing to search keeps the panel's layout
 	// identical either way - only its usability changes.
 	connect(treeWidgetModel, &SceneTreeWidget::rebuildComplete, this, [this]() {
+		// The rebuild kept the checkbox states the old tree had when it started; a visibility change made since (a tool hiding its input
+		// meshes right after updateDisplayList(), for instance) is in _visibleMeshUuids only.
+		if (_syncTreeVisibilityAfterRebuild)
+		{
+			_syncTreeVisibilityAfterRebuild = false;
+			syncTreeVisibilityFromModel();
+		}
 		const bool hasItems = treeWidgetModel->topLevelItemCount() > 0;
 		label_23->setEnabled(hasItems);
 		searchBox->setEnabled(hasItems);
@@ -468,6 +487,13 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// Rename via tree widget's internal delegate handling
 	connect(treeWidgetModel, &SceneTreeWidget::meshRenamed,
 	        this, &ModelViewer::handleTreeWidgetMeshRenamed);
+	connect(treeWidgetModel, &SceneTreeWidget::nodeRenamed,
+	        this, &ModelViewer::handleTreeWidgetNodeRenamed);
+
+	_viewerStatePollTimer = new QTimer(this);
+	_viewerStatePollTimer->setInterval(1000);
+	connect(_viewerStatePollTimer, &QTimer::timeout, this, &ModelViewer::checkViewerStateDirty);
+	_viewerStatePollTimer->start();
 
 	QTimer* searchTimer = new QTimer(this);
 	searchTimer->setSingleShot(true);
@@ -871,6 +897,10 @@ void ModelViewer::updateTransformationValues()
 				objectTransformPanel->setRotationValues(rot);
 				objectTransformPanel->setScaleValues(scale);
 			}
+		}
+		else
+		{
+			objectTransformPanel->resetAllValues();   // nothing selected: do not keep showing the previously selected mesh's values
 		}
 	}
 	catch (const std::exception& ex)
@@ -1722,7 +1752,7 @@ void ModelViewer::onUndoStackChanged()
 		}
 	}
 
-	setDocumentModified(_nonUndoDocumentDirty || hasUnsavedUndoDocumentChanges());
+	setDocumentModified(_nonUndoDocumentDirty || _viewerStateDirty || hasUnsavedUndoDocumentChanges());
 
 	// Only cleanup when stack size changes (commands added/purged)
 	// Not on every undo/redo (which just changes index)
@@ -1765,8 +1795,18 @@ void ModelViewer::onUndoStackChanged()
 
 bool ModelViewer::undoCommandAffectsDocument(const QUndoCommand* command) const
 {
-	const auto* modelCommand = dynamic_cast<const ModelViewerCommand*>(command);
-	return modelCommand && modelCommand->affectsDocument();
+	if (!command)
+		return false;
+	if (const auto* modelCommand = dynamic_cast<const ModelViewerCommand*>(command))
+		return modelCommand->affectsDocument();
+	// A macro (beginMacro/endMacro, for example one Generate UVs run over several meshes) is a plain QUndoCommand: it affects the
+	// document when any of its commands does. Without this a multi-mesh macro never marked the document modified.
+	for (int i = 0; i < command->childCount(); ++i)
+	{
+		if (undoCommandAffectsDocument(command->child(i)))
+			return true;
+	}
+	return false;
 }
 
 bool ModelViewer::hasUnsavedUndoDocumentChanges() const
@@ -1984,21 +2024,28 @@ void ModelViewer::updateDisplayList()
 	const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
 	_viewportWidget->setAutoFitViewOnUpdate(false);
 
+	ImportDiagnostics::checkpoint("viewer.display-list-begin");
 	_visibleMeshUuids = collectVisibleUuidsFromDisplayList();
 	if (_progressiveLoadingEnabled)
 	{
 		const QList<QUuid> pendingSceneUuids = _viewportWidget->getPendingSceneUuids();
 		for (const QUuid& uuid : pendingSceneUuids)
 		{
-			if (!uuid.isNull())
+			if (!uuid.isNull() && !_viewportWidget->isInitiallyHiddenImportMesh(uuid))
 				_visibleMeshUuids.insert(uuid);
 		}
 	}
+	ImportDiagnostics::checkpoint("viewer.display-list-visible-collected");
 	applyVisibleMeshState(false);
+	ImportDiagnostics::checkpoint("viewer.display-list-visibility-applied");
 
 	++_treeRebuildGeneration;
 	_treeRebuildPending = false;
-	rebuildTreeFromCurrentState();
+	// A progressive load calls this after every paced batch; restarting a whole-tree rebuild each
+	// time keeps the panel flickering and, on a large assembly, never lets it finish.
+	if (!_treeRebuildDeferred)
+		rebuildTreeFromCurrentState();
+	ImportDiagnostics::checkpoint("viewer.display-list-tree-started");
 	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 
 	// Start the fit animation immediately using the bounding sphere already
@@ -2385,6 +2432,7 @@ void ModelViewer::setCurrentFile(const QString& fileName)
 	_currentFile = fileName;
 	_documentSaved = true;
 	_nonUndoDocumentDirty = false;
+	resetViewerStateBaseline();
 	_savedUndoIndex = _undoStack ? _undoStack->index() : 0;
 	setDocumentModified(false);
 }
@@ -2432,11 +2480,123 @@ void ModelViewer::setSessionNumber(int number)
 	refreshDocumentTitle();
 }
 
+// View settings the MVF saves (display and rendering mode, shading, ground, floor, shadows, environment, skybox, lights, tone mapping, background,
+// axis, clipping, ray tracing, up axis, exploded view, debug overlay) are part of the document: changing one makes it modified. Navigation and
+// projection (orientation, pan, zoom, camera mode, projection, oblique mode) are saved too but are left out of the comparison
+// (buildViewerStateJson(forDirtyCheck)). They are
+// changed from many places (the panels, the toolbars, the menus), so the state is compared against the one at the last load or save instead of
+// hooking every setter. A change of what the document holds
+// (meshes added or removed, an import, an undo) re-bases the comparison for a couple of seconds, because those operations change the view too.
+void ModelViewer::resetViewerStateBaseline()
+{
+	_viewerStateDirty = false;
+	if (!_viewportWidget)
+		return;
+	_viewerStateBaseline = QJsonDocument(buildViewerStateJson(true)).toJson(QJsonDocument::Compact);
+	_fullStateBaseline = QJsonDocument(buildViewerStateJson(false)).toJson(QJsonDocument::Compact);
+	_viewerStateBaselineMeshCount = static_cast<int>(_viewportWidget->getMeshStore().size());
+	_viewerStateSettleTicks = 0;
+}
+
+bool ModelViewer::hasUnsavedViewState() const
+{
+	if (!_viewportWidget || _fullStateBaseline.isEmpty())
+		return true;   // nothing to compare against: treat as unsaved
+	return QJsonDocument(buildViewerStateJson(false)).toJson(QJsonDocument::Compact) != _fullStateBaseline;
+}
+
+void ModelViewer::checkViewerStateDirty()
+{
+	if (_documentLoading || !_viewportWidget || !isVisible())
+		return;
+	const int meshCount = static_cast<int>(_viewportWidget->getMeshStore().size());
+	if (meshCount == 0)
+	{
+		resetViewerStateBaseline();
+		return;
+	}
+	const QByteArray current = QJsonDocument(buildViewerStateJson(true)).toJson(QJsonDocument::Compact);
+	if (meshCount != _viewerStateBaselineMeshCount)
+	{
+		_viewerStateBaseline = current;
+		_viewerStateBaselineMeshCount = meshCount;
+		_viewerStateSettleTicks = 2;
+		if (_viewerStateDirty)
+		{
+			_viewerStateDirty = false;
+			const bool undoDirty = hasUnsavedUndoDocumentChanges();
+			setDocumentModified(_nonUndoDocumentDirty || undoDirty);
+		}
+		return;
+	}
+	if (_viewerStateBaseline.isEmpty() || _viewerStateSettleTicks > 0)
+	{
+		if (_viewerStateSettleTicks > 0)
+			--_viewerStateSettleTicks;
+		_viewerStateBaseline = current;
+		return;
+	}
+	const bool differs = current != _viewerStateBaseline;
+	if (differs == _viewerStateDirty)
+		return;
+	_viewerStateDirty = differs;
+	if (differs)
+		_documentSaved = false;
+	setDocumentModified(_nonUndoDocumentDirty || _viewerStateDirty || hasUnsavedUndoDocumentChanges());
+}
+
 void ModelViewer::markNonUndoDocumentModified()
 {
 	_nonUndoDocumentDirty = true;
 	_documentSaved = false;
 	setDocumentModified(true);
+}
+
+void ModelViewer::rememberFileOnDisk(const QString& fileName)
+{
+	const QFileInfo info(fileName);
+	_trackedFile = fileName;
+	_trackedModified = info.exists() ? info.lastModified() : QDateTime();
+	_trackedSize = info.exists() ? info.size() : -1;
+	_diskNotice = false;
+}
+
+ModelViewer::DiskState ModelViewer::diskState() const
+{
+	if (_trackedFile.isEmpty())
+		return DiskState::Unchanged;
+	const QFileInfo info(_trackedFile);   // a fresh object: nothing cached
+	if (!info.exists())
+		return DiskState::Missing;
+	if (info.size() != _trackedSize || info.lastModified() != _trackedModified)
+		return DiskState::Changed;
+	return DiskState::Unchanged;
+}
+
+void ModelViewer::checkFileOnDisk()
+{
+	if (_documentLoading || _trackedFile.isEmpty())
+		return;
+	const DiskState state = diskState();
+	if (state == DiskState::Unchanged)
+	{
+		_diskNotice = false;
+		return;
+	}
+	if (_diskNotice)
+		return;   // reported once per difference, not on every activation
+	_diskNotice = true;
+	const QString name = QFileInfo(_trackedFile).fileName();
+	if (state == DiskState::Missing)
+	{
+		// The document is intact in memory: it counts as modified, so closing it offers to save it again, and Save writes the file again.
+		markNonUndoDocumentModified();
+		MainWindow::showStatusMessage(tr("%1 was deleted from disk. Save writes it again.").arg(name), 10000);
+	}
+	else
+	{
+		MainWindow::showStatusMessage(tr("%1 was changed on disk by another program. Saving will ask before overwriting it.").arg(name), 10000);
+	}
 }
 
 bool ModelViewer::save()
@@ -2454,13 +2614,46 @@ bool ModelViewer::save()
 		return saveAs();
 	}
 
+	return writeDocument(false);
+}
+
+bool ModelViewer::writeDocument(bool force)
+{
+	// Nothing to write: neither the content nor any saved state (the camera included) differs from the file, and the file is still there.
+	// Save is available for every document with content, so a repeated click must not rewrite the file for nothing.
+	if (!force && !_documentModified && !hasUnsavedViewState() && QFileInfo::exists(_currentFile))
+	{
+		MainWindow::showStatusMessage(tr("Nothing to save"), 2000);
+		return true;
+	}
+
+	// The file changed on disk since this document read or wrote it (another program, another ModelViewer): saving would overwrite that.
+	// A deleted file is simply written again.
+	if (!_trackedFile.isEmpty() && QFileInfo(_trackedFile) == QFileInfo(_currentFile) && diskState() == DiskState::Changed)
+	{
+		QMessageBox box(QMessageBox::Warning, tr("File changed on disk"),
+			tr("%1 was changed on disk since it was opened or last saved, by another program or another ModelViewer.\n\n"
+			   "Saving overwrites those changes.").arg(QFileInfo(_currentFile).fileName()), QMessageBox::NoButton, this);
+		QPushButton* overwrite = box.addButton(tr("Overwrite"), QMessageBox::DestructiveRole);
+		QPushButton* saveUnderAnotherName = box.addButton(tr("Save As..."), QMessageBox::ActionRole);
+		QPushButton* cancel = box.addButton(tr("Cancel"), QMessageBox::RejectRole);
+		box.setDefaultButton(cancel);
+		box.exec();
+		if (box.clickedButton() == saveUnderAnotherName)
+			return saveAs();
+		if (box.clickedButton() != overwrite)
+			return false;
+	}
+
 	if (!promptSimulationSaveOptions())
 		return false; // cancelled
 
 	if (saveToFile(_currentFile))
 	{
+		rememberFileOnDisk(_currentFile);
 		_documentSaved = true;
 		_nonUndoDocumentDirty = false;
+		resetViewerStateBaseline();
 		_savedUndoIndex = _undoStack ? _undoStack->index() : 0;
 		setDocumentModified(false);
 		if (!_simulationSaveNotes.isEmpty())
@@ -2490,7 +2683,7 @@ bool ModelViewer::saveAs()
 		fileName += ".mvf";
 
 	_currentFile = fileName;
-	return save();
+	return writeDocument(true);   // the chosen file is written even when the document has nothing new to save
 }
 
 void ModelViewer::setDocumentSaved(bool saved)
@@ -2529,6 +2722,7 @@ void ModelViewer::setLastSelectedFilter(const QString& lastSelectedFilter)
 void ModelViewer::showContextMenu(const QPoint& pos)
 {
 	setFocus();
+	ImportDiagnostics::checkpoint("tree.contextmenu-begin");
 
 	const bool clickedAssembly = treeWidgetModel->isAssemblyAt(pos);
 
@@ -2536,6 +2730,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// mesh descendants (used to decide which menu sections to show).
 	if (clickedAssembly)
 		treeWidgetModel->ensureAssemblySelectionAt(pos);
+	ImportDiagnostics::checkpoint("tree.contextmenu-ensure-end");
 
 	// NOT hasMeshSelection(): on a first right-click of a previously
 	// unselected assembly, ensureAssemblySelectionAt() above selects only
@@ -2565,8 +2760,10 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// Visual feedback: narrow the highlight to just the right-clicked node.
 	// Save the full selection so we can restore it if the user dismisses.
 	const QSet<QUuid> savedSelection = getSelectedUuids();
+	ImportDiagnostics::checkpoint("tree.contextmenu-saved-selection", -1, savedSelection.size());
 	if (clickedAssembly)
 		treeWidgetModel->highlightSingleItemAt(pos);
+	ImportDiagnostics::checkpoint("tree.contextmenu-highlight-end");
 
 	// Flag set by any action that intentionally changes selection state.
 	// If the menu is dismissed without an action, savedSelection is restored.
@@ -2643,6 +2840,17 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 			});
 			myMenu.addSeparator();
 		}
+	}
+
+	// ---- Rename --------------------------------------------------------------
+	// Double-click expands/collapses an assembly, so renaming has its own entry (and F2).
+	if (treeWidgetModel->itemAt(pos))
+	{
+		myMenu.addAction(tr("Rename	F2"), this, [this, pos, &actionTaken]() {
+			actionTaken = true;
+			treeWidgetModel->beginRenameAt(pos);
+		});
+		myMenu.addSeparator();
 	}
 
 	// ---- Copy / Cut --------------------------------------------------------
@@ -2740,11 +2948,19 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 		myMenu.addAction(QIcon(":/icons/res/mesh_info.png"), tr("Mesh Info"), this, expandThen([this]() { displaySelectedMeshInfo(); }));
 	}
 
+	ImportDiagnostics::checkpoint("tree.contextmenu-built");
 	myMenu.exec(treeWidgetModel->mapMenuToGlobal(pos));
 
 	// If no action was taken (menu dismissed), restore the previous selection.
 	if (!actionTaken)
+	{
+		// Restoring must neither scroll nor expand: scrolling to the first selected mesh
+		// opens every ancestor, which undid Expand/Collapse to 1st Level and Collapse All.
+		treeWidgetModel->setRevealOnSelect(false);
 		setSelectionWithoutUndo(savedSelection);
+		treeWidgetModel->setRevealOnSelect(true);
+	}
+	ImportDiagnostics::checkpoint("tree.contextmenu-end");
 }
 
 void ModelViewer::centerScreen()
@@ -3497,6 +3713,33 @@ void ModelViewer::splitSelectedMeshesByConnectivity()
 
 	const QSet<QUuid> originalSelection(selectedUuids.begin(), selectedUuids.end());
 
+	// The pieces of every selected mesh, by primitive kind: connected triangle islands, connected polylines for line meshes, and
+	// one piece per point for point meshes (points have no connectivity). Worked out first so a split that would create a very
+	// large number of meshes can be confirmed before anything changes.
+	QHash<QUuid, std::vector<std::vector<int>>> plannedGroups;
+	size_t plannedFragments = 0;
+	for (const QUuid& srcUuid : selectedUuids)
+	{
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(srcUuid);
+		if (!mesh)
+			continue;
+		std::vector<std::vector<int>> groups = mesh->findConnectedPrimitiveGroups();
+		if (groups.size() > 1)
+			plannedFragments += groups.size();
+		plannedGroups.insert(srcUuid, std::move(groups));
+	}
+	constexpr size_t kConfirmFragmentCount = 500;
+	if (plannedFragments > kConfirmFragmentCount)
+	{
+		QApplication::restoreOverrideCursor();
+		const auto answer = QMessageBox::question(this, tr("Split by Connectivity"),
+			tr("This will create %1 separate meshes. Continue?").arg(static_cast<qulonglong>(plannedFragments)),
+			QMessageBox::Yes | QMessageBox::No, QMessageBox::No);
+		if (answer != QMessageBox::Yes)
+			return;
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+	}
+
 	QVector<SplitByConnectivityCommand*> commands;
 	int fragmentCount = 0;
 	int alreadyConnectedCount = 0;
@@ -3512,7 +3755,7 @@ void ModelViewer::splitSelectedMeshesByConnectivity()
 		if (!original)
 			continue;
 
-		const std::vector<std::vector<int>> groups = original->findConnectedTriangleGroups();
+		const std::vector<std::vector<int>>& groups = plannedGroups[srcUuid];
 		if (groups.size() <= 1)
 		{
 			++alreadyConnectedCount;
@@ -4343,7 +4586,15 @@ void ModelViewer::purgeRedundantAssemblyNodes(SceneNode* scanRoot, bool automati
 			if (!camera.nodeName.isEmpty())
 				cameraHostNames.insert(camera.nodeName);
 	}
-	purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions, cameraHostNames);
+	ImportDiagnostics::checkpoint("viewer.purge-scan-begin");
+	{
+		// Every promotion edits the scene graph three times; without a batch each edit rebuilt the whole tree and re-ran the
+		// validators, which is quadratic in the part count (hours for an assembly of tens of thousands of parts).
+		SceneGraph::StructureBatch batch(*_sceneGraph);
+		purgeNodeRecursive(_sceneGraph, _viewportWidget, scanRoot, promotions, cameraHostNames);
+		ImportDiagnostics::checkpoint("viewer.purge-edits-done", -1, static_cast<quint64>(promotions.size()), 0);
+	} // the single deferred structureChanged() (tree rebuild and validators) runs when the batch closes
+	ImportDiagnostics::checkpoint("viewer.purge-scan-end", -1, static_cast<quint64>(promotions.size()), 0);
 
 	if (promotions.isEmpty())
 	{
@@ -4423,12 +4674,15 @@ void ModelViewer::openMassPropertiesDialog()
 }
 
 void ModelViewer::commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
-                                    const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection)
+                                    const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection,
+                                    const QVector<QUuid>& inputsToHide)
 {
 	if (!_sceneGraph || !_viewportWidget || !_undoStack || !wrapNode || !wrapParent)
 		return;
-	_undoStack->push(new ShrinkWrapCommand(
-		this, _viewportWidget, wrapNode, wrapParent, wrapPosition, wrappedMeshUuid, originalSelection));
+	auto* command = new ShrinkWrapCommand(
+		this, _viewportWidget, wrapNode, wrapParent, wrapPosition, wrappedMeshUuid, originalSelection);
+	command->setInputsToHide(inputsToHide);
+	_undoStack->push(command);
 }
 
 void ModelViewer::openSubdivisionDialog()
@@ -4449,12 +4703,15 @@ void ModelViewer::openSubdivisionDialog()
 }
 
 void ModelViewer::commitSubdivision(SceneNode* node, SceneNode* parent, int position,
-                                     const QUuid& meshUuid, const QSet<QUuid>& originalSelection)
+                                     const QUuid& meshUuid, const QSet<QUuid>& originalSelection,
+                                     const QVector<QUuid>& inputsToHide)
 {
 	if (!_sceneGraph || !_viewportWidget || !_undoStack || !node || !parent)
 		return;
-	_undoStack->push(new ShrinkWrapCommand(
-		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Subdivide")));
+	auto* command = new ShrinkWrapCommand(
+		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Subdivide"));
+	command->setInputsToHide(inputsToHide);
+	_undoStack->push(command);
 }
 
 void ModelViewer::openReconstructSurfaceDialog()
@@ -4475,12 +4732,15 @@ void ModelViewer::openReconstructSurfaceDialog()
 }
 
 void ModelViewer::commitReconstructSurface(SceneNode* node, SceneNode* parent, int position,
-                                            const QUuid& meshUuid, const QSet<QUuid>& originalSelection)
+                                            const QUuid& meshUuid, const QSet<QUuid>& originalSelection,
+                                            const QVector<QUuid>& inputsToHide)
 {
 	if (!_sceneGraph || !_viewportWidget || !_undoStack || !node || !parent)
 		return;
-	_undoStack->push(new ShrinkWrapCommand(
-		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Reconstruct Surface")));
+	auto* command = new ShrinkWrapCommand(
+		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Reconstruct Surface"));
+	command->setInputsToHide(inputsToHide);
+	_undoStack->push(command);
 }
 
 void ModelViewer::openRepairMeshDialog()
@@ -4518,9 +4778,12 @@ void ModelViewer::commitRepairMesh(const QVector<RepairMeshResult>& results, con
 	{
 		if (!result.node || !result.parent)
 			continue;
-		_undoStack->push(new ShrinkWrapCommand(
+		auto* command = new ShrinkWrapCommand(
 			this, _viewportWidget, result.node, result.parent, result.position,
-			result.meshUuid, originalSelection, tr("Repair Mesh")));
+			result.meshUuid, originalSelection, tr("Repair Mesh"));
+		if (!result.sourceUuid.isNull())
+			command->setInputsToHide({ result.sourceUuid });
+		_undoStack->push(command);
 	}
 
 	if (macro)
@@ -4558,9 +4821,12 @@ void ModelViewer::commitFillHoles(const QVector<FillHolesResult>& results, const
 	{
 		if (!result.node || !result.parent)
 			continue;
-		_undoStack->push(new ShrinkWrapCommand(
+		auto* command = new ShrinkWrapCommand(
 			this, _viewportWidget, result.node, result.parent, result.position,
-			result.meshUuid, originalSelection, tr("Fill Holes")));
+			result.meshUuid, originalSelection, tr("Fill Holes"));
+		if (!result.sourceUuid.isNull())
+			command->setInputsToHide({ result.sourceUuid });
+		_undoStack->push(command);
 	}
 
 	if (macro)
@@ -4611,6 +4877,143 @@ void ModelViewer::deleteSelectedItems()
 }
 
 #include "UVGenerationDialog.h"
+#include "SetMeshUVsCommand.h"
+void ModelViewer::generateUvsAutomatically(const QVector<QUuid>& meshUuids)
+{
+	// Same sequence as UVGenerationDialog::onGenerateClicked(): snapshot each mesh, generate (this mutates the meshes in place), then push
+	// one SetMeshUVsCommand per mesh. The command is what makes the change undoable AND marks the document modified, so a save writes it
+	// (generating without it left the document "unchanged", and the new UVs were not in the MVF).
+	struct Target
+	{
+		int id;
+		QUuid uuid;
+		SceneMesh* mesh;
+		std::vector<Vertex> beforeVertices;
+		std::vector<unsigned int> beforeIndices;
+		std::vector<quint64> beforeSourceMeshIds;
+	};
+	std::vector<Target> targets;
+	for (const QUuid& uuid : meshUuids)
+	{
+		const int id = _viewportWidget->getIndexByUuid(uuid);
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
+		if (id < 0 || !mesh)
+			continue;
+		Target target;
+		target.id = id;
+		target.uuid = uuid;
+		target.mesh = mesh;
+		mesh->getMeshData(target.beforeVertices, target.beforeIndices);
+		target.beforeSourceMeshIds = mesh->getSourceMeshIds();
+		targets.push_back(std::move(target));
+	}
+	if (targets.empty())
+		return;
+
+	std::vector<int> ids;
+	for (const Target& target : targets)
+		ids.push_back(target.id);
+
+	const UVMethod method = UVMethod::SmartProject;
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+	QString error;
+	const bool ok = _viewportWidget->generateUVsForMeshes(ids, method, UVConfig{}, error);
+	QApplication::restoreOverrideCursor();
+	if (!ok)
+	{
+		QMessageBox::warning(this, tr("Generate UV coordinates"), tr("UV generation failed: %1").arg(error));
+		return;
+	}
+
+	const QString methodName = tr("Smart Project");
+	QVector<QUndoCommand*> commands;
+	for (Target& target : targets)
+	{
+		std::vector<Vertex> afterVertices;
+		std::vector<unsigned int> afterIndices;
+		target.mesh->getMeshData(afterVertices, afterIndices);
+		commands.push_back(new SetMeshUVsCommand(this, _viewportWidget, target.uuid,
+			std::move(target.beforeVertices), std::move(target.beforeIndices),
+			std::move(afterVertices), std::move(afterIndices),
+			std::move(target.beforeSourceMeshIds), target.mesh->getSourceMeshIds(),
+			tr("Generate UVs (%1)").arg(methodName)));
+	}
+	commitUVGeneration(commands, methodName);
+}
+
+void ModelViewer::offerUvGenerationForTexturedMeshes(const QVector<QUuid>& meshUuids)
+{
+	// The answer the user asked to remember; lasts until the application is closed.
+	enum class Remembered { Ask, Never, Always };
+	static Remembered remembered = Remembered::Ask;
+	if (remembered == Remembered::Never || !_viewportWidget)
+		return;
+
+	QVector<QUuid> needUvs;
+	QStringList names;
+	for (const QUuid& uuid : meshUuids)
+	{
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
+		if (!mesh || !mesh->hasTextures())
+			continue;
+		const std::vector<float>& uv = mesh->cpuTexCoords();
+		const bool hasRealUvs = std::any_of(uv.begin(), uv.end(), [](float v) { return v != 0.0f; });
+		if (hasRealUvs)
+			continue;
+		needUvs.append(uuid);
+		if (names.size() < 5)
+			names << mesh->getName();
+	}
+	if (needUvs.isEmpty())
+		return;
+
+	if (remembered == Remembered::Always)
+	{
+		generateUvsAutomatically(needUvs);
+		return;
+	}
+
+	QMessageBox box(QMessageBox::Question, tr("Generate UV coordinates?"),
+		tr("%n selected mesh(es) have no UV coordinates (typical for CAD parts), so the texture of this material shows no pattern on them.\n\n"
+		   "Generate UV coordinates for them now?", nullptr, needUvs.size()),
+		QMessageBox::NoButton, this);
+	if (needUvs.size() > 1 || !names.isEmpty())
+		box.setInformativeText(names.join(QStringLiteral(", ")) + (needUvs.size() > names.size() ? QStringLiteral(", ...") : QString()));
+	QPushButton* generate = box.addButton(tr("Generate UVs..."), QMessageBox::AcceptRole);
+	QPushButton* automatic = box.addButton(tr("Generate now"), QMessageBox::AcceptRole);
+	automatic->setToolTip(tr("Generates UVs with the Smart Project method and default settings, without opening the dialog."));
+	box.addButton(tr("Not now"), QMessageBox::RejectRole);
+	QCheckBox* remember = new QCheckBox(tr("Remember my choice for this session (Generate now: always generate automatically; Not now: never ask)"), &box);
+	box.setCheckBox(remember);
+	box.setDefaultButton(generate);
+	box.exec();
+	if (box.clickedButton() == automatic)
+	{
+		if (remember->isChecked())
+			remembered = Remembered::Always;
+		generateUvsAutomatically(needUvs);
+		return;
+	}
+	if (box.clickedButton() != generate)
+	{
+		if (remember->isChecked())
+			remembered = Remembered::Never;
+		return;
+	}
+
+	UVGenerationDialog* dialog = findChild<UVGenerationDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (!dialog)
+	{
+		dialog = new UVGenerationDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->addMeshUuids(needUvs);
+	_viewportWidget->getToolsToolbar()->trackToolWindow(QStringLiteral("uv"), dialog);
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
+}
+
 void ModelViewer::openUVGenerationDialog()
 {
 	UVGenerationDialog* dialog = findChild<UVGenerationDialog*>(QString(), Qt::FindDirectChildrenOnly);
@@ -5210,8 +5613,26 @@ void ModelViewer::deleteSceneState(const QUuid& stateId)
 	_undoStack->push(new DeleteSceneStateCommand(this, _viewportWidget, stateId));
 }
 
+namespace {
+// Logs how long a visibility step took (only steps slower than 20 ms) so a slow Show All / Hide on a large model can be traced.
+struct VisibilityLap
+{
+	const char* label;
+	QElapsedTimer clock;
+	explicit VisibilityLap(const char* l) : label(l) { clock.start(); }
+	~VisibilityLap()
+	{
+		const qint64 ms = clock.elapsed();
+		if (ms >= 20)
+			Logger::instance().info(QStringLiteral("[VisibilityDiagnostics] %1 took %2 ms").arg(QLatin1String(label)).arg(ms),
+				QStringLiteral("Performance"));
+	}
+};
+}
+
 void ModelViewer::showAllItems()
 {
+	VisibilityLap lapShowAll("showAllItems total");
 	// Show All is one coherent action across every content type - see
 	// hideAllItems()'s identical reasoning.
 	if (_undoStack)
@@ -5306,13 +5727,16 @@ std::vector<int> ModelViewer::getSelectedIDs() const
 
 QSet<QUuid> ModelViewer::getSelectedUuids() const
 {
-	std::vector<int> selectedIds = getSelectedIDs();
+	// The tree already holds the selection as mesh uuids; round-tripping them through viewport indices
+	// and back (as this used to) only repeated a hash lookup per mesh. Meshes the viewport no longer
+	// has are still dropped.
+	const QList<QUuid> meshUuids = treeWidgetModel->selectedMeshUuids();
 	QSet<QUuid> selectedUuids;
+	selectedUuids.reserve(meshUuids.size());
 
-	for (int id : selectedIds)
+	for (const QUuid& uuid : meshUuids)
 	{
-		QUuid uuid = _viewportWidget->getUuidByIndex(id);
-		if (!uuid.isNull())
+		if (!uuid.isNull() && _viewportWidget->getIndexByUuid(uuid) >= 0)
 			selectedUuids.insert(uuid);
 	}
 
@@ -5321,63 +5745,23 @@ QSet<QUuid> ModelViewer::getSelectedUuids() const
 
 void ModelViewer::displaySelectedMeshInfo()
 {
-	// Trimmed to mesh statistics only (points/triangles/memory) - a quick
-	// glance stat from the tree's context menu. Mass properties (volume,
-	// surface area, mass, center of mass, bounding box) moved to the
-	// purpose-built Tools -> Mass Properties... dialog (MassPropertiesDialog),
-	// which has room for the "N/A + reason" nuance those values need (an
-	// open mesh has no valid volume, a material with no assigned density has
-	// no valid mass, etc.) that a single QMessageBox string dump doesn't.
-	std::vector<int> selected = getSelectedIDs();
-	if (selected.size() != 0)
+	// Mesh statistics plus any source properties the importer kept, in a non-modal table (MeshInfoDialog). Mass
+	// properties (volume, surface area, mass, center of mass) stay in the Tools -> Mass Properties... dialog.
+	if (getSelectedIDs().empty())
+		return;
+	MeshInfoDialog* dialog = findChild<MeshInfoDialog*>(QString(), Qt::FindDirectChildrenOnly);
+	if (dialog)
 	{
-		std::vector<SceneMesh*> meshes = _viewportWidget->getMeshStore();
-		QString name;
-		size_t points = 0, triangles = 0;
-		unsigned long long rawmem = 0;
-		SceneMesh* mesh = nullptr;
-		size_t selectionCount = selected.size();
-		if (selectionCount > 1)
-			name = QString("%1 Meshes\n").arg(selectionCount);
-		else
-			name = meshes.at(selected[0])->getName() + "\n";
-		for (int id : selected)
-		{
-			mesh = meshes.at(id);
-			points += mesh->getPoints().size() / 3;
-			triangles += mesh->getIndices().size() / 3;
-			rawmem += mesh->memorySize();
-		}
-
-		QString strpoints = QString(tr("Points: %1\n")).arg(points);
-		QString strtriangles = QString(tr("Triangles: %1\n")).arg(triangles);
-		unsigned long long mem = 0;
-		QString units;
-		if (rawmem < 1024)
-		{
-			mem = rawmem;
-			units = "bytes";
-		}
-		else if (rawmem < (1024 * 1024))
-		{
-			mem = rawmem / 1024;
-			units = "kb";
-		}
-		else if (rawmem < (1024 * 1024 * 1024))
-		{
-			mem = rawmem / (1024 * 1024);
-			units = "mb";
-		}
-		else
-		{
-			mem = rawmem / (1024 * 1024 * 1024);
-			units = "gb";
-		}
-		QString meshSize = QString(tr("Memory: %1 ")).arg(mem) + units;
-
-		QString info = name + strpoints + strtriangles + meshSize;
-		QMessageBox::information(this, tr("Mesh Info"), info);
+		dialog->seedFromViewportSelection();
 	}
+	else
+	{
+		dialog = new MeshInfoDialog(this, this);
+		dialog->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
 }
 
 void ModelViewer::showVisualizationModelPage()
@@ -5402,16 +5786,61 @@ void ModelViewer::showEnvironmentPage()
 
 void ModelViewer::handleTreeWidgetVisibilityChanged()
 {
+	ImportDiagnostics::checkpoint("tree.visibility-changed-begin");
 	_visibleMeshUuids = treeWidgetModel->getVisibleUuids();
+	ImportDiagnostics::checkpoint("tree.visibility-uuids-end", -1, _visibleMeshUuids.size());
 	applyVisibleMeshState(false);
+	ImportDiagnostics::checkpoint("tree.visibility-state-end");
 	// Scene-tree checkboxes bypass setVisibilityWithoutUndo(), so they must
 	// explicitly refresh Plot3D's shared axis extent as well.
 	refreshPlot3DAxes();
+	ImportDiagnostics::checkpoint("tree.visibility-changed-end");
+}
+
+void ModelViewer::releaseTreeFilter()
+{
+	if (!treeWidgetModel)
+		return;
+	treeWidgetModel->clearFilterKeepingSelection();
+	if (searchBox)
+	{
+		const QSignalBlocker blocker(searchBox);
+		searchBox->clear();
+		searchBox->setStyleSheet(QString());
+	}
+	treeWidgetModel->scrollFirstSelectedToCenter();
+}
+
+void ModelViewer::revealSelectionInTree()
+{
+	if (!treeWidgetModel || !treeWidgetModel->hasMeshSelection())
+		return;
+	const bool wasRevealed = _navigationRevealed;
+	// The tree is the navigation panel, which collapses when it is not pinned: bring it back, and keep it open long enough to be read.
+	revealNavigation();
+	if (!_navigationPinned && _navHideTimer)
+		_navHideTimer->start();
+	if (treeWidgetModel->isFilterActive() && treeWidgetModel->selectionHasHiddenRows())
+		releaseTreeFilter();
+	// A panel that was collapsed gets its size from the reveal animation (220 ms): scroll when it has it.
+	QPointer<ModelViewer> self(this);
+	QTimer::singleShot(wasRevealed ? 0 : 260, this, [self]() {
+		if (self && self->treeWidgetModel)
+			self->treeWidgetModel->scrollFirstSelectedToCenter(true);
+	});
 }
 
 void ModelViewer::handleTreeWidgetSelectionChanged()
 {
+	// A mesh picked in the viewport can lie in a row the search filter hid. The selection is the document's and the filter only a view of the
+	// tree, so the filter ends (the selection stays) instead of leaving a selection the tree cannot show. A selection made inside the filter
+	// (its own matches, or a click on a visible row) leaves the filter alone.
+	if (treeWidgetModel->isFilterActive() && treeWidgetModel->selectionHasHiddenRows())
+		releaseTreeFilter();
+
+	ImportDiagnostics::checkpoint("tree.selection-changed-begin");
 	const std::vector<int> selectedVec = treeWidgetModel->getSelectedIndices();
+	ImportDiagnostics::checkpoint("tree.selection-indices-end", -1, selectedVec.size());
 	const QList<int> selectedIds(selectedVec.begin(), selectedVec.end());
 
 	// Tree-initiated selection: sync SelectionManager silently (no signal) to avoid
@@ -5422,9 +5851,14 @@ void ModelViewer::handleTreeWidgetSelectionChanged()
 
 	_viewportWidget->update();
 	updateSelectionStatusMessage();
+	ImportDiagnostics::checkpoint("tree.selection-visual-end");
 
 	// Notify panels connected to ViewportWidget::selectionChanged (e.g. TextureDebugPanel).
 	emit _viewportWidget->selectionChanged(selectedIds);
+	ImportDiagnostics::checkpoint("tree.selection-panels-end");
+	// The Transformations panel follows the selection however it changed (tree click, Esc, load); it used to refresh only on a tab switch
+	// or a click in the viewport.
+	updateTransformationValues();
 
 	if (selectedVec.empty())
 	{
@@ -5455,6 +5889,19 @@ void ModelViewer::handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& 
 	    this, _viewportWidget, treeWidgetModel,
 	    uuid, oldName, finalName,
 	    tr("Rename \"%1\" to \"%2\"").arg(oldName, finalName)));
+}
+
+void ModelViewer::handleTreeWidgetNodeRenamed(const QUuid& nodeUuid, const QString& newName)
+{
+	if (!_sceneGraph) return;
+	const SceneNode* node = _sceneGraph->findNodeByUuid(nodeUuid);
+	if (!node || node->name == newName) return;
+
+	const QString oldName = node->name;
+	_undoStack->push(new RenameNodeCommand(
+	    this, _viewportWidget, treeWidgetModel,
+	    nodeUuid, oldName, newName,
+	    tr("Rename \"%1\" to \"%2\"").arg(oldName, newName)));
 }
 
 void ModelViewer::checkAndRenameModel(SceneMesh* mesh, const QString& name)
@@ -5576,11 +6023,22 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "SceneMesh.h"
 #include "SceneUtils.h"
 #include "SceneGraphExporter.h"
+#include "Pdf3DExporter.h"
+#include "Pdf3DExportDialog.h"
+#include "OverlayToU3d.h"
+#include "PartData.h"
+#include "SceneToU3d.h"
+#include "U3dWriter.h"
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLabel>
 #include <QListWidget>
 void ModelViewer::onFileExport()
+{
+	exportModelDialog(false);
+}
+
+void ModelViewer::exportModelDialog(bool select3dPdfFilter)
 {
 	if (!_sceneGraph || !_sceneGraph->root() || !_viewportWidget)
 		return;
@@ -5588,7 +6046,6 @@ void ModelViewer::onFileExport()
 	// --- Build the format filter list (shared for all file dialogs) ---------------
 	Assimp::Exporter assimpExporter;
 	QStringList filters;
-	QStringList allExtensions;
 	QMap<QString, QString> filterToExtension;
 
 	for (unsigned int i = 0; i < assimpExporter.GetExportFormatCount(); ++i)
@@ -5598,17 +6055,59 @@ void ModelViewer::onFileExport()
 		QString descStr = QString::fromUtf8(desc->description);
 		QString filter  = QString("%1 (*.%2)").arg(descStr).arg(ext);
 		filters.append(filter);
-		allExtensions.append("*." + ext);
 		filterToExtension[filter] = ext;
 	}
-	QString allSupportedFilter = QString("All Supported Files (%1)").arg(allExtensions.join(' '));
-	filters.prepend(allSupportedFilter);
-	filterToExtension[allSupportedFilter] = "";
+	// No combined "all formats" entry: a name does not tell the exporter the format, so one format is always selected and its
+	// extension is added to the name (the name is offered without one).
+	// 3D PDF is not an Assimp format: it has its own export (and options dialog), started below once the file is chosen.
+	const QString pdf3dFilter = tr("3D PDF (*.pdf)");
+	filters.append(pdf3dFilter);
+	filterToExtension[pdf3dFilter] = "pdf";
+	// ------------------------------------------------------------------------------
+
+	// --- Filename dialog ----------------------------------------------------------
+	// The dialog opens with the format used last (3D PDF for File > Save as 3D PDF), else glTF binary, else the first format.
+	QSettings exportFilterSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	QString selectedFilter = select3dPdfFilter ? pdf3dFilter : exportFilterSettings.value(QStringLiteral("Export/lastFilter")).toString();
+	if (!filters.contains(selectedFilter))
+	{
+		selectedFilter = filters.value(0);
+		for (auto it = filterToExtension.constBegin(); it != filterToExtension.constEnd(); ++it)
+		{
+			if (it.value() == QLatin1String("glb"))
+				selectedFilter = it.key();
+		}
+	}
+	// The name offered is the loaded document's: its own file name, or the first model file in it. The format's extension is added below.
+	QString defaultName = _currentFile.isEmpty() ? QString() : QFileInfo(_currentFile).completeBaseName();
+	if (defaultName.isEmpty() && !_sceneGraph->root()->children.isEmpty())
+		defaultName = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
+	if (defaultName.isEmpty())
+		defaultName = QStringLiteral("model");
+	QString fileName = QFileDialog::getSaveFileName(
+		this, tr("Export Model"), QDir(_lastOpenedDir).filePath(defaultName),
+		filters.join(";;"), &selectedFilter);
+
+	if (fileName.isEmpty())
+		return;
+
+	exportFilterSettings.setValue(QStringLiteral("Export/lastFilter"), selectedFilter);
+	const QString extToAppend = filterToExtension.value(selectedFilter);
+	if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive))
+		fileName += "." + extToAppend;
+	// ------------------------------------------------------------------------------
+
+	// 3D PDF: its own export and options dialog, with the file chosen above.
+	if (selectedFilter == pdf3dFilter)
+	{
+		exportAs3DPdf(fileName);
+		return;
+	}
 	// ------------------------------------------------------------------------------
 
 	// --- Scene selection: if multiple files are loaded, ask which one to export ---
-	// The dialog is shown BEFORE the filename dialog so the user picks a single scene
-	// first, then provides exactly one output filename for it.
+	// Shown after the filename dialog (the 3D PDF export needs no scene choice: it exports what is visible), so the user still
+	// provides exactly one output filename for the single scene picked here.
 	QString selectedSourceFile;   // empty = no filter (single scene loaded)
 	const QList<SceneNode*>& fileNodes = _sceneGraph->root()->children;
 
@@ -5647,20 +6146,6 @@ void ModelViewer::onFileExport()
 
 		selectedSourceFile = sel->data(Qt::UserRole).toString();
 	}
-	// ------------------------------------------------------------------------------
-
-	// --- Filename dialog ----------------------------------------------------------
-	QString selectedFilter;
-	QString fileName = QFileDialog::getSaveFileName(
-		this, tr("Export Model"), _lastOpenedDir,
-		filters.join(";;"), &selectedFilter);
-
-	if (fileName.isEmpty())
-		return;
-
-	QString extToAppend = filterToExtension[selectedFilter];
-	if (!extToAppend.isEmpty() && !fileName.endsWith("." + extToAppend, Qt::CaseInsensitive))
-		fileName += "." + extToAppend;
 	// ------------------------------------------------------------------------------
 
 	// --- Build export scene and mesh list ----------------------------------------
@@ -5893,6 +6378,442 @@ void ModelViewer::onFileExport()
 }
 
 
+void ModelViewer::exportAs3DPdf(const QString& presetFileName)
+{
+	if (!_sceneGraph || !_sceneGraph->root() || !_viewportWidget)
+		return;
+
+	// The u3d library needs its four run-time modules next to the executable; a missing one would crash it.
+	QStringList missingModules;
+	if (!Pdf3D::U3dWriter::modulesAvailable(&missingModules))
+	{
+		QMessageBox::critical(this, tr("Save as 3D PDF"),
+			tr("The 3D PDF export modules are missing next to the application:\n%1\n\nReinstall the application or rebuild it.")
+				.arg(missingModules.join(QStringLiteral("\n"))));
+		return;
+	}
+
+	// The file comes first, as for every other export format. The export dialog passes the file it asked for; File > Save as 3D PDF opens
+	// that same dialog with the 3D PDF filter selected, and it calls back here with the file.
+	if (presetFileName.isEmpty())
+	{
+		exportModelDialog(true);
+		return;
+	}
+	QString fileName = presetFileName;
+	if (!fileName.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
+		fileName += QLatin1String(".pdf");
+
+	// The export scene is built next: the views the document can offer (scene states, exploded views, ...) are described in terms
+	// of its parts, and the options dialog lists them all so the user can pick.
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	// Visible parts only (the owner's export policy): a mesh is exported only when the viewer displays it.
+	auto resolver = [this](const QUuid& uuid) -> SceneMesh* {
+		SceneMesh* mesh = _viewportWidget->getMeshByUuid(uuid);
+		return (mesh && _viewportWidget->isMeshShown(uuid)) ? mesh : nullptr;
+	};
+	QHash<QUuid, QString> meshNodeNames;   // mesh uuid -> export node name, for the per-scene-state visibility
+	aiScene* exportScene = SceneGraphExporter::buildExportScene(_sceneGraph, resolver, false, QStringList(), nullptr, nullptr, &meshNodeNames);
+	if (!exportScene)
+	{
+		QApplication::restoreOverrideCursor();
+		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Failed to build the export scene."));
+		return;
+	}
+
+	// buildExportScene() factors each file's import correction (auto orient / auto scale) out of the scene; put it back so the
+	// model is in the space the viewer shows it in. The export scene's root children are the file nodes, in order.
+	QVector<QMatrix4x4> corrections;
+	QStringList sourceNames;
+	for (const SceneNode* fileNode : _sceneGraph->root()->children)
+	{
+		const aiMatrix4x4& c = fileNode->importCorrection;
+		corrections.append(QMatrix4x4(c.a1, c.a2, c.a3, c.a4, c.b1, c.b2, c.b3, c.b4, c.c1, c.c2, c.c3, c.c4, c.d1, c.d2, c.d3, c.d4));
+		sourceNames << fileNode->name;
+	}
+
+	Pdf3D::U3dScene u3dScene = Pdf3D::SceneToU3d::build(exportScene, corrections);
+	delete exportScene;
+
+	// The visible measurements and annotations, each captured for the view it was made from (no drawing involved); the options
+	// dialog lists them and the ticked ones are written into the 3D model as nodes of their own.
+	const QVector<OverlayGraphic> overlayGraphics = _viewportWidget->captureOverlayGraphics();
+	QVector<Pdf3DExportDialog::OverlayItem> overlayItems;
+	for (const OverlayGraphic& graphic : overlayGraphics)
+		overlayItems.append({ graphic.annotation ? tr("Annotations") : tr("Measurements"), graphic.name });
+
+	// The animations of the model (a PDF plays one): the Animations panel's clips with node transforms.
+	const QVector<ViewportWidget::ExportableAnimation> animations = _viewportWidget->exportableAnimations();
+	QVector<Pdf3DExportDialog::AnimationItem> animationItems;
+	for (const ViewportWidget::ExportableAnimation& animation : animations)
+		animationItems.append({ animation.name, animation.durationSeconds });
+
+	// ---- the views the document can offer ----------------------------------------------------------------------------------
+	struct ViewEntry
+	{
+		Pdf3DExportDialog::ViewItem item;
+		bool                        standard = false;   // a standard view (named only: the exporter builds it)
+		Pdf3D::CameraViewSpec       spec;               // otherwise
+	};
+	QVector<ViewEntry> entries;
+	bool anySplit = false;     // a saved view with several clipping planes was listed once per plane
+	bool anyBox = false;       // a saved view uses the box clip, which a PDF cannot show
+
+	for (const QString& name : Pdf3D::standardViewNames())
+	{
+		ViewEntry entry;
+		entry.standard = true;
+		entry.item.group = tr("Standard views");
+		entry.item.name = name;
+		entries.append(entry);
+	}
+
+	// Saved camera views (Cameras panel, cameras of the model files) and scene states become named PDF views. Cameras are in the
+	// space of their file; the viewer-space correction put back above maps them into the exported scene.
+	const auto specFromEntry = [](const GltfCameraEntry& cam, const QString& name, const QMatrix4x4& toScene, bool* boxClip) {
+		Pdf3D::CameraViewSpec spec;
+		spec.name = name;
+		spec.eye = toScene.map(cam.worldPosition);
+		spec.direction = toScene.mapVector(cam.worldDirection);
+		spec.up = toScene.mapVector(cam.worldUp);
+		spec.orthographic = (cam.type == GltfCameraType::Orthographic);
+		spec.fovDegrees = qRadiansToDegrees(cam.fovYRadians);
+		spec.orthoRange = (cam.capturedViewRange >= 0.0f) ? cam.capturedViewRange : std::max(cam.xMag, cam.yMag) * 2.0f;
+		if (boxClip)
+			*boxClip = false;
+
+		// A captured section view (Clipping Planes) becomes the view's PDF cross section. A PDF has no box clip.
+		if (cam.hasClipping && cam.clipping.isActive())
+		{
+			if (cam.clipping.boxEnabled)
+			{
+				if (boxClip)
+					*boxClip = true;
+			}
+			else
+			{
+				for (const ClippingState::Plane& plane : cam.clipping.planes)
+				{
+					Pdf3D::SectionPlane section;
+					section.axis = plane.axis;
+					section.position = plane.position;
+					section.keepPositive = plane.keepPositive;
+					spec.sections.append(section);
+				}
+			}
+		}
+		return spec;
+	};
+
+	// Adds a view to the list. Acrobat shows ONE section per view (verified), so a view with several planes is listed once per plane
+	// ("<name> (plane 1 of 2)", ...); the user ticks the ones to export.
+	const auto addView = [&entries, &anySplit, &anyBox](const QString& group, const Pdf3D::CameraViewSpec& spec, bool boxClip) {
+		if (spec.sections.size() > 1)
+		{
+			anySplit = true;
+			for (int k = 0; k < spec.sections.size(); ++k)
+			{
+				ViewEntry entry;
+				entry.item.group = group;
+				entry.spec = spec;
+				entry.spec.sections = { spec.sections[k] };
+				entry.spec.name = tr("%1 (plane %2 of %3)").arg(spec.name).arg(k + 1).arg(spec.sections.size());
+				entry.item.name = entry.spec.name;
+				entry.item.note = tr("one section plane");
+				entries.append(entry);
+			}
+			return;
+		}
+		ViewEntry entry;
+		entry.item.group = group;
+		entry.item.name = spec.name;
+		entry.spec = spec;
+		if (!spec.sections.isEmpty())
+			entry.item.note = tr("with section");
+		if (spec.renderMode != "Solid")
+		{
+			const QString mode = spec.renderMode == "HiddenWireframe" ? tr("hollow mesh") : spec.renderMode == "SolidWireframe" ? tr("shaded with mesh edges")
+				: spec.renderMode == "Wireframe" ? tr("wireframe") : tr("shaded with edges");
+			entry.item.note = entry.item.note.isEmpty() ? mode : entry.item.note + QStringLiteral(", ") + mode;
+		}
+		if (boxClip)
+		{
+			anyBox = true;
+			entry.item.note = tr("box clip not exported");
+			entry.item.warning = true;
+		}
+		entries.append(entry);
+	};
+
+	const QVector<SceneNode*> fileNodes = QVector<SceneNode*>(_sceneGraph->root()->children.begin(), _sceneGraph->root()->children.end());
+	for (int i = 0; i < fileNodes.size() && i < corrections.size(); ++i)
+	{
+		const GltfCameraData data = _sceneGraph->gltfCameraDataForFile(fileNodes[i]->sourceFile);
+		for (const GltfCameraEntry& cam : data.cameras)
+		{
+			bool box = false;
+			const Pdf3D::CameraViewSpec spec = specFromEntry(cam, cam.name, corrections[i], &box);
+			addView(tr("Cameras in the model files"), spec, box);
+		}
+	}
+	for (const GltfCameraEntry& cam : _sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras)
+	{
+		bool box = false;
+		const Pdf3D::CameraViewSpec spec = specFromEntry(cam, cam.name, QMatrix4x4(), &box);
+		addView(tr("Saved camera views"), spec, box);
+	}
+
+	// Scene states: the camera plus the visibility of every exported part (a part the state does not list is hidden).
+	QHash<QString, QUuid> uuidByNodeName;
+	for (auto it = meshNodeNames.constBegin(); it != meshNodeNames.constEnd(); ++it)
+		uuidByNodeName.insert(it.value(), it.key());
+	for (const SceneState& state : _sceneGraph->sceneStates())
+	{
+		bool box = false;
+		Pdf3D::CameraViewSpec spec = specFromEntry(state.camera, tr("State: %1").arg(state.name), QMatrix4x4(), &box);
+		// the display mode the state was saved with becomes the view's render mode
+		switch (static_cast<DisplayMode>(state.displayMode))
+		{
+		case DisplayMode::HOLLOW_MESH:       spec.renderMode = "HiddenWireframe"; break;   // mesh edges, hidden lines removed
+		case DisplayMode::MESH_EDGES:        spec.renderMode = "SolidWireframe"; break;    // shaded with the mesh edges
+		case DisplayMode::WIREFRAME:         spec.renderMode = "Wireframe"; break;
+		case DisplayMode::SHADED_WITH_EDGES: spec.renderMode = "SolidOutline"; break;     // shaded with outline edges
+		case DisplayMode::SHADED:
+		default:                             spec.renderMode = "Solid"; break;
+		}
+		for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+		{
+			const QUuid uuid = uuidByNodeName.value(node.displayName);
+			spec.nodes.append({node.name, uuid.isNull() ? true : state.visibleMeshUuids.contains(uuid)});
+		}
+		addView(tr("Scene states"), spec, box);
+	}
+
+	// Exploded views: the export always holds the assembled model (explosion offsets and manual placement are viewport state, not
+	// part of the scene graph). Every stored exploded view of the Exploded View panel becomes a view with per-part transforms
+	// ("Exploded: <name>"), plus one "Assembled" view with explicit assembled transforms, all from the current camera. The poses are
+	// evaluated without changing the viewport (ExplodedViewPanel::computePresetPoses()).
+	if (ExplodedViewPanel* explodedPanel = _viewportWidget->getExplodedViewPanel())
+	{
+		const QVector<ExplodedViewPanel::PresetPose> poses = explodedPanel->computePresetPoses();
+		if (!poses.isEmpty())
+		{
+			const GltfCameraEntry currentCamera = _viewportWidget->captureCurrentCameraEntry(QString());
+			Pdf3D::CameraViewSpec assembled = specFromEntry(currentCamera, tr("Assembled"), QMatrix4x4(), nullptr);
+			assembled.sections.clear();   // the camera snapshot carries the current clipping; an assembled/exploded view has none
+			for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+				assembled.nodes.append({node.name, true, true, node.world});
+			addView(tr("Exploded views"), assembled, false);
+
+			for (const ExplodedViewPanel::PresetPose& pose : poses)
+			{
+				Pdf3D::CameraViewSpec exploded = specFromEntry(currentCamera, tr("Exploded: %1").arg(pose.name), QMatrix4x4(), nullptr);
+				exploded.sections.clear();
+				for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+				{
+					const QUuid uuid = uuidByNodeName.value(node.displayName);
+					const QMatrix4x4 explosion = uuid.isNull() ? QMatrix4x4() : pose.matrices.value(uuid);
+					exploded.nodes.append({node.name, true, true, explosion * node.world});
+				}
+				addView(tr("Exploded views"), exploded, false);
+			}
+		}
+	}
+
+	QStringList info;
+	if (anySplit)
+		info << tr("A PDF view can show one section plane only, so a saved view with several clipping planes is listed once per plane.");
+	if (anyBox)
+		info << tr("The box clip has no equivalent in a PDF: those views are exported without a section.");
+
+	QVector<Pdf3DExportDialog::ViewItem> items;
+	for (const ViewEntry& entry : std::as_const(entries))
+		items.append(entry.item);
+
+	// ---- options dialog and file name ----------------------------------------------------------------------------------------
+	QApplication::restoreOverrideCursor();
+	// Title block fields, the parts list option and the views; the title defaults to the first file's name.
+	QString defaultTitle;
+	if (!_sceneGraph->root()->children.isEmpty())
+		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
+	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, this);
+	{
+		// What each exported part declares about its mass and material (the viewer's meshes carry what the source file declared),
+		// so the sheet can show {material} and {mass}; the export node of a mesh is named like its mesh node.
+		QHash<QString, QVector<int>> nodesByExportName;
+		for (int i = 0; i < u3dScene.nodes.size(); ++i)
+			if (!u3dScene.nodes[i].overlay)
+				nodesByExportName[u3dScene.nodes[i].displayName].append(i);
+		for (auto it = meshNodeNames.constBegin(); it != meshNodeNames.constEnd(); ++it)
+		{
+			const SceneMesh* mesh = _viewportWidget->getMeshByUuid(it.key());
+			if (!mesh || (!mesh->hasDeclaredMass() && !mesh->hasDeclaredMaterial()))
+				continue;
+			for (int index : nodesByExportName.value(it.value()))
+			{
+				Pdf3D::U3dNode& node = u3dScene.nodes[index];
+				if (mesh->hasDeclaredMass())
+				{
+					node.declaredMassKg = mesh->declaredMassKg();
+					node.declaredMassGroup = mesh->declaredMassGroup();
+				}
+				if (mesh->hasDeclaredMaterial())
+					node.declaredMaterial = mesh->declaredMaterialName();
+			}
+		}
+		const Pdf3D::PartSummary summary = Pdf3D::summarisePartData(u3dScene);
+		// what the sheet preview shows for {parts}, {subtitle}, {material} and {mass}
+		optionsDialog.setSheetSample(summary.parts, sourceNames.join(QStringLiteral(", ")), summary.material, summary.mass);
+	}
+	if (optionsDialog.exec() != QDialog::Accepted)
+		return;
+	Pdf3D::Pdf3DOptions options;
+	optionsDialog.applyTo(options);
+
+	if (options.title.isEmpty())
+		options.title = QFileInfo(fileName).completeBaseName();
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+
+	options.subtitle = sourceNames.join(QStringLiteral(", "));
+
+	// Ticked measurements and annotations become nodes of the 3D model. The ribbon width of a line is a fixed fraction of the model's
+	// size, so lines read at the same weight whatever the units.
+	{
+		const QVector<bool> overlaySelection = optionsDialog.overlaySelection();
+		QVector3D lo, hi;
+		const float diagonal = u3dScene.computeBounds(&lo, &hi) ? (hi - lo).length() : 1.0f;
+		const float lineWidth = std::max(diagonal * 0.0015f, 1.0e-6f);
+
+		// the part nodes of each export node name, so an item can name the parts it is attached to
+		QHash<QString, QStringList> partNodesByExportName;
+		for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+		{
+			if (!node.overlay)
+				partNodesByExportName[node.displayName].append(node.name);
+		}
+		for (int i = 0; i < overlayGraphics.size() && i < overlaySelection.size(); ++i)
+		{
+			if (!overlaySelection[i])
+				continue;
+			Pdf3D::OverlayGraphicData data;
+			for (const QUuid& meshUuid : overlayGraphics[i].meshUuids)
+			{
+				for (const QString& partNode : partNodesByExportName.value(meshNodeNames.value(meshUuid)))
+				{
+					if (!data.followsNodes.contains(partNode))
+						data.followsNodes.append(partNode);
+				}
+			}
+			data.name = overlayGraphics[i].name;
+			data.folder = overlayGraphics[i].annotation ? QStringLiteral("Annotations") : QStringLiteral("Measurements");
+			data.viewDirection = overlayGraphics[i].viewDirection;
+			data.lines = overlayGraphics[i].lines;
+			data.triangles = overlayGraphics[i].triangles;
+			Pdf3D::OverlayToU3d::append(u3dScene, data, lineWidth);
+		}
+	}
+
+	// The chosen animation: sampled from the clip (nothing is applied to the viewport) and written as key frames for the parts that move.
+	// Acrobat applies a key frame BEFORE the node's own transform, so a part that follows the pose rest*delta(t) gets the key
+	// rest^-1 * delta(t) * rest (see U3dScene.h).
+	const int animationIndex = optionsDialog.selectedAnimation();
+	QString animationNote;   // what became of the chosen animation, when it did not make it into the PDF
+	Logger::instance().info(QStringLiteral("[3DPDF] animations offered: %1, chosen index: %2").arg(animations.size()).arg(animationIndex),
+		QStringLiteral("Export"));
+	if (animationIndex >= 0 && animationIndex < animations.size())
+	{
+		ViewportWidget::AnimationPoses poses;
+		if (!_viewportWidget->sampleAnimationPoses(animations[animationIndex].sourceFile, animations[animationIndex].clipIndex, &poses))
+			animationNote = tr("The animation \"%1\" could not be evaluated, so the PDF has no animation.").arg(animations[animationIndex].name);
+		else
+		{
+			Logger::instance().info(QStringLiteral("[3DPDF] animation '%1': %2 samples, %3 meshes with poses")
+				.arg(animations[animationIndex].name).arg(poses.times.size()).arg(poses.worldDeltas.size()), QStringLiteral("Export"));
+			QHash<QString, QStringList> partNodesByExportName;
+			for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+			{
+				if (!node.overlay)
+					partNodesByExportName[node.displayName].append(node.name);
+			}
+			QHash<QString, const Pdf3D::U3dNode*> partByName;
+			for (const Pdf3D::U3dNode& node : u3dScene.nodes)
+				partByName.insert(node.name, &node);
+
+			u3dScene.animation.name = animations[animationIndex].name;
+			for (auto it = poses.worldDeltas.cbegin(); it != poses.worldDeltas.cend(); ++it)
+			{
+				const QVector<QMatrix4x4>& deltas = it.value();
+				if (deltas.size() != poses.times.size())
+					continue;
+				bool moves = false;
+				for (const QMatrix4x4& d : deltas)
+					moves = moves || !d.isIdentity();
+				if (!moves)
+					continue;
+				for (const QString& partName : partNodesByExportName.value(meshNodeNames.value(it.key())))
+				{
+					const Pdf3D::U3dNode* part = partByName.value(partName);
+					bool invertible = false;
+					const QMatrix4x4 worldInverse = part ? part->world.inverted(&invertible) : QMatrix4x4();
+					if (!part || !invertible)
+						continue;
+					Pdf3D::U3dMotionTrack track;
+					track.node = partName;
+					track.times = poses.times;
+					for (const QMatrix4x4& d : deltas)
+						track.keys.append(worldInverse * d * part->world);   // the key, in the part's own frame
+					u3dScene.animation.tracks.append(track);
+				}
+			}
+			Logger::instance().info(QStringLiteral("[3DPDF] animation '%1': %2 tracks written").arg(animations[animationIndex].name)
+				.arg(u3dScene.animation.tracks.size()), QStringLiteral("Export"));
+			if (u3dScene.animation.tracks.isEmpty())
+				animationNote = tr("The animation \"%1\" does not move any part that is in the export (hidden parts are not exported), so the PDF has no animation.")
+					.arg(animations[animationIndex].name);
+			options.animationPlayback = (optionsDialog.playbackIndex() == 1) ? Pdf3D::AnimationPlayback::BackAndForth
+				: (optionsDialog.playbackIndex() == 2) ? Pdf3D::AnimationPlayback::Once : Pdf3D::AnimationPlayback::Loop;
+			options.animationAutoStart = optionsDialog.animationAutoStart();
+		}
+	}
+
+	const QVector<bool> selection = optionsDialog.viewSelection();
+	const QVector<bool> viewOverlays = optionsDialog.viewOverlaySelection();
+	for (int i = 0; i < entries.size() && i < selection.size(); ++i)
+	{
+		const bool showOverlays = viewOverlays.value(i, true);
+		if (entries[i].standard)
+		{
+			if (!selection[i])
+				options.excludedStandardViews.insert(entries[i].item.name);
+			else if (!showOverlays)
+				options.standardViewsWithoutOverlays.insert(entries[i].item.name);
+		}
+		else if (selection[i])
+		{
+			Pdf3D::CameraViewSpec spec = entries[i].spec;
+			spec.showOverlays = showOverlays;
+			options.extraViews.append(spec);
+		}
+	}
+	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
+	// standard views (Front/Top/...) use the same convention as the viewport.
+	options.upAxis = _viewportWidget->isCameraUpAxisZUp() ? Pdf3D::UpAxis::Z : Pdf3D::UpAxis::Y;
+	options.poster = _viewportWidget->grabFramebuffer();
+
+	const Pdf3D::Pdf3DResult result = Pdf3D::Pdf3DExporter::exportToFile(u3dScene, options, fileName);
+	QApplication::restoreOverrideCursor();
+
+	if (result.ok)
+		QMessageBox::information(this, tr("Save as 3D PDF"),
+			animationNote.isEmpty() ? tr("Saved %1").arg(QFileInfo(fileName).fileName())
+			                        : tr("Saved %1\n\n%2").arg(QFileInfo(fileName).fileName(), animationNote));
+	else
+		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Saving the 3D PDF failed:\n%1").arg(result.error));
+}
+
+
 bool ModelViewer::loadFile(const QString& fileName)
 {
 	_lastOpenedDir = QFileInfo(fileName).path(); // store path for next time
@@ -5962,12 +6883,15 @@ bool ModelViewer::loadFile(const QString& fileName)
 		success = _viewportWidget->loadAssImpModel(fileName, method, errMsg, _progressiveLoadingEnabled);
 	}
 
+	ImportDiagnostics::checkpoint("viewer.load-returned", -1, success ? 1 : 0, 0);
 	if (success && !_viewportWidget->getMeshStore().empty())
 	{
 		if (!isNativeSession)
 		{
 			updateDisplayList();
+			ImportDiagnostics::checkpoint("viewer.post-load-display-list-end");
 			markNonUndoDocumentModified();
+			ImportDiagnostics::checkpoint("viewer.post-load-modified-end");
 		}
 
 		treeWidgetModel->scrollToTop();
@@ -5996,6 +6920,15 @@ bool ModelViewer::loadFile(const QString& fileName)
 
 bool ModelViewer::loadFromFile(const QString& fileName)
 {
+	// no view-state checks while an MVF loads (the state is restored in steps): the baseline is taken once it is complete
+	struct LoadingScope
+	{
+		bool& flag;
+		explicit LoadingScope(bool& f) : flag(f) { flag = true; }
+		~LoadingScope() { flag = false; }
+	} loadingScope(_documentLoading);
+
+	rememberFileOnDisk(fileName);   // the file as it is when this document reads it
 	// -- Show progress bar (no cancel button for MVF) ------------------
 	QString displayFileName = QFileInfo(fileName).fileName();
 	MainWindow::showStatusMessage(tr("Reading file: ") + displayFileName);
@@ -6053,12 +6986,17 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	LoadResult result;
 	QEventLoop waitLoop;
 	QThread    workerThread;
+	PhaseLog mvfProfile(QStringLiteral("MVF load"));
+	// Phase 3 splits the time of its loop between the GL upload of the meshes and the display list updates (progressive mode).
+	double uploadMs = 0.0, displayListMs = 0.0;
+	int displayListCalls = 0;
 
 	auto* worker = new QObject();
 	worker->moveToThread(&workerThread);
 
 	connect(&workerThread, &QThread::started, worker,
-		[&result, &fileName, &waitLoop, this, &displayFileName, progressiveMode = _progressiveLoadingEnabled]()
+		[&result, &fileName, &waitLoop, this, &displayFileName, &mvfProfile, &uploadMs, &displayListMs, &displayListCalls,
+		 progressiveMode = _progressiveLoadingEnabled]()
 	{
 		// --- Phase 1: File I/O ----------------------------------------
 		QFile file(fileName);
@@ -6101,6 +7039,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		}
 		if (jsonPayload.isEmpty()) { waitLoop.quit(); return; }
 
+		mvfProfile.mark(QStringLiteral("phase 1: read the chunks from disk"));
 		// --- Phase 2: JSON parse + vertex/material assembly (CPU) ------
 		QMetaObject::invokeMethod(_viewportWidget, [&displayFileName]() {
 			MainWindow::showStatusMessage(
@@ -6109,6 +7048,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		}, Qt::BlockingQueuedConnection);
 
 		result.document = Mvf::fromJsonBytes(jsonPayload);
+		mvfProfile.mark(QStringLiteral("phase 2: JSON parse (Mvf::fromJsonBytes)"));
 		const QJsonObject session = result.document.mvfSession;
 
 		auto jsonArrayToVec3 = [](const QJsonArray& arr, const QVector3D& fallback = QVector3D()) {
@@ -6222,6 +7162,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 					camera.needsModelTransformCompensation = false;
 				camera.capturedViewRange = static_cast<float>(
 					cameraObj[QStringLiteral("capturedViewRange")].toDouble(-1.0));
+				if (cameraObj.contains(QStringLiteral("clipping")))
+				{
+					camera.hasClipping = true;
+					camera.clipping = clippingStateFromJson(cameraObj[QStringLiteral("clipping")].toObject());
+				}
 
 				// needsNewNode isn't itself persisted - every camera in the
 				// captured-views bucket is synthetic by construction (no
@@ -6268,6 +7213,21 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			m.offsetReferenceDir = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetReferenceDir")].toArray());
 			m.offsetDistance = static_cast<float>(measurementObj[QStringLiteral("offsetDistance")].toDouble());
 			m.offsetVector = jsonArrayToVec3Measurement(measurementObj[QStringLiteral("offsetVector")].toArray());
+			m.reflexAngle = measurementObj[QStringLiteral("reflexAngle")].toBool(false);
+			m.orientation = static_cast<LabelOrientation>(measurementObj[QStringLiteral("labelOrientation")].toInt(
+				static_cast<int>(LabelOrientation::FaceCamera)));  // sessions from before the setting looked screen-facing
+			if (measurementObj[QStringLiteral("origin")].toString() == QLatin1String("recorded"))
+			{
+				m.origin = MeasurementOrigin::Recorded;
+				m.recordedValue = measurementObj[QStringLiteral("recordedValue")].toDouble();
+				m.recordedUnit = measurementObj[QStringLiteral("recordedUnit")].toString();
+				m.recordedPrecision = qBound(0, measurementObj[QStringLiteral("recordedPrecision")].toInt(2), 8);
+				m.recordedSource = measurementObj[QStringLiteral("recordedSource")].toString();
+				const int kind = measurementObj[QStringLiteral("recordedKind")].toInt(0);
+				m.recordedKind = (kind >= 0 && kind <= static_cast<int>(RecordedKind::Angle)) ? static_cast<RecordedKind>(kind) : RecordedKind::Distance;
+				m.recordedTextInside = measurementObj[QStringLiteral("recordedTextInside")].toBool(false);
+				m.recordedDrawing = RecordedPmi::drawingFromJson(measurementObj[QStringLiteral("drawing")].toObject());
+			}
 
 			const QJsonArray anchorsArr = measurementObj[QStringLiteral("anchors")].toArray();
 			m.anchors.reserve(anchorsArr.size());
@@ -6300,6 +7260,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			a.visible = annotationObj[QStringLiteral("visible")].toBool(true);
 			a.offsetReferenceDir = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("offsetReferenceDir")].toArray());
 			a.leaderOffset = jsonArrayToVec3Measurement(annotationObj[QStringLiteral("leaderOffset")].toArray());
+			a.orientation = static_cast<LabelOrientation>(annotationObj[QStringLiteral("labelOrientation")].toInt(
+				static_cast<int>(LabelOrientation::FaceCamera)));  // sessions from before the setting looked screen-facing
+			a.recordedKind = annotationObj[QStringLiteral("recordedKind")].toString();
+			a.recordedSource = annotationObj[QStringLiteral("recordedSource")].toString();
+			a.recordedDrawing = RecordedPmi::drawingFromJson(annotationObj[QStringLiteral("drawing")].toObject());
 
 			const QJsonObject anchorObj = annotationObj[QStringLiteral("anchor")].toObject();
 			a.anchor.meshUuid = QUuid(anchorObj[QStringLiteral("meshUuid")].toString());
@@ -6358,6 +7323,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			cam.needsNewNode = true; // synthetic, same as any captured view - see GltfCameraData.h
 			cam.capturedViewRange = static_cast<float>(
 				cameraObj[QStringLiteral("capturedViewRange")].toDouble(-1.0));
+			if (cameraObj.contains(QStringLiteral("clipping")))
+			{
+				cam.hasClipping = true;
+				cam.clipping = clippingStateFromJson(cameraObj[QStringLiteral("clipping")].toObject());
+			}
 
 			for (const QJsonValue& uv : stateObj[QStringLiteral("visibleMeshUuids")].toArray())
 				st.visibleMeshUuids.insert(QUuid(uv.toString()));
@@ -6642,8 +7612,11 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 				fileObj[QStringLiteral("activeClip")].toInt(animationData.clips.isEmpty() ? -1 : 0));
 		}
 
+		mvfProfile.mark(QStringLiteral("phase 2: session sections (lights, variants, animations, cameras)"));
 		QVector<PreparedMvfMesh> prepared =
 			MvfMeshPreparationWorker::prepare(result.document, geomChunk, imgChunk);
+		mvfProfile.mark(QStringLiteral("phase 2: mesh preparation (MvfMeshPreparationWorker::prepare)"));
+		mvfProfile.note(QStringLiteral("%1 meshes prepared, geometry chunk %2 bytes").arg(prepared.size()).arg(geomChunk.size()));
 
 		// Simulation result snapshots (see docs/simulation_mvf_persistence_design.md): decoded here, off the UI
 		// thread, against the prepared meshes' vertex/triangle counts, then attached to their meshes at the end.
@@ -6785,6 +7758,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			}
 		}
 
+		mvfProfile.mark(QStringLiteral("phase 2: simulation/plot restores, visibility, scene graph rebuild and world transforms"));
 		// --- Phase 3: GL upload — dispatched one mesh at a time --------
 		//     BlockingQueuedConnection blocks the worker while the main
 		//     thread uploads, then returns control to waitLoop.exec()
@@ -6792,32 +7766,52 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		//     before the next mesh is dispatched.
 
 		// Clear old meshes and set visibility before uploading
-		QMetaObject::invokeMethod(_viewportWidget, [this, &visibleUuids]() {
+		// uploadOneMvfMesh() adds each mesh to the displayed set at once, and the event loop repaints the viewport between two meshes: with
+		// the progressive-loading setting off the viewport would still draw the growing set after every mesh (9k meshes: most of the
+		// load time, and the meshes appeared one by one). Without progressive loading the viewport does not repaint until Phase 3.5.
+		QMetaObject::invokeMethod(_viewportWidget, [this, &visibleUuids, progressiveMode]() {
 			_viewportWidget->clearMeshStore();
 			_visibleMeshUuids = visibleUuids;
+			if (!progressiveMode)
+				_viewportWidget->setUpdatesEnabled(false);
 		}, Qt::BlockingQueuedConnection);
 
 		const int totalMeshes = prepared.size();
 		for (int i = 0; i < totalMeshes; ++i)
 		{
 			QMetaObject::invokeMethod(_viewportWidget,
-				[this, &prepared, i, totalMeshes, &displayFileName, progressiveMode]()
+				[this, &prepared, i, totalMeshes, &displayFileName, progressiveMode, &uploadMs, &displayListMs, &displayListCalls]()
 			{
 				const PreparedMvfMesh& pm = prepared[i];
+				QElapsedTimer stepTimer;
+				stepTimer.start();
 				_viewportWidget->uploadOneMvfMesh(pm);
+				uploadMs += stepTimer.nsecsElapsed() / 1.0e6;
 
-				const int pct = 15 + (i + 1) * 75 / totalMeshes;
-				MainWindow::setProgressValue(pct);
-				MainWindow::showStatusMessage(
-					tr("Loading mesh %1 / %2").arg(i + 1).arg(totalMeshes));
+				// the progress bar and the status line are repainted by the event loop: every 20 meshes is plenty
+				if ((i + 1) % 20 == 0 || (i + 1) == totalMeshes)
+				{
+					const int pct = 15 + (i + 1) * 75 / totalMeshes;
+					MainWindow::setProgressValue(pct);
+					MainWindow::showStatusMessage(
+						tr("Loading mesh %1 / %2").arg(i + 1).arg(totalMeshes));
+				}
 
 				// In progressive mode, update display every 20 meshes (matching AssImp's
 				// batchSize) so user sees meshes appearing as they load. In non-progressive
 				// mode, defer until Phase 3.5 so all meshes appear together after loading completes.
 				if (progressiveMode && ((i + 1) % 20 == 0 || (i + 1) == totalMeshes))
+				{
+					stepTimer.restart();
 					updateDisplayList();
+					displayListMs += stepTimer.nsecsElapsed() / 1.0e6;
+					++displayListCalls;
+				}
 			}, Qt::BlockingQueuedConnection);
 		}
+		mvfProfile.mark(QStringLiteral("phase 3: GL upload loop (all meshes, including event processing between them)"));
+		mvfProfile.note(QStringLiteral("inside the loop: uploadOneMvfMesh %1 ms, updateDisplayList %2 ms in %3 calls (progressive mode %4)")
+			.arg(uploadMs, 0, 'f', 0).arg(displayListMs, 0, 'f', 0).arg(displayListCalls).arg(progressiveMode ? QStringLiteral("on") : QStringLiteral("off")));
 
 		// --- Phase 3.5: Finalize session (still in event loop) ---
 		//     Update display to show all pending meshes (either progressively
@@ -6852,6 +7846,12 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_viewportWidget->setDisplayList(visibleIndicesFromState());
 			_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 			updateVisibilityUiFromState();
+			// updateDisplayList() above started a tree rebuild with every mesh visible; the saved visible set was applied to the viewport
+			// directly, so the tree gets it here (now, or when the running rebuild completes).
+			if (treeWidgetModel->isRebuildInProgress())
+				_syncTreeVisibilityAfterRebuild = true;
+			else
+				syncTreeVisibilityFromModel();
 
 			// Restore selection
 			const QJsonArray selArr = result.document.mvfSession[QStringLiteral("selectedMeshUuids")].toArray();
@@ -6871,10 +7871,13 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_currentFile = fileName;
 			_documentSaved = true;
 			_nonUndoDocumentDirty = false;
+			resetViewerStateBaseline();
 			setDocumentModified(false);
 
+			_viewportWidget->setUpdatesEnabled(true);
 			MainWindow::setProgressValue(100);
 		}, Qt::BlockingQueuedConnection);
+		mvfProfile.mark(QStringLiteral("phase 3.5: finalize (display list, visibility, selection)"));
 
 		result.ok = true;
 		waitLoop.quit();
@@ -6900,7 +7903,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		return false;
 	}
 
+	_viewportWidget->setUpdatesEnabled(true);   // idempotent; makes sure a failed load never leaves the viewport frozen
+	mvfProfile.mark(QStringLiteral("worker thread joined"));
 	_viewportWidget->updateView();
+	mvfProfile.mark(QStringLiteral("first updateView"));
 
 	// --- Phase 4: Build tree structure (after event loop exits) ---
 	//     All meshes are loaded and visible. Build the tree now.
@@ -7050,6 +8056,15 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			result.explodedViews,
 			QUuid(result.activeExplodedViewId),
 			result.activeExplodedViewStepIndex);
+
+		// An explosion only shows while the Exploded View panel is open (closing it hides the explosion and keeps the manual poses
+		// for when it opens again). Restoring the presets applies the active one to the meshes, so a session that was saved with the
+		// panel closed came back exploded. Put the closed state back: the saved views are all there, the model starts assembled.
+		// A document saved with the panel open (explosion showing) opens it again; older files have no flag and keep the closed start.
+		if (result.viewerState.value(QStringLiteral("explodedViewShown")).toBool(false))
+			_viewportWidget->showExplodedViewPanel(true);
+		else if (!explodedViewPanel->isVisible())
+			_viewportWidget->showExplodedViewPanel(false);
 	}
 
 	// Refit from the authoritative restored scene-graph state. During MVF load
@@ -7222,8 +8237,19 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			visualizationEnvironmentPanel->restoreDefaultLightOffset(off);
 		}
 
-		const QString skyboxFolder =
+		QString skyboxFolder =
 			viewerState[QStringLiteral("skyBoxFolder")].toString(_viewportWidget->getCurrentSkyboxFolder());
+		// The saved folder is an absolute path of the machine (or install) that saved the file. When it does not exist here, the preset of the
+		// same name in this installation's data folder is the same skybox: use it, so the viewport and the preset combo show it.
+		if (!skyboxFolder.isEmpty() && !QDir(skyboxFolder).exists())
+		{
+			const bool savedHdri = viewerState[QStringLiteral("skyBoxHDRIEnabled")].toBool(_viewportWidget->isSkyBoxHDRIEnabled());
+			const QString localFolder = PathUtils::getDataDirectory()
+				+ (savedHdri ? QStringLiteral("/textures/envmap/skyboxes/HDRI/") : QStringLiteral("/textures/envmap/skyboxes/LDRI/"))
+				+ QFileInfo(skyboxFolder).fileName();
+			if (QDir(localFolder).exists())
+				skyboxFolder = localFolder;
+		}
 		if (!skyboxFolder.isEmpty() && skyboxFolder != _viewportWidget->getCurrentSkyboxFolder())
 			_viewportWidget->setSkyBoxTextureFolder(skyboxFolder);
 
@@ -7260,6 +8286,72 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_viewportWidget->setCameraMode(Camera::CameraMode::Orbit);
 			break;
 		}
+
+		// View state saved since later than the rest (a file without a key keeps the viewport's current value). After the projection and the
+		// camera mode, which the oblique mode builds on, and after the display list, which the clipping positions are relative to.
+		_viewportWidget->makeCurrent();
+		{
+			// the view: orientation at once, then the load's own fit (which keeps it) frames the model
+			const QJsonArray viewDirection = viewerState[QStringLiteral("viewDirection")].toArray();
+			const QJsonArray viewUp = viewerState[QStringLiteral("viewUp")].toArray();
+			const QJsonArray cameraPosition = viewerState[QStringLiteral("cameraPosition")].toArray();
+			if (viewDirection.size() == 3 && viewUp.size() == 3 && cameraPosition.size() == 3 && viewerState.contains(QStringLiteral("cameraViewRange")))
+			{
+				// the load fits the model to the view while it runs; this pose replaces that fit once the load is complete
+				_savedCameraPose = QJsonObject{
+					{ QStringLiteral("position"), cameraPosition },
+					{ QStringLiteral("direction"), viewDirection },
+					{ QStringLiteral("up"), viewUp },
+					{ QStringLiteral("viewRange"), viewerState[QStringLiteral("cameraViewRange")] } };
+			}
+			if (viewDirection.size() == 3 && viewUp.size() == 3)
+			{
+				_viewportWidget->restoreViewOrientation(
+					QVector3D(static_cast<float>(viewDirection[0].toDouble()), static_cast<float>(viewDirection[1].toDouble()), static_cast<float>(viewDirection[2].toDouble())),
+					QVector3D(static_cast<float>(viewUp[0].toDouble()), static_cast<float>(viewUp[1].toDouble()), static_cast<float>(viewUp[2].toDouble())),
+					static_cast<ViewMode>(qBound(0, viewerState[QStringLiteral("viewMode")].toInt(static_cast<int>(ViewMode::NONE)), static_cast<int>(ViewMode::NONE))),
+					static_cast<IsoCorner>(qBound(0, viewerState[QStringLiteral("isoCorner")].toInt(0), 3)));
+			}
+		}
+		if (viewerState.contains(QStringLiteral("debugOverlayMode")))
+		{
+			_viewportWidget->setDebugOverlayMode(static_cast<DebugOverlayMode>(qBound(0, viewerState[QStringLiteral("debugOverlayMode")].toInt(0), 2)));
+			_viewportWidget->setDebugOverlayEnabled(viewerState[QStringLiteral("debugOverlayEnabled")].toBool(false));
+		}
+		if (viewerState.contains(QStringLiteral("shadingNormalMode")))
+		{
+			const int mode = qBound(0, viewerState[QStringLiteral("shadingNormalMode")].toInt(0), 1);
+			_viewportWidget->setShadingNormalMode(static_cast<ShadingNormalMode>(mode));
+		}
+		if (viewerState.contains(QStringLiteral("showAxis")))
+			_viewportWidget->showAxis(viewerState[QStringLiteral("showAxis")].toBool(true));
+		// The four-view layout: the layout only. The toolbar also turns the camera to the isometric view when it is switched on, but the saved
+		// camera (restored when the load is complete) is that view already, or whatever the user turned it to since.
+		if (viewerState.contains(QStringLiteral("multiView")))
+			_viewportWidget->setMultiView(viewerState[QStringLiteral("multiView")].toBool(false));
+		// The swap only changes which of the two sets is shown. Any display-list update turns it off (setDisplayList()), and the load runs
+		// several after this point, so it is applied in the last step of the load, below.
+		_savedVisibleSwapped = viewerState[QStringLiteral("visibleSwapped")].toBool(false);
+		if (viewerState.contains(QStringLiteral("obliqueMode")))
+		{
+			const ObliqueMode oblique = static_cast<ObliqueMode>(qBound(0, viewerState[QStringLiteral("obliqueMode")].toInt(0), 2));
+			if (oblique != ObliqueMode::NONE && oblique != _viewportWidget->obliqueMode())
+				_viewportWidget->setObliqueMode(oblique);
+		}
+		if (viewerState.contains(QStringLiteral("clipping")))
+		{
+			const ClippingState clipping = clippingStateFromJson(viewerState[QStringLiteral("clipping")].toObject());
+			if (clipping.isActive())
+				_viewportWidget->applyClippingState(clipping);
+		}
+		// Ray tracing is armed last. Only the arming: the PBR setup, the ground and the lights it needs were saved with the rest of the
+		// state above (onRenderingModeSelected("RayTraced") would re-apply the mode's defaults over them).
+		if (viewerState[QStringLiteral("rayTracedArmed")].toBool(false) && !_viewportWidget->isRayTracedRenderingModeArmed())
+		{
+			_viewportWidget->armRayTracedRenderingMode();
+			if (_viewportWidget->getViewToolbar())
+				_viewportWidget->getViewToolbar()->updateRenderingModeButton(QStringLiteral("RayTraced"));
+		}
 	}
 
 	if (!result.activeGltfCameraFile.isEmpty() && result.activeGltfCameraIndex >= 0)
@@ -7270,8 +8362,169 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	// No automatic purge here: a restored session keeps the hierarchy it was saved with (exploded views and
 	// other saved data refer to its nodes by UUID, and the user may have deliberately undone an earlier purge).
 
+	// The saved view state is applied to the viewport directly: show it in the panel (skybox preset, exposures, shadow quality, ...) and let the
+	// toolbars and menus refresh from it, then take the baseline the view-state dirty check compares against.
+	visualizationEnvironmentPanel->syncFromViewport();
+	emit _viewportWidget->viewStateChanged();
+	resetViewerStateBaseline();
+	emit documentStateRestored();
+
+	// A file that carries the camera pose (orientation, pan, zoom) restores it below; older files fit to view.
+	// The load starts several animated fits (Phase 3.5, the refit above, setCameraMode()). An animated fit takes its pan from the camera
+	// position at the animation's start and only updates that baseline when it completes; setCameraMode()/setProjection() reset the zoom
+	// baseline in the middle of one, and a later fitAll() retargets the running animation instead of restarting it, so the camera ends
+	// wherever the steps taken against the changing baselines add up to: sometimes a tiny model (the fit targets themselves were identical in
+	// every run). Finish with one immediate fit once the load is done: it stops the animation and sets the camera directly. The camera is not
+	// part of the MVF, so the load's own framing is the intended one.
+	QPointer<ModelViewer> fitSelf(this);
+	const QJsonObject savedPose = _savedCameraPose;
+	_savedCameraPose = QJsonObject();
+	const bool savedSwapped = _savedVisibleSwapped;
+	_savedVisibleSwapped = false;
+	QTimer::singleShot(0, this, [fitSelf, savedPose, savedSwapped]() {
+		// the load is complete once the camera is final: the baselines of the "modified" checks are taken from this state
+		const auto rebase = qScopeGuard([fitSelf]() {
+			if (fitSelf)
+				fitSelf->resetViewerStateBaseline();
+		});
+		if (!fitSelf || !fitSelf->_viewportWidget)
+			return;
+		ViewportWidget* viewport = fitSelf->_viewportWidget;
+		if (viewport->getMeshStore().empty() || viewport->isGltfCameraActive())
+			return;
+		// before the camera: swapping fits the view to the newly shown set, and the saved pose is applied over that
+		if (savedSwapped && !viewport->isVisibleSwapped())
+			viewport->swapVisible(true);
+		if (!savedPose.isEmpty())
+		{
+			// the exact saved view (orientation, pan and zoom), applied after every fit the load started
+			const auto vector = [](const QJsonArray& a) {
+				return QVector3D(static_cast<float>(a[0].toDouble()), static_cast<float>(a[1].toDouble()), static_cast<float>(a[2].toDouble()));
+			};
+			ViewportWidget::CameraPose pose;
+			pose.position = vector(savedPose[QStringLiteral("position")].toArray());
+			pose.viewDir = vector(savedPose[QStringLiteral("direction")].toArray());
+			pose.upVector = vector(savedPose[QStringLiteral("up")].toArray());
+			pose.rightVector = QVector3D::crossProduct(pose.viewDir, pose.upVector).normalized();
+			pose.viewRange = static_cast<float>(savedPose[QStringLiteral("viewRange")].toDouble());
+			viewport->restoreSavedView(pose);
+			return;
+		}
+		if (!viewport->autoFitViewOnUpdate() || viewport->cameraMode() != Camera::CameraMode::Orbit)
+			return;
+		viewport->fitAllImmediate();
+	});
+
 	MainWindow::hideProgressBar();
+	mvfProfile.mark(QStringLiteral("phase 4: scene graph, session restore and UI state"));
 	return true;
+}
+
+// Everything about the view that the MVF saves ("viewerState"): camera mode and projection, display and rendering mode, ground, floor, shadows,
+// environment, skybox, lights, tone mapping, background. Also what checkViewerStateDirty() compares against the state at the last load or save.
+QJsonObject ModelViewer::buildViewerStateJson(bool forDirtyCheck) const
+{
+	QJsonObject viewerState;
+	if (!_viewportWidget)
+		return viewerState;
+	auto colorToJson = [](const QColor& color) {
+		return QJsonArray{ color.red(), color.green(), color.blue(), color.alpha() };
+	};
+
+	// Navigation and projection are saved with the document but are not an edit, so they are not part of the dirty comparison: the camera
+	// orientation, pan and zoom (below), the camera mode (how the camera navigates) and the projection with its oblique form. Everything else
+	// here changes what the scene shows (the up axis too) and counts as a change.
+	viewerState.insert(QStringLiteral("cameraUpAxisZUp"), _viewportWidget->isCameraUpAxisZUp());
+	if (!forDirtyCheck)
+	{
+		viewerState.insert(QStringLiteral("projection"), static_cast<int>(_viewportWidget->projection()));
+		viewerState.insert(QStringLiteral("cameraMode"), static_cast<int>(_viewportWidget->cameraMode()));
+		viewerState.insert(QStringLiteral("obliqueMode"), static_cast<int>(_viewportWidget->obliqueMode()));
+	}
+	viewerState.insert(QStringLiteral("displayMode"), static_cast<int>(_viewportWidget->getDisplayMode()));
+	viewerState.insert(QStringLiteral("realismEnabled"), _viewportWidget->isRealismEnabled());
+	viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_viewportWidget->getRenderingMode()));
+	viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_viewportWidget->groundMode()));
+	viewerState.insert(QStringLiteral("floorTextureShown"), _viewportWidget->isFloorTextureShown());
+	viewerState.insert(QStringLiteral("floorTexturePath"), _viewportWidget->getFloorTexturePath());
+	viewerState.insert(QStringLiteral("floorTexRepeatS"), _viewportWidget->getFloorTexRepeatS());
+	viewerState.insert(QStringLiteral("floorTexRepeatT"), _viewportWidget->getFloorTexRepeatT());
+	viewerState.insert(QStringLiteral("floorOffsetPercent"), _viewportWidget->getFloorOffsetPercent());
+	viewerState.insert(QStringLiteral("shadowQuality"), static_cast<int>(_viewportWidget->getShadowQuality()));
+	viewerState.insert(QStringLiteral("reflectionsEnabled"), _viewportWidget->areReflectionsEnabled());
+	viewerState.insert(QStringLiteral("shadowCatcherEnabled"), _viewportWidget->isShadowCatcherEnabled());
+	viewerState.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(_viewportWidget->shadowCatcherDarkness()));
+	{
+		const QVector3D catcherColor = _viewportWidget->shadowCatcherBaseColor();
+		viewerState.insert(QStringLiteral("shadowCatcherBaseColor"),
+			QJsonArray{ static_cast<double>(catcherColor.x()), static_cast<double>(catcherColor.y()), static_cast<double>(catcherColor.z()) });
+	}
+	viewerState.insert(QStringLiteral("shadowCatcherMetalness"), static_cast<double>(_viewportWidget->shadowCatcherMetalness()));
+	viewerState.insert(QStringLiteral("shadowCatcherRoughness"), static_cast<double>(_viewportWidget->shadowCatcherRoughness()));
+	viewerState.insert(QStringLiteral("shadowsEnabled"), _viewportWidget->areShadowsEnabled());
+	viewerState.insert(QStringLiteral("selfShadowsEnabled"), _viewportWidget->areSelfShadowsEnabled());
+	viewerState.insert(QStringLiteral("environmentEnabled"), _viewportWidget->isEnvironmentMapEnabled());
+	viewerState.insert(QStringLiteral("iblEnabled"), _viewportWidget->isIBLEnabled());
+	viewerState.insert(QStringLiteral("skyBoxEnabled"), _viewportWidget->isSkyBoxShown());
+	viewerState.insert(QStringLiteral("skyBoxHDRIEnabled"), _viewportWidget->isSkyBoxHDRIEnabled());
+	viewerState.insert(QStringLiteral("skyBoxBlurPercent"), _viewportWidget->getSkyBoxBlurPercent());
+	viewerState.insert(QStringLiteral("skyBoxFOV"), _viewportWidget->getSkyBoxFOV());
+	viewerState.insert(QStringLiteral("skyBoxZRotationDegrees"), _viewportWidget->getSkyBoxZRotationDegrees());
+	viewerState.insert(QStringLiteral("skyBoxFolder"), _viewportWidget->getCurrentSkyboxFolder());
+	viewerState.insert(QStringLiteral("defaultLightsEnabled"), _viewportWidget->areDefaultLightsEnabled());
+	viewerState.insert(QStringLiteral("punctualLightsEnabled"), _viewportWidget->arePunctualLightsEnabled());
+	viewerState.insert(QStringLiteral("showLights"), _viewportWidget->areLightsShown());
+	viewerState.insert(QStringLiteral("hdrToneMapping"), _viewportWidget->getHdrToneMapping());
+	viewerState.insert(QStringLiteral("hdrToneMappingMode"), static_cast<int>(_viewportWidget->getHDRToneMappingMode()));
+	viewerState.insert(QStringLiteral("gammaCorrection"), _viewportWidget->getGammaCorrection());
+	viewerState.insert(QStringLiteral("screenGamma"), _viewportWidget->getScreenGamma());
+	viewerState.insert(QStringLiteral("envMapExposureStops"), std::log2(std::max(_viewportWidget->getEnvMapExposure(), 1.0e-6f)));
+	viewerState.insert(QStringLiteral("iblExposureStops"), std::log2(std::max(_viewportWidget->getIBLExposure(), 1.0e-6f)));
+	viewerState.insert(QStringLiteral("defaultLightColor"), QJsonArray{
+		_viewportWidget->getDefaultLightColor().x(),
+		_viewportWidget->getDefaultLightColor().y(),
+		_viewportWidget->getDefaultLightColor().z(),
+		_viewportWidget->getDefaultLightColor().w()});
+	const QVector3D lightOffset = _viewportWidget->getLightOffset();
+	viewerState.insert(QStringLiteral("defaultLightOffset"), QJsonArray{
+		lightOffset.x(), lightOffset.y(), lightOffset.z()});
+	viewerState.insert(QStringLiteral("bgTopColor"), colorToJson(_viewportWidget->getBgTopColor()));
+	viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_viewportWidget->getBgBotColor()));
+	// Saved since later than the settings above (a file without them keeps the viewport's current value when it loads).
+	viewerState.insert(QStringLiteral("shadingNormalMode"), static_cast<int>(_viewportWidget->shadingNormalMode()));
+	viewerState.insert(QStringLiteral("showAxis"), _viewportWidget->isAxisShown());
+	viewerState.insert(QStringLiteral("multiView"), _viewportWidget->isMultiViewActive());   // the four-view layout
+	// "Swap visible" shows the hidden meshes instead of the visible ones. The visibility itself (visibleMeshUuids) is saved as it is
+	// whatever this mode, so this is only the mode.
+	viewerState.insert(QStringLiteral("visibleSwapped"), _viewportWidget->isVisibleSwapped());
+	viewerState.insert(QStringLiteral("rayTracedArmed"), _viewportWidget->isRayTracedRenderingModeArmed());
+	viewerState.insert(QStringLiteral("clipping"), clippingStateToJson(_viewportWidget->currentClippingState()));
+	// Whatever else changes what the scene shows is part of the document too: the Exploded View panel being open (the explosion shows only
+	// then) and the debug overlay (bounding boxes, vertex or face normals).
+	viewerState.insert(QStringLiteral("explodedViewShown"), _viewportWidget->isExplodedViewPanelShown());
+	viewerState.insert(QStringLiteral("debugOverlayEnabled"), _viewportWidget->isDebugOverlayEnabled());
+	viewerState.insert(QStringLiteral("debugOverlayMode"), static_cast<int>(_viewportWidget->debugOverlayMode()));
+	if (!forDirtyCheck)
+	{
+		// the view: the camera orientation (any orbit, not only a standard view) and the standard view / axonometric corner it came from
+		const QVector3D viewDirection = _viewportWidget->cameraViewDirection();
+		const QVector3D viewUp = _viewportWidget->cameraUpVector();
+		viewerState.insert(QStringLiteral("viewDirection"), QJsonArray{ viewDirection.x(), viewDirection.y(), viewDirection.z() });
+		viewerState.insert(QStringLiteral("viewUp"), QJsonArray{ viewUp.x(), viewUp.y(), viewUp.z() });
+		viewerState.insert(QStringLiteral("viewMode"), static_cast<int>(_viewportWidget->currentViewMode()));
+		viewerState.insert(QStringLiteral("isoCorner"), static_cast<int>(_viewportWidget->currentIsoCorner()));
+		// with the orientation above: the pan (the orbit pivot, the eye in fly modes) and the zoom (the view range) make the exact view
+		const ViewportWidget::CameraPose pose = _viewportWidget->saveCameraPose();
+		viewerState.insert(QStringLiteral("cameraPosition"), QJsonArray{ pose.position.x(), pose.position.y(), pose.position.z() });
+		viewerState.insert(QStringLiteral("cameraViewRange"), static_cast<double>(pose.viewRange));
+	}
+	// Only-write-if-non-default, same convention SceneNode::importUnit
+	// uses on the per-node side - an old MVF reader/file simply lacks
+	// this key, correctly falling through to the hardcoded Millimeter
+	// default (see resolveEffectiveImportUnit()'s own doc comment).
+	if (_defaultImportUnit != LengthUnit::Unknown)
+		viewerState.insert(QStringLiteral("defaultImportUnit"), lengthUnitToString(_defaultImportUnit));
+	return viewerState;
 }
 
 Mvf::MVFPackage ModelViewer::buildMVFPackage() const
@@ -7371,6 +8624,23 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			measurementObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(m.offsetReferenceDir));
 			measurementObj.insert(QStringLiteral("offsetDistance"), static_cast<double>(m.offsetDistance));
 			measurementObj.insert(QStringLiteral("offsetVector"), vec3ToJson(m.offsetVector));
+			measurementObj.insert(QStringLiteral("labelOrientation"), static_cast<int>(m.orientation));
+			if (m.reflexAngle)
+				measurementObj.insert(QStringLiteral("reflexAngle"), true);
+			if (m.origin == MeasurementOrigin::Recorded)
+			{
+				// Only recorded ones carry these; files written before them (or without any) read back as measured.
+				measurementObj.insert(QStringLiteral("origin"), QStringLiteral("recorded"));
+				measurementObj.insert(QStringLiteral("recordedValue"), m.recordedValue);
+				measurementObj.insert(QStringLiteral("recordedUnit"), m.recordedUnit);
+				measurementObj.insert(QStringLiteral("recordedPrecision"), m.recordedPrecision);
+				measurementObj.insert(QStringLiteral("recordedSource"), m.recordedSource);
+				measurementObj.insert(QStringLiteral("recordedKind"), static_cast<int>(m.recordedKind));
+				if (m.recordedTextInside)
+					measurementObj.insert(QStringLiteral("recordedTextInside"), true);
+				if (m.recordedDrawing)
+					measurementObj.insert(QStringLiteral("drawing"), RecordedPmi::drawingToJson(*m.recordedDrawing));
+			}
 			measurementObj.insert(QStringLiteral("anchors"), anchorsJson);
 			measurementsJson.append(measurementObj);
 		}
@@ -7405,6 +8675,14 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			annotationObj.insert(QStringLiteral("visible"), a.visible);
 			annotationObj.insert(QStringLiteral("offsetReferenceDir"), vec3ToJson(a.offsetReferenceDir));
 			annotationObj.insert(QStringLiteral("leaderOffset"), vec3ToJson(a.leaderOffset));
+			annotationObj.insert(QStringLiteral("labelOrientation"), static_cast<int>(a.orientation));
+			if (a.isRecorded())
+			{
+				annotationObj.insert(QStringLiteral("recordedKind"), a.recordedKind);
+				annotationObj.insert(QStringLiteral("recordedSource"), a.recordedSource);
+				if (a.recordedDrawing)
+					annotationObj.insert(QStringLiteral("drawing"), RecordedPmi::drawingToJson(*a.recordedDrawing));
+			}
 			annotationsJson.append(annotationObj);
 		}
 		package.document.mvfSession.insert(QStringLiteral("annotations"), annotationsJson);
@@ -7461,6 +8739,8 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			cameraObj.insert(QStringLiteral("worldDirection"), vec3ToJson(cam.worldDirection));
 			cameraObj.insert(QStringLiteral("worldUp"), vec3ToJson(cam.worldUp));
 			cameraObj.insert(QStringLiteral("capturedViewRange"), static_cast<double>(cam.capturedViewRange));
+			if (cam.hasClipping)
+				cameraObj.insert(QStringLiteral("clipping"), clippingStateToJson(cam.clipping));
 
 			QJsonArray visArr;
 			for (const QUuid& u : s.visibleMeshUuids)
@@ -7547,72 +8827,7 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	// without a viewport, matching the explodedViews/activeGltfCamera
 	// blocks just above.
 	if (_viewportWidget)
-	{
-		auto colorToJson = [](const QColor& color) {
-			return QJsonArray{ color.red(), color.green(), color.blue(), color.alpha() };
-		};
-
-		QJsonObject viewerState;
-		viewerState.insert(QStringLiteral("cameraUpAxisZUp"), _viewportWidget->isCameraUpAxisZUp());
-		viewerState.insert(QStringLiteral("projection"), static_cast<int>(_viewportWidget->projection()));
-		viewerState.insert(QStringLiteral("cameraMode"), static_cast<int>(_viewportWidget->cameraMode()));
-		viewerState.insert(QStringLiteral("displayMode"), static_cast<int>(_viewportWidget->getDisplayMode()));
-		viewerState.insert(QStringLiteral("realismEnabled"), _viewportWidget->isRealismEnabled());
-		viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_viewportWidget->getRenderingMode()));
-		viewerState.insert(QStringLiteral("groundMode"), static_cast<int>(_viewportWidget->groundMode()));
-		viewerState.insert(QStringLiteral("floorTextureShown"), _viewportWidget->isFloorTextureShown());
-		viewerState.insert(QStringLiteral("floorTexturePath"), _viewportWidget->getFloorTexturePath());
-		viewerState.insert(QStringLiteral("floorTexRepeatS"), _viewportWidget->getFloorTexRepeatS());
-		viewerState.insert(QStringLiteral("floorTexRepeatT"), _viewportWidget->getFloorTexRepeatT());
-		viewerState.insert(QStringLiteral("floorOffsetPercent"), _viewportWidget->getFloorOffsetPercent());
-		viewerState.insert(QStringLiteral("shadowQuality"), static_cast<int>(_viewportWidget->getShadowQuality()));
-		viewerState.insert(QStringLiteral("reflectionsEnabled"), _viewportWidget->areReflectionsEnabled());
-		viewerState.insert(QStringLiteral("shadowCatcherEnabled"), _viewportWidget->isShadowCatcherEnabled());
-		viewerState.insert(QStringLiteral("shadowCatcherDarkness"), static_cast<double>(_viewportWidget->shadowCatcherDarkness()));
-		{
-			const QVector3D catcherColor = _viewportWidget->shadowCatcherBaseColor();
-			viewerState.insert(QStringLiteral("shadowCatcherBaseColor"),
-				QJsonArray{ static_cast<double>(catcherColor.x()), static_cast<double>(catcherColor.y()), static_cast<double>(catcherColor.z()) });
-		}
-		viewerState.insert(QStringLiteral("shadowCatcherMetalness"), static_cast<double>(_viewportWidget->shadowCatcherMetalness()));
-		viewerState.insert(QStringLiteral("shadowCatcherRoughness"), static_cast<double>(_viewportWidget->shadowCatcherRoughness()));
-		viewerState.insert(QStringLiteral("shadowsEnabled"), _viewportWidget->areShadowsEnabled());
-		viewerState.insert(QStringLiteral("selfShadowsEnabled"), _viewportWidget->areSelfShadowsEnabled());
-		viewerState.insert(QStringLiteral("environmentEnabled"), _viewportWidget->isEnvironmentMapEnabled());
-		viewerState.insert(QStringLiteral("iblEnabled"), _viewportWidget->isIBLEnabled());
-		viewerState.insert(QStringLiteral("skyBoxEnabled"), _viewportWidget->isSkyBoxShown());
-		viewerState.insert(QStringLiteral("skyBoxHDRIEnabled"), _viewportWidget->isSkyBoxHDRIEnabled());
-		viewerState.insert(QStringLiteral("skyBoxBlurPercent"), _viewportWidget->getSkyBoxBlurPercent());
-		viewerState.insert(QStringLiteral("skyBoxFOV"), _viewportWidget->getSkyBoxFOV());
-		viewerState.insert(QStringLiteral("skyBoxZRotationDegrees"), _viewportWidget->getSkyBoxZRotationDegrees());
-		viewerState.insert(QStringLiteral("skyBoxFolder"), _viewportWidget->getCurrentSkyboxFolder());
-		viewerState.insert(QStringLiteral("defaultLightsEnabled"), _viewportWidget->areDefaultLightsEnabled());
-		viewerState.insert(QStringLiteral("punctualLightsEnabled"), _viewportWidget->arePunctualLightsEnabled());
-		viewerState.insert(QStringLiteral("showLights"), _viewportWidget->areLightsShown());
-		viewerState.insert(QStringLiteral("hdrToneMapping"), _viewportWidget->getHdrToneMapping());
-		viewerState.insert(QStringLiteral("hdrToneMappingMode"), static_cast<int>(_viewportWidget->getHDRToneMappingMode()));
-		viewerState.insert(QStringLiteral("gammaCorrection"), _viewportWidget->getGammaCorrection());
-		viewerState.insert(QStringLiteral("screenGamma"), _viewportWidget->getScreenGamma());
-		viewerState.insert(QStringLiteral("envMapExposureStops"), std::log2(std::max(_viewportWidget->getEnvMapExposure(), 1.0e-6f)));
-		viewerState.insert(QStringLiteral("iblExposureStops"), std::log2(std::max(_viewportWidget->getIBLExposure(), 1.0e-6f)));
-		viewerState.insert(QStringLiteral("defaultLightColor"), QJsonArray{
-			_viewportWidget->getDefaultLightColor().x(),
-			_viewportWidget->getDefaultLightColor().y(),
-			_viewportWidget->getDefaultLightColor().z(),
-			_viewportWidget->getDefaultLightColor().w()});
-		const QVector3D lightOffset = _viewportWidget->getLightOffset();
-		viewerState.insert(QStringLiteral("defaultLightOffset"), QJsonArray{
-			lightOffset.x(), lightOffset.y(), lightOffset.z()});
-		viewerState.insert(QStringLiteral("bgTopColor"), colorToJson(_viewportWidget->getBgTopColor()));
-		viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_viewportWidget->getBgBotColor()));
-		// Only-write-if-non-default, same convention SceneNode::importUnit
-		// uses on the per-node side - an old MVF reader/file simply lacks
-		// this key, correctly falling through to the hardcoded Millimeter
-		// default (see resolveEffectiveImportUnit()'s own doc comment).
-		if (_defaultImportUnit != LengthUnit::Unknown)
-			viewerState.insert(QStringLiteral("defaultImportUnit"), lengthUnitToString(_defaultImportUnit));
-		package.document.mvfSession.insert(QStringLiteral("viewerState"), viewerState);
-	}
+		package.document.mvfSession.insert(QStringLiteral("viewerState"), buildViewerStateJson());
 
 	// ---- Per-file punctual light data ----
 	// Save the ORIGINAL parsed positions together with each light's display
@@ -7712,21 +8927,19 @@ bool ModelViewer::saveToFile(const QString& fileName)
 		sizeof(quint32) * 2 + geometryPayload.size() +
 		sizeof(quint32) * 2 + imagePayload.size());
 
+	const auto writeAll = [&](QIODevice& device) {
+		QDataStream out(&device);
+		return Mvf::writeHeader(out, header)
+			&& Mvf::writeChunk(out, Mvf::ChunkType::Json, jsonPayload)
+			&& Mvf::writeChunk(out, Mvf::ChunkType::Geometry, geometryPayload)
+			&& Mvf::writeChunk(out, Mvf::ChunkType::Images, imagePayload)
+			&& out.status() == QDataStream::Ok;
+	};
+
 	QFile file(fileName);
 	if (!file.open(QIODevice::WriteOnly))
 		return false;
-
-	QDataStream out(&file);
-	if (!Mvf::writeHeader(out, header))
-		return false;
-	if (!Mvf::writeChunk(out, Mvf::ChunkType::Json, jsonPayload))
-		return false;
-	if (!Mvf::writeChunk(out, Mvf::ChunkType::Geometry, geometryPayload))
-		return false;
-	if (!Mvf::writeChunk(out, Mvf::ChunkType::Images, imagePayload))
-		return false;
-
-	return out.status() == QDataStream::Ok;
+	return writeAll(file);
 }
 
 void ModelViewer::setMaterialToSelectedItems(const Material& mat)
@@ -7907,6 +9120,7 @@ void ModelViewer::onCustomMaterialApplied(const Material& mat)
 	));
 
 	QApplication::restoreOverrideCursor();
+	offerUvGenerationForTexturedMeshes(uuids);
 }
 
 void ModelViewer::applyMeshMaterial(const QUuid& meshUuid, const Material& material)
@@ -7925,6 +9139,7 @@ void ModelViewer::applyMeshMaterial(const QUuid& meshUuid, const Material& mater
 	QString materialName = "Mesh Material";
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _viewportWidget, selectedUuids, material, materialName));
+	offerUvGenerationForTexturedMeshes(selectedUuids);
 
 	_currentEditingMeshUuid = QUuid();
 
@@ -7957,6 +9172,7 @@ void ModelViewer::applyEyedropperStroke(const QVector<QUuid>& targetUuids, const
 	// command class needed - same as applyMeshMaterial() above.
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _viewportWidget, targetUuids, material, material.name(), tr("Apply Material (Eyedropper)")));
+	offerUvGenerationForTexturedMeshes(targetUuids);
 }
 
 void ModelViewer::replaceMaterial(const QVector<QUuid>& meshUuids, const Material& newMaterial)
@@ -7969,6 +9185,7 @@ void ModelViewer::replaceMaterial(const QVector<QUuid>& meshUuids, const Materia
 	// FilterByMaterialDialog's "Replace With..." context menu action.
 	_undoStack->push(new ApplyMaterialCommand(
 		this, _viewportWidget, meshUuids, newMaterial, newMaterial.name(), tr("Replace Material")));
+	offerUvGenerationForTexturedMeshes(meshUuids);
 }
 
 void ModelViewer::onTexturesApplied(const Material* mat)
@@ -8101,11 +9318,10 @@ void ModelViewer::setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids)
 QSet<QUuid> ModelViewer::collectVisibleUuidsFromDisplayList() const
 {
 	QSet<QUuid> visibleUuids;
-	// `displayedObjectsIds()` is the raw primary list.  The View toolbar can
-	// temporarily swap it with the hidden list, so it is not necessarily what
-	// is on screen.  Every document-level visibility snapshot must use the
-	// runtime's resolved list or an import/update can resurrect hidden plots.
-	for (int id : _viewportWidget->currentVisibleObjectIds())
+	// The LOGICAL visible set: the primary list, which is what the document means by "visible" and what the MVF saves. While the View toolbar's
+	// swap is on, what is on screen is the hidden list (currentVisibleObjectIds()); reading that here made updateDisplayList() (run after a mesh
+	// tool) take the hidden meshes as the new visible set. setDisplayList() then turns swap off, so the swapped view was committed.
+	for (int id : _viewportWidget->getDisplayedObjectsIds())
 	{
 		QUuid uuid = _viewportWidget->getUuidByIndex(id);
 		if (!uuid.isNull())
@@ -8126,6 +9342,14 @@ QSet<QUuid> ModelViewer::collectVisibleUuidsFromDisplayList() const
 	}
 
 	return visibleUuids;
+}
+
+void ModelViewer::refreshViewportDisplayList()
+{
+	const bool shouldAutoFit = _viewportWidget->autoFitViewOnUpdate();
+	_viewportWidget->setAutoFitViewOnUpdate(false);
+	_viewportWidget->setDisplayList(visibleIndicesFromState());
+	_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 }
 
 std::vector<int> ModelViewer::visibleIndicesFromState() const
@@ -8162,8 +9386,20 @@ void ModelViewer::applyVisibleMeshState(bool syncTree,
 	if (!_viewportWidget)
 		return;
 
-	_viewportWidget->setDisplayList(visibleIndicesFromState());
-	updateVisibilityUiFromState();
+	VisibilityLap lapApply("applyVisibleMeshState total");
+	{
+		std::vector<int> ids;
+		{
+			VisibilityLap lap("visibleIndicesFromState");
+			ids = visibleIndicesFromState();
+		}
+		VisibilityLap lap("setDisplayList");
+		_viewportWidget->setDisplayList(ids);
+	}
+	{
+		VisibilityLap lap("updateVisibilityUiFromState");
+		updateVisibilityUiFromState();
+	}
 
 	if (syncTree)
 	{
@@ -8188,6 +9424,8 @@ void ModelViewer::applyVisibleMeshState(bool syncTree,
 			_treeVisibilityDirty = false;
 			syncTreeVisibilityFromModel();
 		}
+		if (treeWidgetModel->isRebuildInProgress())
+			_syncTreeVisibilityAfterRebuild = true;
 	}
 }
 
@@ -8210,6 +9448,10 @@ void ModelViewer::rebuildTreeFromCurrentState()
 	_treeRebuildPending = false;
 	treeWidgetModel->rebuild();
 	syncTreeVisibilityFromModel();
+	// The rebuilt tree takes its checkboxes from the old tree, and checks every mesh when none of them was checked (all hidden). With some
+	// meshes hidden, the document's visible set is applied again when the rebuild completes.
+	if (_viewportWidget && static_cast<size_t>(_visibleMeshUuids.size()) < _viewportWidget->getMeshStore().size())
+		_syncTreeVisibilityAfterRebuild = true;
 	// updateMeshTools() deliberately NOT called here - rebuild() only starts
 	// an async batched reconstruction, so the tree/selection aren't restored
 	// yet at this point. It's connected to SceneTreeWidget::rebuildComplete
@@ -8236,6 +9478,7 @@ void ModelViewer::scheduleTreeVisibilitySync(int delayMs)
 void ModelViewer::syncTreeVisibilityFromModel()
 {
 	_treeVisibilityDirty = false;
+	VisibilityLap lap("tree setVisibilityByUuids");
 	treeWidgetModel->setVisibilityByUuids(_visibleMeshUuids);
 }
 

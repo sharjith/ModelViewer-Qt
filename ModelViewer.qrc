@@ -50,6 +50,7 @@
         <file>res/logo.png</file>
         <file>res/ModelViewer.ico</file>
         <file>res/fileopen.png</file>
+        <file>res/recent_files.png</file>
         <file>res/filesave.png</file>
         <file>res/hideAxis.png</file>
         <file>res/showAxis.png</file>
@@ -128,6 +129,7 @@
         <file>res/measure.png</file>
         <file>res/annotate.png</file>
         <file>res/export_report.png</file>
+        <file>res/export_3dpdf.png</file>
         <file>res/batch_render_views.png</file>
         <file>res/mass_properties.png</file>
         <file>res/shrink_wrap.png</file>
@@ -180,6 +182,7 @@
         <file>res/tutorial.png</file>
         <file>res/quick_help.png</file>
         <file>res/about.png</file>
+        <file>res/import_warnings.png</file>
         <file>res/exit.png</file>
         <file>res/file_close.png</file>
         <file>res/window_close_all.png</file>
@@ -206,5 +209,8 @@
         <file>themes/Manjaroness.qss</file>
         <file>themes/SolarizedDark.qss</file>
         <file>themes/SolarizedLight.qss</file>
+    </qresource>
+    <qresource prefix="/legal">
+        <file alias="THIRD_PARTY_NOTICES.md">THIRD_PARTY_NOTICES.md</file>
     </qresource>
 </RCC>

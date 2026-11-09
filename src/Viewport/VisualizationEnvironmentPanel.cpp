@@ -231,6 +231,17 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 		        this, &VisualizationEnvironmentPanel::updateControlDependencies);
 	}
 
+	syncFromViewport();
+
+	// Repopulate immediately for the newly-bound document rather than waiting
+	// for its next lightDataChanged emission, which may not come for a while.
+	refreshPunctualLightsTree();
+}
+
+// Shows the bound viewport's state in every control of the panel, signals blocked: nothing here applies a value back. initialize() runs it
+// when the shared panel is rebound to a document, and an MVF load runs it after it has applied the saved state to the viewport.
+void VisualizationEnvironmentPanel::syncFromViewport()
+{
 	// Reflect the newly-bound document's actual ground mode/floor offset into
 	// the UI - NOT the other way around. This used to push the (freshly
 	// Designer-defaulted) UI state onto the viewport, which only made sense
@@ -344,6 +355,24 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 			}
 		}
 
+		// Controls the saved document state also covers. An MVF load applies those values to the viewport directly (not through this panel),
+		// so without them here the combo and the spin boxes kept showing the previous state.
+		{
+			QSignalBlocker blockQuality(ui->comboBoxShadowQuality), blockRepeatS(ui->doubleSpinBoxRepeatS), blockRepeatT(ui->doubleSpinBoxRepeatT);
+			ui->comboBoxShadowQuality->setCurrentIndex(std::clamp(static_cast<int>(_viewportWidget->getShadowQuality()), 0, std::max(0, ui->comboBoxShadowQuality->count() - 1)));
+			ui->doubleSpinBoxRepeatS->setValue(_viewportWidget->getFloorTexRepeatS());
+			ui->doubleSpinBoxRepeatT->setValue(_viewportWidget->getFloorTexRepeatT());
+		}
+		{
+			// The light position sliders show the viewport's light offset (the viewport value itself is not touched here).
+			const QVector3D offset = _viewportWidget->getLightOffset();
+			QSignalBlocker blockX(ui->sliderLightPosX), blockY(ui->sliderLightPosY), blockZ(ui->sliderLightPosZ);
+			ui->sliderLightPosX->setValue(offsetToSliderTick(_lightPosXMapping, offset.x()));
+			ui->sliderLightPosY->setValue(offsetToSliderTick(_lightPosYMapping, offset.y()));
+			ui->sliderLightPosZ->setValue(offsetToSliderTick(_lightPosZMapping, offset.z()));
+			updateLightPositionValueLabels();
+		}
+
 		updateButtonStyles();
 
 		// Re-evaluate dependent-control enabled state (checkBoxSelfShadows/
@@ -354,10 +383,6 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 		// over from the previous document.
 		updateControlDependencies();
 	}
-
-	// Repopulate immediately for the newly-bound document rather than waiting
-	// for its next lightDataChanged emission, which may not come for a while.
-	refreshPunctualLightsTree();
 }
 
 void VisualizationEnvironmentPanel::connectSignalsAndSlots()
@@ -911,6 +936,9 @@ void VisualizationEnvironmentPanel::onPunctualLightItemChanged(QTreeWidgetItem* 
 	// lightDataChanged → refreshPunctualLightsTree path.
 	_viewportWidget->applyEnabledLightList(_sceneGraph->buildEnabledLightList());
 	_viewportWidget->updateView();
+	// The per-light enabled flag is saved in the MVF; the tree is filled with signals blocked, so this slot runs only for a user toggle.
+	if (_modelViewer)
+		_modelViewer->markNonUndoDocumentModified();
 }
 
 void VisualizationEnvironmentPanel::onShowLightsChanged(bool checked)
@@ -1718,6 +1746,7 @@ void VisualizationEnvironmentPanel::updateLightPositionRanges(float range, float
 {
 	if (!ui)
 		return;
+	const QVector3D currentOffset=_viewportWidget ? _viewportWidget->getLightOffset() : QVector3D();
 
 	// X/Y span [-range, range-offset]; Z spans [-range/3, range/2] - the
 	// same real-world float ranges this function has always used, just no
@@ -1727,31 +1756,25 @@ void VisualizationEnvironmentPanel::updateLightPositionRanges(float range, float
 	// to a dead 0..0 slider). Each slider always gets kLightSliderSteps
 	// ticks of resolution regardless of how small or large that float range
 	// actually is.
-	auto configureAxis = [](QSlider* slider, LightAxisSliderMapping& mapping, float floatMin, float floatMax)
+	auto configureAxis = [this](QSlider* slider, LightAxisSliderMapping& mapping,
+	                           float floatMin, float floatMax, float currentValue)
 	{
 		mapping.floatMin = floatMin;
 		mapping.unitsPerTick = (floatMax - floatMin) / static_cast<float>(kLightSliderSteps);
-		slider->blockSignals(true);
+		const QSignalBlocker blocker(slider);
 		slider->setRange(0, kLightSliderSteps);
-		slider->setValue(kLightSliderSteps / 2); // same real-world midpoint the old (max+min)/2 reset to
-		slider->blockSignals(false);
+		slider->setValue(offsetToSliderTick(mapping,currentValue));
 	};
 
-	configureAxis(ui->sliderLightPosX, _lightPosXMapping, -range, range - offset);
-	configureAxis(ui->sliderLightPosY, _lightPosYMapping, -range, range - offset);
-	configureAxis(ui->sliderLightPosZ, _lightPosZMapping, -range / 3.0f, range / 2.0f);
+	configureAxis(ui->sliderLightPosX, _lightPosXMapping, -range, range - offset,currentOffset.x());
+	configureAxis(ui->sliderLightPosY, _lightPosYMapping, -range, range - offset,currentOffset.y());
+	configureAxis(ui->sliderLightPosZ, _lightPosZMapping, -range / 3.0f, range / 2.0f,currentOffset.z());
 
 	updateLightPositionValueLabels();
-
-	// Manually trigger light offset update
-	if (_viewportWidget)
-	{
-		_viewportWidget->setLightOffset(QVector3D(
-			sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
-			sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()),
-			sliderTickToOffset(_lightPosZMapping, ui->sliderLightPosZ->value())));
-		_viewportWidget->updateView();
-	}
+	// This is a UI range refresh, not a light edit. In particular, asymmetric
+	// ranges have nonzero midpoints, and writing rounded slider ticks back
+	// here moved the light during import/visibility synchronization. Keep the
+	// exact runtime offset, even when the current slider range cannot show it.
 }
 
 float VisualizationEnvironmentPanel::sliderTickToOffset(const LightAxisSliderMapping& mapping, int tick) const

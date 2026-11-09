@@ -67,7 +67,7 @@
         "rhs": "Linux"
       },
       "cacheVariables": {
-        "CMAKE_PREFIX_PATH": "${sourceDir}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/basisu;${sourceDir}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/OpenImageDenoise"
+        "CMAKE_PREFIX_PATH": "${sourceDir}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/basisu;${sourceDir}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/OpenImageDenoise;${sourceDir}/packaging/linux/vendor/vcpkg_installed/x64-linux/share/u3d"
       }
     },
     {

@@ -11,6 +11,9 @@
 #include <QSignalBlocker>
 #include <QInputDialog>
 #include <QLineEdit>
+#include <QDialog>
+#include <QDialogButtonBox>
+#include <QPlainTextEdit>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -93,6 +96,13 @@ MainWindow::MainWindow(QWidget* parent)
 	ui = new Ui::MainWindow();
 	ui->setupUi(this);
     setupViewMenus();
+
+	// Importer warnings are reported here after a load; the action stays disabled until there is something to show.
+	_importWarningsAction = new QAction(QIcon(":/icons/res/import_warnings.png"), tr("Last Import Warnings..."), this);
+	_importWarningsAction->setEnabled(false);
+	_importWarningsAction->setToolTip(tr("Show the warnings the importer reported for the most recently loaded file."));
+	connect(_importWarningsAction, &QAction::triggered, this, [this] { showImportWarningsDialog(); });
+	ui->menuHelp->insertAction(ui->actionAbout, _importWarningsAction);
 
 	// Explicit, rather than relying purely on Windows extracting the icon from the exe's embedded
 	// .rc resource ("A", res/ModelViewer.ico - same file, bundled into the qrc under this path
@@ -588,7 +598,12 @@ MainWindow::MainWindow(QWidget* parent)
 		connect(_materialVariantsPanel, &MaterialVariantsPanel::variantActivated, this,
 			[this](const QString& file, int index) {
 				if (ModelViewer* child = activeMdiChild())
+				{
 					child->applyVariant(file, index);
+					// the variant changes the meshes' materials and the active variant is saved: not undoable, so mark by hand (only
+					// here: applyVariant() also runs while an MVF loads and from undo/redo)
+					child->markNonUndoDocumentModified();
+				}
 			});
 		connect(_materialVariantsPanel, &MaterialVariantsPanel::variantDeleteRequested, this,
 			[this](const QString& file, int index) {
@@ -921,6 +936,11 @@ MainWindow::MainWindow(QWidget* parent)
         if (auto* child = activeMdiChild()) child->executeToolCommand(QStringLiteral("report"));
     });
 
+	// File → Save as 3D PDF... - one-shot export of the visible parts, no persistent tool state
+	connect(ui->actionExport3DPdf, &QAction::triggered, this, [this]() {
+		if (auto* child = activeMdiChild()) child->exportAs3DPdf();
+	});
+
 	// Tools → Batch Render Views... - same "modal, one-shot batch action"
 	// reasoning as actionExportReport above, just producing individual
 	// offline path-traced image files instead of one PDF.
@@ -999,6 +1019,13 @@ MainWindow::MainWindow(QWidget* parent)
 
 	updateMenus();
 
+	// Coming back to the application: a file deleted or changed by another program while it was away is reported (the active document's).
+	connect(qApp, &QGuiApplication::applicationStateChanged, this, [this](Qt::ApplicationState state) {
+		if (state == Qt::ApplicationActive && !_shuttingDown)
+			if (ModelViewer* child = activeMdiChild())
+				child->checkFileOnDisk();
+	});
+
 	StartupSplash::report(tr("Restoring window layout..."), 55);
 	readSettings();
 
@@ -1021,6 +1048,11 @@ MainWindow::MainWindow(QWidget* parent)
 		retranslateUI();  // if needed
 		});
 
+}
+
+QMenu* MainWindow::recentFilesMenu() const
+{
+	return recentFileSubMenuAct ? recentFileSubMenuAct->menu() : nullptr;
 }
 
 void MainWindow::retranslateUI()
@@ -1160,9 +1192,30 @@ bool MainWindow::eventFilter(QObject* watched, QEvent* event)
 	return QMainWindow::eventFilter(watched, event);
 }
 
+void MainWindow::refreshDocumentPanelsAfterLoad(ModelViewer* viewer)
+{
+    // A document that is not the active one is refreshed when it is activated (rebindSharedPanelsTo()).
+    if (_shuttingDown || !viewer || viewer != activeMdiChild() || !_sharedPanelsBound)
+        return;
+    // The panels were bound while the document was empty, and the load sets "active" state (the active variant, animation clip and camera,
+    // the active selection set) after the signals that refresh them: show it now.
+    _materialVariantsPanel->refresh();
+    _animationsPanel->refresh();
+    _camerasPanel->refresh();
+    _selectionSetsPanel->refresh();
+    _sceneStatesPanel->refresh();
+    _selectionSetsPanel->syncActiveSet(viewer->getSelectedUuids());
+    ui->actionSaveSelectionSet->setEnabled(viewer->hasSelection());
+    viewer->updateTransformationValues();
+    refreshSimulationPanel(viewer);
+    updateViewMenus();
+    refreshDocumentDockTabStyling(viewer);
+}
+
 QMdiSubWindow* MainWindow::createDocumentSubWindow(ModelViewer* viewer)
 {
     _viewers.append(viewer);
+    connect(viewer, &ModelViewer::documentStateRestored, this, [this, viewer]() { refreshDocumentPanelsAfterLoad(viewer); });
     const QPointer<ViewportWidget> view = viewer->getViewportWidget();
     connect(view.data(), &ViewportWidget::viewStateChanged, this, [this, view]() {
         if (!_shuttingDown && view && activeMdiChild() && activeMdiChild()->getViewportWidget() == view)
@@ -1519,6 +1572,9 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 			ui->actionFilterByMaterial->setEnabled(hasMeshes);
 			ui->actionFilterByColor->setEnabled(hasMeshes);
 			ui->actionFilterByBoundingBox->setEnabled(hasMeshes);
+			ui->actionExport3DPdf->setEnabled(hasMeshes);   // nothing to export from an empty scene
+			ui->actionSave->setEnabled(hasMeshes);
+			ui->actionSave_As->setEnabled(hasMeshes);
 		};
 		refreshFilterActionsEnabled();
 		_hasMeshesSyncConnection = connect(sceneGraph, &SceneGraph::structureChanged, this, refreshFilterActionsEnabled);
@@ -1527,6 +1583,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 		_animationsPanel, &AnimationsPanel::refresh);
 
 	refreshDocumentDockTabStyling(viewer);
+	viewer->checkFileOnDisk();   // switching to a document: its file may have been deleted or changed meanwhile
 }
 
 void MainWindow::handleActiveDocumentChanged(QMdiSubWindow* subWindow)
@@ -1858,6 +1915,52 @@ void MainWindow::showStatusMessage(const QString& message, int timeout)
 	}
 	_mainWindow->statusBar()->showMessage(message, timeout);
 	_mainWindow->statusBar()->update();
+}
+
+void MainWindow::setImportWarnings(const QString& fileName, const QStringList& warnings)
+{
+	if (!_mainWindow)
+		return;
+	if (QThread::currentThread() != _mainWindow->thread())
+	{
+		QMetaObject::invokeMethod(_mainWindow, [fileName, warnings]() { MainWindow::setImportWarnings(fileName, warnings); }, Qt::QueuedConnection);
+		return;
+	}
+	_mainWindow->_importWarningsFile = fileName;
+	_mainWindow->_importWarnings = warnings;
+	_mainWindow->_importWarningsAction->setEnabled(!warnings.isEmpty());
+	// Routine notes (inferred unit, merge and tally summaries) stay in the dialog but do not trigger the status message.
+	int notable = 0;
+	for (const QString& warning : warnings)
+	{
+		const bool routine = warning.startsWith(QLatin1String("Source length unit")) || warning.startsWith(QLatin1String("3DXML tessellated UVR"))
+			|| warning.startsWith(QLatin1String("3DXML tally")) || warning.contains(QLatin1String("mesh leaves merged"));
+		if (!routine)
+			++notable;
+	}
+	if (notable > 0)
+		showStatusMessage(tr("%1: %n import warning(s) - see Help > Last Import Warnings", nullptr, notable).arg(QFileInfo(fileName).fileName()), 15000);
+}
+
+void MainWindow::showImportWarningsDialog()
+{
+	QDialog dialog(this);
+	dialog.setWindowTitle(tr("Import Warnings - %1").arg(QFileInfo(_importWarningsFile).fileName()));
+	auto* layout = new QVBoxLayout(&dialog);
+	auto* text = new QPlainTextEdit(&dialog);
+	text->setReadOnly(true);
+	text->setLineWrapMode(QPlainTextEdit::WidgetWidth);
+	text->setPlainText(_importWarnings.join(QLatin1Char('\n')));
+	layout->addWidget(text);
+	auto* buttons = new QDialogButtonBox(QDialogButtonBox::Close, &dialog);
+	connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+	layout->addWidget(buttons);
+	// Like the other dialogs, remember position and size.
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	dialog.resize(720, 360);
+	dialog.restoreGeometry(settings.value("importWarningsDialog/geometry").toByteArray());
+	dialog.exec();
+	settings.setValue("importWarningsDialog/geometry", dialog.saveGeometry());
 }
 
 void MainWindow::showStatusBalloon(const QString& message, int timeout)
@@ -2632,6 +2735,7 @@ void MainWindow::on_actionSettings_triggered()
 				vp->loadNavigationSettings();
 				vp->loadRenderSettings();
 				vp->loadTextOverlaySettings();
+				vp->loadSectionCappingSettings();
 
 				vp->restoreCameraPose(pose);
 
@@ -2734,8 +2838,11 @@ void MainWindow::updateMenus()
 	ui->actionSave_As->setVisible(hasMdiChild);
 	if (hasMdiChild)
 	{
-		ui->actionSave->setEnabled(activeMdiChild()->documentModified());	
-		ui->actionSave_As->setEnabled(!activeMdiChild()->getViewportWidget()->getMeshStore().empty());
+		// Save is available for every document with content, modified or not (the `*` and the close prompt say when saving is necessary; Save
+		// itself does nothing when there is nothing to write), so a view-only session can be saved on purpose.
+		const bool hasContent = !activeMdiChild()->getViewportWidget()->getMeshStore().empty();
+		ui->actionSave->setEnabled(hasContent);
+		ui->actionSave_As->setEnabled(hasContent);
 	}
 #ifndef QT_NO_CLIPBOARD
 	//pasteAct->setEnabled(hasMdiChild);
@@ -2777,6 +2884,7 @@ void MainWindow::updateMenus()
 	ui->actionSaveSceneState->setEnabled(hasMdiChild);
 	ui->actionAnnotate->setEnabled(hasMdiChild);
 	ui->actionExportReport->setEnabled(hasMdiChild);
+	ui->actionExport3DPdf->setEnabled(hasMeshesForFilters);   // needs an open document that has geometry (kept live by the structureChanged sync)
 	ui->actionBatchRenderViews->setEnabled(hasMdiChild);
 	ui->actionMassProperties->setEnabled(hasMdiChild);
 	ui->actionSurfaceAnalysis->setEnabled(hasMdiChild);

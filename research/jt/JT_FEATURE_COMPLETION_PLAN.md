@@ -1,0 +1,270 @@
+# JT feature completion across enabled versions
+
+20 October 2026, `feature/JT-importer`. The owner changed the priority after accepting 10.10: complete remaining features across implemented versions first, then extend to 10.11. This supersedes earlier forward-version-first sequencing; historical gate IDs remain valid.
+
+The enabled matrix is 8.0, 8.1, 8.2, 9.0, 9.5, 10.0, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10. Do not enable 10.11 or missing earlier revisions during this feature pass. Implement by record/codec family, with explicit not-applicable entries when a later family uses a different encoding. Do not create one importer per point release or infer a feature is qualified merely from an accepted version header.
+
+## Current priority override - 24 October 2026
+
+The owner paused further C2 appearance expansion after accepted C2ag dea4c25 and prioritized generic viewing essentials. [Core viewing priority and C2 return record](JT_VIEWING_PRIORITY.md) retains the full residual backlog without discarding it or declaring C2 complete. Begin with C3 line/wire and point coverage, preserving hierarchy, transforms/units, bounds, selection/visibility, resource/cancellation behaviour and useful diagnostics; then prioritize useful C4 information and C5 runtime LOD. Existing accepted appearance remains a regression requirement.
+
+This overrides the earlier implication that all C2 residuals must finish before C3 begins. Do not automatically select another texture-expansion gate. Exact geometry C6, consolidation C7, C1 residuals and the enabled-version policy remain on the plan. Owner build/test checkpoints still apply.
+
+## Execution gates
+
+| Stage | Deliverable | Completion evidence / owner gate |
+| --- | --- | --- |
+| C1 — Mesh encodings | Complete missing integer-codec, quantized coordinate/normal/colour/UV transports and attribute bindings; preserve corner seams and source normals | Known-value original packets, truncation/bounds/cancellation cases and complete scene fixtures; applicable family matrix and prior-version corpus checks. Split into small owner gates; C1a below is first |
+| C2 — Appearance | Additional RGB/HSV and vertex alpha semantics, blending, image/texture resources, UV sets/transforms and supported shader/material mapping | Independent colour/alpha/texture expectations, overrides/inheritance, shared-instance variants and renderer/export preservation; diagnose shader features without a supported mapping |
+| C3 — Other display representations | Point/line sets and documented implicit/analytic display representations | Known positions/topology, selection/bounds/visibility, transforms and units; distinguish generated display tessellation from exact source geometry |
+| C4 — Metadata and PMI | Broader typed properties, semantic identity/units, annotation/PMI content and display integration | Original records with expected values and relationships, authored/reference display comparisons, clear preservation versus rendering scope |
+| C5 — Runtime detail | Retain/reload qualified LOD alternatives and switch them at runtime | Camera/range criteria, resource sharing, stable scene identity, selection, cancellation, bounds and no duplicated LOD display |
+| C6 — Exact geometry | Qualify standalone/embedded XT transports, schema/topology reconstruction, B-Rep validation and exact-source retention; subordinate/MultiXT resolution | Separate XT implementation branch when its prerequisites are ready; shared conversion service through the existing JT seam; geometry-agreement/unit/tolerance checks. Supported stored tessellation remains fallback |
+| C7 — Consolidation | Final feature-by-family matrix, diagnostics/progress, malformed-input/resource testing, packaging/notices and broad application regressions | Owner review of delivered features and explicit residual limitations; do not label unfinished, unsupported or unvalidated work complete |
+| Forward extension | Only after the feature-completion review: qualify 10.11 horizontally | Authentic 10.11 input plus codec/record/feature regressions; never use a reheadered file as authentic evidence |
+
+All remaining areas stay on the plan, including exact geometry. Existing legal/provenance constraints apply: use lawful references, original tests and audited licensed source; unavailable layout evidence or an incompatible representation is recorded as an unresolved dependency, not silently removed. No blanket feasibility or universal file support is promised by this plan. The [JT/Parasolid scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md) supplies the exact-geometry boundary and branch/service design.
+
+The order above is a dependency sequence. Split each stage into independently reviewable subgates and stop for the owner to build, test and confirm. Routine read-only preparation may proceed while a gate waits, but dependent implementation does not advance before acceptance. Commit/push only when requested. Preserve unrelated workspace changes. About remains limited to supported versions and licence details.
+
+## Accepted gate C1a — bounded legacy Huffman
+
+The first missing mesh transport is CDP1 Huffman in the enabled 8.0–8.2 family. Existing null/bitlength/arithmetic paths remain. This is not a new file version or a Huffman packet mode in modern CDP2/CDP3. Modern and transitional paths remain in regression coverage rather than being forced through an inapplicable encoding.
+
+The inherited Huffman decoder lacked owned tree cleanup, singleton handling and escaped-value bounds, and did not honour the declared bit count inside the final word. The bounded replacement preserves the inherited heap's equal-frequency ordering, uses charged vector ownership, nonrecursive traversal, unsigned frequency sums, exact declared-bit bounds, OOB consumption checks and cancellation polls. The code-generation/canonicalization pass was unused by tree traversal and is removed. Existing upstream GPL notices and source hashes remain in the provenance manifest.
+
+This subgate qualifies one probability context. Multiple-context Huffman remains explicitly rejected and tracked under C1; arithmetic multi-context support is unchanged. No authentic downloaded Huffman example has been established, so the new codec is qualified with original hand-calculated packets and full original model fixtures. This distinction must remain visible in the matrix.
+
+Original tests cover known unequal/equal-frequency outputs, three-way ties, cross-word codes, a zero-bit single-symbol alphabet, ordinary/escape-only alphabets, unsigned high frequency, every truncated prefix, short declared bits with readable word padding, missing/extra OOB values, invalid contexts/frequencies, cancellation and allocation limits. Six full original model fixtures use Huffman strip boundaries 0,4,7: all three enabled 8.x revisions and both byte orders. Quantized geometry/UV/normal/constant-colour tests also exercise the new strip codec. Unknown-codec negative fixtures now use invalid codec 4.
+
+Native results and the owner checklist are in [C1a validation](JT_HUFFMAN_VALIDATION.md). Later C1 transports/bindings and C2–C7 are pending. Owner acceptance of C1a will not imply completion of C1 or the whole feature pass.
+
+## Accepted gate C1b — modern quantized colour transport
+
+C1a is owner-accepted on 21 October 2026. C1b adds packed quantized RGB/HSV colour arrays for the enabled 10.x family, following the current modern collection. Known-value LE/BE tests span all seven enabled 10.x revisions and retain explicit older-family rejection. Full local display controls compare with the previously qualified lossless colour path; they do not establish authentic vendor-export conformance for every minor revision.
+
+| Colour transport | Enabled 8.x | Enabled 9.x | Enabled 10.x |
+| --- | --- | --- | --- |
+| Earlier constant packed RGB(A) | Existing qualified path | Different collection | Different collection |
+| Nonconstant legacy packed/component colours | Pending later C1 gate | Different collection | Different collection |
+| Lossless component arrays | Existing raw bindings remain limited | C1c: exponent/mantissa transport | Existing IEEE/Lag1 path |
+| Modern packed quantized RGB/HSV | Not applicable | C1c: four Lag1 component vectors | C1b owner-accepted |
+| Non-opaque vertex alpha | Pending C2 renderer/appearance work | Pending C2 | Values can be decoded; active translucency remains explicitly rejected by scene adapter |
+
+Do not route the 9.x component arrays through the modern packed reader. Zero-bit nonconstant quantizers remain an explicit unsupported case. Colour hashes are consumed but not yet verified; retain that item for consolidation. See [C1b validation](JT_QUANTIZED_COLOUR_VALIDATION.md) for the exact delivered subset, tests and owner checklist. C1b does not complete the broader colour/binding work or C2.
+
+## Accepted gate C1c — transitional colour arrays
+
+The owner accepted C1b on 21 October 2026. C1c adds the distinct 9.x lossless exponent/mantissa and quantized component-array transports for enabled 9.0/9.5. It reuses bounded quantizer and HSV helpers without changing the modern packed transport. Original field vectors cover both byte orders; private full-model controls are generated separately from authentic 9.0 and 9.5 single-part templates, not by reheadering 10.x geometry.
+
+[9.x colour validation](JT_9X_COLOUR_VALIDATION.md) records the reference diagram, the always-present fourth quantized component vector, full-model agreement and remaining qualification limits. The 9.5 reference is not presented as a complete 9.0 specification or an independently generated 9.0 vertex-colour oracle. The owner accepted C1c on 21 October 2026 with "All tests passed". Variable 8.x colours, zero-bit nonconstant semantics, additional bindings, hash validation and non-opaque vertex-alpha rendering remain later gates.
+
+## Accepted gate C1d — topological UV arrays
+
+C1c is owner-accepted. C1d preserves two-component texture coordinates in channel 0 for enabled 9.x/10.x topological mesh records. The 8.x UV path stays in regression coverage. Transitional exponent/mantissa and modern IEEE lossless transports are separate; quantized component vectors use the documented predictor and bounded inverse quantization. UV-only seams, combined colour/UV records and flat-normal expansion retain the correct corner association.
+
+[Topological UV validation](JT_TOPOLOGICAL_UV_VALIDATION.md) records field tests, private controls and the owner checklist. Multiple UV channels, one-/three-/four-component texture coordinates, other remaining C1 encodings/bindings and C2 texture resources/shaders remain pending. This gate does not enable a new file version or complete C1. The owner accepted the application build/UI tests on 21 October 2026.
+
+## Accepted gate C1e — multiple UV sets
+
+C1d and the subsequent directory alignment/warning cleanup are owner-accepted. C1e extends the qualified topological UV path to four contiguous two-component sets (0–3), matching the existing viewer vertex layout. Lossless/quantized transports remain unchanged. All sets follow the same coordinate/attribute record mapping and survive appearance copies, palette splitting, flat-normal expansion, scene copies and GLB. The different 8.x path still exposes its existing single UV set.
+
+[Multi-UV validation](JT_MULTI_UV_VALIDATION.md) records tests and owner texture-coordinate-selection checks. Sparse sets, sets 4–7, other component counts, remaining legacy codecs/colours/bindings and C2 source texture/image/shader semantics remain pending. No new file revision is enabled. The owner accepted C1e on 21 October 2026.
+
+## Accepted gate C1f — scalar texture coordinates
+
+C1e is owner-accepted. C1f adds scalar U collections and mixed one-/two-component sets to the same enabled topological families. The JT decoder retains the source component count; the scene adapter embeds scalar U as `(U,0)` pairs for the existing viewer/export path. [Scalar UV validation](JT_SCALAR_UV_VALIDATION.md) records original field and private model controls and the build/UI checklist. Source texture resources remain C2; sparse/higher sets, three-/four-component semantics and the other C1 items remain pending. The owner accepted UV transport and requested proceeding on 21 October 2026; diagnostic UVs remain unsuitable as an unwrap oracle. No new file revision is enabled.
+
+## Accepted gate C1g — sparse texture-coordinate sets
+
+C1f is owner-accepted for transport. C1g preserves independently absent scalar/2D sets within slots 0–3, consumes only present collections and retains UV-only corner seams without assuming set 0 exists. The scene adapter pads internal gaps with zero pairs for Assimp copy/export compatibility, preserving original real-set numbers. [Sparse UV validation](JT_SPARSE_UV_VALIDATION.md) records representation limits, native checks and owner build/UI instructions. No new file version is enabled; source textures, higher/projective sets and the remaining C1–C7 items stay pending. The owner accepted the focused sparse-set viewer checks on 21 October 2026 with "Works".
+
+## Accepted gate C1h — declared arithmetic symbol counts
+
+C1g is owner-accepted. C1h corrects the existing CDP1 arithmetic driver to consume the declared symbol count, including non-emitting context transitions after the last output, while enforcing output/OOB agreement and cancellation. Modern CDP2/CDP3 and other codecs retain their existing contracts. [Arithmetic count validation](JT_ARITHMETIC_COUNT_VALIDATION.md) records references, original packets/models and a geometry-only owner checklist. Multiple-context Huffman and the other unresolved C1 encodings/bindings remain pending; no new version is enabled. The owner confirmed all C1h application checks passed on 21 October 2026.
+
+## Accepted gate C1i — rounded topological coordinate quantization
+
+C1h is accepted and committed. C1i selects the published rounded uniform inverse for enabled 9.x/10.x topological coordinate collections, retaining the separate legacy midpoint path. It qualifies coordinate endpoints/interiors through 32-bit widths, count/component/axis-width checks, original field vectors and private full-model controls. [Coordinate quantization validation](JT_COORDINATE_QUANTIZATION_VALIDATION.md) records source and oracle limits, native evidence and a geometry-only owner checklist. Remaining legacy encodings/bindings, higher/projective UV layouts, zero-bit semantics and the broader C2–C7 work stay pending. No new file version is enabled. The owner confirmed C1i application checks passed on 21 October 2026.
+
+## Accepted independent gate C2a — vertex alpha
+
+The owner accepted C1i on 21 October 2026. C1 remains open for multiple-context Huffman, broader legacy colours/bindings, zero-bit semantics and higher/projective UV/data-model work; these are not prerequisites for appearance mapping of the already decoded RGBA subset. C2a independently retains active vertex alpha for raster rendering/GLB, selects an explicit transparent material, and separates shared-instance blend states. ONE/ZERO and blending-disabled cases stay opaque. Ray-traced/wireframe vertex-alpha parity and nonstandard blend-equation fidelity remain C2 residuals. [Vertex-alpha validation](JT_VERTEX_ALPHA_VALIDATION.md) contains the method, regression coverage and exact regeneration commands/checklist. The owner authorized local control build/generation on 21 October 2026; MSVC AddressSanitizer portable checks and generation passed. The full viewer was not built by the agent. The owner accepted the corrected shaded raster cube controls on 21 October 2026 and authorized commit/push. No new version is enabled.
+
+## Accepted gate C2b — dedicated wire vertex alpha
+
+C2a shaded raster transparency is owner-accepted and pushed as `3523fcf`. C2b applies already retained BLEND vertex alpha to triangle wires and heuristic feature edges, including shaded edge overlays, with scoped premultiplied blending/depth state. [Wire alpha validation](JT_WIREFRAME_ALPHA_VALIDATION.md) defines the existing-cube checklist and geometry-first limits. Owner accepted the build/viewer gate on 21 October 2026; no new build or GPU run by the agent. Ray-traced alpha and broader C2 features remain separate. The owner authorized commit/push and proceeding. No new JT version is enabled.
+
+## Accepted gate C2c — ray-traced vertex alpha
+
+C2b is accepted and pushed as `a343467`. C2c uses interpolated RGBA in existing CPU camera/shadow/guide alpha tests and carries RGBA through OptiX uploads/refits and any-hit coverage. [Ray-traced alpha validation](JT_RAYTRACED_ALPHA_VALIDATION.md) records prepared production CPU regressions and the separate CPU/OptiX owner gate using the same original cubes. The owner reported the requested tests passed on 21 October 2026 and authorized commit/push and proceeding. No agent build/run or separate optional-regression execution is claimed. No new JT version is enabled.
+
+## Committed gate C2d/C2e — image textures
+
+C2d/C2e was committed and pushed as `a2cb18e` at the owner's request. It adds bounded inline/external images, channel-0 2D mapping, UV/sampler transport and embedded-image material loading. The owner confirmed visible images, then explicitly confirmed the UV correction on 22 October 2026. [Image validation](JT_TEXTURE_DESCRIPTOR_VALIDATION.md) retains synthetic-oracle and authentic-export limits. Separate optional portable-suite execution is not inferred. No new supported revision was enabled.
+
+## Accepted gate C2f — affine texture matrices
+
+[Affine texture validation](JT_TEXTURE_TRANSFORM_VALIDATION.md) covers scale, offset, reflection, quarter-turn and shear mapping for the supported modern 2D image subset. Effective UVs are baked into appearance-specific meshes; image pixels remain shared, and matrix-aware material identity prevents shared-geometry cache aliasing. The owner reported all requested tests passed on 22 October 2026 and authorized commit/push/proceeding. The authoring tool ran; the agent did not build/run C++ or the viewer. Projective/generated coordinates, wider texture modes and legacy texture layouts remain open; no enabled version changes.
+
+## Accepted gate C2g — model-linear texture coordinates
+
+C2f is pushed as `4de7b62`. [Planar texture validation](JT_TEXTURE_PLANAR_VALIDATION.md) covers authored S/T plane generation, mixed stored/generated components, absent-UV allocation, affine post-mapping and plane-aware shared appearance identity. The owner reported all requested tests passed on 22 October 2026 and authorized commit/push/proceeding. Python authoring ran; the agent did not build/run C++ or the viewer. View-dependent/projective modes, automatic channels, other texture combiners and legacy texture layouts remain open; no supported revision changes.
+
+## Accepted gate C2h — inline colour image formats
+
+C2g is pushed as `38f6c9a`. [Pixel-format validation](JT_TEXTURE_PIXEL_VALIDATION.md) covers luminance/luminance-alpha and single-colour/alpha inputs alongside existing RGB(A)/BGR(A), with unsigned-byte row alignment and existing blend-state semantics. The owner reported the visual results looked good on 22 October 2026 and authorized commit/push/proceeding. Python authoring ran; no C++ build/test or viewer run by the agent. Other pixel types, depth/stencil, wider texture modes and legacy texture layouts remain open; no supported revision changes.
+
+## Accepted gate C2i — basic 9.x texture records
+
+C2h is pushed as `d757c2f`. [9.x texture validation](JT_9X_TEXTURE_VALIDATION.md) covers the distinct basic local-version-1 layout for enabled 9.0/9.5, including old type mapping, implicit UV0, U8 shared flag and raw source metadata. Existing pixel/affine/planar mapping is reused. Advanced blocks remain diagnosed fallbacks. The owner reported C2i tests passed on 22 October 2026 and authorized commit/push. Python authoring ran, no native/viewer execution by the agent. Authentic authored-texture qualification remains open, alongside JT8.x texture layouts and other C1/C2/C3–C7 work; no version changes.
+
+## Production-driven priority — wire display representations
+
+On 22 October the owner isolated production JT10.9 failures to VisMockup's wireframe-object export option; PMI was not the cause in the reported combinations. [Production triage](JT_PRODUCTION_DIAGNOSTICS.md) distinguishes this from triangle-mesh wire rendering and records the inventory tool's missing LZMA graph scan. C3 line/polyline/wireframe investigation remains a priority, but the owner deferred production testing until tomorrow and requested independent C2 work in the meantime. Exact production record identity is still unestablished; do not reinterpret unknown required objects as ordinary groups or silently omit parts. Other feature items remain on the plan.
+
+## Accepted gate C2j — advanced 9.x texture blocks
+
+C2i is owner-accepted and pushed as `0034b48`. [Advanced 9.x texture validation](JT_9X_ADVANCED_TEXTURE_VALIDATION.md) adds the published compatibility-stub hierarchy, active version-2/3 pre-lit 2D image mapping and trailing version-3 coordinate selection. Original checks and 48 authored visual controls are prepared. Authoring ran; the agent did not build/run native tests or the viewer. The owner reported C2j tests passed on 22 October 2026 and authorized commit/push/proceeding after every successful test report. C3 production tests can wait independently; other C2 modes and authentic textured-export qualification remain open. No version or dependency changes.
+
+## Accepted gate C2k � unsigned 16-bit image components
+
+C2j is accepted and pushed as `9c8d37a`. [Unsigned 16-bit texture validation](JT_TEXTURE_UINT16_VALIDATION.md) extends the accepted inline colour path with explicit source-endian word assembly and normalized nearest-byte RGBA8 conversion. Prepared checks cover all enabled modern minors and accepted 9.x texture envelopes, rounding boundaries, padding and alpha. Original modern/9.x comparison controls were authored under ignored out/. No native/viewer execution by the agent; the owner reported C2k passed on 22 October 2026. Other C2 modes, authentic textured exports and C3 production validation remain open. No version or dependency change.
+
+## Accepted gate C2l - float32 inline image components
+
+C2k is accepted and pushed as `e4c5840`. [Float texture validation](JT_TEXTURE_FLOAT_VALIDATION.md) extends the original adapter with source-endian float32 components, finite-value validation, clamping and nearest-byte RGBA8 display conversion. Original checks and modern/9.x comparison controls are prepared; authoring ran under ignored out/. No C++ build/test or viewer run by the agent. The owner reported C2l passed on 22 October 2026. Authentic textured-export qualification, other C2 modes and C3 production checks remain pending. No version, dependency or vendored decoder change.
+
+## Accepted gate C2m - float16 inline image components
+
+C2l is accepted and pushed as `df79883`. [Half texture validation](JT_TEXTURE_HALF_VALIDATION.md) extends the original adapter to documented IEEE binary16 components using exact exponent/fraction evaluation, retaining accepted finite/clamp/nearest-byte display and nonfinite fallback policy. Original native cases and modern/9.x controls are prepared; authoring ran into ignored out/. The owner built the viewer; the agent launched the requested positive documents in one installed app instance and the owner reported the full visual gate passed on 22 October 2026. No native suite execution by the agent. Authentic textured-export qualification, other C2 modes and C3 production checks remain pending. No version, dependency or vendored decoder change.
+
+## Accepted gate C2n - unsigned 32-bit inline images
+
+C2m is accepted/pushed as `4183ff6`; multi-file startup is separately accepted/pushed as `90d13b5`. [Unsigned 32-bit texture validation](JT_TEXTURE_UINT32_VALIDATION.md) extends the original adapter with widened integer normalization into the accepted RGBA8 display path. Original known-value/endian/padding/alpha checks span enabled modern revisions and accepted 9.x envelopes. Modern/9.x controls were authored into ignored out/. The owner built the viewer; the agent launched the positive visual set in one installed instance, using shared resources, and the owner reported tests passed on 22 October 2026. No C++ build/native suite execution by the agent. Authentic textured-export qualification, other C2 modes and C3 production checks remain pending. No version, dependency or vendored decoder change.
+
+## Accepted gate C2o - signed integer inline images
+
+C2n/shared controls are accepted and pushed as `9a420e6`. [Signed texture validation](JT_TEXTURE_SIGNED_VALIDATION.md) extends the original adapter to signed 8/16/32-bit components, explicit sign extension and the historical OpenGL2 pixel-transfer profile cited by the JT reference. Independent signed minima/negative/zero/positive/endpoint checks and shared modern/9.x visual controls are prepared. Authoring and read-only URI checks ran. The owner built the app, the agent launched the 29-document visual set in one installed app instance, and the owner reported tests passed on 22 October 2026. No native suite execution by the agent. Authentic textured-export qualification, bit-packed input, wider C2 modes and C3 production checks remain pending. No version, dependency or vendored decoder change.
+
+## Accepted gate C2p - unsampled authored borders
+
+C2o is accepted/pushed as `c616126`. [Border validation](JT_TEXTURE_BORDER_VALIDATION.md) accepts unused constant borders and removes explicit inline rings for repeat, mirrored-repeat and clamp-to-edge sampling, retaining full input validation and source metadata. Sampled border fidelity and authored mip preservation remain open. Original checks span enabled modern and accepted 9.x image envelopes. Eighty-four positive controls and three references use the shared store; the owner visual set has 13 documents including regressions. Authoring/read-only URI checks ran; the owner built the app and the agent launched the 13 positive visual documents in one installed instance. The owner reported C2p passed on 22 October 2026; no native suite run by the agent. Authentic textured-export qualification, other C2 work and C3 production checks remain pending. No version, dependency or vendored decoder change.
+
+## Accepted gate C2q - sampled constant-colour borders
+
+C2p is accepted/pushed as `6f3f81c`. [Constant-border validation](JT_TEXTURE_CONSTANT_BORDER_VALIDATION.md) adds bounded RGBA nearest/linear clamp-to-border sampling through padded display images and baked interior-relative UVs, with inherited-colour cache distinctions and existing alpha policy. Original native checks and 48 shared positive controls are prepared. Authoring ran under ignored out/; the owner built the app, the agent launched the 12 positive documents in one installed instance, and the owner reported tests passed on 22 October 2026. No native suite run by the agent. Sampled explicit rings, legacy clamp, mipmaps, other C2 modes and authentic textured-export qualification remain open. No enabled revision, dependency or vendored decoder change.
+
+## Accepted gate C2r - sampled explicit border texels
+
+C2q is accepted/pushed as `227605e`. [Explicit-border validation](JT_TEXTURE_EXPLICIT_BORDER_VALIDATION.md) retains authored RGBA rings on sampled clamp-to-border axes and crops only unsampled sides, preserving interior-relative UVs, alpha policy and shared-image cache distinctions. Native known-pixel/numeric/endian/family checks and 42 shared positive roots are prepared. Authoring ran under ignored out/; the owner built the app, the agent launched the 12 positive documents in one installed instance, and the owner accepted C2r on 22 October 2026. No native suite run by the agent. Mipmaps, authored-border legacy clamp, external explicit rings and other C2 modes remain open. No enabled revision, dependency or vendored decoder change.
+
+## Accepted gate C2s - sampled border colour layouts
+
+C2r is accepted/pushed as `e3fdd97`. [Border colour-format validation](JT_TEXTURE_BORDER_FORMAT_VALIDATION.md) extends explicit rings through all ten existing colour layouts and adds RGB/BGR/opaque-external constant borders with missing-alpha handling. Known-component native checks span enabled modern/9.x envelopes; 88 positive roots reuse shared resources. Authoring ran under ignored out/; the owner built the app, the agent launched the 15 positive documents in one installed instance, and the owner accepted C2s on 22 October 2026. No native suite run by the agent. Mipmaps, other constant-border internal formats, external explicit rings, authored-border legacy clamp and other C2 modes remain open. No enabled revision, dependency or vendored decoder change.
+
+## Accepted gate C2t - constant luminance and alpha borders
+
+C2s is accepted/pushed as `53db11e`. [Border component validation](JT_TEXTURE_BORDER_COMPONENT_VALIDATION.md) adds constant luminance, luminance-alpha and alpha-only interpretation using published internal-component rules, retaining blend policy and source descriptors. Native known-pixel/alpha checks span enabled modern/9.x envelopes. Forty original nested-cube roots and five shared references support a 20-document visibility gate. Authoring ran under ignored out/; the owner built the app, the agent launched the 20 positive documents in one installed instance, and the owner accepted C2t on 22 October 2026. No native suite run by the agent. Mipmaps, constant red/green/blue-only interpretation, external explicit rings, authored-border legacy clamp and other C2 modes remain open. No enabled revision, dependency or vendored decoder change.
+
+## Accepted gate C2u - inline RGB/RGBA Replace combiner
+
+C2t is accepted/pushed as `bf63388`. [Replace validation](JT_TEXTURE_REPLACE_VALIDATION.md) adds a bounded inline RGB/RGBA/BGR/BGRA Replace mapping through neutral display factors, retaining RGB material alpha and replacing RGBA incoming alpha. Active vertex-colour and other unqualified cases retain geometry with diagnostics. Original native family/endian/alpha/variant checks and 32 shared cube roots are prepared. Authoring ran under ignored out/; the owner built the app, the agent launched the 17 positive documents in one installed instance, and the owner accepted C2u on 22 October 2026. No native suite run by the agent. Other combiners, wider Replace formats, texture units, image/mip/border gaps and other C2 modes remain open. No enabled revision, renderer extension, dependency or vendored decoder change.
+
+## Remaining C2 scope after C2u
+
+[Remaining C2 scope](JT_C2_REMAINING_SCOPE.md) consolidates the seven still-open work packages and separates implementation work from evidence dependencies. The 21 accepted lettered gates do not establish a fixed total gate count. Future implementation should group related cases into useful owner checkpoints rather than one checkpoint per minor format variation.
+
+## Accepted combined gate C2v - combiners, units and inheritance
+
+23 October 2026. At the owner request, related work is grouped into one build/test gate. [Combined appearance validation](JT_APPEARANCE_BATCH_VALIDATION.md) covers broader Replace, qualified Decal/Blend/Add, ordered sparse units, non-displacing automatic allocation, per-unit inhibit/final/forced rules and reset/final-reset state. Source descriptors remain separate from effective unit metadata and derived canonical images. Native literal colour/alpha/family/metadata/resource/copy/GLB checks and 110 original roots for 16 cases are prepared. Authoring and read-only envelope/hash/resource inspection ran under ignored out/. The owner built and accepted the combined visual gate on 23 October 2026 after the agent launched the 34 positive documents in one installed instance. No native suite was run by the agent; owner native-suite execution was not separately reported. The single positive visual list contains 34 documents including shared references and regressions. Arbitrary per-unit mappings/filtering, Combine, vertex-colour interactions, other roles, ray-tracer filter parity and evidence gaps remain explicit. No new enabled revision, dependency or vendored decoder change.
+
+## Accepted gate C2w - shared ray-traced sampler filtering
+
+After owner visual acceptance of C2v on 23 October 2026, [C2w filter validation](JT_TEXTURE_FILTER_PARITY_VALIDATION.md) groups snapshot/cache transport and CPU/OptiX nearest/linear/mip selection. This advances packages 2 and 7 without claiming authored JT mip support or exact raster-footprint parity. Original native pixel checks and 36 positive roots with six shared references are prepared; one eighteen-document visual session reuses common geometry. The owner built and reported tests passed on 23 October 2026 after the eighteen-document single-instance launch. No native suite was executed by the agent; owner native execution and individual CPU/GPU backend coverage were not separately reported. No JT version or vendored decoder change.
+
+## Accepted gate C2x - authored mip retention and rendering
+
+Following accepted C2w `9d7c467`, [C2x authored mips](JT_AUTHORED_MIP_VALIDATION.md) groups bounded raw higher-level retention, per-level conversion/validation, a documented ModelViewer-private PNG carrier, shared raster/CPU/GPU transport and prepared scene-copy/GLB checks. Thirty original roots and five references form one sixteen-document positive session. Authored border/composition cases and portable export semantics remain explicit limits. The owner rebuilt and accepted the raster mip/filter colour transitions, then reported no regressions in the reopened alpha/mip/filter session after the separate depth correction. Native/backend-specific confirmation remains unreported. No enabled revision or upstream-derived decoder implementation change.
+
+## Accepted shared renderer regression correction - 23 October 2026
+
+[BLEND depth compatibility](JT_BLEND_COVERAGE_REGRESSION.md) narrows depth-off classification to actual transparent vertex colours, restoring the historical texture-only policy. The unsuccessful extra coverage pass was removed. The owner rebuilt, confirmed local GA01 transparency fixed, and then reported no regressions in the reopened JT alpha/mip/filter controls. Viewer acceptance releases the commit hold; prepared native execution and CPU/OptiX-specific coverage remain unreported. General transparent-layer ordering is not claimed solved.
+
+## Accepted combined gate C2y - composed and bordered mip chains
+
+After accepted C2x, [C2y batch validation](JT_MIP_COMPOSITION_BORDER_VALIDATION.md) prepares matching level-by-level composition and a bounded, level-invariant two-axis border profile, including composed rings and ignored-ring crops. Nearest composition and square power-of-two sampled interiors are explicit limits; mixed/independent cases remain diagnosed. Sixty original positive roots, ten references and a 25-document viewer checklist are authored under out/. Native family/copy/export/fallback and terminal-sampler checks are prepared. The owner built and accepted the visual gate on 23 October 2026 after a second agent GUI review of all 25 documents. That review included representative mip zoom checks, not exhaustive backend/orientation verification. Native/backend-specific execution remains unreported. No enabled version or vendored decoder changes.
+
+
+## Accepted combined gate C2z - affine filtering and colour-layout ring mips
+
+After accepted C2y, [C2z validation](JT_AFFINE_FILTER_VALIDATION.md) prepares filtered single-stage Blend/RGB Decal and all ten accepted colour layouts in the existing bounded sampled authored-ring profile. Nonlinear composition and independent sampling remain diagnosed. Original controls provide 78 positive roots, 13 reference mappings (11 shared documents) and one 29-document owner session. Native family/filter/component/fallback checks are prepared. The owner built successfully and delegated visual acceptance; the agent accepted the bounded raster gate on 24 October 2026 after reviewing all 29 documents, representative mip zooms and PBR smoke checks, and correcting single-sided reference controls. Native/backend-specific coverage remains unreported. Application GLB embedded-image export remains a separate reproduced defect for the next gate. No renderer, depth-policy, version or decoder change.
+
+
+## Accepted combined gate C2aa - application resident-image export
+
+After accepted C2z `64d64ef`, [C2aa application export validation](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md) addresses a reproduced package-7 seam: application GLB export wrote an unresolved embedded image identity. Resident-image packaging now preserves PNG pixels, alpha and the private authored mip carrier through the ordinary package mapping. Eight existing source documents and sixteen GUI export targets cover bounded 9.x/10.x, alpha, borders and the disk-image regression. Encoder checks are prepared; owner viewer build and delegated GUI export/round-trip inspection remain pending. No renderer, depth-policy, JT version or vendor change.
+
+
+C2aa first owner build succeeded, but first-source GUI exports exposed missing embedded-material rebinding and sampler transport. PNG packaging matched the independent reference pixels; the full export gate did not pass. Both additional seams are corrected in source and await another owner build before continuing the sixteen-export batch. See the C2aa validation record; no dependent gate is accepted.
+
+
+C2aa second owner build fixed GLB embedding (reference RGBA pixels match), but exposed post-processing deletion of the sampler table for unmatched materials. The destructive reset and missing PBR sampler write-back are corrected; another owner build and the same export/visual gate remain pending. C2aa is unaccepted and uncommitted.
+
+
+C2aa owner acceptance - 24 October 2026: after sampler, embedded-reference and two-sided export corrections, the owner reported the Blend linear and all six remaining JT source/reference/GLB/glTF comparisons passed with matching up axes. The disk-reference pair also passed. Read-only exported image/carrier/sampler/sidedness inspection reports 16/16. Native/backend-specific coverage remains unreported. See the C2aa validation record; earlier failed/pending statements above are historical. Other C2 scope and authentic-export gaps remain open.
+
+
+## Accepted grouped gate C2ab - Replace with vertex colours
+
+After accepted C2aa a2debec, [C2ab validation](JT_VERTEX_REPLACE_VALIDATION.md) prepares single-stage inline RGB/BGR/RGBA/BGRA Replace on vertex-coloured geometry, exact incoming/replaced alpha selection and fallback/shared-instance protection. Forty-eight original roots and a nineteen-document positive visual list share common resources and descriptive reference names. Native checks are prepared; no build or native/importer execution by the agent. Owner build and visual confirmation are required. Other C2 packages and evidence gaps remain open.
+
+
+C2ab owner acceptance - 24 October 2026: the owner rebuilt and confirmed the remaining comparison fixed after the shared blend, light-range and duplicate raster-light corrections. The bounded viewer gate is accepted; native/backend execution remains unreported. Other C2 packages and evidence gaps remain open. See the C2ab validation record for limits and unreported smoke checks.
+
+
+## Accepted grouped gate C2ac - combiner/unit batch
+
+Following accepted C2ab, [C2ac validation](JT_COMBINER_UNIT_BATCH_VALIDATION.md) groups constant-RGB vertex Decal/Blend/Add, separable Modulate/Replace stacks, wider vertex Replace and differing-resolution nearest base-level composition. Original controls provide 78 positive roots, 13 comparison pairs and one 31-document viewer list, with three representative application export pairs. Native known-value, fallback, resource-limit and copy/export checks are prepared. Owner build and grouped visual/export confirmation are required; no native/importer/viewer execution by the agent. This advances the exact adapter portion of Batch 1, not arbitrary multi-texturing. Combine evidence, independent UV/filter evaluation and varying-RGB affine sums remain explicit gaps; other C2 packages and version scope are unchanged.
+
+
+C2ac owner acceptance - 24 October 2026: build succeeded; the owner reported the grouped ADS/PBR source/reference comparisons consistent, then all six representative application GLB/glTF exports passed after reopening. The bounded viewer/export gate is accepted. Prepared native-suite and individual CPU/OptiX execution remain unreported; arbitrary sampling, Combine evidence and other residual scope remain open.
+
+
+## Deferred Batch 1 residuals and prepared Batch 2 / C2ad
+
+On 24 October 2026 the owner explicitly requested recording Batch 1 residuals for a later return and proceeding to Batch 2. [Batch 1 comeback list](JT_BATCH1_COMEBACK.md) retains Combine evidence, independent sampling/material representation, varying-RGB affine sums and broader blend/accumulation qualifications without declaring them complete.
+
+[C2ad border batch](JT_BORDER_BATCH_VALIDATION.md) prepares mixed-axis authored profiles, bounded rectangular/NPOT unsampled axes, separately generated border chains, external explicit rings and portable equal-filter/non-mip legacy CLAMP. Source geometry is retained; legacy-clamped display topology may be refined. Ninety original roots supply fifteen independent comparison pairs and one 34-document owner session, with three representative application export pairs. Native/carrier and copy/export checks are prepared, not executed. Owner build and ADS/PBR/zoom/export acceptance remain required. Mipmapped legacy CLAMP, unsupported per-level footprints and unresolved image-format applicability remain explicit limits; no JT version or vendored decoder changes.
+
+
+C2ad owner acceptance - 24 October 2026: grouped visual controls passed; the focused source/reference/GLB/glTF/neutral-vertex ADS/PBR retest passed after shared light-intensity synchronization. Read-only inspection reports 6/6 representative exported image/carrier/sampler/sidedness comparisons matching independent references. The bounded border gate is accepted; native/backend execution remains unreported. Batch 1 comeback items and the documented Batch 2 footprint/derivative/format evidence limits remain open. See [C2ad validation](JT_BORDER_BATCH_VALIDATION.md) and [shared raster light correction](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md).
+
+
+## Prepared C2ae - exact homogeneous mapping reductions
+
+Following accepted C2ad, [C2ae validation](JT_HOMOGENEOUS_MAPPING_VALIDATION.md) prepares the portable portion of the generated/projective mapping package: full texture-matrix evaluation, model-linear R/Q and exact homogeneous division only when transformed Q is constant on every triangle. Different disconnected faces may have different denominators. Zero/nonfinite/varying denominators and view-dependent modes remain diagnosed, without a camera-dependent import-time bake or per-vertex approximation. Sixty original positive roots provide ten independent pairs and a grouped 26-document visual list; four representative application exports are requested after visual acceptance. Native literal/proof/fallback/copy/export/shared-instance checks are prepared but not run. Owner build/install, ADS/PBR comparison and export acceptance remain pending. This is not completion of arbitrary projective/dynamic mapping, Batch 1 comeback items, Batch 2 limits or authentic exporter qualification.
+
+
+C2ae owner acceptance - 24 October 2026: owner built/installed, accepted the grouped 26-document comparisons and passed the four representative application GLB/glTF export/reopen checks. Read-only inspection reports 4/4 image/carrier/sampler/sidedness and 4/4 effective-UV comparisons within original quantization tolerance. The bounded homogeneous reduction gate is accepted; native/backend-specific and authentic exporter execution remain unreported. General projective/dynamic mapping and the other recorded C2 residuals remain open. See [C2ae validation](JT_HOMOGENEOUS_MAPPING_VALIDATION.md).
+
+
+## Prepared C2af - bounded additional texture roles
+
+Following accepted C2ae, [C2af validation](JT_TEXTURE_ROLE_VALIDATION.md) prepares one automatic base-level tangent-normal slot on unchanged positive-handed UV0 and one complete post-lit RGB replacement carried as an unlit material. Original controls provide 66 mixed-family roots, eleven source/reference pairs and a 24-document grouped gate including an accepted lit regression. Shared ADS unlit handling is corrected alongside the adapter and must be committed separately after acceptance. Native basis/fallback/copy/post-lit export checks are prepared but not run. Owner build/install, ADS/PBR comparison and four application exports remain pending. Authentic normal encoding/basis, gloss/bump/world-normal/environment/light-map roles and all previously recorded C2 residuals remain open.
+
+
+C2af owner acceptance - 24 October 2026: owner accepted the grouped 24-document ADS/PBR gate, rebuilt after the unlit export correction, and passed the four application GLB/glTF round trips. Read-only role/image/sampler/material and effective-UV inspections each report 4/4. Shared unlit rendering/export correction is committed separately as 7a18b9d. See [C2af validation](JT_TEXTURE_ROLE_VALIDATION.md). Native/backend-specific execution and authentic normal encoding/basis remain unreported; other C2 residuals remain open.
+
+
+## Prepared C2ag - normal-map mip/filter extension
+
+Following accepted C2af fe6d623 and shared unlit correction 7a18b9d, [C2ag validation](JT_NORMAL_MIP_VALIDATION.md) prepares authored/generated normal mip filtering through the existing vector-byte image/carrier path. Thirty-six original roots provide six pairs and one grouped 16-document visual/zoom gate. Native literal mip/alpha/filter/fallback/copy/GLB checks are prepared, not run. Owner build/install, ADS/PBR zoom comparison and four representative application exports remain pending. UV/tangent restrictions, private-carrier portability, authentic normal conventions and other C2 residuals remain explicit.
+
+
+C2ag owner acceptance - 24 October 2026: owner built/installed, accepted all 16 grouped ADS/PBR/zoom controls and reported the representative exports worked perfectly. Read-only authored-mip/image/sampler/material and effective-UV inspections each report 4/4. The bounded normal mip/filter gate is accepted; native/backend execution and authentic normal conventions remain unreported. Private-carrier portability and other C2 residuals remain open. See [C2ag validation](JT_NORMAL_MIP_VALIDATION.md).
+
+
+## C3 initial line/point coverage audit - 24 October 2026
+
+[Display primitive audit](JT_DISPLAY_PRIMITIVES_AUDIT.md) identifies missing polyline/point node/LOD registrations, the unimplemented TopoMesh representation branch and triangle-only validation/copy/subset assumptions. Shared raster/import/export paths already support line/point primitive modes; picking and ray-tracing limits remain separate. JT9.5/JT10 record differences and missing authentic payload expectations are recorded before decoder implementation. A small authentic wire/point control is requested to qualify the first grouped decoder/viewer gate. No C3 implementation, build or native acceptance yet; C2 remains paused.

@@ -1,12 +1,15 @@
 ﻿#include "config.h"
 #include "Point.h"
-#include "TriangleBaldwinWeber.h"
 #include "RenderableMesh.h"
+#include "ScopedMaterialWireframe.h"
+#include "BlendDepthPolicy.h"
 #include "SubTriangleGrid.h"
 #include "SceneMesh.h"
-#include "TriangleMollerTrumbore.h"
 #include "Utils.h"
 #include "Logger.h"
+#include <unordered_map>
+#include "MeshBuildProfile.h"
+#include "ProcessMemory.h"
 #include "IGpuContextResource.h"
 #include <algorithm>
 #include <array>
@@ -62,6 +65,20 @@ struct RenderDiagnostics
 	double textureBindCpuMs = 0.0;
 	double renderStateCpuMs = 0.0;
 	double drawCpuMs = 0.0;
+	double cullCpuMs = 0.0;
+	double gpuMs = 0.0;
+	double probeCpuMs[RenderableMesh::kRenderProbeCount] = {};
+	int gpuSamples = 0;
+	double gpuPassMs[2] = {};
+	int fastPathViews = 0;
+	int views = 0;
+	int gpuPassSamples[2] = {};
+	qint64 triangles = 0;
+	qint64 cullPassedMeshes = 0;
+	qint64 displayedMeshes = 0;
+	qint64 batchedMeshes = 0;
+	double batchCpuMs = 0.0;
+	qint64 batchDraws = 0;
 };
 
 RenderDiagnostics s_renderDiagnostics;
@@ -330,11 +347,63 @@ void RenderableMesh::recordJointUniformUploads(int count)
 		s_renderDiagnostics.jointUniformUploads += count;
 }
 
-void RenderableMesh::recordDrawCall(bool indexed, bool transparent)
+void RenderableMesh::recordCullCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.cullCpuMs += ms;
+}
+
+void RenderableMesh::recordCullResult(qint64 passedMeshes)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.cullPassedMeshes += passedMeshes;
+}
+
+static QString s_diagnosticsDisplayMode;
+
+void RenderableMesh::recordInteractionFastPath(bool active)
+{
+	if (!s_renderDiagnostics.enabled)
+		return;
+	++s_renderDiagnostics.views;
+	if (active)
+		++s_renderDiagnostics.fastPathViews;
+}
+
+void RenderableMesh::recordDisplayModeName(const QString& name)
+{
+	if (s_renderDiagnostics.enabled)
+		s_diagnosticsDisplayMode = name;
+}
+
+void RenderableMesh::recordGpuPassMs(int pass, double ms)
+{
+	if (!s_renderDiagnostics.enabled || pass < 0 || pass > 1)
+		return;
+	s_renderDiagnostics.gpuPassMs[pass] += ms;
+	++s_renderDiagnostics.gpuPassSamples[pass];
+}
+
+void RenderableMesh::recordGpuMs(double ms)
+{
+	if (!s_renderDiagnostics.enabled)
+		return;
+	s_renderDiagnostics.gpuMs += ms;
+	++s_renderDiagnostics.gpuSamples;
+}
+
+void RenderableMesh::recordDisplayedMeshes(qint64 meshes)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.displayedMeshes += meshes;
+}
+
+void RenderableMesh::recordDrawCall(bool indexed, bool transparent, qint64 triangleCount)
 {
 	if (!s_renderDiagnostics.enabled)
 		return;
 	++s_renderDiagnostics.drawCalls;
+	s_renderDiagnostics.triangles += triangleCount;
 	if (indexed)
 		++s_renderDiagnostics.indexedDrawCalls;
 	else
@@ -353,6 +422,41 @@ void RenderableMesh::recordTransformUniformCpuMs(double ms)
 {
 	if (s_renderDiagnostics.enabled)
 		s_renderDiagnostics.transformUniformCpuMs += ms;
+}
+
+void RenderableMesh::recordRenderProbeMs(int slot, double ms)
+{
+	if (s_renderDiagnostics.enabled && slot >= 0 && slot < kRenderProbeCount)
+		s_renderDiagnostics.probeCpuMs[slot] += ms;
+}
+
+void RenderableMesh::recordBatchedDraw(qint64 meshes)
+{
+	if (s_renderDiagnostics.enabled)
+	{
+		s_renderDiagnostics.batchedMeshes += meshes;
+		++s_renderDiagnostics.batchDraws;
+	}
+}
+
+void RenderableMesh::recordBatchCpuMs(double ms)
+{
+	if (s_renderDiagnostics.enabled)
+		s_renderDiagnostics.batchCpuMs += ms;
+}
+
+bool RenderableMesh::readLod1Indices(std::vector<unsigned int>& out)
+{
+	out.clear();
+	if (!_hasLod1 || _nVertsLod1 == 0 || !_lodIndexBuffer.isCreated())
+		return false;
+	out.resize(_nVertsLod1);
+	_lodIndexBuffer.bind();
+	const bool ok = _lodIndexBuffer.read(0, out.data(), static_cast<int>(out.size() * sizeof(unsigned int)));
+	_lodIndexBuffer.release();
+	if (!ok)
+		out.clear();
+	return ok;
 }
 
 void RenderableMesh::recordMaterialUniformCpuMs(double ms)
@@ -389,8 +493,24 @@ void RenderableMesh::flushRenderDiagnostics()
 		return;
 
 	const double frames = static_cast<double>(s_renderDiagnostics.frames);
+	{
+		// Page faults over the window: a frame that reads paged-out memory back shows as a jump (BATCH_GPU_RESIDENCY_DESIGN.md 6.3).
+		static quint64 lastFaults = 0;
+		quint64 faults = 0;
+		if (ProcessMemory::pageFaults(faults))
+		{
+			Logger::instance().info(QStringLiteral("[RenderDiagnostics] pageFaults/frame=%1 (window %2 faults over %3 frames)")
+				.arg(static_cast<double>(faults - lastFaults) / frames, 0, 'f', 0).arg(faults - lastFaults).arg(s_renderDiagnostics.frames),
+				QStringLiteral("Performance"));
+			lastFaults = faults;
+		}
+	}
+	QStringList probeParts;
+	for (double ms : s_renderDiagnostics.probeCpuMs)
+		probeParts << QString::number(ms / frames, 'f', 2);
+	const QString probeText = probeParts.join(QLatin1Char('/'));
 	Logger::instance().info(
-		QStringLiteral("[RenderDiagnostics] windowMs=%1 frames=%2 frameCpuMs/frame=%3 opaqueMs/frame=%4 transparentMs/frame=%5 floorMs/frame=%6 meshModeMs/frame=%7 assImpMs/frame=%8 textureCacheMs/frame=%9 transformUniformMs/frame=%10 materialUniformMs/frame=%11 textureBindMs/frame=%12 renderStateMs/frame=%13 drawMs/frame=%14 draws/frame=%15 indexed/frame=%16 arrays/frame=%17 transparentDraws/frame=%18 rawProgBinds/frame=%19 progBindObservations/frame=%20 progCacheHits/frame=%21 rawTexBinds/frame=%22 texBindObservations/frame=%23 texCacheHits/frame=%24 vaoReconfig/frame=%25 materialRefresh/frame=%26 materialDirtyRefresh/frame=%27 materialShaderSwitchRefresh/frame=%28 materialSignatureRefresh/frame=%29 materialDebugBlockedRefresh/frame=%30 materialDirtyBySetProg/frame=%31 materialReuse/frame=%32 transformUniforms/frame=%33 jointUniforms/frame=%34")
+		QStringLiteral("[RenderDiagnostics] windowMs=%1 frames=%2 frameCpuMs/frame=%3 opaqueMs/frame=%4 transparentMs/frame=%5 floorMs/frame=%6 meshModeMs/frame=%7 assImpMs/frame=%8 textureCacheMs/frame=%9 transformUniformMs/frame=%10 materialUniformMs/frame=%11 textureBindMs/frame=%12 renderStateMs/frame=%13 drawMs/frame=%14 draws/frame=%15 indexed/frame=%16 arrays/frame=%17 transparentDraws/frame=%18 rawProgBinds/frame=%19 progBindObservations/frame=%20 progCacheHits/frame=%21 rawTexBinds/frame=%22 texBindObservations/frame=%23 texCacheHits/frame=%24 vaoReconfig/frame=%25 materialRefresh/frame=%26 materialDirtyRefresh/frame=%27 materialShaderSwitchRefresh/frame=%28 materialSignatureRefresh/frame=%29 materialDebugBlockedRefresh/frame=%30 materialDirtyBySetProg/frame=%31 materialReuse/frame=%32 transformUniforms/frame=%33 jointUniforms/frame=%34 cullMs/frame=%35 meshesAfterCull/frame=%36 meshesDisplayed/frame=%37 triangles/frame=%38 gpuMs/frame=%39 gpuSamples=%40 probesMs/frame=%41 batchedMeshes/frame=%42 batchDraws/frame=%43 batchMs/frame=%44 displayMode=%45 gpuOpaqueMs/frame=%46 gpuTransparentMs/frame=%47 fastPathViews=%48 views=%49")
 			.arg(windowMs)
 			.arg(s_renderDiagnostics.frames)
 			.arg(s_renderDiagnostics.frameCpuMs / frames, 0, 'f', 3)
@@ -424,7 +544,22 @@ void RenderableMesh::flushRenderDiagnostics()
 			.arg(s_renderDiagnostics.materialDirtyBySetProg / frames, 0, 'f', 1)
 			.arg(s_renderDiagnostics.materialUniformReuses / frames, 0, 'f', 1)
 			.arg(s_renderDiagnostics.transformUniformUploads / frames, 0, 'f', 1)
-			.arg(s_renderDiagnostics.jointUniformUploads / frames, 0, 'f', 1),
+			.arg(s_renderDiagnostics.jointUniformUploads / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.cullCpuMs / frames, 0, 'f', 3)
+			.arg(s_renderDiagnostics.cullPassedMeshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.displayedMeshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.triangles / frames, 0, 'f', 0)
+			.arg(s_renderDiagnostics.gpuSamples > 0 ? s_renderDiagnostics.gpuMs / s_renderDiagnostics.gpuSamples : 0.0, 0, 'f', 3)
+			.arg(s_renderDiagnostics.gpuSamples)
+			.arg(probeText)
+			.arg(s_renderDiagnostics.batchedMeshes / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.batchDraws / frames, 0, 'f', 1)
+			.arg(s_renderDiagnostics.batchCpuMs / frames, 0, 'f', 3)
+			.arg(s_diagnosticsDisplayMode)
+			.arg(s_renderDiagnostics.gpuPassSamples[0] > 0 ? s_renderDiagnostics.gpuPassMs[0] / s_renderDiagnostics.gpuPassSamples[0] : 0.0, 0, 'f', 3)
+			.arg(s_renderDiagnostics.gpuPassSamples[1] > 0 ? s_renderDiagnostics.gpuPassMs[1] / s_renderDiagnostics.gpuPassSamples[1] : 0.0, 0, 'f', 3)
+			.arg(s_renderDiagnostics.fastPathViews)
+			.arg(s_renderDiagnostics.views),
 		QStringLiteral("Performance"));
 
 	s_renderDiagnostics = RenderDiagnostics{};
@@ -444,46 +579,59 @@ RenderableMesh::RenderableMesh(QOpenGLShaderProgram* prog, const QString name) :
 _material(_materialState.material()),
 _hasVertexColors(false)
 {
-	setAutoIncrName(name);
+	{
+		MeshBuildProfile::Lap nameLap(MeshBuildProfile::BaseAutoName);
+		setAutoIncrName(name);
+	}
 	_memorySize = 0;
 	// Transform/bounds state lives in _instanceState; material state in _materialState.
 
-	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
-	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_normalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_colorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_analysisOverlayColorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_texCoord0Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_texCoord1Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_texCoord2Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_texCoord3Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_tangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_bitangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_jointIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_jointWeightBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_indexBuffer = FastGlBuffer(FastGlBuffer::IndexBuffer);
+	_positionBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_normalBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_colorBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_analysisOverlayColorBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_texCoord0Buffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_texCoord1Buffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_texCoord2Buffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_texCoord3Buffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_tangentBuf = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_bitangentBuf = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_jointIndexBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_jointWeightBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
 
+	MeshBuildProfile::Lap glObjectsLap(MeshBuildProfile::BaseGlObjects);
 	_indexBuffer.create();
 	_positionBuffer.create();
 	_normalBuffer.create();
 	_colorBuffer.create();
-	_analysisOverlayColorBuffer.create();
-	_texCoord0Buffer.create();
-	_texCoord1Buffer.create();
-	_texCoord2Buffer.create();
-	_texCoord3Buffer.create();
+	// Filled only by meshes that have analysis colours, texture coordinates or skinning: the name is generated at the first bind.
+	_analysisOverlayColorBuffer.createLazily();
+	_texCoord0Buffer.createLazily();
+	_texCoord1Buffer.createLazily();
+	_texCoord2Buffer.createLazily();
+	_texCoord3Buffer.createLazily();
 	_tangentBuf.create();
 	_bitangentBuf.create();
-	_jointIndexBuffer.create();
-	_jointWeightBuffer.create();
+	_jointIndexBuffer.createLazily();
+	_jointWeightBuffer.createLazily();
 
 	_vertexArrayObject.create();
+	glObjectsLap.stop();
 
-	QImage dummy(128, 128, QImage::Format_ARGB32);
-	dummy.fill(Qt::white);
-	_fallbackTextureBuffer = dummy;
-	_fallbackTextureImage = convertToGLFormat(_fallbackTextureBuffer);
+	// The fallback texture is plain white, so one texel samples identically to any larger image under every filter and
+	// wrap mode. It used to be a private 128x128 image per mesh (two CPU copies of 64 KB plus a 64-85 KB GL texture),
+	// about 200 KB each: 8 GB for a 40,000-part assembly. The images are shared (QImage is copy-on-write).
+	static const QImage s_fallbackBuffer = []() { QImage image(1, 1, QImage::Format_ARGB32); image.fill(Qt::white); return image; }();
+	static const QImage s_fallbackGlImage = convertToGLFormat(s_fallbackBuffer);
+	_fallbackTextureBuffer = s_fallbackBuffer;
+	_fallbackTextureImage = s_fallbackGlImage;
 
-	recreateFallbackTexture();
+	// The GL texture itself is created when it is first bound (bindTexturesOptimized()): most meshes of a large assembly never
+	// draw individually. recreateFallbackTexture() used to run here and also left texture unit 0 active and
+	// GL_UNPACK_ALIGNMENT at 1 for the code after it; keep those two side effects.
+	glActiveTexture(GL_TEXTURE0);
+	glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
 }
 
 void RenderableMesh::cacheBaseVolumeProperties()
@@ -521,6 +669,52 @@ void RenderableMesh::uploadGeometry(const MeshGeometry& geom)
 	_hasVertexColors = geom.hasVertexColors();
 }
 
+namespace
+{
+// Attribute locations by (program, attribute name). QOpenGLShaderProgram's by-name enableAttributeArray()/setAttributeBuffer()
+// each ask the driver for the location (glGetAttribLocation); ten attributes per mesh over 40,000 meshes made the VAO setup
+// the bulk of mesh creation. The shaders fix the locations with layout(location = N), so a relink does not move them.
+// Keyed by the name literal's address plus the program id; GUI thread only.
+int cachedAttributeLocation(QOpenGLShaderProgram* prog, const char* name)
+{
+	struct Key
+	{
+		GLuint program;
+		const char* name;
+		bool operator==(const Key& o) const { return program == o.program && name == o.name; }
+	};
+	struct KeyHash
+	{
+		size_t operator()(const Key& k) const
+		{
+			return std::hash<const void*>()(k.name) ^ (static_cast<size_t>(k.program) * 2654435761u);
+		}
+	};
+	static std::unordered_map<Key, int, KeyHash> cache;
+	const Key key{ prog->programId(), name };
+	const auto it = cache.find(key);
+	if (it != cache.end())
+		return it->second;
+	const int location = prog->attributeLocation(name);
+	cache.emplace(key, location);
+	return location;
+}
+
+void enableAttributeCached(QOpenGLShaderProgram* prog, const char* name)
+{
+	const int location = cachedAttributeLocation(prog, name);
+	if (location >= 0)
+		prog->enableAttributeArray(location);
+}
+
+void setAttributeBufferCached(QOpenGLShaderProgram* prog, const char* name, GLenum type, int offset, int tupleSize, int stride = 0)
+{
+	const int location = cachedAttributeLocation(prog, name);
+	if (location >= 0)
+		prog->setAttributeBuffer(location, type, offset, tupleSize, stride);
+}
+}
+
 void RenderableMesh::initBuffers(
 	std::vector<unsigned int>* indices,
 	std::vector<float>* points,
@@ -538,7 +732,11 @@ void RenderableMesh::initBuffers(
 
 	// See geometryRevision()'s doc comment - bumped on every real geometry
 	// upload, which is what SurfaceAnalysisOverlay's cache key is built from.
-	++_geometryRevision;
+	// Process-wide counter, not a per-mesh one: DrawBatcher tells a mesh apart from a deleted one that happened to
+	// live at the same address by this value, so two uploads must never produce the same number.
+	static std::atomic<quint64> s_geometryRevisionCounter{ 0 };
+	_geometryRevision = ++s_geometryRevisionCounter;
+	noteRenderStateChanged(MeshInstanceState::SiteGeometry);
 
 	// A real geometry rebuild invalidates any Surface Analysis overlay this
 	// mesh was showing - its GPU buffers (positions in particular, for the
@@ -563,16 +761,24 @@ void RenderableMesh::initBuffers(
 		_hasVertexColors = true;
 	}
 
+	_hasTransparentVertexAlpha = BlendDepthPolicy::hasTransparentVertexAlpha(_colors);
+
 	if (texCoords)
 		_texCoords = *texCoords;
+	else
+		_texCoords.clear(); // not supplied (e.g. all zero): nothing of an earlier upload may linger
 	if (tangents)
 		_tangents = *tangents;
 	if (bitangents)
 		_bitangents = *bitangents;
 	if (jointIndices)
 		_jointIndices = *jointIndices;
+	else
+		_jointIndices.clear();
 	if (jointWeights)
 		_jointWeights = *jointWeights;
+	else
+		_jointWeights.clear();
 
 	_memorySize = 0;
 	_memorySize = (_points.size() + _normals.size() + _indices.size()) * sizeof(float);
@@ -581,19 +787,36 @@ void RenderableMesh::initBuffers(
 		? static_cast<unsigned int>(points->size() / 3)
 		: static_cast<unsigned int>(indices->size());
 
+	uploadGpuBuffers();
+
+	// Initialize picking triangles and bounds for the newly loaded geometry.
+	MeshBuildProfile::Lap boundsLap(MeshBuildProfile::RuntimeBounds);
+	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
+}
+
+// Allocates the GL buffers from the CPU arrays and wires the VAO: the second half of initBuffers(), and the restore path of
+// meshes whose buffers were evicted.
+void RenderableMesh::uploadGpuBuffers()
+{
+	_gpuEvicted = false;
+	const std::vector<unsigned int>* indices = &_indices;
+	const std::vector<float>* points = &_points;
+	const std::vector<float>* normals = &_normals;
+
+	MeshBuildProfile::Lap allocLap(MeshBuildProfile::GlAlloc);
 	_buffers.push_back(_indexBuffer);
 	_indexBuffer.bind();
-	_indexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_indexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 	_indexBuffer.allocate(indices->data(), static_cast<int>(indices->size() * sizeof(unsigned int)));
 
 	_buffers.push_back(_positionBuffer);
 	_positionBuffer.bind();
-	_positionBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_positionBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 	_positionBuffer.allocate(points->data(), static_cast<int>(points->size() * sizeof(float)));
 
 	_buffers.push_back(_normalBuffer);
 	_normalBuffer.bind();
-	_normalBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+	_normalBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 	_normalBuffer.allocate(normals->data(), static_cast<int>(normals->size() * sizeof(float)));
 
 
@@ -601,7 +824,7 @@ void RenderableMesh::initBuffers(
 	{
 		_buffers.push_back(_colorBuffer);
 		_colorBuffer.bind();
-		_colorBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_colorBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 		_colorBuffer.allocate(_colors.data(), static_cast<int>(_colors.size() * sizeof(float)));
 		_memorySize += _colors.size() * sizeof(float);
 	}
@@ -610,7 +833,7 @@ void RenderableMesh::initBuffers(
 	{
 		_buffers.push_back(_tangentBuf);
 		_tangentBuf.bind();
-		_tangentBuf.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_tangentBuf.setUsagePattern(FastGlBuffer::StaticDraw);
 		_tangentBuf.allocate(_tangents.data(), static_cast<int>(_tangents.size() * sizeof(float)));
 		_memorySize += _tangents.size() * sizeof(float);
 	}
@@ -619,7 +842,7 @@ void RenderableMesh::initBuffers(
 	{
 		_buffers.push_back(_bitangentBuf);
 		_bitangentBuf.bind();
-		_bitangentBuf.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_bitangentBuf.setUsagePattern(FastGlBuffer::StaticDraw);
 		_bitangentBuf.allocate(_bitangents.data(), static_cast<int>(_bitangents.size() * sizeof(float)));
 		_memorySize += _bitangents.size() * sizeof(float);
 	}
@@ -628,7 +851,7 @@ void RenderableMesh::initBuffers(
 	{
 		_buffers.push_back(_jointIndexBuffer);
 		_jointIndexBuffer.bind();
-		_jointIndexBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_jointIndexBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 		_jointIndexBuffer.allocate(_jointIndices.data(), static_cast<int>(_jointIndices.size() * sizeof(float)));
 		_memorySize += _jointIndices.size() * sizeof(float);
 	}
@@ -637,11 +860,13 @@ void RenderableMesh::initBuffers(
 	{
 		_buffers.push_back(_jointWeightBuffer);
 		_jointWeightBuffer.bind();
-		_jointWeightBuffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_jointWeightBuffer.setUsagePattern(FastGlBuffer::StaticDraw);
 		_jointWeightBuffer.allocate(_jointWeights.data(), static_cast<int>(_jointWeights.size() * sizeof(float)));
 		_memorySize += _jointWeights.size() * sizeof(float);
 	}
 
+	allocLap.stop();
+	MeshBuildProfile::Lap attribLap(MeshBuildProfile::GlAttrib);
 	_vertexArrayObject.bind();
 
 	_indexBuffer.bind();
@@ -650,21 +875,21 @@ void RenderableMesh::initBuffers(
 	_positionBuffer.bind();
 	//glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	//glEnableVertexAttribArray(0);  // Vertex position
-	_prog->enableAttributeArray("vertexPosition");
-	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+	enableAttributeCached(_prog, "vertexPosition");
+	setAttributeBufferCached(_prog, "vertexPosition", GL_FLOAT, 0, 3);
 
 	// Normal
 	_normalBuffer.bind();
 	//glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	//glEnableVertexAttribArray(1);  // Normal
-	_prog->enableAttributeArray("vertexNormal");
-	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+	enableAttributeCached(_prog, "vertexNormal");
+	setAttributeBufferCached(_prog, "vertexNormal", GL_FLOAT, 0, 3);
 
 	if (_hasVertexColors)
 	{
 		_colorBuffer.bind();
-		_prog->enableAttributeArray("vertexColor");
-		_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
+		enableAttributeCached(_prog, "vertexColor");
+		setAttributeBufferCached(_prog, "vertexColor", GL_FLOAT, 0, 4);
 	}
 
 	if (_tangents.size())
@@ -672,29 +897,29 @@ void RenderableMesh::initBuffers(
 		_tangentBuf.bind();
 		//glVertexAttribPointer(3, 4, GL_FLOAT, GL_FALSE, 0, 0);
 		//glEnableVertexAttribArray(3);  // Tangents
-		_prog->enableAttributeArray("vertexTangent");
-		_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
+		enableAttributeCached(_prog, "vertexTangent");
+		setAttributeBufferCached(_prog, "vertexTangent", GL_FLOAT, 0, 3);
 	}
 
 	if (_bitangents.size())
 	{
 		_bitangentBuf.bind();
-		_prog->enableAttributeArray("vertexBitangent");
-		_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+		enableAttributeCached(_prog, "vertexBitangent");
+		setAttributeBufferCached(_prog, "vertexBitangent", GL_FLOAT, 0, 3);
 	}
 
 	if (_jointIndices.size())
 	{
 		_jointIndexBuffer.bind();
-		_prog->enableAttributeArray("jointIndices");
-		_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
+		enableAttributeCached(_prog, "jointIndices");
+		setAttributeBufferCached(_prog, "jointIndices", GL_FLOAT, 0, 4);
 	}
 
 	if (_jointWeights.size())
 	{
 		_jointWeightBuffer.bind();
-		_prog->enableAttributeArray("jointWeights");
-		_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
+		enableAttributeCached(_prog, "jointWeights");
+		setAttributeBufferCached(_prog, "jointWeights", GL_FLOAT, 0, 4);
 	}
 
 	// Tex coords
@@ -730,51 +955,120 @@ void RenderableMesh::initBuffers(
 		// Create separate VBOs for each texCoord set
 		_buffers.push_back(_texCoord0Buffer);
 		_texCoord0Buffer.bind();
-		_texCoord0Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_texCoord0Buffer.setUsagePattern(FastGlBuffer::StaticDraw);
 		_texCoord0Buffer.allocate(texCoord0.data(), static_cast<int>(texCoord0.size() * sizeof(float)));
 		_memorySize += texCoord0.size() * sizeof(float);
 
 		_buffers.push_back(_texCoord1Buffer);
 		_texCoord1Buffer.bind();
-		_texCoord1Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_texCoord1Buffer.setUsagePattern(FastGlBuffer::StaticDraw);
 		_texCoord1Buffer.allocate(texCoord1.data(), static_cast<int>(texCoord1.size() * sizeof(float)));
 		_memorySize += texCoord1.size() * sizeof(float);
 
 		_buffers.push_back(_texCoord2Buffer);
 		_texCoord2Buffer.bind();
-		_texCoord2Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_texCoord2Buffer.setUsagePattern(FastGlBuffer::StaticDraw);
 		_texCoord2Buffer.allocate(texCoord2.data(), static_cast<int>(texCoord2.size() * sizeof(float)));
 		_memorySize += texCoord2.size() * sizeof(float);
 
 		_buffers.push_back(_texCoord3Buffer);
 		_texCoord3Buffer.bind();
-		_texCoord3Buffer.setUsagePattern(QOpenGLBuffer::StaticDraw);
+		_texCoord3Buffer.setUsagePattern(FastGlBuffer::StaticDraw);
 		_texCoord3Buffer.allocate(texCoord3.data(), static_cast<int>(texCoord3.size() * sizeof(float)));
 		_memorySize += texCoord3.size() * sizeof(float);
 
 		// Set up vertex attributes (stride = 0 for each, since they're separate)
 		_texCoord0Buffer.bind();
-		_prog->enableAttributeArray("texCoord0");
-		_prog->setAttributeBuffer("texCoord0", GL_FLOAT, 0, 2, 0);
+		enableAttributeCached(_prog, "texCoord0");
+		setAttributeBufferCached(_prog, "texCoord0", GL_FLOAT, 0, 2, 0);
 
 		_texCoord1Buffer.bind();
-		_prog->enableAttributeArray("texCoord1");
-		_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2, 0);
+		enableAttributeCached(_prog, "texCoord1");
+		setAttributeBufferCached(_prog, "texCoord1", GL_FLOAT, 0, 2, 0);
 
 		_texCoord2Buffer.bind();
-		_prog->enableAttributeArray("texCoord2");
-		_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2, 0);
+		enableAttributeCached(_prog, "texCoord2");
+		setAttributeBufferCached(_prog, "texCoord2", GL_FLOAT, 0, 2, 0);
 
 		_texCoord3Buffer.bind();
-		_prog->enableAttributeArray("texCoord3");
-		_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2, 0);
+		enableAttributeCached(_prog, "texCoord3");
+		setAttributeBufferCached(_prog, "texCoord3", GL_FLOAT, 0, 2, 0);
 
 	}
 
 	_vertexArrayObject.release();
+	attribLap.stop();
+}
 
-	// Initialize picking triangles and bounds for the newly loaded geometry.
-	_instanceState.updateRuntimeBounds(_points, _normals, _tangents, _bitangents, _indices);
+// Frees the per-vertex GL buffers of a mesh whose geometry is drawn from a shared draw batch. The CPU arrays stay, so the
+// buffers can be rebuilt exactly (BATCH_GPU_RESIDENCY_DESIGN.md section 3). The LOD index buffer stays: DrawBatcher reads it
+// back when it builds a batch. Needs the GL context. Returns the bytes released, 0 when nothing was evicted.
+qint64 RenderableMesh::evictGpuBuffers()
+{
+	if (_gpuEvicted || _points.empty() || !_vertexArrayObject.isCreated() || _buffers.empty())
+		return 0;
+	const qint64 released = static_cast<qint64>(_memorySize);
+	// A deleted buffer is only freed once no vertex array still references it, so detach every attribute and the element
+	// buffer from this mesh's VAO first (restore re-wires them through setProg()). Without this the driver keeps the memory.
+	_vertexArrayObject.bind();
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	for (GLuint location = 0; location < 12; ++location)
+	{
+		glDisableVertexAttribArray(location);
+		glVertexAttribPointer(location, 4, GL_FLOAT, GL_FALSE, 0, nullptr);
+	}
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+	_vertexArrayObject.release();
+	for (FastGlBuffer& buffer : _buffers)
+		buffer.destroy(); // copies share one GL buffer, so this frees the members' too
+	_buffers.clear();
+	_gpuEvicted = true;
+	return released;
+}
+
+// Rebuilds what evictGpuBuffers() freed: same upload as initBuffers(), without its side effects (no new geometry revision, so
+// DrawBatcher's batches stay valid, and the analysis overlay stays).
+static std::atomic<qint64> s_gpuRestoreCount{ 0 };
+
+qint64 RenderableMesh::gpuRestoreCount()
+{
+	return s_gpuRestoreCount.load();
+}
+
+void RenderableMesh::restoreGpuBuffers()
+{
+	if (!_gpuEvicted)
+		return;
+	++s_gpuRestoreCount;
+	_indexBuffer.create();
+	_positionBuffer.create();
+	_normalBuffer.create();
+	if (_colors.size())
+		_colorBuffer.create();
+	if (_tangents.size())
+		_tangentBuf.create();
+	if (_bitangents.size())
+		_bitangentBuf.create();
+	if (_jointIndices.size())
+		_jointIndexBuffer.create();
+	if (_jointWeights.size())
+		_jointWeightBuffer.create();
+	if (_texCoords.size())
+	{
+		_texCoord0Buffer.create();
+		_texCoord1Buffer.create();
+		_texCoord2Buffer.create();
+		_texCoord3Buffer.create();
+	}
+	const size_t memorySize = _memorySize;
+	uploadGpuBuffers();
+	_memorySize = memorySize;
+	// uploadGpuBuffers() wires the attributes of the current program only; setProg() also wires the overlay buffers.
+	QOpenGLShaderProgram* const prog = _prog;
+	_vaoConfiguredProgram = nullptr;
+	if (prog)
+		setProg(prog);
+	afterGpuBuffersRestored();
 }
 
 void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
@@ -787,7 +1081,8 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 		clearUniformLocationCache();
 	}
 
-	if (_vaoConfiguredProgram != prog)
+	// Evicted buffers cannot be wired; restoreGpuBuffers() configures the VAO for the then-current program.
+	if (_vaoConfiguredProgram != prog && !_gpuEvicted)
 	{
 		recordVaoProgramReconfigure();
 		_vertexArrayObject.bind();
@@ -796,21 +1091,21 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 
 		// Position
 		_positionBuffer.bind();
-		_prog->enableAttributeArray("vertexPosition");
-		_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+		enableAttributeCached(_prog, "vertexPosition");
+		setAttributeBufferCached(_prog, "vertexPosition", GL_FLOAT, 0, 3);
 
 		// Normal
 		_normalBuffer.bind();
-		_prog->enableAttributeArray("vertexNormal");
-		_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+		enableAttributeCached(_prog, "vertexNormal");
+		setAttributeBufferCached(_prog, "vertexNormal", GL_FLOAT, 0, 3);
 
 		// Color
 		if (_colors.size())
 		{
 			_hasVertexColors = true;
 			_colorBuffer.bind();
-			_prog->enableAttributeArray("vertexColor");
-			_prog->setAttributeBuffer("vertexColor", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "vertexColor");
+			setAttributeBufferCached(_prog, "vertexColor", GL_FLOAT, 0, 4);
 		}
 
 		// Surface Analysis overlay - rebind whenever the program changes,
@@ -823,58 +1118,58 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 		if (!_analysisOverlayColors.empty())
 		{
 			_analysisOverlayColorBuffer.bind();
-			_prog->enableAttributeArray("analysisColor");
-			_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "analysisColor");
+			setAttributeBufferCached(_prog, "analysisColor", GL_FLOAT, 0, 4);
 		}
 
 		// Tex coords
 		if (_texCoords.size())
 		{
 			_texCoord0Buffer.bind();
-			_prog->enableAttributeArray("texCoord0");
-			_prog->setAttributeBuffer("texCoord0", GL_FLOAT, 0, 2);
+			enableAttributeCached(_prog, "texCoord0");
+			setAttributeBufferCached(_prog, "texCoord0", GL_FLOAT, 0, 2);
 
 			_texCoord1Buffer.bind();
-			_prog->enableAttributeArray("texCoord1");
-			_prog->setAttributeBuffer("texCoord1", GL_FLOAT, 0, 2);
+			enableAttributeCached(_prog, "texCoord1");
+			setAttributeBufferCached(_prog, "texCoord1", GL_FLOAT, 0, 2);
 
 			_texCoord2Buffer.bind();
-			_prog->enableAttributeArray("texCoord2");
-			_prog->setAttributeBuffer("texCoord2", GL_FLOAT, 0, 2);
+			enableAttributeCached(_prog, "texCoord2");
+			setAttributeBufferCached(_prog, "texCoord2", GL_FLOAT, 0, 2);
 		
 			_texCoord3Buffer.bind();
-			_prog->enableAttributeArray("texCoord3");
-			_prog->setAttributeBuffer("texCoord3", GL_FLOAT, 0, 2);
+			enableAttributeCached(_prog, "texCoord3");
+			setAttributeBufferCached(_prog, "texCoord3", GL_FLOAT, 0, 2);
 		}
 
 		// Tangents
 		if (_tangents.size())
 		{
 			_tangentBuf.bind();
-			_prog->enableAttributeArray("vertexTangent");
-			_prog->setAttributeBuffer("vertexTangent", GL_FLOAT, 0, 3);
+			enableAttributeCached(_prog, "vertexTangent");
+			setAttributeBufferCached(_prog, "vertexTangent", GL_FLOAT, 0, 3);
 		}
 
 		// Bitangents
 		if (_bitangents.size())
 		{
 			_bitangentBuf.bind();
-			_prog->enableAttributeArray("vertexBitangent");
-			_prog->setAttributeBuffer("vertexBitangent", GL_FLOAT, 0, 3);
+			enableAttributeCached(_prog, "vertexBitangent");
+			setAttributeBufferCached(_prog, "vertexBitangent", GL_FLOAT, 0, 3);
 		}
 
 		if (_jointIndices.size())
 		{
 			_jointIndexBuffer.bind();
-			_prog->enableAttributeArray("jointIndices");
-			_prog->setAttributeBuffer("jointIndices", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "jointIndices");
+			setAttributeBufferCached(_prog, "jointIndices", GL_FLOAT, 0, 4);
 		}
 
 		if (_jointWeights.size())
 		{
 			_jointWeightBuffer.bind();
-			_prog->enableAttributeArray("jointWeights");
-			_prog->setAttributeBuffer("jointWeights", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "jointWeights");
+			setAttributeBufferCached(_prog, "jointWeights", GL_FLOAT, 0, 4);
 		}
 
 		_vertexArrayObject.release();
@@ -901,16 +1196,16 @@ void RenderableMesh::setProg(QOpenGLShaderProgram* prog)
 			_analysisFlatVAO.bind();
 
 			_analysisFlatPositionBuffer.bind();
-			_prog->enableAttributeArray("vertexPosition");
-			_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+			enableAttributeCached(_prog, "vertexPosition");
+			setAttributeBufferCached(_prog, "vertexPosition", GL_FLOAT, 0, 3);
 
 			_analysisFlatNormalBuffer.bind();
-			_prog->enableAttributeArray("vertexNormal");
-			_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+			enableAttributeCached(_prog, "vertexNormal");
+			setAttributeBufferCached(_prog, "vertexNormal", GL_FLOAT, 0, 3);
 
 			_analysisFlatColorBuffer.bind();
-			_prog->enableAttributeArray("analysisColor");
-			_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+			enableAttributeCached(_prog, "analysisColor");
+			setAttributeBufferCached(_prog, "analysisColor", GL_FLOAT, 0, 4);
 
 			_analysisFlatVAO.release();
 		}
@@ -949,6 +1244,26 @@ int RenderableMesh::uniformLocationCached(const QString& name) const
 void RenderableMesh::clearUniformLocationCache()
 {
 	_uniformLocationCache.clear();
+	_drawUniformLocations = DrawUniformLocations{};
+}
+
+const RenderableMesh::DrawUniformLocations& RenderableMesh::drawUniformLocations() const
+{
+	if (_drawUniformLocations.resolved || !_prog)
+		return _drawUniformLocations;
+
+	DrawUniformLocations& loc = _drawUniformLocations;
+	loc.modelMatrix = uniformLocationCached("modelMatrix");
+	loc.modelViewMatrix = uniformLocationCached("modelViewMatrix");
+	loc.normalMatrix = uniformLocationCached("normalMatrix");
+	loc.worldNormalMatrix = uniformLocationCached("worldNormalMatrix");
+	loc.hasSkinning = uniformLocationCached("hasSkinning");
+	loc.jointCount = uniformLocationCached("jointCount");
+	loc.analysisOverlayActive = uniformLocationCached("analysisOverlayActive");
+	loc.analysisOverlayBands = uniformLocationCached("analysisOverlayBands");
+	loc.analysisOverlayColormap = uniformLocationCached("analysisOverlayColormap");
+	loc.resolved = true;
+	return loc;
 }
 
 void RenderableMesh::setupTextures()
@@ -980,6 +1295,11 @@ void RenderableMesh::setupTextures()
 		: (_material.hasDiffuseMap() ? _material.diffuseTextureId() : 0U);
 
 	glActiveTexture(GL_TEXTURE0);
+	if (_fallbackTexture == 0)
+	{
+		recreateFallbackTexture();
+		_textureBindingsDirty = true; // a new texture has no image yet; the upload below runs on this flag
+	}
 	glBindTexture(GL_TEXTURE_2D, _fallbackTexture);
 	if (_textureBindingsDirty && !_fallbackTextureImage.isNull())
 	{
@@ -1711,9 +2031,11 @@ void RenderableMesh::render()
 		_material.alphaThreshold() > 0.0f || _materialState.hasTextureAlpha())
 	{
 		glEnable(GL_BLEND);
-		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		// The shared surface shader already premultiplies final coverage.
+		glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA,
+			GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
 		glEnable(GL_LINE_SMOOTH);
-		glEnable(GL_POLYGON_SMOOTH);
+		// No GL_POLYGON_SMOOTH: it draws seams along shared triangle edges when blending (see SceneMesh::setRenderStateOptimized).
 	}
 	else
 	{
@@ -1721,6 +2043,8 @@ void RenderableMesh::render()
 	}
 
 	// Handle lighting normal for negative scaling
+	ScopedMaterialWireframe materialWireframe(*this,
+		_material.wireframe() && _primitiveMode == GL_TRIANGLES && !hasAnalysisOverlay());
 	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
 	if (_hasAnalysisFlatOverlay && _analysisFlatVAO.isCreated())
 	{
@@ -1736,6 +2060,7 @@ void RenderableMesh::render()
 	}
 	else
 	{
+		ensureResident();
 		_vertexArrayObject.bind();
 		const bool drawLod1 = _hasLod1 && lodPolicyActive();
 		if (drawLod1)
@@ -1755,6 +2080,7 @@ void RenderableMesh::renderShadow()
 {
 	if (!_vertexArrayObject.isCreated())
 		return;
+	prepareForDraw();
 
 	const QMatrix4x4& globalModelMatrix = currentGlobalModelMatrix();
 	if (uniformLocationCached("model") >= 0)
@@ -1778,7 +2104,11 @@ void RenderableMesh::renderShadow()
 	// Handle negative scaling (important for shadow mapping!)
 	glFrontFace(hasNegativeScale() ? GL_CW : GL_CCW);
 
+	ensureResident();
 	_vertexArrayObject.bind();
+	// Full resolution: the VAO may still point at the coarse LOD index buffer from an interaction frame, or never have been
+	// drawn individually since it joined a merged batch (see bindFullIndexBuffer()).
+	bindFullIndexBuffer();
 	glDrawElements(GL_TRIANGLES, _nVerts, GL_UNSIGNED_INT, 0);
 	_vertexArrayObject.release();
 }
@@ -1880,7 +2210,7 @@ void RenderableMesh::deleteBuffers()
 {
 	if (_buffers.size() > 0)
 	{
-		for (QOpenGLBuffer& buff : _buffers)
+		for (FastGlBuffer& buff : _buffers)
 		{
 			buff.destroy();
 		}
@@ -1919,11 +2249,11 @@ void RenderableMesh::deleteBuffers()
 
 void RenderableMesh::recreateContextBoundBufferObjects()
 {
-	_indexBuffer = QOpenGLBuffer(QOpenGLBuffer::IndexBuffer);
-	_positionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_normalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_colorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_analysisOverlayColorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_indexBuffer = FastGlBuffer(FastGlBuffer::IndexBuffer);
+	_positionBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_normalBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_colorBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_analysisOverlayColorBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
 	// Flat-per-face overlay resources are lazily created (see
 	// setAnalysisOverlayFlatColors()'s doc comment - most meshes never use
 	// draft-angle mode) - reassigning to fresh, uncreated wrapper objects
@@ -1933,20 +2263,20 @@ void RenderableMesh::recreateContextBoundBufferObjects()
 	// already resets the "has data" flags; the next real
 	// setAnalysisOverlayFlatColors() call lazily creates these again, same
 	// as for a mesh that never used the feature before.
-	_analysisFlatPositionBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_analysisFlatNormalBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_analysisFlatColorBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_analysisFlatPositionBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_analysisFlatNormalBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_analysisFlatColorBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
 	if (_analysisFlatVAO.isCreated())
 		_analysisFlatVAO.destroy();
-	_texCoord0Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_texCoord1Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_texCoord2Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_texCoord3Buffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_tangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_bitangentBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_jointIndexBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_jointWeightBuffer = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
-	_coordBuf = QOpenGLBuffer(QOpenGLBuffer::VertexBuffer);
+	_texCoord0Buffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_texCoord1Buffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_texCoord2Buffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_texCoord3Buffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_tangentBuf = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_bitangentBuf = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_jointIndexBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_jointWeightBuffer = FastGlBuffer(FastGlBuffer::VertexBuffer);
+	_coordBuf = FastGlBuffer(FastGlBuffer::VertexBuffer);
 
 	_indexBuffer.create();
 	_positionBuffer.create();
@@ -2016,19 +2346,19 @@ const std::vector<float>& RenderableMesh::getTrsfPoints() const
 	return _instanceState.getTrsfPoints();
 }
 
-const std::vector<float>& RenderableMesh::getTrsfNormals() const
+std::vector<float> RenderableMesh::getTrsfNormals() const
 {
-	return _instanceState.getTrsfNormals();
+	return _instanceState.transformedNormals(_normals);
 }
 
-const std::vector<float>& RenderableMesh::getTrsfTangents() const
+std::vector<float> RenderableMesh::getTrsfTangents() const
 {
-	return _instanceState.getTrsfTangents();
+	return _instanceState.transformedTangents(_tangents);
 }
 
-const std::vector<float>& RenderableMesh::getTrsfBitangents() const
+std::vector<float> RenderableMesh::getTrsfBitangents() const
 {
-	return _instanceState.getTrsfBitangents();
+	return _instanceState.transformedBitangents(_bitangents);
 }
 
 void RenderableMesh::resetTransformations()
@@ -2042,7 +2372,7 @@ void RenderableMesh::resetExplodedViewTransformations()
 	_instanceState.resetExplodedViewTransformations(_points, _normals, _tangents, _bitangents, _indices);
 }
 
-std::vector<unsigned int> RenderableMesh::getIndices() const
+const std::vector<unsigned int>& RenderableMesh::getIndices() const
 {
 	return _indices;
 }
@@ -2118,6 +2448,7 @@ float RenderableMesh::getStableTransformRadius() const { return _instanceState.g
 QMatrix4x4 RenderableMesh::getSceneRenderTransform() const { return _instanceState.getSceneRenderTransform(); }
 
 QMatrix4x4 RenderableMesh::combinedRenderTransform() const { return _instanceState.combinedRenderTransform(); }
+const QMatrix4x4& RenderableMesh::combinedRenderTransformRef() const { return _instanceState.combinedRenderTransformRef(); }
 
 void RenderableMesh::invalidateCombinedRenderTransformCache() const
 {
@@ -2269,9 +2600,16 @@ void RenderableMesh::setPBRRoughness(const float& val)
 	markUniformsDirty();
 }
 
-QOpenGLVertexArrayObject& RenderableMesh::getVAO()
+FastGlVertexArray& RenderableMesh::getVAO()
 {
+	ensureResident(); // callers bind it to draw
 	return _vertexArrayObject;
+}
+
+void RenderableMesh::bindFullIndexBuffer()
+{
+	if (_indexBuffer.isCreated())
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, _indexBuffer.bufferId());
 }
 
 unsigned long long RenderableMesh::memorySize() const
@@ -2282,7 +2620,7 @@ unsigned long long RenderableMesh::memorySize() const
 
 bool RenderableMesh::intersectsWithRay(const QVector3D& rayPos, const QVector3D& rayDir, QVector3D& outIntersectionPoint)
 {
-	return _instanceState.intersectsWithRay(rayPos, rayDir, outIntersectionPoint);
+	return _instanceState.intersectsWithRay(rayPos, rayDir, _indices, outIntersectionPoint);
 }
 
 
@@ -2669,7 +3007,9 @@ bool RenderableMesh::isTransparent() const
 
 bool RenderableMesh::needsDepthMaskOff() const
 {
-	return (_material.opacity() < 0.999f);  // uniform-only transparency
+	return BlendDepthPolicy::disableDepthWrites(_material.opacity(),
+        _material.blendMode() == Material::BlendMode::Alpha,
+        _hasVertexColors && _hasTransparentVertexAlpha);
 }
 
 
@@ -2908,16 +3248,19 @@ void RenderableMesh::applyDebugTextureOverrides()
 void RenderableMesh::setDebugUniformOverride(const QString& name, const QVariant& value)
 {
 	_debugUniformOverrides[name] = value;
+	noteRenderStateChanged(MeshInstanceState::SiteDebugOverride);
 }
 
 void RenderableMesh::clearDebugUniformOverride(const QString& name)
 {
 	_debugUniformOverrides.remove(name);
+	noteRenderStateChanged(MeshInstanceState::SiteDebugOverride);
 }
 
 void RenderableMesh::clearAllDebugUniformOverrides()
 {
 	_debugUniformOverrides.clear();
+	noteRenderStateChanged(MeshInstanceState::SiteDebugOverride);
 }
 
 void RenderableMesh::setAnalysisOverlayColors(const std::vector<float>& rgba)
@@ -2935,15 +3278,16 @@ void RenderableMesh::setAnalysisOverlayColors(const std::vector<float>& rgba)
 	// smoothing slider) changes, unlike authored vertex colors which are set
 	// once at import/reconstruction time.
 	_analysisOverlayColorBuffer.bind();
-	_analysisOverlayColorBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+	_analysisOverlayColorBuffer.setUsagePattern(FastGlBuffer::DynamicDraw);
 	_analysisOverlayColorBuffer.allocate(_analysisOverlayColors.data(), static_cast<int>(_analysisOverlayColors.size() * sizeof(float)));
 
 	if (_prog && _vertexArrayObject.isCreated())
 	{
+		ensureResident();
 		_vertexArrayObject.bind();
 		_analysisOverlayColorBuffer.bind();
-		_prog->enableAttributeArray("analysisColor");
-		_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+		enableAttributeCached(_prog, "analysisColor");
+		setAttributeBufferCached(_prog, "analysisColor", GL_FLOAT, 0, 4);
 	}
 
 	// Mutually exclusive with the flat-per-face path below - see this
@@ -3053,22 +3397,22 @@ void RenderableMesh::uploadAnalysisFlatBuffers(
 	_analysisFlatVAO.bind();
 
 	_analysisFlatPositionBuffer.bind();
-	_analysisFlatPositionBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+	_analysisFlatPositionBuffer.setUsagePattern(FastGlBuffer::DynamicDraw);
 	_analysisFlatPositionBuffer.allocate(positions.data(), static_cast<int>(positions.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexPosition");
-	_prog->setAttributeBuffer("vertexPosition", GL_FLOAT, 0, 3);
+	enableAttributeCached(_prog, "vertexPosition");
+	setAttributeBufferCached(_prog, "vertexPosition", GL_FLOAT, 0, 3);
 
 	_analysisFlatNormalBuffer.bind();
-	_analysisFlatNormalBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+	_analysisFlatNormalBuffer.setUsagePattern(FastGlBuffer::DynamicDraw);
 	_analysisFlatNormalBuffer.allocate(normals.data(), static_cast<int>(normals.size() * sizeof(float)));
-	_prog->enableAttributeArray("vertexNormal");
-	_prog->setAttributeBuffer("vertexNormal", GL_FLOAT, 0, 3);
+	enableAttributeCached(_prog, "vertexNormal");
+	setAttributeBufferCached(_prog, "vertexNormal", GL_FLOAT, 0, 3);
 
 	_analysisFlatColorBuffer.bind();
-	_analysisFlatColorBuffer.setUsagePattern(QOpenGLBuffer::DynamicDraw);
+	_analysisFlatColorBuffer.setUsagePattern(FastGlBuffer::DynamicDraw);
 	_analysisFlatColorBuffer.allocate(colors.data(), static_cast<int>(colors.size() * sizeof(float)));
-	_prog->enableAttributeArray("analysisColor");
-	_prog->setAttributeBuffer("analysisColor", GL_FLOAT, 0, 4);
+	enableAttributeCached(_prog, "analysisColor");
+	setAttributeBufferCached(_prog, "analysisColor", GL_FLOAT, 0, 4);
 
 	_analysisFlatVAO.release();
 
@@ -3202,9 +3546,13 @@ void RenderableMesh::uploadAnalysisOverlayUniforms()
 	// the upload would inherit analysisOverlayActive=true from the analysed mesh drawn just
 	// before it and render the overlay colour from its empty analysis attribute - black
 	// (e.g. the Deviation reference mesh, which shares the analysed mesh's material signature).
-	_prog->setUniformValue("analysisOverlayActive", _hasAnalysisOverlay || _hasAnalysisFlatOverlay);
-	_prog->setUniformValue("analysisOverlayBands", _analysisOverlayBands);
-	_prog->setUniformValue("analysisOverlayColormap", _analysisOverlayColormap);
+	const DrawUniformLocations& loc = drawUniformLocations();
+	if (loc.analysisOverlayActive >= 0)
+		_prog->setUniformValue(loc.analysisOverlayActive, _hasAnalysisOverlay || _hasAnalysisFlatOverlay);
+	if (loc.analysisOverlayBands >= 0)
+		_prog->setUniformValue(loc.analysisOverlayBands, _analysisOverlayBands);
+	if (loc.analysisOverlayColormap >= 0)
+		_prog->setUniformValue(loc.analysisOverlayColormap, _analysisOverlayColormap);
 }
 
 void RenderableMesh::setAnalysisOverlayActive(bool active)

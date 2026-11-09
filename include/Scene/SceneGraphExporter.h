@@ -53,7 +53,10 @@ public:
         // colorOverrides: optional per-mesh RGBA (4 floats per vertex) written as COLOR_0 instead of the mesh's own
         // vertex colours. Used for colours the viewer draws as a display overlay (Plot3D, Simulation results),
         // which are not stored in the vertices.
-        const QHash<QUuid, std::vector<float>>* colorOverrides = nullptr);
+        const QHash<QUuid, std::vector<float>>* colorOverrides = nullptr,
+        // outMeshNodeNameByUuid: optional output, mesh uuid -> name of the exported aiNode that carries that mesh (unique
+        // within the scene). Lets a caller refer to individual meshes in the export, e.g. per-view visibility in a 3D PDF.
+        QHash<QUuid, QString>* outMeshNodeNameByUuid = nullptr);
 
 private:
     static aiNode* buildNodeRecursive(

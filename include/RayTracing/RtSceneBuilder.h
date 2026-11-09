@@ -164,11 +164,13 @@ private:
 	struct TextureDedupKey
 	{
 		qint64 imageCacheKey = 0;
+        uint64_t authoredMipHash = 0;
 		float uvScaleX = 1.0f, uvScaleY = 1.0f;
 		float uvOffsetX = 0.0f, uvOffsetY = 0.0f;
 		float uvRotation = 0.0f;
 		int texCoordIndex = 0;
 		unsigned int wrapS = 0, wrapT = 0;
+		unsigned int magFilter = 0x2601, minFilter = 0x2703;
 		int packingChannel = -1;
 		bool packingInvert = false;
 		float packingScale = 1.0f;
@@ -176,11 +178,12 @@ private:
 
 		bool operator==(const TextureDedupKey& o) const
 		{
-			return imageCacheKey == o.imageCacheKey &&
+			return imageCacheKey == o.imageCacheKey && authoredMipHash == o.authoredMipHash &&
 				uvScaleX == o.uvScaleX && uvScaleY == o.uvScaleY &&
 				uvOffsetX == o.uvOffsetX && uvOffsetY == o.uvOffsetY &&
 				uvRotation == o.uvRotation && texCoordIndex == o.texCoordIndex &&
 				wrapS == o.wrapS && wrapT == o.wrapT &&
+				magFilter == o.magFilter && minFilter == o.minFilter &&
 				packingChannel == o.packingChannel && packingInvert == o.packingInvert &&
 				packingScale == o.packingScale && packingBias == o.packingBias;
 		}
@@ -190,6 +193,7 @@ private:
 		size_t operator()(const TextureDedupKey& k) const
 		{
 			size_t h = std::hash<qint64>{}(k.imageCacheKey);
+            h ^= std::hash<uint64_t>{}(k.authoredMipHash);
 			auto mix = [&h](size_t v) { h ^= v + 0x9e3779b97f4a7c15ULL + (h << 6) + (h >> 2); };
 			mix(std::hash<float>{}(k.uvScaleX));
 			mix(std::hash<float>{}(k.uvScaleY));
@@ -199,6 +203,8 @@ private:
 			mix(std::hash<int>{}(k.texCoordIndex));
 			mix(std::hash<unsigned int>{}(k.wrapS));
 			mix(std::hash<unsigned int>{}(k.wrapT));
+			mix(std::hash<unsigned int>{}(k.magFilter));
+			mix(std::hash<unsigned int>{}(k.minFilter));
 			mix(std::hash<int>{}(k.packingChannel));
 			mix(std::hash<bool>{}(k.packingInvert));
 			mix(std::hash<float>{}(k.packingScale));

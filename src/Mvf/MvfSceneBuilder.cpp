@@ -658,6 +658,18 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             primitiveExtras.insert(QStringLiteral("sourceFile"), mesh->getSourceFile());
         if (!mesh->getSourceNodeName().isEmpty())
             primitiveExtras.insert(QStringLiteral("sourceNodeName"), mesh->getSourceNodeName());
+        if (mesh->hasDeclaredMass())
+        {
+            primitiveExtras.insert(QStringLiteral("declaredMassKg"), mesh->declaredMassKg());
+            primitiveExtras.insert(QStringLiteral("declaredMassSource"), mesh->declaredMassSource());
+            if (!mesh->declaredMassGroup().isEmpty())
+                primitiveExtras.insert(QStringLiteral("declaredMassGroup"), mesh->declaredMassGroup());
+        }
+        if (mesh->hasDeclaredMaterial())
+        {
+            primitiveExtras.insert(QStringLiteral("declaredMaterial"), mesh->declaredMaterialName());
+            primitiveExtras.insert(QStringLiteral("declaredMaterialSource"), mesh->declaredMaterialSource());
+        }
 
         // Source-mesh provenance for CurvatureAnalyzer's cross-body edge-weld
         // advisory (see MeshImportAdaptor::sourceMeshIds()'s doc comment and
@@ -1390,6 +1402,8 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 cameraObj.insert(QStringLiteral("needsModelTransformCompensation"),
                                  camera.needsModelTransformCompensation);
                 cameraObj.insert(QStringLiteral("capturedViewRange"), camera.capturedViewRange);
+                if (camera.hasClipping)
+                    cameraObj.insert(QStringLiteral("clipping"), clippingStateToJson(camera.clipping));
                 camerasArray.append(cameraObj);
             }
 

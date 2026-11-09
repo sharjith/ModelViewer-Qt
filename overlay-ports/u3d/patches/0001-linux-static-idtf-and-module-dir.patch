@@ -1,0 +1,170 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index b47661b..a276547 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -1814,11 +1814,9 @@ SET_PROPERTY( SOURCE
+ 	libIDTF/IFXOSLoader.cpp
+ 	PROPERTY COMPILE_DEFINITIONS U3DPluginsPath="Plugins" U3DCorePath="." )
+ ENDIF( U3D_SHARED )
+-if(MSVC)
++# patch: always static, so the application's RUNPATH/\$ORIGIN governs where the IFX modules are loaded from
+ ADD_LIBRARY( IDTF STATIC ${libIDTF_SRCS} ${libIDTF_HDRS} )
+-else(MSVC)
+-ADD_LIBRARY( IDTF SHARED ${libIDTF_SRCS} ${libIDTF_HDRS} )
+-endif(MSVC)
++set_target_properties( IDTF PROPERTIES POSITION_INDEPENDENT_CODE ON )
+ SET_PROPERTY(
+ 	TARGET IDTF
+ 	PROPERTY COMPILE_DEFINITIONS LIBIDTF )
+diff --git a/RTL/Platform/Lin32/Common/IFXOSFileIterator.cpp b/RTL/Platform/Lin32/Common/IFXOSFileIterator.cpp
+index d655abf..8e207f1 100644
+--- a/RTL/Platform/Lin32/Common/IFXOSFileIterator.cpp
++++ b/RTL/Platform/Lin32/Common/IFXOSFileIterator.cpp
+@@ -48,6 +48,25 @@
+ #define IFXOSFI_SUBDIR  L"Plugins"
+ #define IFXOSFI_EXT L".so"
+ 
++
++// patch: when U3D_LIBDIR is not set, use the directory of the running executable as the module directory
++// (the IFX core library and its Plugins/ folder are shipped next to the application).
++#include <unistd.h>
++#include <limits.h>
++#include <string.h>
++static const char* ifxExecutableDir()
++{
++    static char dir[PATH_MAX] = {0};
++    if (!dir[0])
++    {
++        ssize_t n = readlink("/proc/self/exe", dir, sizeof(dir) - 1);
++        if (n <= 0) { strcpy(dir, "."); return dir; }
++        dir[n] = 0;
++        char* slash = strrchr(dir, '/');
++        if (slash) *slash = 0; else strcpy(dir, ".");
++    }
++    return dir;
++}
+ static const char* s_pDefaultCorePath = U3DCorePath;
+ static const char* s_pCorePathEnvVar = "U3D_LIBDIR";
+ 
+@@ -177,7 +196,7 @@ IFXRESULT IFXOSFileIterator::OpenIterator(const IFXCHAR *filesPath)
+     // we use an environment variable for the lib directory: U3D_LIBDIR
+     const char *lib = getenv(s_pCorePathEnvVar);
+     if (lib == 0)
+-		lib = s_pDefaultCorePath;
++		lib = ifxExecutableDir();
+ 		
+     strncpy(pluginLocation, lib, IFXOSFI_MAXPATHLEN);
+     pluginLocation[IFXOSFI_MAXPATHLEN-1] = 0;
+diff --git a/RTL/Platform/Lin32/Common/IFXOSLoader.cpp b/RTL/Platform/Lin32/Common/IFXOSLoader.cpp
+index 2cda960..c762c8b 100644
+--- a/RTL/Platform/Lin32/Common/IFXOSLoader.cpp
++++ b/RTL/Platform/Lin32/Common/IFXOSLoader.cpp
+@@ -40,6 +40,24 @@
+ static const IFXCHAR* s_pCoreDlName = L"libIFXCore.so";
+ static const IFXCHAR* s_pOpenGLDlName = L"libGL.so";
+ static const char* s_pCorePathEnvVar = "U3D_LIBDIR";
++
++// patch: when U3D_LIBDIR is not set, use the directory of the running executable as the module directory
++#include <unistd.h>
++#include <limits.h>
++#include <string.h>
++static const char* ifxExecutableDir()
++{
++    static char dir[PATH_MAX] = {0};
++    if (!dir[0])
++    {
++        ssize_t n = readlink("/proc/self/exe", dir, sizeof(dir) - 1);
++        if (n <= 0) { strcpy(dir, "."); return dir; }
++        dir[n] = 0;
++        char* slash = strrchr(dir, '/');
++        if (slash) *slash = 0; else strcpy(dir, ".");
++    }
++    return dir;
++}
+ #ifdef U3DCorePath
+ static const char* s_pCorePathDefault = U3DCorePath;
+ #else
+@@ -77,7 +95,7 @@ IFXHANDLE IFXAPI IFXLoadLibrary( const IFXCHAR* pFileName )
+     if (!handle)
+     {
+       const char* pCorePath = getenv( s_pCorePathEnvVar );
+-      if( NULL == pCorePath ) pCorePath = s_pCorePathDefault;
++      if( NULL == pCorePath ) pCorePath = ifxExecutableDir();
+ 
+         char newFileName[_MAXIMUM_FILENAME_LENGTH];
+         size += strlen(pCorePath);
+@@ -99,7 +117,7 @@ IFXHANDLE IFXAPI IFXLoadLibrary( const IFXCHAR* pFileName )
+     if (!handle)
+     {
+       const char* pCorePath = getenv( s_pCorePathEnvVar );
+-      if( NULL == pCorePath ) pCorePath = s_pCorePathDefault;
++      if( NULL == pCorePath ) pCorePath = ifxExecutableDir();
+ 
+         char newFileName[_MAXIMUM_FILENAME_LENGTH];
+ 
+@@ -159,7 +177,7 @@ IFXRESULT IFXAPI IFXOSGetCoreLibraryPath( IFXString* pPath )
+     if( NULL != pCorePath )
+       result = pPath->Assign( (const U8*)pCorePath );
+     else
+-      result = pPath->Assign( (const U8*)s_pCorePathDefault );
++      result = pPath->Assign( (const U8*)ifxExecutableDir() );
+   }
+   else
+     result = IFX_E_INVALID_POINTER;
+diff --git a/libIDTF/IFXOSLoader.cpp b/libIDTF/IFXOSLoader.cpp
+index aa34367..047c2ee 100644
+--- a/libIDTF/IFXOSLoader.cpp
++++ b/libIDTF/IFXOSLoader.cpp
+@@ -206,6 +206,25 @@ FILE* IFXAPI IFXOSFileOpen(const wchar_t *filename, const wchar_t *mode)
+ 
+ static const IFXCHAR* s_pCoreDlName = L"libIFXCore.so";
+ static const char* s_pCorePathEnvVar = "U3D_LIBDIR";
++
++// patch: when U3D_LIBDIR is not set, use the directory of the running executable as the module directory
++// (the IFX core library and its Plugins/ folder are shipped next to the application).
++#include <unistd.h>
++#include <limits.h>
++#include <string.h>
++static const char* ifxExecutableDir()
++{
++    static char dir[PATH_MAX] = {0};
++    if (!dir[0])
++    {
++        ssize_t n = readlink("/proc/self/exe", dir, sizeof(dir) - 1);
++        if (n <= 0) { strcpy(dir, "."); return dir; }
++        dir[n] = 0;
++        char* slash = strrchr(dir, '/');
++        if (slash) *slash = 0; else strcpy(dir, ".");
++    }
++    return dir;
++}
+ static const char* s_pCorePathDefault = U3DCorePath;
+ #define IFXOSFI_SUBDIR U3DPluginsPath
+ #define _MAXIMUM_FILENAME_LENGTH  256
+@@ -261,7 +280,7 @@ IFXHANDLE IFXAPI IFXLoadLibrary( const IFXCHAR* pFileName )
+ 			!wcscmp( pFileName, L"libIFXRendering.so"  ) ))
+     {
+       const char* pCorePath = getenv( s_pCorePathEnvVar );
+-      if( NULL == pCorePath ) pCorePath = s_pCorePathDefault;
++      if( NULL == pCorePath ) pCorePath = ifxExecutableDir();
+ 
+         char newFileName[_MAXIMUM_FILENAME_LENGTH];
+         size += strlen(pCorePath);
+@@ -287,7 +306,7 @@ IFXHANDLE IFXAPI IFXLoadLibrary( const IFXCHAR* pFileName )
+ 			!wcscmp( pFileName, L"libIFXRendering.so"  ) ))
+     {
+       const char* pCorePath = getenv( s_pCorePathEnvVar );
+-      if( NULL == pCorePath ) pCorePath = s_pCorePathDefault;
++      if( NULL == pCorePath ) pCorePath = ifxExecutableDir();
+ 
+         char newFileName[_MAXIMUM_FILENAME_LENGTH];
+ 
+@@ -347,7 +366,7 @@ IFXRESULT IFXAPI IFXOSGetCoreLibraryPath( IFXString* pPath )
+     if( NULL != pCorePath )
+       result = pPath->Assign( (const U8*)pCorePath );
+     else
+-      result = pPath->Assign( (const U8*)s_pCorePathDefault );
++      result = pPath->Assign( (const U8*)ifxExecutableDir() );
+   }
+   else
+     result = IFX_E_INVALID_POINTER;

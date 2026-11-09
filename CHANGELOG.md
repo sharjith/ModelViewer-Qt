@@ -1,5 +1,45 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- 3DXML import: native reader for CATIA and 3DEXPERIENCE archives and loose XML
+  assemblies (assembly structure, tessellation, colours, normals, texture
+  coordinates, edge polylines). Unreadable representations are skipped and listed
+  in the import report. Not supported: exact B-Rep, texture image display, and
+  layouts that none of the supplied exporters produced; the length unit is inferred
+  as millimetres.
+
+- JT import: textures within defined bounds (UV sets, common image formats, wrapping,
+  borders, filtering, mip levels, affine and model-linear mapping, bounded combiners,
+  one normal-map role) with GLB/glTF export of the result. Not supported: the general
+  `Combine` mode, independently sampled texture stages, camera-dependent mappings,
+  bump, gloss, environment and light maps, and textures in JT 8.x files.
+
+- Save as 3D PDF: writes the visible parts as a 3D PDF drawing sheet that opens in
+  Adobe Acrobat and Reader (title block around the 3D view). Sheets come from templates:
+  built-in Default and A3 landscape, plus your own, with a logo and custom fields (text,
+  multi-line text, date, choice, number with unit and limits). A template editor with a
+  live preview and drag placement edits them. `{material}` and `{mass}` are read from the
+  scene: JT part mass and STEP material names declared by the file; a part with no
+  declared value prints nothing. Very large assemblies take minutes to write and are
+  heavy to open.
+
+### Fixed
+
+- GLB export: meshes that share a name (a JT part split into coloured meshes, repeated
+  part names in a BOM) no longer all take the first mesh's colour.
+
+- Honour unlit materials in ADS rendering as well as PBR.
+- Preserve unlit materials when exporting GLB and glTF, preventing darker
+  lighting after reopening.
+- Reapply each viewport's light intensities while drawing, preventing inconsistent
+  ADS and PBR brightness after deferred settings updates.
+- Removed duplicate default-light illumination in raster PBR for non-glTF models.
+  Highlights may appear dimmer and surface shadows stronger; glTF/GLB models
+  already used the single default light.
+
 ## [2026.11.0] - 2026-10-21
 
 The release that turns ModelViewer from a model viewer into a full engineering

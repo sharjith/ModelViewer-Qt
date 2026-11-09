@@ -176,6 +176,12 @@ public:
 
 	bool moveToRecycleBin(const QUuid& uuid, int originalIndex);
 	bool restoreFromRecycleBin(const QUuid& uuid);
+
+	// Many meshes at once, with the same end state as calling the single versions in order but one pass over the store
+	// (each single call scans, erases from the middle of the vector, remaps both id lists and invalidates the uuid index, so
+	// N calls over M meshes cost N x M). Returns how many meshes were moved/restored; uuids that are not found are skipped.
+	int moveToRecycleBinBatch(const std::vector<std::pair<QUuid, int>>& uuidsAndOriginalIndices);
+	int restoreFromRecycleBinBatch(const std::vector<QUuid>& uuids);
 	bool permanentlyDeleteFromRecycleBin(const QUuid& uuid);
 	bool           isInRecycleBin(const QUuid& uuid) const  { return _recycleBin.contains(uuid); }
 	QVector<QUuid> recycleBinUuids()                 const  { return _recycleBin.keys().toVector(); }
@@ -212,6 +218,12 @@ private:
 
 	// ---- Recycle bin ----
 	QMap<QUuid, RecycleBinEntry> _recycleBin;
+
+	// uuid -> index into _meshStore, so lookups by uuid are O(1) instead of a scan of every mesh (the tree builds one leaf per
+	// mesh and the purge looks meshes up per promotion: quadratic at tens of thousands of meshes). Every hit is validated against
+	// the live store, so a stale entry (the store is edited directly in places) is detected and the index rebuilt, never trusted.
+	int indexOfUuid(const QUuid& uuid) const;
+	mutable QHash<QUuid, int> _uuidToIndex;
 
 	// ---- Texture cache ----
 	std::unordered_map<QString, CachedTextureEntry> _texCache;

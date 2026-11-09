@@ -791,7 +791,12 @@ void QuickHelpDialog::setupAdvancedFeaturesTab()
 		   "real model. Opened from the Exploded View panel.</p>"
 		   "<ul>"
 		   "<li><b>Assembly / Anchor:</b> Choose which parts explode and which part stays fixed as the anchor</li>"
-		   "<li><b>Explosion Mode:</b> Auto (Radial), Axis X/Y/Z, or a Custom Vector direction</li>"
+		   "<li><b>Explosion Mode:</b> Auto (each part leaves along the direction it comes off the part it touches, "
+		   "such as a truck dropping straight down from a board, and falls back to a proportional spread from the centre "
+		   "where the contact is unclear), Radial (every part spreads from the centre in proportion to its distance), "
+		   "Axis X/Y/Z, or a Custom Vector direction</li>"
+		   "<li><b>Strategy / Levels:</b> Assembly Aware follows the scene tree and Classic groups parts by position; "
+		   "Levels limits how many levels of sub-assemblies come apart</li>"
 		   "<li><b>Distance Slider:</b> Controls how far apart the parts spread, as a percentage</li>"
 		   "<li><b>Manual Placement:</b> Use the on-screen transform gizmo to hand-position specific parts "
 		   "into a staged exploded pose, without changing their real transform</li>"
@@ -1025,6 +1030,23 @@ void QuickHelpDialog::setupMeasurementTab()
 		   "were before, once finished - nothing is left toggled or parked on a captured view</li>"
 		   "</ul>"));
 
+	content += createSection(tr("Save as 3D PDF"),
+		tr("<p>Opened via File → Save as 3D PDF..., writes the visible parts as a 3D PDF drawing sheet that opens "
+		   "in Adobe Acrobat or Reader. The sheet is a title block around the 3D view, built from a <b>template</b>.</p>"
+		   "<ul>"
+		   "<li>The dialog shows a live preview of the sheet; the fields change with the chosen template</li>"
+		   "<li><b>Edit...</b> opens the template editor: the <b>Cells</b> tab edits the title block text, font, "
+		   "colour and position (drag or resize a cell in the preview, or use the arrow keys); <b>Page</b> sets the "
+		   "page size, orientation, margins and title block; <b>Logo</b> adds a picture; <b>Fields</b> adds your own "
+		   "fields (text, multi-line text, date, choice or number with unit and limits)</li>"
+		   "<li>A built-in template is never changed: use <b>Save as</b> to keep your edits under a new name. Your "
+		   "templates are JSON files in the application data folder (pdf3d-templates)</li>"
+		   "<li>Type <b>{field}</b> in a cell to print a field; <b>{material}</b> and <b>{mass}</b> come from the "
+		   "scene (values declared by the imported file, such as JT part mass or STEP material names; Mesh Info "
+		   "shows them) and print nothing when the file declares none</li>"
+		   "<li>Numbers follow the application language</li>"
+		   "</ul>"));
+
 	_measurementBrowser->setHtml(createStyledHtml(tr("Measurement & Annotation"), content));
 }
 
@@ -1114,7 +1136,8 @@ void QuickHelpDialog::setupMeshEditingTab()
 	QStringList opsHeaders = { tr("Operation"), tr("What It Does"), tr("Selection Requirement") };
 	QList<QStringList> opsRows = {
 		{tr("Split by Connectivity"), tr("Splits each selected mesh into its disconnected pieces, one "
-		 "new mesh per piece. A mesh already a single connected piece is left untouched"),
+		 "new mesh per piece: separate surface islands, separate connected polylines for line meshes, "
+		 "and one mesh per point for point meshes. A mesh already a single connected piece is left untouched"),
 		 tr("One or more meshes, each evaluated independently")},
 		{tr("Merge by Adjacency"), tr("Groups the selection into touching clusters (by shared vertex "
 		 "position) and merges each touching cluster into one mesh; non-touching meshes are left alone"),
@@ -1154,6 +1177,7 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 		{tr("File → Export"), tr("Ctrl+E"), tr("Export selected objects")},
 		{tr("File → Save"), tr("Ctrl+S"), tr("Save current scene")},
 		{tr("File → Save As"), tr("Ctrl+Shift+S"), tr("Save scene with new name")},
+		{tr("File → Save as 3D PDF..."), tr(""), tr("Write the visible parts as a 3D PDF drawing sheet (template based)")},
 		{tr("File → Close"), tr(""), tr("Close current document")},
 		{tr("File → Exit"), tr(""), tr("Exit application")}
 	};
@@ -1228,7 +1252,7 @@ void QuickHelpDialog::setupMenuShortcutsTab()
 	QList<QStringList> contextRows = {
 		{tr("When object selected:"), "", tr("")},
 		{tr("  Center Screen"), tr(""), tr("Center view on selected object")},
-		{tr("  Center Object List"), tr(""), tr("Scroll object list to selected item")},
+		{tr("  Center Object List"), tr(""), tr("Show the object list if it is hidden or filtered, and scroll it to the selected item")},
 		{tr("  Hide/Show"), tr("Space"), tr("Toggle visibility of selected objects")},
 		{tr("  Show Only"), tr("Shift+Space"), tr("Show only selected, hide all others")},
 		{tr("  Transformations"), tr(""), tr("Open transformation panel (move/rotate/scale)")},

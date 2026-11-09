@@ -1,0 +1,29 @@
+# Overlay line weights and section hatching (3 November 2026)
+
+Status: implemented, awaiting owner build and visual test. Nothing here is verified against Solid Edge; no Solid Edge capture has been compared.
+
+## Observations (this repository)
+
+- Before this change, dimension, extension and leader lines, arcs, in-plane text strokes, annotation strokes and recorded JT PMI strokes were all drawn at a fixed 2.0 px (`drawMeasurementOverlay`, `drawAnnotationOverlay`). Model feature/mesh edges were 1.0 to 1.75 px. The overlay was therefore heavier than the object lines it annotates.
+- Section-capping hatch is the procedural shader `shaders/clipping_plane.frag`: spacing = local capping diagonal / tiling (world units), thickness = a fraction of that spacing. Both scale with zoom, unlike drafting hatch.
+
+## Drafting convention (secondary sources)
+
+- ISO 128 and ASME Y14.2 use two weights, thick:thin about 2:1. Object (visible outline) lines are thick; dimension, extension, projection, leader and hatch lines are thin. Sources: <https://engineeringtechnology.org/?p=1482>, <https://webstore.ansi.org/standards/asme/asmey142014r2020>. Quoted widths: 0.7/0.5/0.35 mm thick by sheet size (ISO-based), about 0.6 mm thick and 0.3 mm thin (ASME); ASME treats approximate widths as non-rejection.
+- Pencil grades (object lines H to HB, dimension/extension/leader/centre lines about 2H to 4H, construction 4H to 6H) are the author's recollection of drafting practice, not source-verified.
+- Section lining: straight, equally spaced, parallel lines (ASME Y14.2 definition as quoted at <https://eng-tips.com/threads/asme-y14-2m-y14-3m-section-lines.93530>), conventionally 45 degrees. Spacing values (about 1.5 to 3 mm, scaled to the area size, ISO minimum about 0.7 mm) are recollection and were not confirmed by the searches; check ISO 128-50 / ASME Y14.2 before relying on them.
+
+## Owner decision, implemented
+
+Object lines 1.5 px and thin lines 1.25 px, to begin with (`include/Measurement/OverlayLineWeights.h`). Thin: measurement and annotation overlay lines and strokes, and section hatching (new `hatchWidthPx` uniform, which overrides the fractional thickness). Object: mesh-edge and feature-edge passes at 1.5 px. The feature-edge wireframe passes keep their original 1.75 px (`wireframeOverlayLine`) so they stay visible over solid rendering. Hollow-mesh wireframe (1.25 px) and selection/gizmo outlines are unchanged.
+
+## Not done
+
+- Hatch spacing (owner chose option 1, 3 November 2026, awaiting build and test): procedural hatch now keeps a constant on-screen line spacing of `hatchSpacingPx` (11 px, about 3 mm at 96 dpi, times the device pixel ratio), computed per cap from the projection at the cap centre (`ViewportWidget::hatchWorldUnitsPerTile`). CAD practice differs by context: AutoCAD model-space hatch scales with zoom (HPSCALE; annotative hatch is constant on the sheet), SolidWorks and Solid Edge drawing hatch is fixed in sheet units and follows view scale. The Settings tiling and thickness values no longer affect procedural hatch; texture hatch is unchanged.
+- No device-pixel-ratio scaling; widths are device pixels.
+
+- Hatch line weight (owner-tested 3 November 2026): section hatching uses its own `hatchLine` = 1.0 px, lighter than the 1.25 px thin weight, because 1.25 px at the 11 px spacing looked cluttered.
+
+- Hatch spacing modes (3 November 2026, awaiting build and test): Settings > Section Capping now has "Hatch Spacing" = Screen-constant (default, `sectionCappingHatchSpacingPx`, 11 px), Model units (`sectionCappingHatchSpacingModelUnits`, 2.0, zooms with the part) or Part-relative (the old cap size / tiling rule). "Hatch Line Width (px)" (`sectionCappingHatchWidthPx`, 1.0) replaces the old fractional thickness, which is no longer saved. Settings are read when a document viewport is created, like the other cap defaults.
+
+- Textured cap parameters (3 November 2026, awaiting build and test): "Texture Tiling" (`sectionCappingTextureTiling`, 3, was hardcoded) and "Texture Strength" (`sectionCappingTextureBlend`, 0.25, was a hardcoded mix factor in the shader). Rows that do not apply are hidden: the hatch rows (and, within them, only the spacing value of the chosen mode) for Procedural, these two for Textured.

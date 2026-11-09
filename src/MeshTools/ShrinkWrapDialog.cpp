@@ -207,6 +207,10 @@ void ShrinkWrapDialog::onGenerateClicked()
 
 	const QString wrapName = QStringLiteral("Shrink Wrap %1").arg(_nextWrapIndex, 3, 10, QChar('0'));
 	const QString meshName = viewport->generateUniqueMeshName(wrapName);
+	QVector<QUuid> inputUuids;
+	for (SceneMesh* input : meshes)
+		inputUuids.append(input->uuid());
+
 	SceneMesh* wrapped = SceneMesh::shrinkWrapMeshes(meshes, meshName, ui->alphaSpin->value(), ui->offsetSpin->value());
 	if (!wrapped)
 	{
@@ -235,7 +239,7 @@ void ShrinkWrapDialog::onGenerateClicked()
 	// Pushed immediately, not deferred to dialog close - matches
 	// MeasurementDialog: every result is independently undoable right away
 	// (see this class's header doc comment for the bug this fixes).
-	_modelViewer->commitShrinkWrap(wrapNode, topParent, wrapPosition, wrappedUuid, originalSelection);
+	_modelViewer->commitShrinkWrap(wrapNode, topParent, wrapPosition, wrappedUuid, originalSelection, inputUuids);
 	_lastResultMeshUuids = { wrappedUuid };
 	++_nextWrapIndex;
 

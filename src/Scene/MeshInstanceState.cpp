@@ -1,6 +1,4 @@
 #include "MeshInstanceState.h"
-#include "Triangle.h"
-#include "TriangleMollerTrumbore.h"
 #include "Point.h"
 
 #include <QQuaternion>
@@ -24,6 +22,71 @@ QQuaternion instanceEulerToQuaternion(const QVector3D& rotation)
     matrix.rotate(rotation.z(), QVector3D(0.0f, 0.0f, 1.0f));
     return QQuaternion::fromRotationMatrix(matrix.toGenericMatrix<3, 3>()).normalized();
 }
+
+bool indexedTriangle(const std::vector<float>& points,
+                     const std::vector<unsigned int>& indices,
+                     size_t indexOffset,
+                     QVector3D& v0,
+                     QVector3D& v1,
+                     QVector3D& v2)
+{
+    if (indexOffset + 2 >= indices.size())
+        return false;
+
+    const size_t vertexCount = points.size() / 3;
+    const size_t i0 = indices[indexOffset];
+    const size_t i1 = indices[indexOffset + 1];
+    const size_t i2 = indices[indexOffset + 2];
+    if (i0 >= vertexCount || i1 >= vertexCount || i2 >= vertexCount)
+        return false;
+
+    const size_t p0 = i0 * 3;
+    const size_t p1 = i1 * 3;
+    const size_t p2 = i2 * 3;
+
+    v0 = QVector3D(points[p0], points[p0 + 1], points[p0 + 2]);
+    v1 = QVector3D(points[p1], points[p1 + 1], points[p1 + 2]);
+    v2 = QVector3D(points[p2], points[p2 + 1], points[p2 + 2]);
+    return true;
+}
+
+bool intersectTriangle(const QVector3D& rayPos,
+                       const QVector3D& rayDir,
+                       const QVector3D& v0,
+                       const QVector3D& v1,
+                       const QVector3D& v2,
+                       float& outDistance,
+                       QVector3D& outBarycentric)
+{
+    // Same double-sided Moller-Trumbore test previously used by each retained
+    // TriangleMollerTrumbore object, now evaluated directly over indexed data.
+    constexpr float epsilon = 0.0000001f;
+    const QVector3D edge1 = v1 - v0;
+    const QVector3D edge2 = v2 - v0;
+    const QVector3D h = QVector3D::crossProduct(rayDir, edge2);
+    const float a = QVector3D::dotProduct(edge1, h);
+    if (a > -epsilon && a < epsilon)
+        return false;
+
+    const float f = 1.0f / a;
+    const QVector3D s = rayPos - v0;
+    const float v1Weight = f * QVector3D::dotProduct(s, h);
+    if (v1Weight < 0.0f || v1Weight > 1.0f)
+        return false;
+
+    const QVector3D q = QVector3D::crossProduct(s, edge1);
+    const float v2Weight = f * QVector3D::dotProduct(rayDir, q);
+    if (v2Weight < 0.0f || v1Weight + v2Weight > 1.0f)
+        return false;
+
+    const float distance = f * QVector3D::dotProduct(edge2, q);
+    if (distance <= epsilon)
+        return false;
+
+    outDistance = distance;
+    outBarycentric = QVector3D(1.0f - v1Weight - v2Weight, v1Weight, v2Weight);
+    return true;
+}
 } // namespace
 
 // ---------------------------------------------------------------------------
@@ -45,8 +108,6 @@ MeshInstanceState::MeshInstanceState()
 
 MeshInstanceState::~MeshInstanceState()
 {
-    for (Triangle* t : _triangles)
-        delete t;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +116,27 @@ MeshInstanceState::~MeshInstanceState()
 quint64 MeshInstanceState::currentRuntimeBoundsRevision()
 {
     return _runtimeBoundsRevision.load(std::memory_order_relaxed);
+}
+
+static std::atomic<quint64> g_renderStateEpoch{1};
+
+quint64 MeshInstanceState::renderStateEpoch()
+{
+    return g_renderStateEpoch.load(std::memory_order_relaxed);
+}
+
+static std::atomic<quint64> g_renderStateEpochSites[MeshInstanceState::SiteCount];
+
+void MeshInstanceState::bumpRenderStateEpoch(int site)
+{
+    g_renderStateEpoch.fetch_add(1, std::memory_order_relaxed);
+    if (site >= 0 && site < SiteCount)
+        g_renderStateEpochSites[site].fetch_add(1, std::memory_order_relaxed);
+}
+
+quint64 MeshInstanceState::renderStateEpochSiteCount(int site)
+{
+    return (site >= 0 && site < SiteCount) ? g_renderStateEpochSites[site].load(std::memory_order_relaxed) : 0;
 }
 
 void MeshInstanceState::markRuntimeBoundsChanged()
@@ -82,9 +164,18 @@ QMatrix4x4 MeshInstanceState::combinedRenderTransform() const
     return _cachedCombinedRenderTransform;
 }
 
+const QMatrix4x4& MeshInstanceState::combinedRenderTransformRef() const
+{
+    if (_combinedRenderTransformDirty)
+        combinedRenderTransform(); // refreshes the cache
+    return _cachedCombinedRenderTransform;
+}
+
 void MeshInstanceState::invalidateCombinedRenderTransformCache() const
 {
     _combinedRenderTransformDirty = true;
+    if (_affectsSceneRevision)
+        bumpRenderStateEpoch(SiteTransform);
 }
 
 // ---------------------------------------------------------------------------
@@ -136,44 +227,13 @@ void MeshInstanceState::fastUpdateWorldBounds()
         static_cast<double>(xMin), static_cast<double>(xMax),
         static_cast<double>(yMin), static_cast<double>(yMax),
         static_cast<double>(zMin), static_cast<double>(zMax));
-    markRuntimeBoundsChanged();
+    if (_affectsSceneRevision)
+        markRuntimeBoundsChanged();
 }
 
 // ---------------------------------------------------------------------------
-// Full O(N) bounds / picking update
+// Full O(N) bounds update
 // ---------------------------------------------------------------------------
-void MeshInstanceState::buildTriangles(const std::vector<unsigned int>& indices)
-{
-    for (Triangle* t : _triangles)
-        delete t;
-    _triangles.clear();
-
-    try
-    {
-        constexpr size_t stride = 3;
-        for (size_t i = 0; i < indices.size(); )
-        {
-            QVector3D v1(_trsfPoints.at(stride * indices.at(i)     + 0),
-                         _trsfPoints.at(stride * indices.at(i)     + 1),
-                         _trsfPoints.at(stride * indices.at(i)     + 2));
-            ++i;
-            QVector3D v2(_trsfPoints.at(stride * indices.at(i) + 0),
-                         _trsfPoints.at(stride * indices.at(i) + 1),
-                         _trsfPoints.at(stride * indices.at(i) + 2));
-            ++i;
-            QVector3D v3(_trsfPoints.at(stride * indices.at(i) + 0),
-                         _trsfPoints.at(stride * indices.at(i) + 1),
-                         _trsfPoints.at(stride * indices.at(i) + 2));
-            ++i;
-            _triangles.push_back(new TriangleMollerTrumbore(v1, v2, v3, nullptr));
-        }
-    }
-    catch (const std::exception& ex)
-    {
-        Q_UNUSED(ex)
-    }
-}
-
 void MeshInstanceState::computeBounds()
 {
     if (_trsfPoints.empty())
@@ -216,6 +276,63 @@ void MeshInstanceState::computeBounds()
         zmin.z(), zmax.z());
 }
 
+// Rotation-only part of the combined render transform (translation column zeroed), used for directions.
+static QMatrix4x4 instanceDirectionMatrix(const QMatrix4x4& combined)
+{
+    QMatrix4x4 rotMat = combined;
+    rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
+    return rotMat;
+}
+
+std::vector<float> MeshInstanceState::transformedNormals(const std::vector<float>& normals) const
+{
+    std::vector<float> out;
+    out.reserve(normals.size());
+    const QMatrix4x4 rotMat = instanceDirectionMatrix(combinedRenderTransform());
+    for (size_t i = 0; i < normals.size(); i += 3)
+    {
+        const QVector3D tn = rotMat.map(QVector3D(normals[i], normals[i + 1], normals[i + 2]));
+        out.push_back(tn.x());
+        out.push_back(tn.y());
+        out.push_back(tn.z());
+    }
+    return out;
+}
+
+std::vector<float> MeshInstanceState::transformedTangents(const std::vector<float>& tangents) const
+{
+    std::vector<float> out;
+    out.reserve(tangents.size());
+    const QMatrix4x4 rotMat = instanceDirectionMatrix(combinedRenderTransform());
+    for (size_t i = 0; i < tangents.size(); i += 3)
+    {
+        QVector3D tt = rotMat.map(QVector3D(tangents[i], tangents[i + 1], tangents[i + 2]));
+        const float len = tt.length();
+        tt = (len > 0.001f) ? tt.normalized() : QVector3D(1.f, 0.f, 0.f);
+        out.push_back(tt.x());
+        out.push_back(tt.y());
+        out.push_back(tt.z());
+    }
+    return out;
+}
+
+std::vector<float> MeshInstanceState::transformedBitangents(const std::vector<float>& bitangents) const
+{
+    std::vector<float> out;
+    out.reserve(bitangents.size());
+    const QMatrix4x4 rotMat = instanceDirectionMatrix(combinedRenderTransform());
+    for (size_t i = 0; i < bitangents.size(); i += 3)
+    {
+        QVector3D tb = rotMat.map(QVector3D(bitangents[i], bitangents[i + 1], bitangents[i + 2]));
+        const float len = tb.length();
+        tb = (len > 0.001f) ? tb.normalized() : QVector3D(0.f, 1.f, 0.f);
+        out.push_back(tb.x());
+        out.push_back(tb.y());
+        out.push_back(tb.z());
+    }
+    return out;
+}
+
 void MeshInstanceState::updateRuntimeBounds(
     const std::vector<float>& points,
     const std::vector<float>& normals,
@@ -248,9 +365,7 @@ void MeshInstanceState::updateRuntimeBounds(
     }
 
     _trsfPoints.clear();
-    _trsfNormals.clear();
-    _trsfTangents.clear();
-    _trsfBitangents.clear();
+    _trsfPoints.reserve(points.size());
 
     const QMatrix4x4 combined = combinedRenderTransform();
 
@@ -264,56 +379,14 @@ void MeshInstanceState::updateRuntimeBounds(
         _trsfPoints.push_back(tp.z());
     }
 
-    // Transform normals (inverse-transpose: zero out translation column)
-    QMatrix4x4 rotMat = combined;
-    rotMat.setColumn(3, QVector4D(0, 0, 0, 1));
-    for (size_t i = 0; i < normals.size(); i += 3)
-    {
-        const QVector3D n(normals[i], normals[i + 1], normals[i + 2]);
-        const QVector3D tn = rotMat.map(n);
-        _trsfNormals.push_back(tn.x());
-        _trsfNormals.push_back(tn.y());
-        _trsfNormals.push_back(tn.z());
-    }
-
-    // Transform tangents
-    if (!tangents.empty())
-    {
-        for (size_t i = 0; i < tangents.size(); i += 3)
-        {
-            QVector3D tt = rotMat.map(QVector3D(tangents[i], tangents[i + 1], tangents[i + 2]));
-            const float len = tt.length();
-            tt = (len > 0.001f) ? tt.normalized() : QVector3D(1.f, 0.f, 0.f);
-            _trsfTangents.push_back(tt.x());
-            _trsfTangents.push_back(tt.y());
-            _trsfTangents.push_back(tt.z());
-        }
-    }
-
-    // Transform bitangents
-    if (!bitangents.empty())
-    {
-        for (size_t i = 0; i < bitangents.size(); i += 3)
-        {
-            QVector3D tb = rotMat.map(QVector3D(bitangents[i], bitangents[i + 1], bitangents[i + 2]));
-            const float len = tb.length();
-            tb = (len > 0.001f) ? tb.normalized() : QVector3D(0.f, 1.f, 0.f);
-            _trsfBitangents.push_back(tb.x());
-            _trsfBitangents.push_back(tb.y());
-            _trsfBitangents.push_back(tb.z());
-        }
-    }
-
-    if (_buildPickingTriangles)
-        buildTriangles(indices);
-    else
-    {
-        for (Triangle* t : _triangles)
-            delete t;
-        _triangles.clear();
-    }
+    // Normals, tangents and bitangents are transformed on request - see transformedNormals().
+    Q_UNUSED(normals)
+    Q_UNUSED(tangents)
+    Q_UNUSED(bitangents)
+    Q_UNUSED(indices)
     computeBounds();
-    markRuntimeBoundsChanged();
+    if (_affectsSceneRevision)
+        markRuntimeBoundsChanged();
 }
 
 void MeshInstanceState::fullUpdateRuntimeBounds(
@@ -652,80 +725,59 @@ QRect MeshInstanceState::projectedRect(const QMatrix4x4& modelView,
 // ---------------------------------------------------------------------------
 bool MeshInstanceState::intersectsWithRay(const QVector3D& rayPos,
     const QVector3D& rayDir,
+    const std::vector<unsigned int>& indices,
     QVector3D& outIntersectionPoint)
 {
-    // Bring the ray into non-exploded space for triangle testing (triangles
-    // are stored at base world positions, without explosion offset applied).
-    const QVector3D adjustedRayPos = _explosionOffset.isNull()
-        ? rayPos : rayPos - _explosionOffset;
-
-    float closestDistance = std::numeric_limits<float>::max();
-    bool  found           = false;
-    QVector3D bestIntersection;
-
-    for (int i = 0; i < static_cast<int>(_triangles.size()); ++i)
-    {
-        QVector3D hitPoint;
-        if (_triangles[i]->intersectsWithRay(adjustedRayPos, rayDir, hitPoint))
-        {
-            const float dist = (hitPoint - adjustedRayPos).length();
-            if (dist < closestDistance)
-            {
-                closestDistance  = dist;
-                bestIntersection = hitPoint;
-                found            = true;
-            }
-        }
-    }
-
-    if (found)
-    {
-        outIntersectionPoint = bestIntersection + _explosionOffset;
-        return true;
-    }
-    return false;
+    int triangleIndex = -1;
+    QVector3D barycentric;
+    return intersectsWithRayDetailed(
+        rayPos, rayDir, indices, outIntersectionPoint, triangleIndex, barycentric);
 }
 
 bool MeshInstanceState::intersectsWithRayDetailed(const QVector3D& rayPos,
     const QVector3D& rayDir,
+    const std::vector<unsigned int>& indices,
     QVector3D& outIntersectionPoint,
     int& outTriangleIndex,
     QVector3D& outBarycentric)
 {
-    // Mirrors intersectsWithRay() above - see its comment for why the ray
-    // is adjusted into non-exploded space before testing.
+    if (!_buildPickingTriangles)
+        return false;
+
+    // Bring the ray into non-exploded space for triangle testing. The
+    // transformed point cache contains base world positions without the
+    // separately applied explosion offset.
     const QVector3D adjustedRayPos = _explosionOffset.isNull()
         ? rayPos : rayPos - _explosionOffset;
 
     float closestDistance = std::numeric_limits<float>::max();
     bool  found            = false;
-    QVector3D bestIntersection;
+    QVector3D bestBarycentric;
     int bestIndex = -1;
 
-    for (int i = 0; i < static_cast<int>(_triangles.size()); ++i)
+    for (size_t i = 0; i + 2 < indices.size(); i += 3)
     {
-        QVector3D hitPoint;
-        if (_triangles[i]->intersectsWithRay(adjustedRayPos, rayDir, hitPoint))
+        QVector3D v0, v1, v2;
+        if (!indexedTriangle(_trsfPoints, indices, i, v0, v1, v2))
+            continue;
+
+        float distance = 0.0f;
+        QVector3D barycentric;
+        if (intersectTriangle(adjustedRayPos, rayDir, v0, v1, v2, distance, barycentric)
+            && distance < closestDistance)
         {
-            const float dist = (hitPoint - adjustedRayPos).length();
-            if (dist < closestDistance)
-            {
-                closestDistance  = dist;
-                bestIntersection = hitPoint;
-                bestIndex        = i;
-                found            = true;
-            }
+            closestDistance = distance;
+            bestBarycentric = barycentric;
+            bestIndex = static_cast<int>(i / 3);
+            found = true;
         }
     }
 
     if (!found)
         return false;
 
-    outIntersectionPoint = bestIntersection + _explosionOffset;
+    outIntersectionPoint = adjustedRayPos + rayDir * closestDistance + _explosionOffset;
     outTriangleIndex = bestIndex;
-
-    float u, v, w;
-    _triangles[bestIndex]->computeBarycentric(bestIntersection, u, v, w);
-    outBarycentric = QVector3D(u, v, w);
+    outBarycentric = bestBarycentric;
     return true;
 }

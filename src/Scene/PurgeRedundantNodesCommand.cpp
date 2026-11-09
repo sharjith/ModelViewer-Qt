@@ -38,6 +38,8 @@ void PurgeRedundantNodesCommand::undo()
         return;
 
     SceneGraph* sg = _viewer->sceneGraph();
+    {
+    SceneGraph::StructureBatch batch(*sg); // one tree rebuild for the whole undo, not one per edit
 
     // Reverse of the recorded (bottom-up) order: undo the OUTERMOST collapse first, putting each eliminated node
     // back exactly where (and with the mesh it originally held) before the next-inner undo runs.
@@ -53,6 +55,7 @@ void PurgeRedundantNodesCommand::undo()
 
         if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(entry.meshUuid))
             mesh->setName(entry.meshNameBefore);
+    }
     }
 
     _applied = false;
@@ -81,6 +84,8 @@ void PurgeRedundantNodesCommand::redo()
     }
 
     SceneGraph* sg = _viewer->sceneGraph();
+    {
+    SceneGraph::StructureBatch batch(*sg); // one tree rebuild for the whole redo, not one per edit
 
     // Forward (recorded, bottom-up) order: re-collapse the innermost wrapper first, exactly as originally applied.
     for (const PromotionEntry& entry : _promotions)
@@ -95,6 +100,7 @@ void PurgeRedundantNodesCommand::redo()
 
         if (SceneMesh* mesh = _viewportWidget->getMeshByUuid(entry.meshUuid))
             mesh->setName(entry.meshNameAfter);
+    }
     }
 
     _applied = true;

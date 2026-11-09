@@ -8,6 +8,7 @@
 #include "TDocStd_Document.hxx"
 #include "XCAFApp_Application.hxx"
 #include "XCAFIGESProcessor.hxx"
+#include "ImportDiagnostics.h"
 #include "XCAFReadProgressIndicator.hxx"
 #include <BRep_Builder.hxx>
 #include <TopoDS_Compound.hxx>
@@ -45,6 +46,7 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
     // Read IGES file into XCAF document
     IGESCAFControl_Reader cafReader;
     cafReader.SetLayerMode(false); // Layer assignments — not consumed by the viewer
+    ImportDiagnostics::checkpoint("iges.read-begin");
     if (cafReader.ReadFile(path.c_str()) != IFSelect_RetDone)
     {
         MainWindow::resetProgressBar();
@@ -56,10 +58,13 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
         return nullptr;
     }
     MainWindow::resetProgressBar();
+    ImportDiagnostics::checkpoint("iges.read-end");
 
     MainWindow::showStatusMessage(tr("Transfering shapes..."));
 
+    ImportDiagnostics::checkpoint("iges.transfer-begin");
     cafReader.Transfer(doc, transferScope.Next());
+    ImportDiagnostics::checkpoint("iges.transfer-end");
 
     // Access shape tool and color tool
     Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
@@ -84,7 +89,9 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
             if (shapeTool->GetShape(labels.Value(i), shape) && !shape.IsNull())
                 builder.Add(compound, shape);
         }
+        ImportDiagnostics::checkpoint("iges.pretessellate-begin");
         BRepToAssimpConverter::preTessellate(compound);
+        ImportDiagnostics::checkpoint("iges.pretessellate-end");
     }
 
     // Precompute the total number of meshes for progress bar updates
@@ -112,10 +119,13 @@ aiScene* XCAFIGESProcessor::processIGESFile(const std::string& path)
     // Traverse the assembly structure and build the aiScene
     MainWindow::showStatusMessage(tr("Traversing assembly and building scene..."));
 
+    ImportDiagnostics::checkpoint("iges.traverse-begin", -1, totalMeshes, 0);
     for (Standard_Integer i = 1; i <= labels.Length(); ++i)
     {
         traverseXCAFAssembly(shapeTool, colorTool, labels.Value(i), TopLoc_Location(), scene->mRootNode, scene, meshIndex, processedMeshes, totalMeshes);
     }
+    releaseConvertedParts();
+    ImportDiagnostics::checkpoint("iges.traverse-end", -1, scene->mNumMeshes, 0);
 
     // Close the XCAF document and clean up
 #ifdef __DEBUG__

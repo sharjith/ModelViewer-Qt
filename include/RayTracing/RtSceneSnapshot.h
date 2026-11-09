@@ -215,7 +215,7 @@ struct RtTextureSample
 	int width  = 0;
 	int height = 0;
 
-	// Box-filtered mip pyramid, built ONCE at texture-load time
+	// Authored mip pyramid when supplied; otherwise box-filtered ONCE at texture-load time
 	// (RtSceneBuilder::extractTextureSample()) - mips[0] duplicates the base
 	// level above (same width/height/rgba8), mips[1] is half-resolution,
 	// mips[2] quarter, etc., down to a 1x1 level. Without this, a path
@@ -225,8 +225,8 @@ struct RtTextureSample
 	// is no other mechanism here to average away sub-texel detail smaller
 	// than one pixel's footprint. See CpuPathTracer.cpp's computeTextureLod()/
 	// sampleTexture()'s lod parameter for how this is consumed (a ray-cone-
-	// style estimate of the hit's texel footprint, trilinearly blended
-	// between the two nearest levels here). Deliberately built as a
+	// style estimate of the hit's texel footprint, selecting/blending levels
+	// according to minFilter). Deliberately built as a
 	// self-contained, uniformly-indexable chain (duplicating the base into
 	// mips[0]) rather than tacking "levels 1+" onto the existing width/
 	// height/rgba8 fields, for simpler, branch-free level-N sampling code.
@@ -252,6 +252,9 @@ struct RtTextureSample
 	// is assumed unconditionally - this was a real, previously-unhandled gap.
 	unsigned int wrapS = 0x2901; // GL_REPEAT
 	unsigned int wrapT = 0x2901; // GL_REPEAT
+	// Authored filter enums; defaults match Material::Texture.
+	unsigned int magFilter = 0x2601; // GL_LINEAR
+	unsigned int minFilter = 0x2703; // GL_LINEAR_MIPMAP_LINEAR
 
 	// QImage::cacheKey() of the SOURCE image this sample was decoded from
 	// (RtSceneBuilder::extractTextureSample()'s own within-build dedup key
@@ -270,6 +273,7 @@ struct RtTextureSample
 	// key, mirroring TextureDedupKey's full field set, so a same-image-
 	// different-transform texture still gets its own cache entry.
 	int64_t imageCacheKey = 0;
+    uint64_t authoredMipHash = 0;
 };
 
 // v1 shading vocabulary: diffuse + metallic-roughness + emissive + basic

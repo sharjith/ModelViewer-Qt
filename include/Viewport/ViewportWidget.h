@@ -12,6 +12,8 @@
 class ToolsToolbar;
 
 #include "AdaptiveShadowMapper.h"
+#include "ClippingState.h"
+#include "OverlayGraphic.h"
 #include "AnimationRuntimeController.h"
 #include "VisibilityComputationHelper.h"
 #include "BoundingSphere.h"
@@ -82,6 +84,7 @@ class ToolsToolbar;
 namespace Mvf { struct Document; }
 
 class TextRenderer;
+class DrawBatcher;
 class ClippingPlanesEditor;
 class ExplodedViewPanel;
 class ExplodedViewManager;
@@ -275,6 +278,7 @@ public:
 	void updateClipBoxGizmos();
 	void showClippingPlaneEditor(bool show);
 	void showExplodedViewPanel(bool show);
+	bool isExplodedViewPanelShown() const;
 	ExplodedViewPanel* getExplodedViewPanel() const { return _explodedViewPanel; }
 	void updateExplosion();
 	QWidget* attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
@@ -297,11 +301,23 @@ public:
 	void setHatchTexture(const QString& path);
 
 	void showAxis(bool show);
+	bool isAxisShown() const { return _viewCtrl.showAxis(); }
+	// The camera's orientation and the standard view it was last set to (ViewMode::NONE after a free orbit): what an MVF saves of the view.
+	QVector3D cameraViewDirection() const;
+	QVector3D cameraUpVector() const;
+	ViewMode currentViewMode() const { return _viewCtrl.viewMode(); }
+	IsoCorner currentIsoCorner() const { return _viewCtrl.isoCorner(); }
+	// Sets the orientation of an orbit camera at once (no animation), keeping its pivot, range and projection, and the view selector state
+	// (standard view or axonometric type and corner). Used to restore a saved view; fit-to-view afterwards keeps the orientation.
+	void restoreViewOrientation(const QVector3D& viewDirection, const QVector3D& upVector, ViewMode mode, IsoCorner corner);
 	void showTransformGizmoForSelection(bool show);
 	bool beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids = {});
 	void finishExplodedViewManualPlacement();
 	void clearExplodedViewManualPlacement();
 	bool isExplodedViewManualPlacementActive() const { return _explodedViewCtrl.isManualPlacementActive(); }
+	// Called by the exploded-view panel's captured-step preview on every pose it applies, so that playback uses the same interaction
+	// fast path as the factor slider (see interactionLowRes()).
+	void noteExplodedViewPoseChanged() { noteExplosionMotion(); }
 	bool hasExplodedViewManualPlacement() const { return !_explodedViewCtrl.manualOriginalStates().isEmpty(); }
 	bool hasExplodedViewManualTransformChanges() const;
 	QSet<QUuid> explodedViewManualPlacementUuids() const;
@@ -646,6 +662,9 @@ public:
 	void loadBgColorSettings();
 	void loadNavigationSettings();
 	void loadRenderSettings();
+	// Reads the Section Capping defaults (Settings -> Rendering) into this document; run at creation and again on Settings -> Apply.
+	void loadSectionCappingSettings();
+
 	// Settings -> Display -> Overlay Text Scale, re-read and re-applied to
 	// both TextRenderer instances - callable both at construction
 	// (initializeGL()) and live from MainWindow's SettingsDialog::
@@ -663,6 +682,9 @@ public:
 	};
 	CameraPose saveCameraPose() const;
 	void       restoreCameraPose(const CameraPose& pose);
+	// Restores a saved view (the pose saveCameraPose() took, kept in an MVF): stops any running view or fit animation, which would move the
+	// camera away again, applies the pose at once and rebuilds the projection. A corrupt pose (no range, parallel vectors) is ignored.
+	void       restoreSavedView(const CameraPose& pose);
 
 	RenderingMode getRenderingMode() const { return _renderCtrl.renderingMode(); }
 	void setRenderingMode(const RenderingMode& renderingMode);
@@ -1196,15 +1218,22 @@ public:
 	// Recycle bin operations (used by DeleteCommand)
 	void moveToRecycleBin(const QUuid& uuid, int originalIndex);
 	bool restoreFromRecycleBin(const QUuid& uuid);
+	// Whole-selection versions: one pass over the mesh store and one meshRecycleStateChanged() for the batch.
+	void moveToRecycleBinBatch(const std::vector<std::pair<QUuid, int>>& uuidsAndOriginalIndices);
+	void restoreFromRecycleBinBatch(const std::vector<QUuid>& uuids);
 	void permanentlyDeleteFromBin(const QUuid& uuid);
 
 	// Query methods
 	bool isInRecycleBin(const QUuid& uuid) const;
 	QVector<QUuid> getRecycleBinUuids() const;
 	QList<QUuid> getPendingSceneUuids() const;
+	bool isInitiallyHiddenImportMesh(const QUuid& uuid) const { return _initiallyHiddenImportMeshes.contains(uuid); }
 
 	// UUID lookup methods
 	SceneMesh* getMeshByUuid(const QUuid& uuid) const;
+	// True when the mesh is currently part of the displayed set (not hidden, not in the recycle bin). Used by Save as 3D PDF
+	// to export visible parts only; the viewer's own checks keep using the private isMeshDisplayed().
+	bool isMeshShown(const QUuid& uuid) const { return isMeshDisplayed(uuid); }
 	SceneMesh* getMeshByIndex(int index) const;
 	int getIndexByUuid(const QUuid& uuid) const;
 	QUuid getUuidByIndex(int index) const;
@@ -1252,6 +1281,8 @@ signals:
     void viewStateChanged();
 	// A Clipping Plane was switched, moved or flipped (every change of the Clipping Planes editor ends in updateClippingPlane()).
 	void clippingPlanesChanged();
+	// The Section Capping defaults were re-read from Settings (the cap mode may have changed).
+	void sectionCappingSettingsReloaded();
     void toolCommandRequested(const QString& command);
 	// Fired synchronously, on the two actual `delete meshRecord.mesh`/
 	// `delete entry.mesh` call sites (permanentlyDeleteFromBin(),
@@ -1376,6 +1407,10 @@ public slots:
 	void animateWindowZoom();
 	void animateCenterScreen();
 	void onInertiaTimer();
+	// True while the camera is being moved or is coasting after the mouse was released (the inertia timer runs), which is
+	// when the interaction fast path (coarse copies, single-sample rendering, no reflections or shadows) applies. The mouse
+	// release clears the low-resolution flag itself, so the coast would otherwise render at full quality.
+	bool interactionLowRes() const;
 	void onTurntableTimer();
 	void setTurntableEnabled(bool enabled);
 	bool turntableEnabled() const { return _turntableTimer && _turntableTimer->isActive(); }
@@ -1627,6 +1662,35 @@ public:
 	QVector<ClippingCut> clippingCuts() const;
 	void applyClippingCuts(const QVector<ClippingCut>& cuts);
 
+	// The Clipping Planes as they are now (planes at their world position, or the box with its world limits), for saving with a
+	// captured view or a scene state; and the reverse: switches everything off, then applies `state` through the Clipping Planes
+	// editor so its controls follow. An inactive state switches the clipping off.
+	// The geometry of every visible measurement and annotation, each captured for the view it was created from (a scratch orthographic
+	// camera looking along its offsetReferenceDir, so a label oriented for that view comes out that way whatever the live camera
+	// shows), without any drawing; for exports (Save as 3D PDF). Items that draw nothing are left out.
+	QVector<OverlayGraphic> captureOverlayGraphics() const;
+
+	// Animation clips with node transforms (the Animations panel's clips, including those made from captured exploded view steps),
+	// for exports, and their sampled poses. Sampling does not touch the viewport: the nodes are evaluated from the clip and the rest
+	// transforms, as applyAnimationPose() does, but nothing is applied to the meshes.
+	struct ExportableAnimation
+	{
+		QString sourceFile;
+		int     clipIndex = -1;
+		QString name;
+		double  durationSeconds = 0.0;
+	};
+	struct AnimationPoses
+	{
+		QVector<float>                    times;           // seconds
+		QHash<QUuid, QVector<QMatrix4x4>> worldDeltas;      // per mesh: pose(t) * rest^-1 in the viewer's world space, one per time
+	};
+	QVector<ExportableAnimation> exportableAnimations() const;
+	bool sampleAnimationPoses(const QString& sourceFile, int clipIndex, AnimationPoses* out);
+
+	ClippingState currentClippingState() const;
+	void applyClippingState(const ClippingState& state);
+
 	// Compare mode (simulation results side by side, docs/simulation_compare_mode_design.md): the window is divided
 	// into one pane per mesh, each drawing ONLY its mesh with the shared camera - orbit, pan, zoom and fit act on all
 	// panes at once. Picking-based interactions (selection, hover highlight, the hover probe, plane gizmos) are off
@@ -1653,6 +1717,23 @@ protected:
 	void paintGL();
 
 	void renderSingleView(QColor& topColor, QColor& botColor);
+
+	// GPU time of render() for the profile-rendering diagnostics. Two timer queries are used alternately
+	// and read one frame late, so the profiler never stalls the pipeline waiting for a result.
+	void logBatchDiagnostics();
+	void logMemoryAudit();
+	void beginFrameGpuTimer();
+	void endFrameGpuTimer();
+	GLuint _frameGpuQueries[2] = { 0, 0 };
+	bool   _frameGpuQueryIssued[2] = { false, false };
+	int    _frameGpuQueryIndex = 0;
+	bool   _frameGpuQueryActive = false;
+	// GPU time of the opaque and transparent mesh passes (timestamp pairs, read a frame or more later; diagnostics only).
+	struct PassGpuQuery { GLuint ids[2] = { 0, 0 }; int pass = 0; bool issued = false; };
+	std::vector<PassGpuQuery> _passGpuQueries;
+	int  beginPassGpuTimer(int pass);
+	void endPassGpuTimer(int slot);
+	void collectPassGpuTimers();
 
 	void renderMultiView(QColor& topColor, QColor& botColor);
 	void renderComparePanes(QColor& topColor, QColor& botColor);
@@ -1682,6 +1763,10 @@ protected:
 	void closeEvent(QCloseEvent* event);
 
 private:
+	QSet<QUuid> _initiallyHiddenImportMeshes; // Import defaults, separate from subsequent user visibility edits.
+	// Progressive import: repainting the whole viewport at every batch costs O(meshes so far) each time, so painting is paced.
+	QElapsedTimer _progressivePaintClock;
+	qint64        _progressivePaintCostMs = 0;
 
 	void createShaderPrograms();
 	void syncUniformsToFlatShader();
@@ -1791,10 +1876,12 @@ private:
 	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement = false) const;
 	bool sceneHasVisibleTransmissionMaterials() const;
 	bool sceneHasVisibleSSSMaterials() const;
+	// otherOut (optional) receives the visible meshes of the other kind, so one traversal serves both passes.
 	void collectVisibleMeshIdsForPass(int nodeIndex,
 	                                  int activeClipPlaneIndex,
 	                                  bool wantTransparent,
-	                                  std::vector<int>& out) const;
+	                                  std::vector<int>& out,
+	                                  std::vector<int>* otherOut = nullptr) const;
 
 	void drawSectionCapping();
 	// Box-mode counterpart of drawSectionCapping()'s per-axis loop (called from it
@@ -1844,6 +1931,9 @@ private:
 	// to the whole-scene bounding radius if nothing currently straddles any
 	// active plane.
 	float computeLocalCappingSceneDiag() const;
+	// World units per hatch tile so the section hatch keeps a constant on-screen line spacing (hatchSpacingPx)
+	// at refPoint, for perspective and orthographic projections; a fixed model-unit distance; or `partRelativeTile` (also used for texture hatch).
+	float hatchWorldUnitsPerTile(const QVector3D& refPoint, float partRelativeTile, bool textured) const;
 	void drawFloor(const bool& drawReflection = true);
 	void drawGrid();
 	void drawSkyBox(const QMatrix4x4* overrideViewMatrix = nullptr);
@@ -2037,8 +2127,10 @@ private:
 	// (main mesh shaders) and drawSectionCapping() (stencil-fill shader).
 	void buildBoxClipPlanes(const QVector3D& pos, QVector4D out[6]);
 
-	void onMeshBatchReady(const std::vector<AssImpMeshData>& batch);
-	SceneMesh* createMeshFromData(const AssImpMeshData& meshData);
+	void onMeshBatchReady(std::vector<AssImpMeshData>&& batch);
+	void consumeMeshBatch(AssImpMeshDataBatch&& batch);
+	void attachImportedMesh(AssImpMeshData meshData);
+	SceneMesh* createMeshFromData(AssImpMeshData meshData);
 	void syncFileNodeTransforms(const QString& sourceFile);
 	void reapplyGltfCameraAfterTransform();
 	void applyNodeTransformsToMeshes(const QString& sourceFile,
@@ -2108,6 +2200,26 @@ private:
 
 	ExplodedViewRuntimeController _explodedViewCtrl;
 
+	// Explosion: the layout (which part goes where) depends on everything but the factor, so a factor-only tick can reuse it. The
+	// key records what the layout was computed from; boundsRevision is the runtime bounds revision right after the offsets were
+	// applied, so any other change to a mesh's transform or bounds makes the next tick recompute the layout.
+	struct ExplosionLayoutKey
+	{
+		QSet<QUuid> assemblies;
+		QUuid anchor;
+		int mode = 0;
+		QVector3D vector;
+		int strategy = 0;
+		int depth = 0;
+		quint64 boundsRevision = 0;
+		bool valid = false;
+	};
+	ExplosionLayoutKey _explosionLayoutKey;
+	// Active for a short while after each explosion update, so interactionLowRes() treats a moving explosion like camera motion
+	// (coarse LOD copies, small-part culling, single-sample) and a full-quality frame follows when it stops.
+	QTimer* _explosionMotionTimer = nullptr;
+	void noteExplosionMotion();
+
 	// Render-pipeline resources â€” owned here; ViewportWidget aliases every field by
 	// reference so all existing call sites in ViewportWidget.cpp remain unchanged.
 	// Declaration order: _renderCtrl must come before all its aliases.
@@ -2120,9 +2232,24 @@ private:
 
 	// Cached per-frame culling contexts â€” rebuilt in extractFrustumPlanes() /
 	// rebuildClippingContext(). Avoids repeated look-ups inside tight render loops.
+	// Transparent meshes found by the opaque pass's traversal, for the transparent pass of the same camera and frame.
+	struct CullCache
+	{
+		bool valid = false;
+		quint64 frame = 0;
+		int clipIndex = 0;
+		VisibilityComputationHelper::FrustumContext frustum;
+		VisibilityComputationHelper::ScreenSizeContext screen;
+		std::vector<int> transparent;
+	};
+	CullCache _cullCache;
+	quint64 _renderFrameCounter = 0;
+
 	VisibilityComputationHelper::FrustumContext  _frustumCtx;
 	VisibilityComputationHelper::ClippingContext _clippingCtx;
 	VisibilityComputationHelper::BoxClippingContext _boxClipCtx;
+	// Small-part culling while the camera is moving on a large model; rebuilt in extractFrustumPlanes().
+	VisibilityComputationHelper::ScreenSizeContext _screenSizeCtx;
 
 	ViewToolbar* _viewToolbar;
     TabbedViewportToolbar* _tabbedToolbar = nullptr;
@@ -2808,6 +2935,10 @@ private:
 	// their own existing initializeGL() call sites.
 	GpuResourceRegistry _gpuResourceRegistry;
 	std::vector<std::unique_ptr<IGpuContextResource>> _gpuResourceAdapters;
+
+	// Merges static parts into shared GPU buffers for the main opaque pass of very large models. Created on first
+	// use; its GL objects are released with the other context-bound resources (see releaseLoadedMeshGpuResources()).
+	std::unique_ptr<DrawBatcher> _drawBatcher;
 	// Guards the one-time LambdaGpuResource registration for the
 	// transmission/SSS buffer pairs - see their call site in initializeGL().
 	bool _bufferGpuResourcesRegistered = false;

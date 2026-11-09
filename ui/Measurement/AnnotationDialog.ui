@@ -103,6 +103,25 @@
    <item>
     <layout class="QHBoxLayout" name="buttonRow">
      <item>
+      <widget class="QLabel" name="orientationLabel">
+       <property name="text">
+        <string>Label orientation:</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="orientationCombo">
+       <property name="enabled">
+        <bool>false</bool>
+       </property>
+       <property name="toolTip">
+        <string>Model plane: the label lies in the plane of the model that faced the view it was made from, and turns with the model.
+View plane: it lies in the plane of the camera view it was made from.
+Face camera: it always faces the screen.</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <spacer name="buttonRowSpacer">
        <property name="orientation">
         <enum>Qt::Orientation::Horizontal</enum>

@@ -11,8 +11,6 @@
 #include <atomic>
 #include <vector>
 
-class Triangle;
-
 // Per-instance mutable scene state for a mesh.
 //
 // Owns all transform layers (user TRS, exploded-view TRS, scene render TRS,
@@ -166,6 +164,8 @@ public:
     //              * transformation * sceneRenderTransform
     // This exact order is the load-bearing contract; do not change it.
     QMatrix4x4 combinedRenderTransform() const;
+    // Same matrix without the copy; valid until the transform next changes. For hot per-mesh comparisons.
+    const QMatrix4x4& combinedRenderTransformRef() const;
     void invalidateCombinedRenderTransformCache() const;
 
     // ---- Bounds -------------------------------------------------------------
@@ -195,9 +195,9 @@ public:
 
     // ---- Runtime bounds update ----------------------------------------------
 
-    // Full O(N) update: recomputes _trsfPoints from geometry, rebuilds picking
-    // triangles, updates _localBoundingBox, _boundingBox, _boundingSphere.
-    // Controls whether updateRuntimeBounds rebuilds picking triangles.
+    // Full O(N) update: recomputes transformed geometry and updates
+    // _localBoundingBox, _boundingBox and _boundingSphere.
+    // Controls whether the indexed geometry participates in CPU ray picking.
     // Set to false for non-triangle primitives (lines, points) so index data
     // is never misinterpreted as triangles.  Defaults to true.
     void setBuildPickingTriangles(bool build) { _buildPickingTriangles = build; }
@@ -219,30 +219,32 @@ public:
 
     const std::vector<float>& getTrsfPoints() const     { return _trsfPoints; }
     // World-space normals/tangents/bitangents, transformed by the
-    // rotation-only (translation-stripped) part of combinedRenderTransform()
-    // - see fullUpdateRuntimeBounds()'s "Transform normals"/"Transform
-    // tangents"/"Transform bitangents" steps. Parallel to getTrsfPoints(),
-    // one vec3 per vertex in the same order; tangents/bitangents are empty
-    // if the source mesh has none.
-    const std::vector<float>& getTrsfNormals() const    { return _trsfNormals; }
-    const std::vector<float>& getTrsfTangents() const   { return _trsfTangents; }
-    const std::vector<float>& getTrsfBitangents() const { return _trsfBitangents; }
+    // rotation-only (translation-stripped) part of combinedRenderTransform().
+    // Parallel to getTrsfPoints(), one vec3 per vertex in the same order;
+    // tangents/bitangents come back empty if the source mesh has none.
+    // Computed on request from the untransformed arrays the owner passes in,
+    // not cached: only a few one-shot operations (merge, measurement patches,
+    // analysis snapshots) read them, and keeping all three would cost 36 bytes
+    // per vertex plus their update on every transform change.
+    std::vector<float> transformedNormals(const std::vector<float>& normals) const;
+    std::vector<float> transformedTangents(const std::vector<float>& tangents) const;
+    std::vector<float> transformedBitangents(const std::vector<float>& bitangents) const;
 
     // ---- Ray intersection (picking) -----------------------------------------
 
     bool intersectsWithRay(const QVector3D& rayPos,
                            const QVector3D& rayDir,
+                           const std::vector<unsigned int>& indices,
                            QVector3D& outIntersectionPoint);
 
     // Same closest-hit search as intersectsWithRay(), but also reports
     // which triangle won and its barycentric weights there - the two
     // pieces intersectsWithRay() computes internally and discards. Triangle
-    // index k corresponds to indices[3k], indices[3k+1], indices[3k+2] of
-    // whichever indices buffer buildTriangles() was last called with (i.e.
-    // the same one the caller already has, from SceneMesh). Used to build
-    // a MeshSurfaceAnchor for Measurement/Annotation point picking.
+    // index k corresponds to indices[3k], indices[3k+1], indices[3k+2]. Used
+    // to build a MeshSurfaceAnchor for Measurement/Annotation point picking.
     bool intersectsWithRayDetailed(const QVector3D& rayPos,
                                    const QVector3D& rayDir,
+                                   const std::vector<unsigned int>& indices,
                                    QVector3D& outIntersectionPoint,
                                    int& outTriangleIndex,
                                    QVector3D& outBarycentric);
@@ -250,13 +252,24 @@ public:
     // ---- Static: monotonic counter incremented whenever bounds change --------
     // Read by the scene runtime to invalidate the visibility BVH.
     static quint64 currentRuntimeBoundsRevision();
+    // Process-wide counter bumped by everything that can change whether, or how, a scene mesh is batched: its transform,
+    // material/uniform state, geometry, selection, overlays, skin/morph state. DrawBatcher skips re-validating a mesh
+    // while the counter is unchanged (see DrawBatcher::drawBatches()). Decoration meshes (view cube, light markers) that
+    // do not affect the scene revision never bump it, so they cannot keep it moving every frame.
+    static quint64 renderStateEpoch();
+    enum EpochSite { SiteOther = 0, SiteTransform, SiteUniforms, SiteTextures, SitePrimitiveMode, SiteNegativeScale,
+                     SiteGeometry, SiteDebugOverride, SiteSkin, SiteMorph, SiteIndexRemap, SiteCount };
+    static void bumpRenderStateEpoch(int site = SiteOther);
+    // How often each source has bumped the epoch (diagnostics: finds what keeps the batch cache from being reused).
+    static quint64 renderStateEpochSiteCount(int site);
     static void    markRuntimeBoundsChanged();
+    void setAffectsSceneRevision(bool affects) { _affectsSceneRevision = affects; }
+    bool affectsSceneRevision() const { return _affectsSceneRevision; }
 
 private:
     void rebuildAbsoluteTransformation();
     void rebuildExplodedViewTransformation();
     void fastUpdateWorldBounds();
-    void buildTriangles(const std::vector<unsigned int>& indices); // only called when primitiveMode is GL_TRIANGLES
     void computeBounds();
 
     // User TRS
@@ -278,6 +291,9 @@ private:
 
     mutable QMatrix4x4 _cachedCombinedRenderTransform;
     mutable bool       _combinedRenderTransformDirty = true;
+    // False for decoration objects (view cube, light markers) whose per-frame updates must not tick the scene-wide
+    // revision that scene caches (runtime visibility bounds, batches, overlays) compare against.
+    bool               _affectsSceneRevision = true;
 
     // World-space bounds (transform-dependent)
     BoundingSphere _boundingSphere;
@@ -290,12 +306,6 @@ private:
 
     // O(N) transformed geometry caches (world space)
     std::vector<float> _trsfPoints;
-    std::vector<float> _trsfNormals;
-    std::vector<float> _trsfTangents;
-    std::vector<float> _trsfBitangents;
-
-    // Picking geometry (derived from _trsfPoints + indices)
-    std::vector<Triangle*> _triangles;
 
     bool _selected              = false;
     bool _hasNegativeScale      = false;

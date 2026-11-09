@@ -1,0 +1,492 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>Pdf3DExportDialog</class>
+ <widget class="QDialog" name="Pdf3DExportDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1000</width>
+    <height>560</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Save as 3D PDF</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QTabWidget" name="tabWidget">
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="sheetTab">
+      <attribute name="title">
+       <string>Sheet</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="sheetLayout">
+       <item>
+        <layout class="QHBoxLayout" name="templateLayout">
+         <item>
+          <widget class="QLabel" name="templateLabel">
+           <property name="text">
+            <string>Sheet template:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QComboBox" name="templateCombo">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Fixed"/>
+           </property>
+           <property name="toolTip">
+            <string>The layout of the sheet around the 3D area: page size, border, logo and title block.
+The built-in templates are always listed; your own are JSON files in the templates folder.
+To save the current template under a new name, type the name here and press Enter.</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="openTemplatesButton">
+           <property name="toolTip">
+            <string>Opens the folder with your own sheet templates (JSON files).</string>
+           </property>
+           <property name="text">
+            <string>Open folder</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="reloadTemplatesButton">
+           <property name="toolTip">
+            <string>Reads the templates folder again, after you added or changed a template.</string>
+           </property>
+           <property name="text">
+            <string>Reload</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="logoTemplateButton">
+           <property name="toolTip">
+            <string>Adds your logo (a PNG, JPEG or SVG file) at the left of the title block.
+On a built-in template this first saves a copy under a name you give.</string>
+           </property>
+           <property name="text">
+            <string>Logo...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="editTemplateButton">
+           <property name="toolTip">
+            <string>Edits the cells of the title block with a live preview: text and fields, font, colour, alignment and position.
+A built-in template can be edited too and is then saved under a new name. The JSON files are in the templates folder (Open folder).</string>
+           </property>
+           <property name="text">
+            <string>Edit...</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="sampleTemplateButton">
+           <property name="toolTip">
+            <string>Writes an example template with a logo and two extra fields into the templates folder,
+to copy and change for your own sheets.</string>
+           </property>
+           <property name="text">
+            <string>Create sample</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="templateInfoLabel">
+         <property name="text">
+          <string/>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="sheetBodyLayout">
+         <item>
+          <layout class="QVBoxLayout" name="fieldsLayout">
+       <item>
+        <widget class="QLabel" name="introLabel">
+         <property name="text">
+          <string>These fields fill the title block of the sheet. Empty fields stay blank.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="formLayout">
+         <item row="0" column="0">
+          <widget class="QLabel" name="titleLabel">
+           <property name="text">
+            <string>Title:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QLineEdit" name="titleEdit"/>
+         </item>
+         <item row="1" column="0">
+          <widget class="QLabel" name="drawingNumberLabel">
+           <property name="text">
+            <string>Drawing number:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="1" column="1">
+          <widget class="QLineEdit" name="drawingNumberEdit"/>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="revisionLabel">
+           <property name="text">
+            <string>Revision:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QLineEdit" name="revisionEdit"/>
+         </item>
+         <item row="3" column="0">
+          <widget class="QLabel" name="authorLabel">
+           <property name="text">
+            <string>Author:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QLineEdit" name="authorEdit"/>
+         </item>
+         <item row="4" column="0">
+          <widget class="QLabel" name="companyLabel">
+           <property name="text">
+            <string>Company:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="4" column="1">
+          <widget class="QLineEdit" name="companyEdit"/>
+         </item>
+         <item row="5" column="0">
+          <widget class="QLabel" name="scaleLabel">
+           <property name="text">
+            <string>Scale:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="5" column="1">
+          <widget class="QLineEdit" name="scaleEdit">
+           <property name="placeholderText">
+            <string>e.g. 1:2 or NTS</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="0">
+          <widget class="QLabel" name="notesLabel">
+           <property name="text">
+            <string>Notes:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="6" column="1">
+          <widget class="QPlainTextEdit" name="notesEdit">
+           <property name="minimumSize">
+            <size>
+             <width>0</width>
+             <height>64</height>
+            </size>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="partsListCheck">
+         <property name="toolTip">
+          <string>Adds sheet(s) after the 3D view with a table of the exported parts:
+item number, part name, material and quantity.</string>
+         </property>
+         <property name="text">
+          <string>Add a parts list sheet</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="viewButtonsCheck">
+         <property name="toolTip">
+          <string>Adds a row of buttons under the 3D area: previous and next view, a button per view
+(when they fit) and, with an animation, play and pause. Works in Adobe Acrobat and Reader.</string>
+         </property>
+         <property name="text">
+          <string>Add view and animation buttons</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <spacer name="verticalSpacer">
+         <property name="orientation">
+          <enum>Qt::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>0</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+          </layout>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="viewsTab">
+      <attribute name="title">
+       <string>Views</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="viewsLayout">
+       <item>
+        <widget class="QLabel" name="viewsIntroLabel">
+         <property name="text">
+          <string>Tick the views to put in the PDF's view list. The first ticked view is the one shown when the file opens.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTreeWidget" name="viewsTree">
+         <property name="rootIsDecorated">
+          <bool>true</bool>
+         </property>
+         <property name="uniformRowHeights">
+          <bool>true</bool>
+         </property>
+         <column>
+          <property name="text">
+           <string>View</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Note</string>
+          </property>
+         </column>
+         <column>
+          <property name="text">
+           <string>Measurements</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="viewsButtonsLayout">
+         <item>
+          <widget class="QPushButton" name="selectAllButton">
+           <property name="text">
+            <string>Select all</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="selectNoneButton">
+           <property name="text">
+            <string>Select none</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="viewsButtonsSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QLabel" name="viewsInfoLabel">
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="overlayTab">
+      <attribute name="title">
+       <string>Measurements</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="overlayLayout">
+       <item>
+        <widget class="QLabel" name="overlayIntroLabel">
+         <property name="text">
+          <string>Tick the measurements and annotations to add to the 3D model. They are written for the view they were made from and show in every view.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QTreeWidget" name="overlayTree">
+         <property name="rootIsDecorated">
+          <bool>true</bool>
+         </property>
+         <property name="uniformRowHeights">
+          <bool>true</bool>
+         </property>
+         <column>
+          <property name="text">
+           <string>Item</string>
+          </property>
+         </column>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="overlayButtonsLayout">
+         <item>
+          <widget class="QPushButton" name="overlayAllButton">
+           <property name="text">
+            <string>Select all</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="overlayNoneButton">
+           <property name="text">
+            <string>Select none</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <spacer name="overlayButtonsSpacer">
+           <property name="orientation">
+            <enum>Qt::Horizontal</enum>
+           </property>
+           <property name="sizeHint" stdset="0">
+            <size>
+             <width>40</width>
+             <height>20</height>
+            </size>
+           </property>
+          </spacer>
+         </item>
+        </layout>
+       </item>
+      </layout>
+     </widget>
+     <widget class="QWidget" name="animationTab">
+      <attribute name="title">
+       <string>Animation</string>
+      </attribute>
+      <layout class="QVBoxLayout" name="animationLayout">
+       <item>
+        <widget class="QLabel" name="animationIntroLabel">
+         <property name="text">
+          <string>A PDF can play one animation. Pick the animation of the model to include; it plays in Adobe Acrobat and Reader with the 3D toolbar's play, pause and time controls.</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QListWidget" name="animationList"/>
+       </item>
+       <item>
+        <layout class="QFormLayout" name="animationForm">
+         <item row="0" column="0">
+          <widget class="QLabel" name="playbackLabel">
+           <property name="text">
+            <string>Playback:</string>
+           </property>
+          </widget>
+         </item>
+         <item row="0" column="1">
+          <widget class="QComboBox" name="playbackCombo">
+           <item>
+            <property name="text">
+             <string>Loop</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Back and forth</string>
+            </property>
+           </item>
+           <item>
+            <property name="text">
+             <string>Once</string>
+            </property>
+           </item>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <widget class="QCheckBox" name="autoStartCheck">
+         <property name="toolTip">
+          <string>The 3D area is live when the file opens and the animation starts by itself.
+Unticked: the reader clicks the 3D area and presses play.</string>
+         </property>
+         <property name="text">
+          <string>Start playing when the file opens</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
+    </widget>
+   </item>
+   <item>
+    <widget class="QDialogButtonBox" name="buttonBox">
+     <property name="standardButtons">
+      <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>accepted()</signal>
+   <receiver>Pdf3DExportDialog</receiver>
+   <slot>accept()</slot>
+  </connection>
+  <connection>
+   <sender>buttonBox</sender>
+   <signal>rejected()</signal>
+   <receiver>Pdf3DExportDialog</receiver>
+   <slot>reject()</slot>
+  </connection>
+ </connections>
+</ui>

@@ -102,6 +102,9 @@ public:
      * only the affected ancestor chain(s). Used for small selective edits.
      * Does NOT emit meshVisibilityChanged().
      */
+    // True from the moment rebuild() starts until the rebuilt tree is complete. The rebuild takes its checkbox states from the old tree when it
+    // starts, so a visibility change made meanwhile has to be applied again once it completes.
+    bool isRebuildInProgress() const { return _rebuildInProgress; }
     void setVisibilityDelta(const QSet<QUuid>& changedUuids,
                             const QSet<QUuid>& visibleUuids);
 
@@ -211,7 +214,19 @@ public:
     void expandOneLevelAt(const QPoint& localPos);
     void expandSubtreeAt(const QPoint& localPos);
     void collapseAllBelowAt(const QPoint& localPos);
-    void scrollFirstSelectedToCenter();
+    // `force` also scrolls when the tree was collapsed on purpose (setRevealOnSelect(false)): used by the explicit "Center Object List" command.
+    void scrollFirstSelectedToCenter(bool force = false);
+    // The search filter: filterItems() with a non-empty text hides the rows that do not match. The selection is the document's, the filter is
+    // only a view of the tree, so a mesh selected elsewhere (the viewport) can lie in a hidden row.
+    bool isFilterActive() const { return _filterActive; }
+    bool selectionHasHiddenRows() const;
+    // Shows every row again WITHOUT touching the selection (filterItems("") clears it) and without emitting selectionUpdated().
+    void clearFilterKeepingSelection();
+
+    // When false, setting a selection does not scroll to (and so does not expand the
+    // ancestors of) the first selected item. Used while restoring a selection that the
+    // user did not change, e.g. after dismissing the context menu.
+    void setRevealOnSelect(bool reveal) { _revealOnSelect = reveal; }
     void setDetachedOverlayMode(bool enabled);
 
     // -----------------------------------------------------------------------
@@ -244,6 +259,17 @@ public slots:
      */
     void updateMeshName(const QUuid& uuid, const QString& name);
 
+    /** Same for an assembly / file node, found by its node UUID (RenameNodeCommand). */
+    void updateNodeName(const QUuid& nodeUuid, const QString& name);
+
+    /**
+     * Open the in-place name editor on an item: a mesh leaf or an assembly / file node.
+     * Double-click edits only leaves (it expands/collapses assemblies), so F2 and the
+     * context menu's Rename use this.
+     */
+    void beginRename(QTreeWidgetItem* item);
+    void beginRenameAt(const QPoint& localPos);
+
 signals:
     /** Emitted when the user changes the selection (not programmatic). */
     void selectionUpdated();
@@ -253,6 +279,9 @@ signals:
 
     /** Emitted when a mesh leaf is successfully renamed by the user. */
     void meshRenamed(const QUuid& uuid, const QString& newName);
+
+    /** Emitted when an assembly / file node is successfully renamed by the user. */
+    void nodeRenamed(const QUuid& nodeUuid, const QString& newName);
 
     /** Emitted when the asynchronous tree rebuild has fully completed. */
     void rebuildComplete();
@@ -322,6 +351,9 @@ protected:
     // consumes wheel events that land on either scrollbar (after letting it scroll) so they are
     // never relayed to the viewport once the scrollbar hits an extent.
     bool eventFilter(QObject* watched, QEvent* event) override;
+    // Diagnostics only: logs (tree.slow-event) any event the tree or its viewport spends over 30 ms handling.
+    bool event(QEvent* event) override;
+    bool viewportEvent(QEvent* event) override;
 
     // Position-mapped redelivery of `event` to _viewportWidget - see mousePressEvent()'s doc
     // comment above for why this exists instead of relying on event->ignore() propagation.
@@ -410,6 +442,20 @@ private:
     void refreshParentSelectionUpward(QTreeWidgetItem* startParent);
     void refreshSelectionClosureBottomUp(QTreeWidgetItem* item);
 
+    // Bulk selection. QTreeWidgetItem::setSelected() copies and re-merges the selection model's whole range list on every
+    // call, so selecting N items one by one is O(N^2) - tens of seconds for a 34 000-part assembly. These build ONE
+    // QItemSelection (contiguous sibling rows become a single range) and apply it with one selection-model call.
+    void setItemsSelected(const QList<QTreeWidgetItem*>& items, bool select);
+    // The selected items read straight from the selection model. QTreeWidget::selectedItems() leaves out items that are hidden (a row the
+    // search filter hid, or inside a hidden parent) even though they ARE selected, so a mesh clicked in the viewport while the filter hid
+    // its row looked unselected to everything built on selectedItems(). The tree's selection is the document's mesh selection: it must not
+    // depend on which rows are visible.
+    QList<QTreeWidgetItem*> allSelectedItems() const;
+    void setSubtreeSelected(QTreeWidgetItem* root, bool select);
+    // Whole-tree equivalent of calling refreshSelectionClosureBottomUp() on every top-level item: an assembly is selected
+    // iff all its direct children are. Works from one snapshot of the selection and applies the result in two bulk calls.
+    void refreshSelectionClosureAll();
+
     // Bulk assembly tristate + icon refresh (used after show/hide all)
     void refreshAllAssemblyStates();
     void refreshAssemblyBottomUp(QTreeWidgetItem* item);
@@ -467,6 +513,10 @@ private:
     bool _pressValid = false;
     QSet<QTreeWidgetItem*> _prevSelection;
 
+    // selectedMeshUuids() result, reused until the selection or tree structure changes.
+    mutable QList<QUuid> _selectedMeshCache;
+    mutable bool         _selectedMeshCacheValid = false;
+
     // Node UUIDs of non-leaf items the user (or a caller acting deliberately
     // on their behalf, e.g. "Select Parent") directly targeted, as opposed
     // to ones that became selected only because refreshParentSelectionUpward()
@@ -503,6 +553,9 @@ private:
     QSet<QUuid> _cutNodeUuids;  // assembly nodeUuids currently marked as cut
 
     bool _updatingTree = false; // suppress re-entrant signal handling
+    bool _revealOnSelect = true; // see setRevealOnSelect()
+    bool _filterActive = false;  // a non-empty search filter is applied (rows are hidden)
+    QTreeWidgetItem* _renamingAssembly = nullptr; // assembly item being edited (made editable only meanwhile)
     bool _inRename     = false; // suppress itemChanged during delegate setModelData
     bool _detachedOverlayMode = false;
     bool _savedAutoFillBackground = false;

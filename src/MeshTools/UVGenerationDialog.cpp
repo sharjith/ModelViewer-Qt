@@ -681,6 +681,15 @@ void UVGenerationDialog::addCurrentTreeSelection()
     ui->meshSelectionBox->addViewportSelection();
 }
 
+void UVGenerationDialog::addMeshUuids(const QVector<QUuid>& uuids)
+{
+    QVector<QUuid> all = ui->meshSelectionBox->meshUuids();
+    for (const QUuid& id : uuids)
+        if (!all.contains(id))
+            all.append(id);
+    ui->meshSelectionBox->setMeshUuids(all);
+}
+
 void UVGenerationDialog::onResetDefaultsClicked()
 {
     // Resets every method's settings back to UVConfig's own struct defaults - setConfig() writes

@@ -1,3 +1,5 @@
+#include "TextureMipChain.h"
+#include <QDebug>
 #include "RtSceneBuilder.h"
 
 #include "SceneRuntime.h"
@@ -396,6 +398,7 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	float uvRotation = 0.0f;
 	int texCoordIndex = 0;
 	unsigned int wrapS = 0x2901, wrapT = 0x2901; // GL_REPEAT
+	unsigned int magFilter = 0x2601, minFilter = 0x2703;
 
 	if (texPtr)
 	{
@@ -420,6 +423,8 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 		}
 		wrapS = static_cast<unsigned int>(texPtr->wrapS);
 		wrapT = static_cast<unsigned int>(texPtr->wrapT);
+		magFilter = static_cast<unsigned int>(texPtr->magFilter);
+		minFilter = static_cast<unsigned int>(texPtr->minFilter);
 	}
 	else if (!materialMapPath.isEmpty())
 	{
@@ -441,6 +446,8 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 			texCoordIndex = liveTransform.texCoord;
 			wrapS         = static_cast<unsigned int>(materialLevelTex.wrapS);
 			wrapT         = static_cast<unsigned int>(materialLevelTex.wrapT);
+			magFilter     = static_cast<unsigned int>(materialLevelTex.magFilter);
+			minFilter     = static_cast<unsigned int>(materialLevelTex.minFilter);
 		}
 	}
 
@@ -479,6 +486,8 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	// just the shared_ptr allocation.
 	TextureDedupKey key;
 	key.imageCacheKey  = img.cacheKey();
+    const auto mipCarrier=img.text(QLatin1String(TextureMipChain::Key)).toUtf8();
+    key.authoredMipHash=mipCarrier.isEmpty()?0:fnv1aHash(mipCarrier.constData(),size_t(mipCarrier.size()));
 	key.uvScaleX       = uvScale.x;
 	key.uvScaleY       = uvScale.y;
 	key.uvOffsetX      = uvOffset.x;
@@ -487,6 +496,8 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	key.texCoordIndex  = texCoordIndex;
 	key.wrapS          = wrapS;
 	key.wrapT          = wrapT;
+	key.magFilter      = magFilter;
+	key.minFilter      = minFilter;
 	key.packingChannel = packingChannel;
 	key.packingInvert  = packingInvert;
 	key.packingScale   = packingScale;
@@ -497,6 +508,7 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 
 	if (img.format() != QImage::Format_RGBA8888)
 		img = img.convertToFormat(QImage::Format_RGBA8888);
+    if(!mipCarrier.isEmpty())img.setText(QLatin1String(TextureMipChain::Key),QString::fromUtf8(mipCarrier));
 	if (img.isNull() || img.width() <= 0 || img.height() <= 0)
 		return nullptr;
 
@@ -522,6 +534,8 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	sample->uvRotation     = uvRotation;
 	sample->wrapS          = wrapS;
 	sample->wrapT          = wrapT;
+	sample->magFilter      = magFilter;
+	sample->minFilter      = minFilter;
 	sample->packingChannel = packingChannel;
 	sample->packingInvert  = packingInvert;
 	sample->packingScale   = packingScale;
@@ -532,8 +546,25 @@ std::shared_ptr<RtTextureSample> RtSceneBuilder::extractTextureSample(
 	// rest of TextureDedupKey which only ever mattered within this one
 	// build() call.
 	sample->imageCacheKey = key.imageCacheKey;
+    sample->authoredMipHash = key.authoredMipHash;
 
-	buildMipChain(*sample);
+    try {
+        const auto authored=TextureMipChain::decode(img);
+        if(authored.empty())buildMipChain(*sample);
+        else {
+            sample->mips.reserve(authored.size()+1);
+            sample->mips.push_back({sample->rgba8,sample->width,sample->height});
+            for(const auto& image:authored){
+                RtTextureMipLevel level;level.width=image.width();level.height=image.height();
+                level.rgba8.resize(size_t(level.width)*level.height*4);
+                for(int y=0;y<level.height;++y)std::memcpy(level.rgba8.data()+size_t(y)*level.width*4,
+                    image.constScanLine(y),size_t(level.width)*4);
+                sample->mips.push_back(std::move(level));
+            }
+        }
+    }catch(const std::exception& error){
+        qWarning()<<"Cannot snapshot authored mip chain:"<<error.what();return nullptr;
+    }
 	dedupCache.emplace(key, sample);
 	return sample;
 }

@@ -90,6 +90,11 @@ void ConsolePanel::appendLine(const QString& line)
     _textEdit->appendPlainText(line);
 }
 
+void ConsolePanel::appendLines(const QString& lines)
+{
+    _textEdit->appendPlainText(lines);
+}
+
 void ConsolePanel::setMaxLineCount(int lines)
 {
     _textEdit->setMaximumBlockCount(lines);

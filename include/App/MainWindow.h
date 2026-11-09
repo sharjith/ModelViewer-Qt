@@ -8,6 +8,7 @@ QT_BEGIN_NAMESPACE
 class QProgressBar;
 class QPushButton;
 class QAction;
+class QMenu;
 class QTabWidget;
 class QCheckBox;
 class QLabel;
@@ -46,6 +47,7 @@ class MainWindow : public QMainWindow
 
 public:
 	static MainWindow* mainWindow();
+	QMenu* recentFilesMenu() const;   // the File menu's Recent submenu (the File tab of the viewport toolbar opens it too)
 	~MainWindow();
 
 	void retranslateUI();
@@ -103,6 +105,9 @@ public:
 	bool openFile(const QString& fileName);
 
 	static void showStatusMessage(const QString& message, int timeout = 0);
+	// Remembers the warnings an importer reported for `fileName`, tells the user in the status bar and enables
+	// Help > Last Import Warnings. An empty list clears the previous report. Safe to call from any thread.
+	static void setImportWarnings(const QString& fileName, const QStringList& warnings);
 	// A longer explanation as a small wrapped pop-up above the status bar (click it to dismiss; it hides itself after `timeout` ms).
 	static void showStatusBalloon(const QString& message, int timeout = 12000);
 	static void showProgressBar(const bool showCancelButton = true);
@@ -269,6 +274,8 @@ private:
 	SimulationPanel* _simulationPanel = nullptr;
 	QMetaObject::Connection _simulationSessionConnection;
 	void refreshSimulationPanel(ModelViewer* viewer);
+	// Refreshes the document panels from the active document's restored state after an MVF load (see ModelViewer::documentStateRestored()).
+	void refreshDocumentPanelsAfterLoad(ModelViewer* viewer);
 	// Persistent manager beside Simulation; the separate import dialog is opened from both this panel and the
 	// Tools action through showAdd3DPlotDialog().
 	Plot3DControlsPanel* _plot3DControlsPanel = nullptr;
@@ -361,6 +368,10 @@ private:
 	static int _viewerCount;
 	static MainWindow* _mainWindow;
 	StatusBalloon* _statusBalloon = nullptr;
+	QAction* _importWarningsAction = nullptr;
+	QString _importWarningsFile;
+	QStringList _importWarnings;
+	void showImportWarningsDialog();
 	static bool _fileLoadCancelRequested;
 
 	static QuickHelpDialog* _helpDialog;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GltfAnimationData.h"
+#include "NodeProperties.h"
 
 #include <QRandomGenerator>
 #include <QString>
@@ -73,6 +74,35 @@ public:
     void    setSourceNodeName(const QString& name) { _sourceNodeName = name; }
     QString sourceNodeName() const                 { return _sourceNodeName; }
 
+    // ---- Source node properties (read-only, import-time) ---------------------
+    // Metadata of the node this mesh hung from and of its ancestors, flattened to strings (see NodeProperties.h). Shared
+    // between all meshes of one node; null when the importer supplied none. Not persisted in MVF and not copied by clone().
+    void setNodeProperties(NodePropertyChainPtr chain) { _nodeProperties = std::move(chain); }
+    const NodePropertyChainPtr& nodeProperties() const { return _nodeProperties; }
+
+    // ---- Declared part mass --------------------------------------------------
+    // The mass the source file declares for this mesh's part, in kilograms (JT "CAD_MASS::"); -1 when the file declares none. Kept per
+    // part, not on the shared Material, and saved in MVF. Copied by clone(); deliberately not copied when a mesh is split, merged or
+    // combined, because the declared value then no longer describes the result. The key says where it came from.
+    // `group` identifies the part: meshes with the same non-empty group came from one part and carry its one mass, so a total counts it once.
+    void setDeclaredMass(double kilograms, const QString& sourceKey, const QString& group = QString())
+        { _declaredMassKg = kilograms; _declaredMassSource = sourceKey; _declaredMassGroup = group; }
+    void clearDeclaredMass()                { _declaredMassKg = -1.0; _declaredMassSource.clear(); _declaredMassGroup.clear(); }
+    QString declaredMassGroup() const       { return _declaredMassGroup; }
+    bool hasDeclaredMass() const            { return _declaredMassKg >= 0.0; }
+    double declaredMassKg() const           { return _declaredMassKg; }
+    QString declaredMassSource() const      { return _declaredMassSource; }
+
+    // ---- Declared material ---------------------------------------------------
+    // The material designation the source file declares for this mesh's part (STEP material name), as written; empty when none. Per part
+    // and not on the shared Material, because the viewer's materials are shared by colour/appearance and one of them can cover parts with
+    // different designations. Saved in MVF, copied by clone(), not copied by split/merge/combine (same rule as the declared mass).
+    void setDeclaredMaterial(const QString& name, const QString& sourceKey) { _declaredMaterialName = name; _declaredMaterialSource = sourceKey; }
+    void clearDeclaredMaterial()               { _declaredMaterialName.clear(); _declaredMaterialSource.clear(); }
+    bool hasDeclaredMaterial() const           { return !_declaredMaterialName.isEmpty(); }
+    QString declaredMaterialName() const       { return _declaredMaterialName; }
+    QString declaredMaterialSource() const     { return _declaredMaterialSource; }
+
     // ---- Skinning — joint definitions (import-time, static) -------------
     // Runtime joint palette lives in MeshAnimationState (Phase 6).
     void setSkinJoints(const QVector<GltfSkinJoint>& joints) { _skinJoints = joints; }
@@ -126,6 +156,14 @@ public:
     const std::vector<int>& occFaceIndexPerTriangle() const { return _occFaceIndexPerTriangle; }
     const std::vector<OccFaceAxisInfo>& occFaceAxes() const { return _occFaceAxes; }
     bool hasOccFaces() const { return !_occFaceTriangleIndices.empty(); }
+    // Heap bytes held by the OCC edge/face and provenance arrays (diagnostics).
+    qint64 occDataBytes() const
+    {
+        return static_cast<qint64>(_occEdgeSegments.capacity() * sizeof(float) + _occEdgeBoundaries.capacity() * sizeof(int)
+            + _occEdgeCircles.capacity() * sizeof(OccEdgeCircleInfo) + _occFaceTriangleIndices.capacity() * sizeof(int)
+            + _occFaceIndexPerTriangle.capacity() * sizeof(int) + _occFaceAxes.capacity() * sizeof(OccFaceAxisInfo)
+            + _sourceMeshIds.capacity() * sizeof(quint64));
+    }
 
     // ---- Source-mesh provenance (Curvature Analysis cross-body advisory) ---
     // One id per CURRENT vertex (same order as SceneMesh::vertices()), tying
@@ -217,6 +255,12 @@ private:
     int     _originalMaterialIndex = -1;
     QString _sourceFile;
     QString _sourceNodeName;
+    double  _declaredMassKg       = -1.0;
+    QString _declaredMassSource;
+    QString _declaredMassGroup;
+    QString _declaredMaterialName;
+    QString _declaredMaterialSource;
+    NodePropertyChainPtr    _nodeProperties;
     QVector<GltfSkinJoint>  _skinJoints;
     // _jointPalette → MeshAnimationState (Phase 6)
     std::vector<float>      _occEdgeSegments;

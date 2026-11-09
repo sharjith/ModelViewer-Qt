@@ -1,6 +1,8 @@
 #pragma once
 
 
+#include <memory>
+#include <QDateTime>
 #include "ui_ModelViewer.h"
 
 #include "ViewportWidget.h"
@@ -35,6 +37,7 @@
 
 class QTabWidget;
 class QTimer;
+class QJsonObject;
 struct MeshSurfaceAnchor;
 struct Plot3DMeshData;
 class SimulationLegendWidget;
@@ -87,6 +90,7 @@ struct RepairMeshResult
 	SceneNode* parent = nullptr;
 	int position = 0;
 	QUuid meshUuid;
+	QUuid sourceUuid;   // the mesh this result was made from (hidden by the commit)
 };
 
 // Same shape/role as RepairMeshResult above, for FillHolesDialog::onGenerateClicked() ->
@@ -98,6 +102,7 @@ struct FillHolesResult
 	SceneNode* parent = nullptr;
 	int position = 0;
 	QUuid meshUuid;
+	QUuid sourceUuid;   // the mesh this result was made from (hidden by the commit)
 };
 
 namespace Mvf
@@ -192,8 +197,16 @@ public:
 
 	void importModel();
 	void exportModel();
+	// File > Save as 3D PDF...: the visible parts as a drawing sheet with an embedded 3D model (see Pdf3D/Pdf3DExporter.h)
+	// `presetFileName`: the file the export dialog already asked for; without it the export dialog is shown first, with the 3D PDF filter selected.
+	void exportAs3DPdf(const QString& presetFileName = QString());
 
 	bool saveToFile(const QString& fileName);
+	// The .mvf file is not held while its document is open. Its size and modification time at the moment this document read or wrote it are
+	// remembered, and checked when the document's window or the application is activated (and before Save overwrites the file): a file that
+	// has been deleted marks the document modified (it is intact in memory: closing it offers to save it again, Save writes the file again),
+	// a file changed by another program is reported, and Save asks before overwriting it.
+	void checkFileOnDisk();
 	bool loadFromFile(const QString& fileName);
 
 	bool documentModified() const { return _documentModified; }
@@ -265,6 +278,9 @@ signals:
 	// The document-owned Plot3D session list or active plot changed.  `activateTab`
 	// is true only when a newly built plot should bring the persistent plot tab forward.
 	void plot3DSessionsChanged(bool activateTab);
+	// An MVF finished loading: everything it restores (view state, variants, animations, cameras, selection sets, scene states, selection) is
+	// in place. The shared panels were bound to the document while it was still empty, so MainWindow refreshes them from here.
+	void documentStateRestored();
 	// Emitted from updateVisibilityUiFromState() alongside its own overlay
 	// labelMeshCount update - lets MainWindow's Document dock mirror the
 	// same count for whichever document is currently active, without
@@ -433,6 +449,15 @@ public:
 
 public slots:
 	void updateDisplayList();
+	// Re-applies the visible set to the viewport only (no tree rebuild, no refit): for a command that changes a mesh's geometry in place
+	// (Generate UVs) and so needs the display list refreshed but not the scene tree, whose asynchronous rebuild loses the tree selection
+	// when several run in one macro.
+	void refreshViewportDisplayList();
+	// The "Center Object List" command: shows the object list when it is collapsed (an unpinned navigation panel), shows every row when the
+	// search filter hides the selected mesh, and scrolls the list to the first selected item.
+	void revealSelectionInTree();
+	// While true, updateDisplayList() refreshes the viewport but leaves the navigation tree alone.
+	void setTreeRebuildDeferred(bool deferred) { _treeRebuildDeferred = deferred; }
 	void updateSelectionStatusMessage();
 	void showAllItems();
 	void showSelectedItems();
@@ -608,8 +633,11 @@ public slots:
 	// remembers how to undo/redo that already-done attachment, same
 	// "already happened, command just replays it" convention as
 	// GroupMeshesCommand/MergeByAdjacencyCommand.
+	// `inputsToHide` (here and in the commit functions below): the meshes the result was made from; they move to hidden space with the
+	// result, as part of the same undo step.
 	void commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
-	                       const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection);
+	                       const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection,
+	                       const QVector<QUuid>& inputsToHide = {});
 
 	// Undoably deletes a set of previously-committed tool results (Shrink
 	// Wrap/Subdivision) - the "Replace previous result" checkbox's delete
@@ -634,7 +662,8 @@ public slots:
 	// `text` argument), just with text = tr("Subdivide") so the undo-stack
 	// entry reads correctly.
 	void commitSubdivision(SceneNode* node, SceneNode* parent, int position,
-	                        const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
+	                        const QUuid& meshUuid, const QSet<QUuid>& originalSelection,
+	                        const QVector<QUuid>& inputsToHide = {});
 
 	// Reconstruct Surface: opens the non-modal ReconstructSurfaceDialog
 	// (Tools -> Reconstruct Surface...), same findChild-reuse-or-create/
@@ -772,7 +801,8 @@ public slots:
 	// commitSubdivision() above, reusing the exact same ShrinkWrapCommand
 	// class with text = tr("Reconstruct Surface").
 	void commitReconstructSurface(SceneNode* node, SceneNode* parent, int position,
-	                               const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
+	                               const QUuid& meshUuid, const QSet<QUuid>& originalSelection,
+	                               const QVector<QUuid>& inputsToHide = {});
 
 	// Repair Mesh: opens the non-modal RepairMeshDialog (Tools -> Repair Mesh...), same
 	// findChild-reuse-or-create/show/raise/seed-with-tree-selection pattern as
@@ -809,6 +839,10 @@ public slots:
 	// populated afterward, and Generate can be clicked repeatedly with
 	// different methods/settings without relaunching.
 	void openUVGenerationDialog();
+	// After a user-initiated material apply: if some of these meshes now have textures but no UV coordinates (a CAD part), asks whether to
+	// generate UVs for them (suppressible for the session). Not called from undo/redo, file loading or glTF variants.
+	void offerUvGenerationForTexturedMeshes(const QVector<QUuid>& meshUuids);
+	void generateUvsAutomatically(const QVector<QUuid>& meshUuids); // Smart Project, default settings, no dialog
 
 	// UV generation's one-line bridge into the undo stack - called by
 	// UVGenerationDialog::onGenerateClicked() once per Generate click, after
@@ -877,10 +911,12 @@ private slots:
 	void validateCutClipboard();
 	void importFiles(QStringList& fileNames);
 	void onFileExport();
+	void exportModelDialog(bool select3dPdfFilter);   // the export file dialog; the 3D PDF filter preselected for File > Save as 3D PDF
 
 	void handleTreeWidgetVisibilityChanged();
 	void handleTreeWidgetSelectionChanged();
 	void handleTreeWidgetMeshRenamed(const QUuid& uuid, const QString& newName);
+	void handleTreeWidgetNodeRenamed(const QUuid& nodeUuid, const QString& newName);
 
 	void onPredefinedMaterialSelected(const Material& mat);
 
@@ -1115,6 +1151,8 @@ private:
 	// always open anyway.
 	QTimer* _navRevealDelayTimer = nullptr;
 	void revealNavigation();
+	// Ends the tree's search filter (box and rows) while keeping the selection: used when a mesh picked in the viewport lies in a filtered-out row.
+	void releaseTreeFilter();
 	void tryHideNavigation();
 	// The actual collapse - animates to the narrow strip and flips
 	// _navigationRevealed unconditionally, with none of tryHideNavigation()'s
@@ -1214,14 +1252,41 @@ private:
 	int _lastUndoIndex = 0;
 	int _savedUndoIndex = 0;
 	bool _nonUndoDocumentDirty = false;
+	// View settings saved in the MVF count as document changes (see checkViewerStateDirty()).
+	// `forDirtyCheck`: navigation and projection (camera orientation, pan, zoom, camera mode, projection, oblique mode) are saved with the document but left out of the comparison (not an edit).
+	QJsonObject buildViewerStateJson(bool forDirtyCheck = false) const;
+	void checkViewerStateDirty();
+	void resetViewerStateBaseline();
+	// The second "save needed" flag, next to the document-modified flag (the `*`): true when the saved view state differs from what was last
+	// loaded or saved, camera, projection and navigation included. Save does nothing when neither flag is set.
+	bool hasUnsavedViewState() const;
+	QTimer* _viewerStatePollTimer = nullptr;
+	QByteArray _viewerStateBaseline;
+	QByteArray _fullStateBaseline;   // the whole viewer state, navigation included, at the last load or save (see hasUnsavedViewState())
+	int _viewerStateBaselineMeshCount = 0;
+	int _viewerStateSettleTicks = 0;
+	bool _viewerStateDirty = false;
+	bool _savedVisibleSwapped = false;   // the swap a loaded MVF was saved with, applied last (any later display-list update turns swap off)
+	QJsonObject _savedCameraPose;    // the camera pose a loaded MVF carries, applied when the load is complete (empty: fit to view instead)
+	enum class DiskState { Unchanged, Changed, Missing };
+	void rememberFileOnDisk(const QString& fileName);   // the file as this document read or wrote it
+	DiskState diskState() const;                        // the remembered file against what is on disk now
+	QString _trackedFile;
+	QDateTime _trackedModified;
+	qint64 _trackedSize = -1;
+	bool _diskNotice = false;   // the current difference has been reported once
+	bool writeDocument(bool force);   // save() and saveAs(): force writes even when there is nothing new to save (Save As)
+	bool _documentLoading = false;   // an MVF is loading: no view-state checks until its baseline is taken
 	// Cleanup optimization
 	int _lastStackCount = 0;
 	QSet<QUuid> _cachedReferencedUuids;  // Meshes referenced in undo stack
 	QSet<QUuid> _visibleMeshUuids;       // Authoritative visible mesh state
 	int _treeRebuildGeneration = 0;
 	bool _treeRebuildPending = false;
+	bool _treeRebuildDeferred = false;   // progressive-load batches skip the tree rebuild; the final update builds it once
 	int _treeVisibilitySyncGeneration = 0;
 	bool _treeVisibilityDirty = false;
+	bool _syncTreeVisibilityAfterRebuild = false;   // visibility changed while the tree was rebuilding: apply it when that completes
 
 	// Material cache - MDI-scoped, auto-destroyed when MDI closes
 	QMap<QString, CachedMaterial> _materialCache;  // Maps material keys to cached materials with metadata

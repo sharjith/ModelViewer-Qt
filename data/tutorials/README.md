@@ -7,13 +7,13 @@ The tutorial is a set of plain HTML pages that ModelViewer shows in **Help > Tut
 | Item | What it is |
 |---|---|
 | `index.html` | The home page with a card for every lesson |
-| `lesson01.html` ... `lesson29.html` | The lessons, in English |
-| `de/`, `es/`, `fr/`, `it/` | The same pages translated (index and all 29 lessons) |
+| `lesson01.html` ... `lesson30.html` | The lessons, in English |
+| `de/`, `es/`, `fr/`, `it/` | The same pages translated (index and all 29 lessons (lesson 30 is English only until the translation pass)) |
 | `common-styles.css` | The stylesheet shared by every page (the translated pages use `../common-styles.css`) |
 | `screenshots/` | The pictures. All languages share one set, taken in the English UI |
 | `screenshots/SHOT_LIST_19-29.md`, `SHOT_LIST_RETAKES_1-18.md` | The shot lists the pictures of lessons 19-29 (and the retakes of 1-18) were captured from: what to open and what each must show |
 
-Lessons 1-18 are the core tutorial (interface, navigation, selection, views, materials, lighting, visibility, advanced features, performance, exploded views, morph targets, the transform gizmo, edges). Lessons 19-29 cover what 2026.11 added: simulation results (19-22), 3D data plots (23-25), mesh tools (26), measurement and annotation (27), analysis, selection and scenes (28), and ray tracing (29).
+Lessons 1-18 are the core tutorial (interface, navigation, selection, views, materials, lighting, visibility, advanced features, performance, exploded views, morph targets, the transform gizmo, edges). Lessons 19-29 cover what 2026.11 added: simulation results (19-22), 3D data plots (23-25), mesh tools (26), measurement and annotation (27), analysis, selection and scenes (28), ray tracing (29) and Save as 3D PDF (30).
 
 ## How the dialog picks a page
 

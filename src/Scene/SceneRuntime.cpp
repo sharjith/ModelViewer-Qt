@@ -209,7 +209,17 @@ int SceneRuntime::addMeshToDisplay(SceneMesh* mesh)
 
 	_meshStore.push_back({ mesh, mesh->uuid() });
 	const int index = static_cast<int>(_meshStore.size() - 1);
-	_displayedObjectsIds.push_back(index);
+	try
+	{
+		_displayedObjectsIds.push_back(index);
+	}
+	catch (...)
+	{
+		// Ownership transfers only after both containers accept the mesh.  This
+		// keeps callers free to destroy it when an allocation fails here.
+		_meshStore.pop_back();
+		throw;
+	}
 	return index;
 }
 
@@ -341,6 +351,158 @@ bool SceneRuntime::moveToRecycleBin(const QUuid& uuid, int originalIndex)
 	return true;
 }
 
+int SceneRuntime::moveToRecycleBinBatch(const std::vector<std::pair<QUuid, int>>& uuidsAndOriginalIndices)
+{
+	const size_t storeSize = _meshStore.size();
+	std::vector<char> removed(storeSize, 0);
+	struct Moved { SceneMesh* mesh; QUuid uuid; int originalIndex; };
+	std::vector<Moved> moved;
+	moved.reserve(uuidsAndOriginalIndices.size());
+
+	// Resolve every uuid against the untouched store first (the uuid index stays valid until the compaction below).
+	for (const auto& [uuid, originalIndex] : uuidsAndOriginalIndices)
+	{
+		const int index = indexOfUuid(uuid);
+		if (index < 0 || removed[static_cast<size_t>(index)])
+			continue;
+		SceneMesh* mesh = _meshStore[static_cast<size_t>(index)].mesh;
+		if (!mesh)
+			continue;
+		removed[static_cast<size_t>(index)] = 1;
+		moved.push_back({ mesh, uuid, originalIndex });
+	}
+	if (moved.empty())
+		return 0;
+
+	// Compact the store once; remap[i] is the new index of surviving mesh i.
+	std::vector<int> remap(storeSize, -1);
+	std::vector<SceneMeshRecord> kept;
+	kept.reserve(storeSize - moved.size());
+	for (size_t i = 0; i < storeSize; ++i)
+	{
+		if (removed[i])
+			continue;
+		remap[i] = static_cast<int>(kept.size());
+		kept.push_back(_meshStore[i]);
+	}
+	_meshStore = std::move(kept);
+
+	const int removedCount = static_cast<int>(moved.size());
+	const auto remapIds = [&](std::vector<int>& ids) {
+		size_t out = 0;
+		for (int id : ids)
+		{
+			if (id >= 0 && id < static_cast<int>(storeSize))
+			{
+				if (removed[static_cast<size_t>(id)])
+					continue;
+				ids[out++] = remap[static_cast<size_t>(id)];
+			}
+			else
+			{
+				ids[out++] = id >= static_cast<int>(storeSize) ? id - removedCount : id;
+			}
+		}
+		ids.resize(out);
+	};
+	remapIds(_displayedObjectsIds);
+	remapIds(_hiddenObjectsIds);
+
+	if (_meshStore.empty())
+	{
+		_displayedObjectsIds.clear();
+		_hiddenObjectsIds.clear();
+		_visibleSwapped = false;
+	}
+
+	const QDateTime now = QDateTime::currentDateTime();
+	for (const Moved& m : moved)
+	{
+		RecycleBinEntry entry;
+		entry.mesh          = m.mesh;
+		entry.originalIndex = m.originalIndex;
+		entry.deletedAt     = now;
+		_recycleBin[m.uuid] = entry;
+	}
+
+	_uuidToIndex.clear();
+	return removedCount;
+}
+
+int SceneRuntime::restoreFromRecycleBinBatch(const std::vector<QUuid>& uuids)
+{
+	std::vector<std::pair<QUuid, RecycleBinEntry>> entries;
+	entries.reserve(uuids.size());
+	for (const QUuid& uuid : uuids)
+	{
+		if (!_recycleBin.contains(uuid))
+			continue;
+		entries.emplace_back(uuid, _recycleBin.take(uuid));
+	}
+	if (entries.empty())
+		return 0;
+
+	// One merge pass reproduces sequential insertion exactly when the entries arrive in ascending original-index order (the
+	// order undo restores in). Anything else falls back to the single-mesh path.
+	const size_t oldSize = _meshStore.size();
+	std::vector<SceneMeshRecord> merged;
+	merged.reserve(oldSize + entries.size());
+	std::vector<int> oldToNew(oldSize, -1);
+	std::vector<int> insertedAt;
+	insertedAt.reserve(entries.size());
+	bool ordered = true;
+	size_t next = 0;
+	for (size_t k = 0; k < entries.size() && ordered; ++k)
+	{
+		const RecycleBinEntry& entry = entries[k].second;
+		const size_t current = oldSize + k;
+		size_t position = (entry.originalIndex < 0 || static_cast<size_t>(entry.originalIndex) > current)
+			? current
+			: static_cast<size_t>(entry.originalIndex);
+		while (merged.size() < position && next < oldSize)
+		{
+			oldToNew[next] = static_cast<int>(merged.size());
+			merged.push_back(_meshStore[next++]);
+		}
+		if (merged.size() != position)
+			ordered = false;
+		else
+		{
+			insertedAt.push_back(static_cast<int>(merged.size()));
+			merged.push_back({ entry.mesh, entry.mesh->uuid() });
+		}
+	}
+
+	if (!ordered)
+	{
+		int restored = 0;
+		for (const auto& [uuid, entry] : entries)
+			if (restoreDetachedMesh(entry.mesh, entry.originalIndex) >= 0)
+				++restored;
+		return restored;
+	}
+
+	while (next < oldSize)
+	{
+		oldToNew[next] = static_cast<int>(merged.size());
+		merged.push_back(_meshStore[next++]);
+	}
+	_meshStore = std::move(merged);
+
+	const auto remapIds = [&](std::vector<int>& ids) {
+		for (int& id : ids)
+			if (id >= 0 && id < static_cast<int>(oldSize))
+				id = oldToNew[static_cast<size_t>(id)];
+	};
+	remapIds(_displayedObjectsIds);
+	remapIds(_hiddenObjectsIds);
+	_displayedObjectsIds.insert(_displayedObjectsIds.end(), insertedAt.begin(), insertedAt.end());
+	std::sort(_displayedObjectsIds.begin(), _displayedObjectsIds.end());
+
+	_uuidToIndex.clear();
+	return static_cast<int>(entries.size());
+}
+
 bool SceneRuntime::restoreFromRecycleBin(const QUuid& uuid)
 {
 	if (!_recycleBin.contains(uuid))
@@ -369,14 +531,35 @@ std::vector<SceneMesh*> SceneRuntime::meshPointers() const
 	return result;
 }
 
+int SceneRuntime::indexOfUuid(const QUuid& uuid) const
+{
+	const auto valid = [&](int index) {
+		return index >= 0 && index < static_cast<int>(_meshStore.size())
+			&& _meshStore[static_cast<size_t>(index)].mesh
+			&& _meshStore[static_cast<size_t>(index)].mesh->uuid() == uuid;
+	};
+	const auto found = _uuidToIndex.constFind(uuid);
+	if (found != _uuidToIndex.cend() && valid(found.value()))
+		return found.value();
+
+	// Unknown or stale: rebuild once from the live store. The first mesh with a uuid wins, as the scan it replaces did.
+	_uuidToIndex.clear();
+	_uuidToIndex.reserve(static_cast<qsizetype>(_meshStore.size()));
+	for (size_t i = 0; i < _meshStore.size(); ++i)
+	{
+		const SceneMesh* mesh = _meshStore[i].mesh;
+		if (mesh && !_uuidToIndex.contains(mesh->uuid()))
+			_uuidToIndex.insert(mesh->uuid(), static_cast<int>(i));
+	}
+	const auto rebuilt = _uuidToIndex.constFind(uuid);
+	return rebuilt != _uuidToIndex.cend() ? rebuilt.value() : -1;
+}
+
 SceneMesh* SceneRuntime::getMeshByUuid(const QUuid& uuid) const
 {
-	for (const SceneMeshRecord& meshRecord : _meshStore)
-	{
-		SceneMesh* mesh = meshRecord.mesh;
-		if (mesh && mesh->uuid() == uuid)
-			return mesh;
-	}
+	const int index = indexOfUuid(uuid);
+	if (index >= 0)
+		return _meshStore[static_cast<size_t>(index)].mesh;
 
 	if (_recycleBin.contains(uuid))
 		return _recycleBin.value(uuid).mesh;
@@ -393,13 +576,7 @@ SceneMesh* SceneRuntime::getMeshByIndex(int index) const
 
 int SceneRuntime::getIndexByUuid(const QUuid& uuid) const
 {
-	for (size_t i = 0; i < _meshStore.size(); ++i)
-	{
-		SceneMesh* mesh = _meshStore[i].mesh;
-		if (mesh && mesh->uuid() == uuid)
-			return static_cast<int>(i);
-	}
-	return -1;
+	return indexOfUuid(uuid);
 }
 
 QUuid SceneRuntime::getUuidByIndex(int index) const

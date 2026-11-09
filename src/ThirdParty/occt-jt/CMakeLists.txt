@@ -1,0 +1,13 @@
+find_package(OpenCASCADE REQUIRED)
+find_package(ZLIB REQUIRED)
+find_package(LibLZMA REQUIRED)
+get_filename_component(MV_JT_HEADER_ROOT
+  "${CMAKE_CURRENT_SOURCE_DIR}/../../../include/ThirdParty/occt-jt" ABSOLUTE)
+file(GLOB_RECURSE MV_JT_SOURCES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.cxx")
+file(GLOB_RECURSE MV_JT_HEADERS CONFIGURE_DEPENDS "${MV_JT_HEADER_ROOT}/*.hxx")
+add_library(mv_jt_codec OBJECT ${MV_JT_SOURCES} ${MV_JT_HEADERS})
+file(GLOB MV_JT_PACKAGES LIST_DIRECTORIES true "${MV_JT_HEADER_ROOT}/*")
+target_include_directories(mv_jt_codec PUBLIC ${MV_JT_PACKAGES} ${OpenCASCADE_INCLUDE_DIR})
+target_compile_features(mv_jt_codec PUBLIC cxx_std_17)
+target_compile_definitions(mv_jt_codec PUBLIC NO_JT_MULTITHREADING NOMINMAX)
+target_link_libraries(mv_jt_codec PUBLIC TKernel TKMath ZLIB::ZLIB LibLZMA::LibLZMA)

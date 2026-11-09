@@ -218,6 +218,10 @@ void ReconstructSurfaceDialog::onGenerateClicked()
 	const QString meshName = viewport->generateUniqueMeshName(reconName);
 	const double beta = qDegreesToRadians(ui->sharpnessSpin->value());
 	const double simplifySpacing = ui->simplifyCheckBox->isChecked() ? ui->spacingSpin->value() : 0.0;
+	QVector<QUuid> inputUuids;
+	for (SceneMesh* input : meshes)
+		inputUuids.append(input->uuid());
+
 	SceneMesh* reconstructed = SceneMesh::reconstructSurfaceFromPoints(
 		meshes, meshName, ui->boundaryToleranceSpin->value(), beta, simplifySpacing);
 	if (!reconstructed)
@@ -248,7 +252,7 @@ void ReconstructSurfaceDialog::onGenerateClicked()
 	// MeasurementDialog/ShrinkWrapDialog/SubdivisionDialog: every result is
 	// independently undoable right away (see this class's header doc
 	// comment for the bug this fixes).
-	_modelViewer->commitReconstructSurface(reconNode, topParent, reconPosition, reconstructedUuid, originalSelection);
+	_modelViewer->commitReconstructSurface(reconNode, topParent, reconPosition, reconstructedUuid, originalSelection, inputUuids);
 	_lastResultMeshUuids = { reconstructedUuid };
 	++_nextReconstructIndex;
 

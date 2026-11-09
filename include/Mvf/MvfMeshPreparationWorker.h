@@ -28,6 +28,11 @@ struct PreparedMvfMesh
 	int          originalMaterialIndex = -1;
 	QString      sourceFile;
 	QString      sourceNodeName;
+	double       declaredMassKg = -1.0;   // kilograms declared by the source file; -1 when none
+	QString      declaredMassSource;
+	QString      declaredMassGroup;
+	QString      declaredMaterialName;     // the material designation declared by the source file; empty when none
+	QString      declaredMaterialSource;
 	QVector<GltfVariantMapping> variantMappings;
 	QMap<int, Material> allVariantMaterials;
 	std::vector<Vertex>       vertices;

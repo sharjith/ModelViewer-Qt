@@ -2,6 +2,8 @@
 
 #include <QMatrix4x4>
 
+#include <cmath>
+
 CornerAxisPosition ViewportInteractionController::normalizeCornerAxisPosition(
     CornerAxisPosition position)
 {
@@ -39,7 +41,11 @@ bool ViewportInteractionController::convertPixelToRay(
 
     QVector4D nearWorld = inv * nearNdc;
     QVector4D farWorld  = inv * farNdc;
-    if (qFuzzyIsNull(nearWorld.w()) || qFuzzyIsNull(farWorld.w()))
+    // The homogeneous w of an unprojected NDC point is 1/near or 1/far for a perspective projection (1 for orthographic).
+    // The camera's far plane is at least 200x the scene radius, so 1/far is routinely below qFuzzyIsNull's absolute 1e-5
+    // cutoff for CAD-scale scenes; only an exactly-zero or non-finite w is a degenerate (non-invertible) projection.
+    const float nearW = nearWorld.w(), farW = farWorld.w();
+    if (!std::isfinite(nearW) || !std::isfinite(farW) || nearW == 0.0f || farW == 0.0f)
     {
         orig = QVector3D(0, 0, 0);
         dir  = QVector3D(0, 0, 0);

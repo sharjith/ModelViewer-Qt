@@ -1,0 +1,91 @@
+# JT research index
+
+22 October 2026, `feature/JT-importer`.
+
+Current owner priority (24 October 2026): [C2 paused at C2ag; core viewing essentials first](JT_VIEWING_PRIORITY.md). The remaining appearance work is retained for later; immediate direction is C3 line/wire and point coverage.
+
+Runtime detail (C5): [LOD evidence and design](JT_C5_RUNTIME_LOD_DESIGN.md) (3 November 2026, design only); [LOD materials as material variants](JT_C5_LOD_MATERIAL_VARIANTS.md) (4 November 2026, analysis and plan).
+
+Suggested reading order:
+
+1. [Feasibility and legal scope](JT_IMPORT_FEASIBILITY.md), [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [pass-specific provenance](JT_PROVENANCE.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
+2. [Native importer](JT_NATIVE_IMPORTER.md), [version compatibility](JT_VERSION_COMPATIBILITY.md) and [development history](JT_DEVELOPMENT_PHASES.md).
+3. [Feature-completion gates](JT_FEATURE_COMPLETION_PLAN.md), including unresolved mesh dependencies and the independent appearance track.
+4. Latest accepted mesh gate: [C1i coordinate quantization](JT_COORDINATE_QUANTIZATION_VALIDATION.md).
+5. Accepted shaded raster appearance gate: [C2a vertex alpha](JT_VERTEX_ALPHA_VALIDATION.md).
+6. Accepted wire appearance gate: [C2b wire vertex alpha](JT_WIREFRAME_ALPHA_VALIDATION.md).
+7. Accepted ray-traced appearance gate: [C2c ray-traced vertex alpha](JT_RAYTRACED_ALPHA_VALIDATION.md).
+8. Committed image mapping and owner-confirmed UV correction: [C2d/C2e textures](JT_TEXTURE_DESCRIPTOR_VALIDATION.md).
+9. Accepted and pushed affine mapping: [C2f texture matrices](JT_TEXTURE_TRANSFORM_VALIDATION.md).
+10. Accepted and pushed model-linear mapping: [C2g texture coordinates](JT_TEXTURE_PLANAR_VALIDATION.md).
+11. Accepted image formats: [C2h inline colour pixels](JT_TEXTURE_PIXEL_VALIDATION.md).
+12. Accepted basic 9.x image mapping: [C2i textures](JT_9X_TEXTURE_VALIDATION.md).
+13. Owner-accepted advanced image layout: [C2j advanced 9.x textures](JT_9X_ADVANCED_TEXTURE_VALIDATION.md).
+14. Owner-accepted numeric image path: [C2k unsigned 16-bit image components](JT_TEXTURE_UINT16_VALIDATION.md).
+15. Owner-accepted floating image path: [C2l float32 image components](JT_TEXTURE_FLOAT_VALIDATION.md).
+16. Owner-accepted half image path: [C2m binary16 image components](JT_TEXTURE_HALF_VALIDATION.md).
+17. Owner-accepted unsigned image path: [C2n unsigned 32-bit image components](JT_TEXTURE_UINT32_VALIDATION.md).
+18. Current texture-control storage: [shared resources and reference mappings](JT_SHARED_TEXTURE_CONTROLS.md).
+19. Owner-accepted signed image path: [C2o signed integer image components](JT_TEXTURE_SIGNED_VALIDATION.md).
+20. Owner-accepted unsampled borders: [C2p unsampled image borders](JT_TEXTURE_BORDER_VALIDATION.md).
+21. Independent production investigation: [10.9 structural diagnostics](JT_PRODUCTION_DIAGNOSTICS.md); wireframe-export correlation established, exact records unresolved.
+
+22. Owner-accepted sampled constant borders: [C2q RGBA constant-colour borders](JT_TEXTURE_CONSTANT_BORDER_VALIDATION.md).
+
+23. Owner-accepted sampled explicit borders: [C2r authored border texels](JT_TEXTURE_EXPLICIT_BORDER_VALIDATION.md).
+
+24. Owner-accepted border colour layouts: [C2s explicit colour rings and RGB constant borders](JT_TEXTURE_BORDER_FORMAT_VALIDATION.md).
+
+25. Owner-accepted constant luminance/alpha borders: [C2t internal components and visibility controls](JT_TEXTURE_BORDER_COMPONENT_VALIDATION.md).
+
+26. Owner-accepted inline RGB/RGBA Replace: [C2u combiner mapping](JT_TEXTURE_REPLACE_VALIDATION.md).
+
+27. Current checkpoint scope: [remaining C2 work packages after C2u](JT_C2_REMAINING_SCOPE.md).
+
+28. Accepted combined checkpoint: [C2v combiners, units and inheritance](JT_APPEARANCE_BATCH_VALIDATION.md); owner visual acceptance on 23 October 2026; native execution not separately reported.
+
+Sibling validation documents retain the source, measurement and owner-acceptance records for earlier gates. Research documents belong here; generated evidence and fixtures remain under ignored `out/jt-research/`. The [repository handout](../../RESEARCH_FOLDER_HANDOUT.md) governs new work. See the [repository README](../../README.md) for user-facing import scope.
+
+29. Accepted shared renderer checkpoint: [C2w texture filter transport and sampling](JT_TEXTURE_FILTER_PARITY_VALIDATION.md); owner viewer acceptance on 23 October 2026; native/backend-specific coverage not separately reported.
+
+30. Owner-accepted combined image checkpoint: [C2x authored mip chains](JT_AUTHORED_MIP_VALIDATION.md); source retention, shared rendering and private-carrier limits; owner raster mip/filter observations passed, native/backend coverage unreported.
+
+Owner-accepted shared raster regression correction: [BLEND depth compatibility](JT_BLEND_COVERAGE_REGRESSION.md); local GLB fix and JT alpha/mip/filter viewer regression checks passed on 23 October. Native/backend-specific coverage remains unreported.
+
+31. Owner-accepted combined checkpoint: [C2y mip composition and border filtering](JT_MIP_COMPOSITION_BORDER_VALIDATION.md); owner build and visual acceptance on 23 October 2026; native/backend coverage unreported.
+
+
+32. Accepted combined checkpoint: [C2z filtered affine combiners and colour-layout ring mips](JT_AFFINE_FILTER_VALIDATION.md); owner build and delegated raster visual acceptance on 24 October 2026; native/backend coverage unreported.
+
+
+33. Owner-accepted application-path checkpoint: [C2aa resident texture export](JT_RESIDENT_TEXTURE_EXPORT_VALIDATION.md); owner accepted GUI round trips on 24 October 2026; sixteen read-only export comparisons pass; native/backend execution unreported.
+
+
+34. Owner-accepted vertex-colour checkpoint: [C2ab Replace and alpha](JT_VERTEX_REPLACE_VALIDATION.md); owner accepted the bounded viewer gate on 24 October 2026; native/backend coverage unreported.
+
+
+35. Owner-accepted grouped combiner/unit checkpoint: [C2ac constant vertex RGB, wider Replace and common nearest grids](JT_COMBINER_UNIT_BATCH_VALIDATION.md); owner accepted grouped ADS/PBR comparisons and six representative application exports on 24 October 2026; native/backend execution unreported.
+
+
+36. Owner-deferred return list: [Batch 1 comeback prerequisites and residuals](JT_BATCH1_COMEBACK.md); preserved while proceeding to Batch 2.
+
+37. Owner-accepted bounded Batch 2 checkpoint: [C2ad image/border batch](JT_BORDER_BATCH_VALIDATION.md); mixed axes, bounded rectangular/generated/external borders and portable non-mip legacy clamp; owner accepted grouped comparisons and focused ADS/PBR/export retest on 24 October 2026; native/backend execution unreported.
+
+38. Owner-accepted shared renderer correction: [raster light-intensity synchronization](JT_RASTER_LIGHT_UNIFORM_VALIDATION.md); stored/GPU vectors agree in the focused five-document retest.
+
+39. Owner-accepted bounded mapping checkpoint: [C2ae exact homogeneous reductions](JT_HOMOGENEOUS_MAPPING_VALIDATION.md); model-linear R/Q and triangle-constant denominator proof; owner accepted grouped visual and four representative exports on 24 October 2026; native/backend execution unreported.
+
+
+40. Owner-accepted bounded gate: [C2af bounded tangent-normal and post-lit roles](JT_TEXTURE_ROLE_VALIDATION.md); 66 original roots / 24 grouped documents; grouped visual and four application round trips accepted on 24 October 2026; native/backend execution unreported.
+
+41. Owner-accepted shared correction: [unlit ADS and application export preservation](JT_UNLIT_MATERIAL_VALIDATION.md); shared implementation committed separately from the JT role adapter.
+
+42. Owner-accepted bounded gate: [C2ag normal mip filtering](JT_NORMAL_MIP_VALIDATION.md); authored/generated vector levels, 36 original roots / 16 grouped documents; grouped visual and four application exports accepted on 24 October 2026; native/backend execution unreported.
+
+43. Current C3 research: [line/wire and point coverage audit](JT_DISPLAY_PRIMITIVES_AUDIT.md); missing registrations/triangle assumptions confirmed, family differences and authentic payload evidence request recorded; no C3 decoder/build acceptance yet.
+
+- [Production binary UV compatibility](JT_PRODUCTION_UV_TRANSPORT.md) - 25 October 2026: owner confirmed complete assembly opening after hash-qualified UV correction on 25 October 2026; native regression-suite results remain unreported.
+
+- [Production allocation-budget trial](JT_PRODUCTION_MEMORY_BUDGET.md) - 26 October 2026: 16 GiB guard identified as the first limit; 64 GiB passed decoding before a distinct post-read crash.
+- [Large-assembly post-decode crash diagnostics](JT_PRODUCTION_IMPORT_CRASH.md) - 26 October 2026: prepared exception containment, reduced handoff copies and an opt-in flushed stage/memory trace; owner build and production validation pending.
+- [C3 polyline and point set decoder](JT_C3_POLYLINE_POINT_DECODER.md) - 5 November 2026: NX JT10.10 polyline and point set LODs decoded and shown (lines, points, colours); owner confirmed all samples against another viewer; JT 9.x/8.x layouts need samples; regression test `tests/jt/jt_c3_sample_tests.cpp` (local samples).

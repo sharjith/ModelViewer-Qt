@@ -150,6 +150,10 @@ public:
 	// this mesh was not produced by BRepToAssimpConverter (e.g. OBJ/glTF).
 	static const OccEdgeData* getPrecomputedEdges(const aiMesh* mesh);
 
+	// Registers exporter-supplied edges (e.g. 3DXML) for a mesh so the loader treats them like
+	// B-Rep edges. Same frame and layout as the OCC path; circles stay empty (no analytic data).
+	static void registerPrecomputedEdges(const aiMesh* mesh, OccEdgeSegments segments, OccEdgeBoundaries bounds);
+
 	// Returns precomputed B-Rep per-face axis data for the given aiMesh*, or
 	// nullptr if this mesh has none (OBJ/glTF, or no cylindrical/conical
 	// faces at all).
@@ -174,6 +178,16 @@ public:
 	// Clears all per-document colour caches (s_stepColorMap).
 	// Called by XCAFDocProcessor::initializeDocumentProcessing() before each new file load.
 	static void clearColorCache();
+
+	// A converted part (sub-scene) copied together with the per-mesh OCC edge and face tables, which are keyed by mesh address, so
+	// a definition converted once can serve every instance of it. discardConverted() deletes a copy kept as a master and drops
+	// its table entries (their keys are addresses that would otherwise be reused).
+	static aiScene* cloneConverted(const aiScene* source);
+	static void discardConverted(aiScene* master);
+	// Names the meshes and root node of a converted part from its definition and instance labels (what convert() always did).
+	static void nameConvertedScene(aiScene* scene, const TDF_Label& defLabel, const TDF_Label& instanceLabel, const std::string& name);
+	// True when part colours come from the STEP colour map, i.e. do not depend on the instance label.
+	static bool stepColourMapActive() { return !s_stepColorMap.empty(); }
 
 	// Stores the STEP-entity colour map built by XCAFSTEPProcessor::buildStepColorMap().
 	// Must be called after reader.Transfer() and before any convert() call.

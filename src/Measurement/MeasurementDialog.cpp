@@ -272,6 +272,13 @@ MeasurementDialog::MeasurementDialog(ModelViewer* modelViewer, QWidget* parent)
 	connect(ui->resultsList, &QListWidget::itemSelectionChanged, this, &MeasurementDialog::onResultsSelectionChanged);
 	connect(ui->resultsList, &QListWidget::itemChanged, this, &MeasurementDialog::onResultItemChanged);
 	connect(ui->deleteButton, &QPushButton::clicked, this, &MeasurementDialog::onDeleteClicked);
+
+	// Label orientation: the same three modes for every item; one choice applies to the whole selection.
+	ui->orientationCombo->addItem(tr("Model plane"), static_cast<int>(LabelOrientation::ModelPlane));
+	ui->orientationCombo->addItem(tr("View plane"), static_cast<int>(LabelOrientation::ViewPlane));
+	ui->orientationCombo->addItem(tr("Face camera"), static_cast<int>(LabelOrientation::FaceCamera));
+	ui->orientationCombo->setCurrentIndex(-1);
+	connect(ui->orientationCombo, QOverload<int>::of(&QComboBox::activated), this, &MeasurementDialog::onOrientationActivated);
 	connect(ui->finishButton, &QPushButton::clicked, this, &MeasurementDialog::onFinishClicked);
 
 	ViewportWidget* viewport = _modelViewer->getViewportWidget();
@@ -427,6 +434,7 @@ void MeasurementDialog::toggleCheckStatesForSelection(Qt::CheckState newState)
 		sceneGraph->setMeasurementVisible(id, newState == Qt::Checked);
 	}
 	_batchingVisibilityChanges = false;
+	_modelViewer->markNonUndoDocumentModified();   // visibility is persisted in the MVF but not undoable: mark the document modified by hand
 
 	refreshResultsList();
 	viewport->update();
@@ -471,6 +479,48 @@ void MeasurementDialog::refreshResultsList()
 	_updatingSelectionFromViewport = false;
 
 	ui->deleteButton->setEnabled(!selectedIds.isEmpty());
+	syncOrientationFromSelection();
+}
+
+void MeasurementDialog::syncOrientationFromSelection()
+{
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	SceneGraph* sceneGraph = _modelViewer->sceneGraph();
+	const QSignalBlocker blocker(ui->orientationCombo);
+	ui->orientationCombo->setCurrentIndex(-1);
+	if (!viewport || !sceneGraph)
+	{
+		ui->orientationCombo->setEnabled(false);
+		return;
+	}
+	const QSet<QUuid> selected = viewport->selectedMeasurementIds();
+	int common = -2;  // -2 none yet, -1 mixed
+	for (const QUuid& id : selected)
+	{
+		const int index = sceneGraph->measurementIndexById(id);
+		if (index < 0)
+			continue;
+		const int mode = static_cast<int>(sceneGraph->measurements().at(index).orientation);
+		common = (common == -2 || common == mode) ? mode : -1;
+	}
+	ui->orientationCombo->setEnabled(common != -2);
+	if (common >= 0)
+		ui->orientationCombo->setCurrentIndex(ui->orientationCombo->findData(common));
+}
+
+void MeasurementDialog::onOrientationActivated(int index)
+{
+	ViewportWidget* viewport = _modelViewer->getViewportWidget();
+	SceneGraph* sceneGraph = _modelViewer->sceneGraph();
+	if (!viewport || !sceneGraph || index < 0)
+		return;
+	const LabelOrientation mode = static_cast<LabelOrientation>(ui->orientationCombo->itemData(index).toInt());
+	const auto selectedIds = viewport->selectedMeasurementIds();
+	for (const QUuid& id : selectedIds)
+		sceneGraph->setMeasurementOrientation(id, mode);
+	if (!selectedIds.isEmpty())
+		_modelViewer->markNonUndoDocumentModified();   // the label orientation is persisted in the MVF but not undoable: mark the document modified by hand
+	viewport->update();
 }
 
 void MeasurementDialog::onResultsSelectionChanged()
@@ -491,6 +541,7 @@ void MeasurementDialog::onResultsSelectionChanged()
 	_updatingSelectionFromViewport = false;
 
 	ui->deleteButton->setEnabled(!ids.isEmpty());
+	syncOrientationFromSelection();
 }
 
 void MeasurementDialog::onViewportSelectionChanged(const QSet<QUuid>& ids)
@@ -516,6 +567,7 @@ void MeasurementDialog::onViewportSelectionChanged(const QSet<QUuid>& ids)
 	_updatingSelectionFromViewport = false;
 
 	ui->deleteButton->setEnabled(!ids.isEmpty());
+	syncOrientationFromSelection();
 }
 
 void MeasurementDialog::onResultItemChanged(QListWidgetItem* item)
@@ -530,6 +582,7 @@ void MeasurementDialog::onResultItemChanged(QListWidgetItem* item)
 
 	const QUuid id = item->data(Qt::UserRole).toUuid();
 	sceneGraph->setMeasurementVisible(id, item->checkState() == Qt::Checked);
+	_modelViewer->markNonUndoDocumentModified();   // visibility is persisted in the MVF but not undoable: mark the document modified by hand
 
 	// setMeasurementVisible() only emits measurementsChanged() (which this
 	// dialog listens to for its OWN list, via onMeasurementsChanged()) - it

@@ -11,6 +11,16 @@
 #include <QHash>
 #include <QDebug>
 #include <QSettings>
+#include <QCryptographicHash>
+#include <QBuffer>
+#include <QImageReader>
+#include <QElapsedTimer>
+#include <QImageWriter>
+#include <atomic>
+#include <thread>
+#include <algorithm>
+#include "Logger.h"
+#include <assimp/GltfMaterial.h>
 
 using namespace std;
 
@@ -510,7 +520,7 @@ void MaterialProcessor::setDefaultMaterial(Material& mat)
 bool MaterialProcessor::decodeTextureImage(Material::Texture& texture,
 	QImage& outImage,
 	bool& outHasAlpha,
-	const std::vector<uint8_t>* glbBinaryBuffer,
+	const QByteArray* glbBinaryBuffer,
 	const QJsonArray* jsonBufferViews,
 	const QJsonArray* jsonImages)
 {
@@ -652,7 +662,7 @@ bool MaterialProcessor::decodeTextureImage(Material::Texture& texture,
 }
 
 unsigned int MaterialProcessor::createTextureOnGPU(Material::Texture& texture,
-	const std::vector<uint8_t>* glbBinaryBuffer,
+	const QByteArray* glbBinaryBuffer,
 	const QJsonArray* jsonBufferViews,
 	const QJsonArray* jsonImages)
 {
@@ -982,6 +992,10 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 
 	QJsonDocument doc;
 	std::vector<uint8_t> glbBinaryBuffer;
+	// The GLB binary as a shared (reference-counted) QByteArray: the cache entry and this local view share one
+	// allocation, so this function - which runs once per mesh - never copies a multi-hundred-MB binary again.
+	QByteArray glbBinaryData;
+	const QByteArray* glbBinaryPtr = &glbBinaryData;
 
 	if (isGLB)
 	{
@@ -1004,12 +1018,14 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			}
 
 			s_glbJsonCache.insert(gltfPath, doc);
-			s_glbBinaryCache.insert(gltfPath, glbBinaryBuffer);
+			glbBinaryData = QByteArray(reinterpret_cast<const char*>(glbBinaryBuffer.data()),
+				static_cast<qsizetype>(glbBinaryBuffer.size()));
+			s_glbBinaryCache.insert(gltfPath, glbBinaryData);
 		}
 		else
 		{
 			doc = s_glbJsonCache.value(gltfPath);
-			glbBinaryBuffer = s_glbBinaryCache.value(gltfPath);
+			glbBinaryData = s_glbBinaryCache.value(gltfPath);
 		}
 
 		// === PRE-LOAD GLB IMAGES INTO GPU - ONLY ONCE PER FILE ===
@@ -1021,7 +1037,74 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			QJsonArray jsonTextures = root.value("textures").toArray();
 			QJsonArray jsonSamplers = root.value("samplers").toArray();
 
-			if (!glbBinaryBuffer.empty())
+			// Time spent per step over all images, logged once below (Performance, Info).
+			double msPrepare = 0, msDecode = 0, msSave = 0, msAlpha = 0, msConvert = 0, msUpload = 0;
+			QElapsedTimer stepClock;
+			struct PreparedGlbImage { QImage glImage; bool hasAlpha = false; bool ready = false; };
+			std::vector<PreparedGlbImage> preparedImages(static_cast<size_t>(jsonImages.size()));
+			// The on-disk PNG cache of the embedded images is written first, in parallel and with fast compression:
+			// encoding a 4K image to PNG at the default level takes a second or more, which made a 45-image GLB spend
+			// over a minute here, one image at a time. The loop below then finds every file already in place.
+			if (!glbBinaryPtr->isEmpty())
+			{
+				struct CacheJob { const char* data; int size; QString diskPath; bool needsSave; int imgIdx; };
+				std::vector<CacheJob> cacheJobs;
+				const QString preCacheDir = getGlbCacheDir(gltfPath);
+				for (int imgIdx = 0; imgIdx < jsonImages.size(); ++imgIdx)
+				{
+					const QJsonObject imgObj = jsonImages.at(imgIdx).toObject();
+					if (imgObj.value("mimeType").toString() == QLatin1String("image/ktx2"))
+						continue;
+					const int bufferViewIdx = imgObj.value("bufferView").toInt(-1);
+					if (bufferViewIdx < 0 || bufferViewIdx >= jsonBufferViews.size())
+						continue;
+					const QJsonObject bvObj = jsonBufferViews.at(bufferViewIdx).toObject();
+					const int byteOffset = bvObj.value("byteOffset").toInt(0);
+					const int byteLength = bvObj.value("byteLength").toInt(-1);
+					if (byteLength <= 0 || byteOffset + byteLength > static_cast<int>(glbBinaryPtr->size()))
+						continue;
+					const QString diskPath = preCacheDir + "/" + QString("image_%1.png").arg(imgIdx);
+					cacheJobs.push_back({ glbBinaryPtr->constData() + byteOffset, byteLength, diskPath, !QFile::exists(diskPath), imgIdx });
+				}
+				if (!cacheJobs.empty())
+				{
+					stepClock.start();
+					std::atomic<size_t> nextJob{ 0 };
+					const auto runJobs = [this, &cacheJobs, &nextJob, &preparedImages]()
+					{
+						for (;;)
+						{
+							const size_t slot = nextJob.fetch_add(1);
+							if (slot >= cacheJobs.size())
+								break;
+							const CacheJob& job = cacheJobs[slot];
+							QImage image;
+							if (!image.loadFromData(reinterpret_cast<const uchar*>(job.data), job.size))
+								continue;
+							if (job.needsSave)
+							{
+								QImageWriter writer(job.diskPath, "PNG");
+								writer.setQuality(90); // low zlib effort: a temp cache, speed matters more than file size
+								writer.write(image);
+							}
+							PreparedGlbImage& prepared = preparedImages[static_cast<size_t>(job.imgIdx)];
+							prepared.hasAlpha = checkImageForAlpha(image);
+							prepared.glImage = convertToGLFormat(image);
+							prepared.ready = !prepared.glImage.isNull();
+						}
+					};
+					const size_t hardware = (std::max)(size_t(1), size_t(std::thread::hardware_concurrency()));
+					const size_t workers = (std::min)(cacheJobs.size(), hardware);
+					std::vector<std::thread> threads;
+					for (size_t t = 1; t < workers; ++t)
+						threads.emplace_back(runJobs);
+					runJobs();
+					for (std::thread& thread : threads)
+						thread.join();
+					msPrepare = stepClock.nsecsElapsed() / 1.0e6;
+				}
+			}
+			if (!glbBinaryPtr->isEmpty())
 			{
 				for (int imgIdx = 0; imgIdx < jsonImages.size(); ++imgIdx)
 				{
@@ -1038,14 +1121,14 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					int byteOffset = bvObj.value("byteOffset").toInt(0);
 					int byteLength = bvObj.value("byteLength").toInt(-1);
 
-					if (byteLength <= 0 || byteOffset + byteLength > static_cast<int>(glbBinaryBuffer.size()))
+					if (byteLength <= 0 || byteOffset + byteLength > static_cast<int>(glbBinaryPtr->size()))
 					{
 						qWarning() << "processGltf2CoreAndExtensions: Invalid bufferView range for image" << imgIdx;
 						continue;
 					}
 
 					// Extract image bytes from binary buffer
-					QByteArray imageData(reinterpret_cast<const char*>(glbBinaryBuffer.data() + byteOffset), byteLength);
+					QByteArray imageData(reinterpret_cast<const char*>(glbBinaryPtr->data() + byteOffset), byteLength);
 
 					// KTX2/Basis Universal (KHR_texture_basisu) - QImage has
 					// no decoder for this container format at all, so
@@ -1093,28 +1176,47 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					}
 					else
 					{
-						// Load image from bytes
-						if (!qImg.loadFromData(reinterpret_cast<const uchar*>(imageData.constData()), imageData.size()))
+						if (preparedImages[imgIdx].ready)
 						{
-							qWarning() << "processGltf2CoreAndExtensions: Failed to load image" << imgIdx << "from GLB buffer";
-							continue;
+							// Decoded, alpha-checked and converted in parallel above; only the upload below stays serial.
+							diskPath = cacheDir + "/" + QString("image_%1.png").arg(imgIdx);
+							qImg = std::move(preparedImages[imgIdx].glImage);
+							hasAlpha = preparedImages[imgIdx].hasAlpha;
 						}
-
-						// Choose format (preserve or standardize)
-						QString fileName = QString("image_%1.png").arg(imgIdx);
-						diskPath = cacheDir + "/" + fileName;
-
-						// Save if not already cached
-						if (!QFile::exists(diskPath))
+						else
 						{
-							qImg.save(diskPath);
+							// Load image from bytes
+							stepClock.restart();
+							const bool imageLoaded = qImg.loadFromData(reinterpret_cast<const uchar*>(imageData.constData()), imageData.size());
+							msDecode += stepClock.nsecsElapsed() / 1.0e6;
+							if (!imageLoaded)
+							{
+								qWarning() << "processGltf2CoreAndExtensions: Failed to load image" << imgIdx << "from GLB buffer";
+								continue;
+							}
+
+							// Choose format (preserve or standardize)
+							QString fileName = QString("image_%1.png").arg(imgIdx);
+							diskPath = cacheDir + "/" + fileName;
+
+							// Save if not already cached
+							stepClock.restart();
+							if (!QFile::exists(diskPath))
+							{
+								qImg.save(diskPath);
+							}
+							msSave += stepClock.nsecsElapsed() / 1.0e6;
+
+							// Check alpha before conversion
+							stepClock.restart();
+							hasAlpha = checkImageForAlpha(qImg);  // Check original image
+							msAlpha += stepClock.nsecsElapsed() / 1.0e6;
+
+							// Prepare for OpenGL
+							stepClock.restart();
+							qImg = convertToGLFormat(qImg);
+							msConvert += stepClock.nsecsElapsed() / 1.0e6;
 						}
-
-						// Check alpha before conversion
-						hasAlpha = checkImageForAlpha(qImg);  // Check original image
-
-						// Prepare for OpenGL
-						qImg = convertToGLFormat(qImg);
 					}
 
 					// Create texture struct with embedded marker (not a file path)
@@ -1209,10 +1311,12 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					else
 					{
 						tex.imageData = qImg;
+						stepClock.restart();
 						if (_imageTextureUploader)
 						{
 							textureID = _imageTextureUploader(tex, qImg);
 						}
+						msUpload += stepClock.nsecsElapsed() / 1.0e6;
 
 						if (_imageTextureUploader && textureID == 0)
 						{
@@ -1229,6 +1333,9 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 				}
 			}
 
+			Logger::instance().info(QStringLiteral("[GlbImages] %1 images: parallel decode/convert/cache %7 ms; serial remainder: decode %2 ms, png save %3 ms, alpha scan %4 ms, gl convert %5 ms, upload %6 ms")
+				.arg(jsonImages.size()).arg(msDecode, 0, 'f', 0).arg(msSave, 0, 'f', 0).arg(msAlpha, 0, 'f', 0).arg(msConvert, 0, 'f', 0).arg(msUpload, 0, 'f', 0).arg(msPrepare, 0, 'f', 0),
+				QStringLiteral("Performance"));
 			s_glbImagesLoaded.insert(gltfPath, true);
 		}
 	}
@@ -1711,7 +1818,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 				// createTextureOnGPU must examine newTexture.wrapS/wrapT/magFilter/minFilter when creating the GL sampler
 				// assume this function sets newTexture.id (or returns id)
 				texID = createTextureOnGPU(newTexture,
-					isGLB ? &glbBinaryBuffer : nullptr,
+					isGLB ? glbBinaryPtr : nullptr,
 					isGLB ? &jsonBufferViews : nullptr,
 					isGLB ? &jsonImages : nullptr);
 				if (texID == 0 && newTexture.imageData.isNull()) return false;
@@ -2679,7 +2786,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 }
 
 
-QString MaterialProcessor::extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer)
+QString MaterialProcessor::extractJsonFromGLB(const QString& glbPath, std::vector<uint8_t>& outBinaryBuffer, bool readBinaryChunk)
 {
 	QFile file(glbPath);
 	if (!file.open(QIODevice::ReadOnly))
@@ -2726,6 +2833,14 @@ QString MaterialProcessor::extractJsonFromGLB(const QString& glbPath, std::vecto
 		uint32_t chunkSize = *reinterpret_cast<const uint32_t*>(chunkHeader.constData());
 		uint32_t chunkType = *reinterpret_cast<const uint32_t*>(chunkHeader.constData() + 4);
 
+		if (!readBinaryChunk && chunkType != 0x4E4F534A)
+		{
+			// Not the JSON chunk and the caller does not want the binary data: step over it without reading it.
+			if (!file.seek(file.pos() + chunkSize))
+				break;
+			continue;
+		}
+
 		QByteArray chunkData = file.read(chunkSize);
 		if (chunkData.size() != static_cast<int>(chunkSize))
 			break;
@@ -2762,10 +2877,10 @@ bool MaterialProcessor::fillAnimDataFromCache(const QString& path, QJsonDocument
 	if (!s_glbJsonCache.contains(path) || !s_glbBinaryCache.contains(path))
 		return false;
 	outDoc = s_glbJsonCache[path];
-	const std::vector<uint8_t>& bin = s_glbBinaryCache[path];
 	outBufferData.clear();
-	outBufferData.append(QByteArray(reinterpret_cast<const char*>(bin.data()),
-		static_cast<int>(bin.size())));
+	// Shares the cached allocation (reference count only, no copy: this is called once per mesh and the binary
+	// can be hundreds of MB) and keeps it alive for as long as the caller holds it.
+	outBufferData.append(s_glbBinaryCache.value(path));
 	return outDoc.isObject();
 }
 
@@ -2775,7 +2890,8 @@ void MaterialProcessor::seedGlbCacheIfAbsent(const QString& path, const QJsonDoc
 	if (!s_glbJsonCache.contains(path))
 	{
 		s_glbJsonCache[path] = doc;
-		s_glbBinaryCache[path] = std::move(binary);
+		s_glbBinaryCache[path] = QByteArray(reinterpret_cast<const char*>(binary.data()),
+			static_cast<qsizetype>(binary.size()));
 	}
 }
 
@@ -2960,6 +3076,15 @@ void MaterialProcessor::extractUVTransform(
 		texture.offset = glm::vec2(0.0f, 0.0f);
 		texture.rotation = 0.0f;
 	}
+
+	// JT stored UVs and Assimp-imported glTF UVs share the same convention.
+	// Both use the renderer's existing V conversion with no extra reflection.
+	int mode=0;
+	const auto wrap=[](int value){return value==aiTextureMapMode_Clamp?GL_CLAMP_TO_EDGE:value==aiTextureMapMode_Mirror?GL_MIRRORED_REPEAT:GL_REPEAT;};
+	if(mat->Get(AI_MATKEY_MAPPINGMODE_U(type,slotIndex),mode)==AI_SUCCESS)texture.wrapS=wrap(mode);
+	if(mat->Get(AI_MATKEY_MAPPINGMODE_V(type,slotIndex),mode)==AI_SUCCESS)texture.wrapT=wrap(mode);
+	if(mat->Get(AI_MATKEY_GLTF_MAPPINGFILTER_MAG(type,slotIndex),mode)==AI_SUCCESS)texture.magFilter=GLenum(mode);
+	if(mat->Get(AI_MATKEY_GLTF_MAPPINGFILTER_MIN(type,slotIndex),mode)==AI_SUCCESS)texture.minFilter=GLenum(mode);
 
 	// Debug output (optional)
 	/*std::cout << "UV Transform for " << texture.type << ":\n"
@@ -3407,7 +3532,7 @@ GltfLightData MaterialProcessor::parseKHRLightsPunctual(const QString& gltfPath)
 }
 
 // Sets the texture maps for a material based on the defined texture mappings.
-void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vector<Material::Texture>& textures, Material& mat)
+void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vector<Material::Texture>& textures, Material& mat, const aiScene* scene)
 {
 
 	//debugMaterialTextures(material, material->GetName().C_Str());
@@ -3417,7 +3542,7 @@ void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vect
 	{
 		std::cout << mapping << std::endl;
 		// try primary
-		auto maps = loadMaterialTextures(material, mapping.primaryType, mapping.primaryName, mapping.slotIndex);
+		auto maps = loadMaterialTextures(material, mapping.primaryType, mapping.primaryName, mapping.slotIndex, scene);
 		std::cout << "Loaded " << maps.size() << " textures for " << mapping.primaryName << std::endl;
 		textures.insert(textures.end(), maps.begin(), maps.end());
 
@@ -3425,7 +3550,7 @@ void MaterialProcessor::processAssimpTextureMaps(aiMaterial* material, std::vect
 		// loadMaterialTextures reuses existing IDs and avoids reloading)
 		if (mapping.fallbackType != aiTextureType_NONE)
 		{
-			auto fmaps = loadMaterialTextures(material, mapping.fallbackType, mapping.fallbackName, mapping.fallbackSlotIndex);
+			auto fmaps = loadMaterialTextures(material, mapping.fallbackType, mapping.fallbackName, mapping.fallbackSlotIndex, scene);
 			textures.insert(textures.end(), fmaps.begin(), fmaps.end());
 		}
 	}
@@ -4112,7 +4237,7 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 	aiMaterial* mat,
 	aiTextureType type,
 	const std::string& typeName,
-	unsigned int slotIndex)
+	unsigned int slotIndex, const aiScene* scene)
 {
 	std::vector<Material::Texture> textures;
 
@@ -4124,6 +4249,13 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 		return textures;
 
 	std::string textureFilePath = this->_folderPath + '/' + string(str.C_Str());
+	const aiTexture* embedded = scene ? scene->GetEmbeddedTexture(str.C_Str()) : nullptr;
+	if(embedded){
+		const uint64_t bytes=embedded->mHeight?uint64_t(embedded->mWidth)*embedded->mHeight*sizeof(aiTexel):embedded->mWidth;
+		if(!embedded->pcData||bytes==0||bytes>64u*1024u*1024u)return textures;
+		const auto hash=QCryptographicHash::hash(QByteArray::fromRawData(reinterpret_cast<const char*>(embedded->pcData),int(bytes)),QCryptographicHash::Sha256).toHex();
+		textureFilePath="embedded://"+std::to_string(embedded->mWidth)+"x"+std::to_string(embedded->mHeight)+"/"+hash.toStdString();
+	}
 	std::replace(textureFilePath.begin(), textureFilePath.end(), '\\', '/');
 
 	// Extract UV transform FIRST (before checking cache)
@@ -4142,7 +4274,8 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 			std::abs(a.scale.y - b.scale.y) < 0.0001f &&
 			std::abs(a.offset.x - b.offset.x) < 0.0001f &&
 			std::abs(a.offset.y - b.offset.y) < 0.0001f &&
-			std::abs(a.rotation - b.rotation) < 0.0001f;
+			std::abs(a.rotation - b.rotation) < 0.0001f &&
+			a.wrapS==b.wrapS && a.wrapT==b.wrapT && a.magFilter==b.magFilter && a.minFilter==b.minFilter;
 		};
 
 	// Check 1: Exact match (path + type + UV metadata)
@@ -4162,7 +4295,7 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 	// In this case, reuse GPU texture ID but create new entry with different metadata
 	for (const auto& lt : _loadedTextures)
 	{
-		if (string(lt.path.c_str()) == textureFilePath)
+		if (string(lt.path.c_str()) == textureFilePath && lt.wrapS==newTexture.wrapS && lt.wrapT==newTexture.wrapT && lt.magFilter==newTexture.magFilter && lt.minFilter==newTexture.minFilter)
 		{
 			// Found same texture file - reuse GPU ID but apply new metadata
 			Material::Texture alias;
@@ -4190,7 +4323,30 @@ std::vector<Material::Texture> MaterialProcessor::loadMaterialTextures(
 		}
 	}
 
-	// Check 3: Not loaded at all - load from file	
+	if(embedded)
+	{
+		QImage decoded;
+		if(embedded->mHeight==0)
+		{
+			QBuffer buffer;buffer.setData(QByteArray::fromRawData(reinterpret_cast<const char*>(embedded->pcData),int(embedded->mWidth)));
+			buffer.open(QIODevice::ReadOnly);QImageReader reader(&buffer);const auto size=reader.size();
+			if(size.width()<1||size.height()<1||uint64_t(size.width())*size.height()*4>64u*1024u*1024u)return textures;
+			decoded=reader.read();
+			if(decoded.size()!=size)return textures;
+		}
+		else if(embedded->pcData&&embedded->mWidth&&embedded->mHeight)
+		{
+			decoded=QImage(int(embedded->mWidth),int(embedded->mHeight),QImage::Format_RGBA8888);
+			if(decoded.isNull())return textures;
+			for(unsigned y=0;y<embedded->mHeight;++y){auto* row=decoded.scanLine(int(y));for(unsigned x=0;x<embedded->mWidth;++x){
+				const auto& p=embedded->pcData[size_t(y)*embedded->mWidth+x];row[4*x]=p.r;row[4*x+1]=p.g;row[4*x+2]=p.b;row[4*x+3]=p.a;}}
+		}
+		if(decoded.isNull())return textures;
+		newTexture.imageData=convertToGLFormat(decoded);newTexture.hasAlpha=checkImageForAlpha(newTexture.imageData);
+		if(_imageTextureUploader)newTexture.id=_imageTextureUploader(newTexture,newTexture.imageData);
+		textures.push_back(newTexture);_loadedTextures.push_back(newTexture);return textures;
+	}
+	// Check 3: Not loaded at all - load from file
 	unsigned int newTextureId = createTextureOnGPU(newTexture);
 	if (newTextureId == 0 && newTexture.imageData.isNull())
 	{

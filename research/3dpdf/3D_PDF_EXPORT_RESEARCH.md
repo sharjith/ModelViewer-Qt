@@ -1,0 +1,764 @@
+# Save as 3D PDF: groundwork research
+
+Status: research only, written 3 November 2026 on `feature/JT-importer`. No application code, no builds, no downloads, no commit. Nothing below was tested against a real Acrobat install; every statement is tagged as one of:
+
+- **[Obs]** what a fetched or searched source says (URL given),
+- **[Recall]** from memory, not verified against a source in this session,
+- **[Hyp]** hypothesis or inference,
+- **[Rec]** recommendation.
+
+Owner background: a STEP-export / 3D-PDF-composer path for measurements was investigated earlier and deferred (reasoning not recovered; this document re-investigates rather than assuming it).
+
+---
+
+## 1. The two embedding formats
+
+A 3D PDF is an ordinary PDF containing a **3D annotation** (`/Subtype /3D`) whose `/3DD` entry is a stream holding either U3D or PRC data, plus optional `/3DV` view dictionaries and `/3DA` activation settings.
+
+- **[Obs]** The 3D annotation is defined in ISO 32000-1:2008 (PDF 1.7) and ISO 32000-2:2017 (PDF 2.0). `3DD` is required and points at the 3D stream; `3DV` selects the initial view (a view dictionary, or an index/name into the stream's view array); `3DA` controls activation. Adobe's supplement adds extension-level entries (e.g. a `3DU` units dictionary, ExtensionLevel 3), and a PDF that embeds PRC must carry an Adobe Extensions dictionary in the catalog. Source: Adobe SDK docs, <https://opensource.adobe.com/dc-acrobat-sdk-docs/library/plugin/Plugins_3D_samples.html>, and abcpdf reference pages (search result summaries, not read in full).
+- **[Obs]** PDF 1.7 introduced interactive 3D using U3D; PDF 2.0 extended 3D to PRC, STEP AP242 and glTF 2.0 (summary of a PDF Association item reached through a search result, <https://pdfa.org/resource/3d-formats/>; page not read in full).
+
+### 1.1 U3D (ECMA-363)
+
+- **[Obs]** Standardised by ECMA as ECMA-363, first edition December 2004; 4th edition June 2007 is the latest. It stores vertex-based geometry, colour, textures, lighting, bones and transform-based animation; edition 3 added vendor blocks (RHAdobeMesh, a more compressed mesh block); edition 4 added curved-surface (free-form) primitives. Sources: <https://en.wikipedia.org/wiki/Universal_3D>, <https://ecma-international.org/wp-content/uploads/ECMA-363_4th_edition_june_2007.pdf> (table of contents seen: view node, light node, line set, point set blocks). The ECMA PDFs are freely downloadable.
+- **[Hyp]** It is a mesh/line/point format with a node hierarchy; there is no analytic B-Rep and no PMI/semantic data. The sources read do not say "no B-Rep" explicitly; this is an inference.
+- **[Hyp]** Fits our data directly: triangle meshes, per-mesh materials, node tree, line sets for measurement graphics, view nodes.
+- **[Recall]** Historically the most compatible format; Acrobat 7/8 era workflows used it. PMI would have to be drawn as lines/text geometry or as PDF-side annotations.
+
+### 1.2 PRC (ISO 14739-1:2014, "PRC 10001")
+
+- **[Obs]** ISO 14739-1:2014 "Document management - 3D use of Product Representation Compact (PRC) format - Part 1: PRC 10001", reviewed and confirmed 2021; a revision (ISO/CD 14739-1.3) is listed as in development. The standard text is paywalled. Sources: <https://www.iso.org/standard/54948.html>, <https://scc-ccn.ca/standardsdb/standards/8151929>.
+- **[Obs]** PRC can store a tessellation only or exact B-Rep. Origin: TTF (2003), acquired by Adobe 2006. Adobe's older specification (version 8137) is archived at web.archive.org (link on <https://en.wikipedia.org/wiki/PRC_(file_format)>); not fetched, so freely-readable status is **unverified**.
+- **[Obs]** HOOPS Exchange documentation lists PRC as the native model format and states the API gives access to B-Rep, PMI (visual and semantic), model tree, views, styles. ODA Publish describes "PMI including dimensions and tolerances" and "custom views". (Sources in section 2.)
+- **[Hyp]** Strictly richer than U3D: assembly tree with product occurrences, per-node styles/materials, tessellation and B-Rep, semantic PMI, saved views, markups. For our data (meshes plus recorded and measured dimensions) the relevant parts are tessellation, product occurrences, materials/styles, camera/view objects and markup/annotation items.
+- **[Obs]** Asymptote's open PRC writer implements: wire tessellation/polylines, tessellated faces (`PRC3DTess`), poly-B-Rep models, point sets, generic materials (ambient/diffuse/emissive/specular/shininess/alpha), textures, line styles, product occurrences/part definitions with transforms, B-Rep entities, and markup/annotation-item serialisers; only camera and scene-display type ids were seen, no view writer found (see 2.3).
+
+### 1.3 Which format for what
+
+| Need | U3D | PRC |
+|---|---|---|
+| Triangle meshes, colours, opacity | yes | yes |
+| Assembly tree / transforms | node tree | product occurrences + transforms |
+| Exact B-Rep (STEP-like) | no [Hyp] | yes [Obs] |
+| Semantic PMI | no [Hyp] | yes via commercial SDKs [Obs] |
+| Measurement graphics as lines/text | line sets (text must be vector-drawn) | polylines/markup |
+| Open-source writer exists | yes, aged (2.2) | yes, Asymptote (2.3) |
+| Freely readable spec | ECMA (free) | ISO (paid); Adobe older spec [unverified] |
+
+---
+
+## 2. Writer options
+
+### 2.1 Fit with the existing build
+
+**[Obs]** `vcpkg.json` baseline `ddd0023b...`; dependencies include Qt 6 base/widgets, assimp, Open CASCADE, CGAL, Eigen, zstd, OpenEXR, embree, OIDN, minizip (via CMake `find_package`). zlib is already available transitively [Hyp: via Qt/assimp/minizip; not confirmed from the lock]. Linux builds are supported (WSL / .deb), so a solution must build on both platforms. An `overlay-ports/` directory exists, so a project-local port for a small library is feasible.
+
+### 2.2 U3D library (Intel/ECMA reference code, `u3d`)
+
+- **[Obs]** SourceForge project "Universal 3D Sample Software": license Apache-2.0; last update 2016-05-01; set of libraries to write/read/render U3D per ECMA-363; two user reviews (3/5) cite poor documentation and memory issues. <https://sourceforge.net/projects/u3d/>
+- **[Obs]** GitHub fork `DmytroSytnyk/u3d`: Apache-2.0, 17 commits, port of Intel U3D v1.4.5 to GNU build system and CMake, render part removed; separates `libIDTF` (library built from the IDTFConverter, dropping the IDTF text parser) so U3D can be written from code; bundles libpng, jpeg, zlib; build claims cover VS2008-2015, Linux and macOS x64; default quality is maximum, i.e. mesh compression suppressed; unreleased/untagged. <https://github.com/DmytroSytnyk/u3d>
+- **[Obs]** No vcpkg port found: the vcpkg.link URL returned 404 and the ports listing could not be fully read, so **unverified**.
+- **[Hyp]** Practical path: IDTF (verbose text) as an intermediate plus the converter, or the fork's library API. Needs a vendored or overlay-port build, plus a licence-notice update (Apache-2.0 plus bundled-library notices). Old code; modern MSVC/GCC warnings and bugs expected.
+- **[Recall]** Other tools (MeshLab, IDTFConverter-based pipelines) use the same code; unverified here.
+
+### 2.3 Asymptote PRC writer (`prc/`)
+
+- **[Obs]** Header of `prc/oPRCFile.cc`: "tool for producing 3D content in the PRC format", copyright 2008 Orest Shardt and Michail Vidiassov, LGPL v3 or later. Repository root README: all sources LGPL-3.0-or-later unless stated; the Windows `asy` binary is GPL because of GSL/Readline (not the prc code). Other `prc/` file headers not read. <https://github.com/vectorgraphics/asymptote> (`prc/`)
+- **[Obs]** `prc/CMakeLists.txt` builds a `PRC` library from `oPRCFile.cc`, `PRCbitStream.cc`, `PRCdouble.cc`, `writePRC.cc`; only external dependency is zlib. Standalone buildability without Asymptote headers: **unverified**.
+- **[Obs]** Active project: tags 3.15 (14 Sep 2026), 3.14 (29 Aug 2026), 3.13 (9 Jul 2026), no GitHub Releases. <https://github.com/vectorgraphics/asymptote/tags>
+- **[Obs]** Output is a standalone PRC byte stream; the PDF embedding (3D annotation, view dictionaries) is not in `prc/`. A TUGboat note (via search result) says Michail Vidiassov overhauled the driver to the latest PRC spec. media9 embeds PRC into PDFs on the LaTeX side.
+- **[Hyp]** Candidate for a PRC mesh writer: LGPL-3 is workable if the library is linked dynamically or can be relinked, which a closed-source app must honour. The project's licence (GPL-3.0 application) needs checking against the app's own LICENSE: the repo contains `gpl-3.0.txt` and `LICENSE`, so the app looks GPL-3.0, which makes LGPL-3 and Apache-2.0 both compatible [Hyp: confirm the app's licence file].
+
+### 2.4 Open Design Alliance (Publish / PRC SDK)
+
+- **[Obs]** Product page <https://www.opendesign.com/products/publish>: 2D and "3D PRC-based" PDF export; 3D solids as meshes or B-reps, compressed or not; PMI "including dimensions and tolerances"; custom views with a view list; animation via JavaScript; parts lists; Windows, Mac and Linux; included in every ODA membership level at no extra cost; web/SaaS use only in Sustaining, Founding and Corporate levels; free technical support; free 60-day trial. U3D not mentioned; membership prices, source-code availability, language bindings, cross-section support: **not stated**. Roadmap: 2026 "Redesign of 3D PdfExport".
+- **[Obs]** Search summary (not read): a 2017 ODA brochure describes fixed-fee, royalty-free licensing; <https://www.opendesign.com/files/white-papers/ODA%20Publish.pdf> returned unreadable bytes.
+- **[Hyp]** Strongest feature coverage for PRC, but ODA membership is a paid, binary-SDK relationship; not a vcpkg dependency.
+
+### 2.5 Tech Soft 3D HOOPS Exchange (includes HOOPS Publish)
+
+- **[Obs]** HOOPS Publish is now part of HOOPS Exchange (FAQ); product page <https://www.techsoft3d.com/products/hoops/publish/overview> serves the Exchange page. Read/write list includes PRC, U3D, PDF, glTF, STEP, JT, etc.; B-Rep, PMI, model tree, views, styles are accessible through the API; APIs in C, C++, C#; Windows, Linux, macOS (limited iOS/Android); free 60-day evaluation; version 2026.8.0 [from a summary of truncated release notes]. Docs sections "Creating a PDF from scratch", "Defining 3D", Publish interactivity/JavaScript/templates were seen as headings only. Pricing and licence terms: **not stated**. <https://docs.techsoft3d.com/exchange/latest/release_notes.html>
+- **[Obs]** Old trade report: Tech Soft 3D took over Adobe's 3D PDF development (2008). <https://gfxspeak.com/archives/adobe-hands-3d-pdf-development-to-tech-soft-3d/>
+- **[Hyp]** Commercial, per-seat/OEM, heavy binary SDK. Would also solve a lot of import (JT, STEP) but that is out of scope and large overkill for an export-only feature.
+
+### 2.6 CAD Exchanger SDK
+
+- **[Obs]** Version 3.10.2 added U3D and 3D PDF export (polygonal representation, product structure, colours, names); the support site says PDF import works only for U3D-based PDFs. SDK in C++, C#, Java, JavaScript, Python. Licence terms not stated in the pages seen. <https://cadexchanger.com/blog/cad-exchanger-3-10-2-with-u3d-and-3d-pdf-export-and-a-special-treat-for-python-based-apps>
+- **[Hyp]** Commercial; comparable to HOOPS in cost class.
+
+### 2.7 Datakit, Spatial, others
+
+- **[Obs]** Datakit CrossCad/Ware SDK is listed as a PRC producer on Wikipedia's PRC page. Nothing else verified: no licence or price. Spatial 3D InterOp: **not researched**.
+
+### 2.8 Open CASCADE (already a dependency)
+
+- **[Hyp]** OCCT has no PRC or U3D writer that I can confirm; none was found in this research. **[Recall]** STEP, glTF, VRML, OBJ writers exist in OCCT; none is PDF-embeddable directly. Its value here is a source of B-Rep for a future exact-geometry PRC path, not a writer.
+
+### 2.9 LaTeX media9 / movie15
+
+- **[Obs]** `media9` 1.30 (CTAN, 2025-06-24), LaTeX Project Public License; embeds U3D and PRC via the RichMedia annotation; Adobe Reader only supports U3D or PRC embedded in the PDF, not streamed at run time. <https://ctan.org/tex-archive/macros/latex/contrib/media9>
+- **[Hyp]** Requires a TeX toolchain at the user's machine; not appropriate for an end-user Save As command. Useful as a **test harness** and as a reference for the RichMedia dictionary layout.
+
+### 2.10 Hand-rolled PDF object writer
+
+A 3D PDF needs only: the file header, an object table, a page, a 3D annotation, its stream (Flate-compressed U3D/PRC) and optional view dictionaries, xref and trailer. The set is small.
+
+- **[Obs]** PoDoFo: LGPL-2.0-or-later library, GPL tools, dependencies OpenSSL/libxml2/zlib/jpeg/tiff/png/idn (several optional), builds through vcpkg. libharu: zlib/libpng licence. <https://github.com/podofo/podofo/>
+- **[Obs]** iText exposes `Pdf3DAnnotation`; iText's licence is AGPL or commercial (**[Recall]**, not verified here), so unsuitable by default.
+- **[Recall]** Qt's `QPdfWriter` and `QPainter` have no 3D annotation support. Not verified in this session; check Qt docs before any design relies on it.
+- **[Hyp]** A ~300-500 line in-house writer is sufficient for the annotation, view dictionaries, an optional poster image and a `/AA` JavaScript-free setup. Risk: details of the Adobe 3D extensions (PRC extension dictionary, `3DU`) must be reproduced exactly; Acrobat is a strict reader.
+
+---
+
+## 3. Viewer support (important for the decision)
+
+- **[Obs]** Adobe: 3D content autoplay is off by default; users enable it in Preferences > Multimedia & 3D, or accept a per-file prompt; files in privileged locations render directly; untrusted files show a yellow "3D content has been disabled" bar. <https://helpx.adobe.com/acrobat/using/enable-3d-content-pdf.html>. A CERT advisory on crafted embedded U3D explains the caution. <https://kb.cert.org/vuls/id/759307>
+- **[Obs]** Foxit PDF Editor documents support for U3D, PRC and glTF. <https://resource-cms.foxit.com/foxit-pdf-editor-for-windows/work-3d-content-in-pdfs>. A community forum post says free Foxit Reader may not handle both encodings (user post, possibly dated).
+- **[Obs]** A forum post (Bricsys) states PDF-XChange handled U3D but PRC poorly (shown black) at the time; a 2018 PDF-XChange post announced U3D support with PRC planned. Dates and current state unverified.
+- **[Obs]** Tech Soft 3D's mobile "3D PDF Reader" supports PRC and U3D. <https://apps.apple.com/us/app/3d-pdf-reader/id569307672>
+- **[Recall]** Browser PDF viewers (Chrome, Edge, Firefox, macOS Preview) show no 3D content. Not verified in this session; test before making any claim to users.
+- **[Hyp]** Practical audience: Adobe Acrobat/Reader on desktop. Everything else is best effort. A static poster image on the 3D page is essential so non-3D viewers show something.
+- **[Hyp]** U3D has the broadest historical compatibility; PRC compatibility outside Adobe/Foxit/Tech Soft is weaker.
+
+---
+
+## 4. Mapping the app's data
+
+Code references checked in this session (read-only): `include/Measurement/MeasurementData.h`, `AnnotationData.h`, `LabelPlane.h`, `include/Scene/SceneGraphExporter.h`, `GltfCameraData.h`, `Material.h`, plus memory note on the planned glTF measurement export.
+
+### 4.1 Scene, assembly tree and meshes
+
+- **[Obs]** `SceneGraphExporter::buildExportScene()` already rebuilds an export-only `aiScene` from the `SceneGraph` hierarchy and live meshes by UUID, with a `flattenTransforms` option and a source-file filter. It writes positions, normals, UV0, triangles, and its header notes materials were first-pass.
+- **[Hyp]** Reuse this as the single source for the PDF export: node tree to U3D node hierarchy / PRC product occurrences, `aiMesh` triangle lists to U3D mesh blocks / PRC tessellation. U3D wants unique mesh resources per node with the node carrying the transform; instanced meshes in the app should become instanced resources, not copies (large assemblies are an owner concern: 34k-part JT and vehicle samples were noted in memory).
+- **[Hyp]** Size: a 3D PDF embeds everything uncompressed-by-default; large assemblies need decimation or a size warning, optional mesh compression (U3D compressed meshes, PRC compression), and the "hidden parts" rule (export visible only?). Open question O3.
+
+### 4.2 Materials
+
+- **[Obs]** `Material` carries both Phong-style (ambient/diffuse/specular/emissive/shininess) and PBR (albedo, metalness, roughness, opacity, clearcoat, sheen, transmission, IOR, textures).
+- **[Hyp]** U3D and PRC materials are Phong-like (ambient, diffuse, specular, emissive, shininess, opacity). Mapping: diffuse from albedo, specular derived from metalness/roughness (lossy), opacity direct, emissive direct, textures via embedded images (U3D texture blocks; PRC texture definitions) with UV0 only. Metal/PBR looks will not survive; Acrobat's lighting is its own. Colour and opacity are the dependable part.
+
+### 4.3 Cameras and views
+
+- **[Obs]** The app stores glTF cameras (`GltfCameraEntry`: perspective yfov/near/far or orthographic xmag/ymag, world position/direction/up), saved Scene States, selection sets, and exploded-view presets.
+- **[Hyp]** Each saved camera and scene state maps to a PDF 3D view dictionary (`/3DV`: camera matrix, projection, background, render mode, per-node visibility/transform overrides), shown in Acrobat's view list. The current view becomes the default view. Scene-state node visibility and transforms (exploded) map to per-view node overrides; this is plausible with `3DV` node dictionaries but untested.
+- **[Hyp]** Coordinate conventions (up axis, units, handedness) need a documented conversion; PDF 3D has a `3DU` units extension so lengths can be tagged mm.
+
+### 4.4 Measurements and annotations (PMI-like)
+
+- **[Obs]** Measurements: ~19 types, each defined by mesh-relative anchors (mesh UUID, triangle + barycentric, vertex or edge index), plus layout fields: `orientation` (ModelPlane, creation view or face-camera), `offsetVector`, `offsetReferenceDir` (creation view direction), `visible`, and for imported PMI a `recordedValue`/unit/kind and a `recordedDrawing` (arrows, extension lines, leaders and text strokes in the annotation plane).
+- **[Obs]** Annotations: free text, one mesh anchor, leader offset, orientation, and for imported PMI `recordedKind` and `recordedDrawing`.
+- **[Obs]** The owner's 2026-11-01 plan for glTF export already settled: labels are drawn as plain lines and filled triangles in model-space planes, oriented for each item's creation view; face-camera items export in the creation-view plane; the capture is done by a scratch ortho camera, no OpenGL; opt-in checkbox, off by default.
+- **[Hyp]** Three possible PDF representations, increasing in fidelity and cost:
+  1. **Geometry-only (recommended first).** Reuse that same captured line/triangle output as extra U3D line-set and mesh nodes (or PRC polylines/triangles) in an "Annotations" group, each node named and carrying the value text in a metadata dictionary. Works in both formats, needs no PMI schema, matches the existing capture design. Limitation: text becomes outline geometry, not selectable/semantic text.
+  2. **PRC markup items.** Real PRC markup/annotation entities with leader, text and linked-geometry references. Open-source writer serialisers exist for markup items (Asymptote) but no PMI writer was seen; commercial SDKs advertise PMI output. Larger effort; viewer rendering of PRC markup in Acrobat not verified.
+  3. **PDF-side comments or 2D page overlays** (labels as PDF annotations or form fields next to the 3D area). Loses 3D anchoring.
+- **[Hyp]** Distinguish recorded from measured values in node names, as the app does, so the PDF never presents a measured number as an authored one.
+
+---
+
+## 5. Constraints and open questions for the owner
+
+| # | Question | Why it matters |
+|---|---|---|
+| O1 | Target readers: Adobe Acrobat/Reader only, or also Foxit and others? | Drives U3D versus PRC; U3D is the safer lowest common denominator [Hyp]. |
+| O2 | Must the PDF carry exact B-Rep, or are tessellated meshes enough? | B-Rep needs a PRC writer with B-Rep entities (commercial SDK or substantial custom work) and OCCT-side data retention. |
+| O3 | Size policy for large assemblies: warn, decimate, export visible only, or compress? | 3D PDFs get unwieldy; the app's 34k-part cases are common to the owner. |
+| O4 | Licence/cost appetite: open source only (Apache-2.0/LGPL), or are ODA membership, HOOPS or CAD Exchanger licences acceptable? | The app appears to be GPL-3.0 [Hyp: confirm]; commercial SDK redistribution and GPL compatibility must be checked before adoption. |
+| O5 | Measurement/annotation text: outline geometry acceptable for the first cut? | Option 1 in 4.4. |
+| O6 | Should the export include a 2D page (title, poster, parts list) or only the 3D area? | Affects the PDF page writer scope. |
+| O7 | Linux parity: required from day one? | Rules out anything Windows-only. |
+| O8 | Branch name and base for the implementation session. | Owner names it; not created here. |
+
+Constraints noted: no build or test runs in this research session; Adobe behaviour must be tested by the owner on a real Acrobat/Reader; every acceptance claim should be recorded as owner acceptance, not inferred.
+
+---
+
+## 5a. Owner decisions (3 November 2026)
+
+Recorded from the owner's answers to section 5. These are decisions, not observations.
+
+| # | Decision |
+|---|---|
+| O1 | Acrobat (Reader) is the target to begin with. |
+| O2 | Tessellated geometry is enough; no exact B-Rep. |
+| O3 | Export visible parts only; add compression if required. |
+| O4 | Strictly open source; no commercial SDK (ODA, HOOPS, CAD Exchanger are out). The app is GPL-3.0 (`LICENSE`, `README.md`), so Apache-2.0, LGPL, zlib and similar licences are compatible. |
+| O5 | Outline geometry for measurement/annotation text is acceptable in the first cut. |
+| O6 | The result is a complete drawing-style document (title block, 2D page content such as poster/parts list, plus the 3D area), not only a bare 3D view. |
+| O7 | Linux parity from the start, to avoid API/compatibility rework later. |
+| O8 | Branch name: `feature/3DPDF`; the owner creates it. |
+
+Owner acceptance (3 November 2026): all recommendations in this document are accepted. This was a brainstorming session only; implementation starts when the owner says so. `feature/3DPDF` will be branched from `dev` after the 3DXML and JT importers are merged to `dev`.
+
+Consequences (hypotheses, for the implementation session):
+
+- Commercial options in 2.4-2.7 are excluded. PRC is only reachable through the Asymptote writer (LGPL-3.0-or-later); U3D through the Apache-2.0 `u3d` library. Both need a vendored copy or overlay port that builds on Windows and Linux, so the first spike should build both.
+- O6 widens scope: a real PDF page writer (text, vector lines, images, page layout, fonts) is needed, not just a 3D annotation. Qt's `QPdfWriter` and `QPainter` (Qt Gui, LGPL/GPL) can draw the 2D page cross-platform [Recall: unverified], but embedding the 3D annotation object into a `QPdfWriter` document is probably not supported [Recall]. Candidate designs: (a) in-house PDF writer for the whole file, with fonts embedded via Freetype (already a dependency); (b) `QPdfWriter` page, then post-process the file to add the 3D annotation, which means editing PDF objects anyway; (c) PoDoFo (LGPL-2.0+, vcpkg-buildable) for page plus 3D annotation. The spike must pick one. Recommendation: evaluate (c) first, fall back to (a).
+- "Visible only" matches how the app already skips hidden meshes; export must read the same visibility the viewport uses.
+- Acrobat-only target makes U3D and PRC equally acceptable for viewing; U3D remains the first pick because its writer is simpler and fully specified by a free standard. Revisit PRC only for compression needs.
+
+---
+
+## 6. Recommendation and phased plan
+
+**[Rec] Format:** start with **U3D** for the first cut. Reasons: the app's data is meshes, materials, lines and cameras; U3D is freely specified; an Apache-2.0 reference implementation exists; broadest historical Acrobat compatibility [Recall]. Keep the internal export model neutral (a small `ExportScene` of nodes, meshes, materials, views, overlay line/triangle sets) so a PRC backend can be added behind the same interface without touching callers.
+
+**[Rec] Writer:** U3D from a vendored or overlay-port copy of the `u3d` library (evaluating the fork) with a small in-house PDF writer. Before committing to it, run a one-day spike under `out/`: write a cube with IDTF/`u3d`, wrap it in a hand-built PDF, and have the owner open it in Acrobat Reader. Fall back to the media9 route for reference output if the in-house PDF structure is the problem. Avoid pulling PoDoFo/iText unless the spike shows the hand-built PDF is brittle; PoDoFo (LGPL-2.0+) is the fallback.
+
+**[Rec] Phases:**
+
+1. **Spike and gate.** Cube plus two coloured meshes to a 3D PDF, opened by the owner in Acrobat. Confirms the toolchain, licence notices and the Adobe "enable 3D" behaviour. Owner confirms before the next phase.
+2. **Mesh-only export.** `Save as 3D PDF` command, scene tree to node hierarchy, instanced meshes, colour and opacity, poster image from the viewport, size warning, units tag. Linux and Windows build.
+3. **Views.** Current camera as default view; saved cameras and scene states as additional named views, including visibility and exploded transforms.
+4. **Measurements and annotations (geometry).** Reuse the planned capture of lines and triangles per item in creation-view orientation, as grouped, named nodes, behind an export checkbox (default off, like the glTF plan).
+5. **Optional PRC backend.** Only if O2/O4 demand B-Rep, semantic PMI or better compression: evaluate the Asymptote PRC writer for tessellation and markup, or an ODA/HOOPS licence for B-Rep and PMI.
+
+**[Rec]** Do not start the work on `feature/JT-importer`; the owner creates `feature/3DPDF` (decision O8) off the up-to-date integration branch. Given decision O6, phase 2 should include the 2D drawing page (title block, poster, parts list) and the spike should also test page content, not only the 3D annotation.
+
+---
+
+## 7. Sources
+
+Fetched or surfaced in this session (dates 3 November 2026):
+
+- ISO 14739-1: <https://www.iso.org/standard/54948.html>, <https://scc-ccn.ca/standardsdb/standards/8151929>
+- PRC (Wikipedia): <https://en.wikipedia.org/wiki/PRC_(file_format)> (page footer: last edited 10 October 2026)
+- U3D (Wikipedia, last edited 24 February 2026): <https://en.wikipedia.org/wiki/Universal_3D>; ECMA-363 4th edition: <https://ecma-international.org/wp-content/uploads/ECMA-363_4th_edition_june_2007.pdf>
+- Adobe 3D annotation docs: <https://opensource.adobe.com/dc-acrobat-sdk-docs/library/plugin/Plugins_3D_samples.html>
+- PDF Association 3D formats: <https://pdfa.org/resource/3d-formats/> (search summary only)
+- Adobe enable 3D: <https://helpx.adobe.com/acrobat/using/enable-3d-content-pdf.html>; CERT: <https://kb.cert.org/vuls/id/759307>
+- Foxit 3D: <https://resource-cms.foxit.com/foxit-pdf-editor-for-windows/work-3d-content-in-pdfs>
+- PDF-XChange forum: <https://forum.pdf-xchange.com/viewtopic.php?p=120573>; Bricsys forum: <https://forum.bricsys.com/discussion/comment/45978/>
+- u3d: <https://sourceforge.net/projects/u3d/>, <https://github.com/DmytroSytnyk/u3d>
+- Asymptote PRC: <https://github.com/vectorgraphics/asymptote>, `prc/` files `oPRCFile.cc`, `writePRC.cc`, `CMakeLists.txt`, tags page
+- ODA Publish: <https://www.opendesign.com/products/publish>
+- HOOPS Exchange/Publish: <https://www.techsoft3d.com/products/hoops/publish/overview>, <https://docs.techsoft3d.com/exchange/latest/release_notes.html>; Adobe hand-off report: <https://gfxspeak.com/archives/adobe-hands-3d-pdf-development-to-tech-soft-3d/>
+- CAD Exchanger: <https://cadexchanger.com/blog/cad-exchanger-3-10-2-with-u3d-and-3d-pdf-export-and-a-special-treat-for-python-based-apps>
+- media9: <https://ctan.org/tex-archive/macros/latex/contrib/media9>
+- PoDoFo: <https://github.com/podofo/podofo/>; libharu (search summary, <https://github.com/libharu/libharu>)
+
+Not fetchable in this session: Wikipedia "3D PDF" (HTTP 403), `pdfa.org` root (404), `vcpkg.link/ports/u3d` (404). Not researched: Spatial 3D InterOp, Datakit licensing, Qt PDF 3D support, current Acrobat release notes on 3D.
+
+---
+
+## 8. Phase 1 spike log (5 November 2026)
+
+Work is on `feature/3DPDF` in a separate worktree. Nothing here is committed. Regenerate the evidence from the repository root (all output under ignored `out/`):
+
+```bash
+git clone --depth 1 https://github.com/DmytroSytnyk/u3d.git out/3dpdf/src/u3d
+cmake -S out/3dpdf/src/u3d -B out/3dpdf/build/u3d -G "Visual Studio 17 2022" -A x64 -DU3D_SHARED=OFF -Wno-dev
+cmake --build out/3dpdf/build/u3d --config Release --target IDTFConverter IFXCore IFXExporting IFXImporting IFXScheduling
+export U3D_LIBDIR="$(cygpath -w out/3dpdf/build/u3d/Release)"
+out/3dpdf/build/u3d/Release/IDTFConverter.exe -input out/3dpdf/src/u3d/Samples/TestScenes/box.idtf -output out/3dpdf/run/box.u3d
+python -I tools/3dpdf/make_u3d_pdf.py out/3dpdf/run/box.u3d out/3dpdf/run/spike_box.pdf --title "Spike: box"
+```
+
+### 8.1 u3d library observations
+
+- **[Obs]** Fork commit `5c141d9`, Apache-2.0 (`COPYING`). Configures and builds with Visual Studio 2022 (MSVC 14.44) using the Visual Studio generator; the `IDTFConverter` tool, and the four runtime modules `IFXCore`, `IFXExporting`, `IFXImporting`, `IFXScheduling` all built. Build emitted many warnings, including C4302 "truncation from `char *` to `long`" in `IFXVoidStar.h` (a pointer-size hazard on 64-bit; effect not investigated).
+- **[Obs]** `IDTFConverter` and `libIDTF` load the `IFX*.dll` modules at run time (`libIDTF/IFXOSLoader.cpp`, environment variable `U3D_LIBDIR`). Without them it exits with code `0x80000003` and writes nothing. This is a deployment constraint: the application would need to ship those modules or the code would need to be linked statically [Hyp: link-time change, not attempted].
+- **[Obs]** `IDTFGen` writes only the two-line IDTF header (a stub), and `HelloU3DWorld` fails with `0x80000003` without the modules. Neither is useful as a model generator; the bundled `Samples/TestScenes/*.idtf` scenes are.
+- **[Obs]** With the modules present, `IDTFConverter` converted the sample `box.idtf` to a 1,276-byte `.u3d` (exit code 0).
+- **[Hyp]** The IDTF text format is therefore the practical input API (the fork's `libIDTF` exposes `IFXWriter` for emitting IDTF, then conversion is a second step). A production writer would generate IDTF in memory or on disk and convert it, or emit U3D blocks directly.
+
+### 8.2 Hand-built PDF wrapper
+
+- **[Obs]** `tools/3dpdf/make_u3d_pdf.py` (stdlib-only, throwaway) builds a one-page A4 landscape PDF: border, title block, small parts list (vector lines and Helvetica text) and a 3D annotation (`/Subtype /3D`, `/3DD` U3D stream, `/3DV` default view, `/3DA` activation, `/AP` poster text for readers without 3D). It was run on `box.u3d`; the output parses with pypdf (one page, one `/3D` annotation, expected text).
+- **[Not verified]** Whether Acrobat opens it and renders the box. This needs the owner's check (see "owner gate" below). The `/C2W` camera values in the default view are placeholders.
+
+### 8.3 What a commercial 3D PDF looks like (Tetra4D samples)
+
+Source: the owner supplied <https://tetra4d.com/pdf-samples/>; the page lists 24 sample PDFs (6 made with their Enrich product, 18 with their Converter product), gives no licence for them and no feature descriptions. Eleven were downloaded for local study only into ignored `out/3dpdf/samples-tetra4d/`; they must not be committed or redistributed. Structure inspected read-only with pypdf (`python -I`).
+
+- **[Obs]** Every file with a 3D annotation carries **PRC** (stream magic `PRC` plus a version byte), none carries U3D. 3D PDFs are 1-3 pages for these samples (a 7-page document and a 2-page document also seen); the files are 0.6-2.9 MB; the 3D payloads are 0.4-1.6 MB.
+- **[Obs]** The Converter samples are single pages of Letter portrait or 960x540 landscape with one large 3D annotation covering most of the page, a header/branding text and (landscape ones) six form-field widgets (buttons/fields).
+- **[Obs]** The 3D stream dictionaries carry a `/VA` array of named views (5-25 per file, e.g. Left/Top/Front/Right/Bottom/Back/Default, or engineering names such as "SECTION A-A", "DETAIL F", "NOTES"), an `/AN` entry (animation) and an `/OnInstantiate` stream (a script).
+- **[Obs]** Each view dictionary carries: `/C2W` (12-number camera-to-world matrix), `/CO` (distance to the centre of orbit), `/MS /M`, `/P` projection, `/BG` background, `/RM` render mode, `/LS` lighting scheme (CAD, Headlamp), and `/NA`, a per-node array with `/N` node name, `/V` visibility, `/O` opacity, `/M` 12-number matrix and `/RM`. In other words, saved views encode part visibility, opacity and transforms per node, and "section" or "detail" views are implemented as named views.
+- **[Obs]** Activation is `/A /XA` (activate when the page is visible), `/D /XD`, `/DIS /I`, `/Style /Embedded`, optionally `/TB false` (no toolbar); the Prendergast sample (2 pages, 25 views) uses `/A /PO /D /PC /NP false`.
+- **[Obs]** Several Enrich-type files (Spare Part Catalog, Design Change Notification, Engineering Data Release, Design Review) contain no 3D annotation and no widgets in the downloaded copies (page content only), so they look like 2D templates without the model; they are layout references only. The Technical Data Package sample is a 7-page document (form page with ~133 widgets and stamps, then A4 landscape pages).
+- **[Hyp]** The drawing-style target the owner described (decision O6) corresponds to: a page with border and title block, a large 3D viewport, a view list implemented through `/VA` views with node visibility, and optional form widgets for buttons. Our export can map saved cameras and scene states to `/VA` views with per-node `/NA` entries (visibility, opacity, matrix), consistent with section 4.3.
+- **[Hyp]** Because these commercial files use PRC, whereas the first-cut plan here is U3D, a quick compatibility check is worthwhile: U3D streams are in the PDF 1.7 core and Acrobat has supported them since PDF 1.6 [Recall]; the spike will show whether the `/VA`/`/NA` view mechanism works the same for U3D streams (the spec places it at the stream dictionary level for both subtypes, but this is unverified).
+
+### 8.4 Owner result (5 November 2026)
+
+**[Owner observation, from a screenshot]** `spike_box.pdf` opens in Adobe Acrobat; the hand-built 3D annotation activates and shows the U3D box lit and shaded, with Acrobat's 3D toolbar (rotate/pan, home, Views list, model tree, render mode, lighting, section, background). The border, title block and parts list render. One defect, ours: the parts-list text overlapped the title text (layout bug in the spike script, fixed afterwards by moving the table right). The camera shows the box tilted, because the `/C2W` values are placeholders; real views are still to be written. **Phase 1 gate passed for U3D in Acrobat**: the toolchain (u3d library, IDTF-to-U3D conversion, hand-written PDF objects) is viable.
+
+### 8.5 Owner gate for phase 1 (superseded by 8.4)
+
+Please open `out/3dpdf/run/spike_box.pdf` (in the 3D PDF worktree) in Adobe Acrobat/Reader, enable 3D content if prompted, and report: (a) does the 3D annotation activate, (b) is the box visible and lit, (c) does the title block and parts list render, (d) the camera orientation and zoom (placeholder `/C2W`). Phase 2 does not start until this is answered.
+
+### 8.6 Camera matrix findings (5 November 2026)
+
+- **[Owner observation]** Named views written with `/MS /M` and a computed `/C2W` first showed the box off-centre, toward the top-left and far away, while a view that reuses the U3D file's own camera node (`/MS /U3D /U3DPath (DefaultView)`) was centred. The spec pages for the 3D coordinate systems could not be fetched (404), so this was settled by experiment.
+- **[Owner observation]** A diagnostic PDF wrote the U3D file's own camera (eye on the -Y side, looking at the origin) as `/C2W` in six conventions; only the one in which **the camera looks along +Z of its own frame** showed the box (the others showed nothing in the viewport). So in Acrobat, for `/MS /M`, the rows of `/C2W` are the camera's right, up and **forward** axes in world coordinates, followed by the eye position. This is the opposite of a U3D view node (which looks along -Z).
+- **[Hyp]** The matrix is not mirrored for a right-handed world (the right axis is forward x up), and the test box is symmetric, so a mirror error would not have been visible. It must be re-checked with an asymmetric model before this is relied on.
+- **[Hyp]** Distance from the target to the eye for a bounding sphere of radius r is `r / sin(FOV/2) * margin` (with `/PS /Min`; margin 1.25 was used); not yet confirmed visually after the fix.
+- **[Obs]** PDF numbers must not use exponent notation (e.g. `7e-15`); the writer prints plain decimals.
+- **[Obs, caveat]** The Tetra4D PRC samples' camera rows read in the same way (right, up, then an axis) but their model placement could not be checked, so they are not independent evidence.
+
+### 8.7 Node matrix override (6 November 2026)
+
+- **[Owner observation]** With the forward-Z camera (8.6) the views were in the frame but not centred: with the box moved to the origin, Top was centred while Right and Iso were about 20 units too high; with the box in its original place (-3.3, -63, 0..40), Top was about 63 units too high and Iso was displaced to the upper right.
+- **[Hyp, from those offsets]** Each view's `/NA` entry listed the box node with `/M` set to the identity. In a 3D view dictionary the node matrix replaces that node's own transform for that view, so the box jumped to its local origin while the camera was aimed at its authored position: the offsets above equal the box's own translation. Fix: leave `/M` out of `/NA` entries (keep `/V` visibility and `/O` opacity). To be confirmed in Acrobat with the v6 files.
+- **[Hyp]** The same `/NA /M` entry is the mechanism for exploded or moved states per view; it must then contain the node's full intended transform, not an offset.
+
+**[Owner observation, 6 November 2026]** The v6 files (box at origin and box in its original position) show the box centred in every computed view (Iso, Front, Top, Right). The 8.6 camera convention (rows: right, up, forward, then eye; distance `r / sin(FOV/2) * 1.25`) and the 8.7 fix (no `/M` in `/NA`) are therefore confirmed for a symmetric box in Acrobat. Still unchecked: mirroring (needs an asymmetric model) and per-view part visibility on more than one node.
+
+### 8.8 Asymmetric multi-part test (6 November 2026)
+
+Scene `out/3dpdf/run/lscene.idtf` (generator `tools/3dpdf/make_test_scene_idtf.py`): `LBracket` (L-shaped, tall leg at -X, base along +X, one mesh of two cuboids) and `Block` (separate blue cuboid at +X); PDF built with the same `make_u3d_pdf.py` and the computed views.
+
+- **[Owner observation]** Front: tall leg on the left, block on the right. Top: leg at the left end, block at the right, axis triad X right and Y up. Right: block nearest and in front, bracket behind and above it, axis triad Z up and Y right. These are the correct, unmirrored images, so the 8.6 camera convention (right, up, forward rows plus eye) is right-handed and not mirrored.
+- **[Owner observation]** "First part hidden" hides only `LBracket` and leaves `Block` visible, so per-node `/NA` visibility works with several nodes. The remaining block is off-centre in that view, as expected, because the camera is still framed on the full scene.
+- **[Obs]** The U3D file's own DefaultView renders the same orientation as the computed Front-like view.
+- Still unchecked: `/NA /M` (moved part per view), `/O` opacity below 1, line and point geometry for measurements, and large-model behaviour.
+
+### 8.9 Line-set measurement layer (6 November 2026)
+
+Scene `out/3dpdf/run/mscene.idtf` (same generator): the L bracket and block plus a third node `Measure`, an IDTF `LINE_SET` of 24 segments in the plane y = -10: a 60-unit dimension (two extension lines, dimension line, two arrowheads), the number "60" as seven-segment strokes, and a leader from the tall leg to a label point. The material was given a red emissive colour.
+
+- **[Owner observation]** Line sets render in Acrobat and the dimension, arrowheads, leader and stroke-drawn "60" are all correct and unmirrored in Front and Iso; in Top the in-plane graphic is seen edge-on as a thin line, as expected.
+- **[Owner observation]** The lines are thin and BLACK in every view. The red emissive material was not applied, so Acrobat ignores material colour for line sets (it draws them in a fixed colour). **[Hyp]** per-vertex diffuse colours (`MODEL_DIFFUSE_COLOR` with line shading) or PRC/other styling would be needed for coloured measurement lines; to be tested if colour matters. Line width is a fixed hairline and not controllable from the file.
+- **[Owner observation]** The "Last node hidden" view hides the whole measurement layer and keeps both parts, so a measurement layer can be a single node that views toggle on and off.
+- **[Consequence]** Outline-stroke text is legible but hairline-thin; for the real exporter consider text as filled triangle outlines (a mesh node, which does take colour) and keep lines only for dimension and leader geometry. One node per measurement would allow per-measurement visibility in views.
+- Still unchecked: coloured line sets (vertex colours), filled-triangle text, point sets, `/NA /M` moved parts, opacity below 1.
+
+### 8.10 Coloured lines and filled text (6 November 2026)
+
+Scene `out/3dpdf/run/nscene.idtf`: the 8.9 line set now with per-vertex diffuse colours (`MODEL_DIFFUSE_COLOR_LIST`, `LINE_DIFFUSE_COLOR_LIST`, shader `ATTRIBUTE_USE_VERTEX_COLOR "TRUE"`; red dimension, blue leader) plus a `TextMesh` node: the "60" again as thin cuboids with a red material.
+
+- **[Owner observation]** The line set is STILL drawn thin and black in Front: neither material emissive colour (8.9) nor per-vertex colours change it. Acrobat draws U3D line sets in a fixed colour, so dimension and leader colour cannot be set through line sets.
+- **[Owner observation]** The filled "60" renders in red, crisp, readable and unmirrored (Front, and in Iso), at a clearly legible weight compared with the hairline version.
+- **[Owner observation]** "Last node hidden" removes the line set and leaves the filled text, so line sets and meshes toggle independently per view.
+- **[Consequence for the design]** Use meshes (thin cuboids or flat triangle strips, one per stroke) for anything that must be coloured or thick: measurement text, and probably the dimension and leader lines as well. Line sets stay available for plain hairlines. Cost: the mesh approach multiplies triangle counts (12 per cuboid stroke, 4 per double-sided flat quad), so keep strokes simple; a flat double-sided quad is the cheaper option to test next, together with its look edge-on.
+- Still unchecked: point sets, `/NA /M` moved parts, opacity below 1, flat quads versus cuboids, Linux build.
+
+### 8.11 Flat quads, moved part, opacity (6 November 2026)
+
+Scene `out/3dpdf/run/oscene.idtf` / `spike_oscene.pdf`: the 8.10 scene plus a `TextQuads` node ("60" as double-sided flat quads in green, 4 triangles per stroke, 0.1 in front of the face) and three new views: "Block moved +Z 40" (`/NA /M [1 0 0 0 1 0 0 0 1 0 0 40]`), "Block 40% opaque" and "Bracket 40% opaque" (`/O 0.4`).
+
+- **[Owner observation]** Flat quads render fine: the green "60" is crisp and readable, as heavy as the cuboid version in Front, and shows no z-fighting against the bracket face. In Iso it is shaded darker green (lit). Triangle cost is a third of the cuboid version, so flat quads are the choice for text and thick dimension strokes.
+- **[Owner observation]** `/NA /M` with an identity rotation and a translation moves the block up by 40 as intended (Iso and Front), while the other nodes stay put. Because the test nodes' own transforms are identity, this only shows that `/M` takes effect; for the real exporter `/M` must hold the node's full transform (8.7).
+- **[Owner observation]** `/O 0.4` makes the block, or the bracket, translucent with correct blending: the bracket's internal overlap and the block show through, and the other part is unaffected. Per-view opacity per node works.
+- **[Consequence]** The view mechanism covers everything the app needs from saved scene states: camera, per-part visibility, per-part opacity and moved parts (exploded views).
+- Still unchecked: point sets, many nodes, textured and metallic-looking materials, Linux build.
+
+### 8.12 Point set and 400-node stress scene (6 November 2026)
+
+Scenes `out/3dpdf/run/pscene.idtf` (adds an `Anchors` POINT_SET of 5 anchor points, magenta material) and `stress.idtf` (`tools/3dpdf/make_stress_scene_idtf.py`: 20 x 20 grid of separate cubes, each its own node, mesh, shader and material; U3D 300 KB, PDF 197 KB).
+
+- **[Owner observation]** Point sets render only as single-pixel BLACK dots (visible at the leader end, the dimension ends and the block corner). Colour, size and the magenta material are ignored, as with line sets. They are not usable as visible anchor markers; use small meshes (a flat quad or tiny cuboid) for any visible dot or marker.
+- **[Owner observation]** The 400-node scene opens and renders correctly in Iso, with all cubes and per-node colours. **[Owner observation]** Loading took no noticeably longer than the small scenes, so 400 nodes is not a load-time concern.
+- **[Obs]** The 400-node U3D is about 300 KB uncompressed (about 750 bytes per cube with its own resources), so file size scales linearly and is dominated by per-node resource overhead, not geometry; merging parts that need no separate view control would shrink it.
+- **[Consequence]** Fixed Acrobat styling for non-mesh primitives (lines and points: black, hairline and one pixel) means the exporter's visible measurement layer is best built from flat-quad meshes: stroke text, dimension lines as thin quads, arrowheads as triangles, anchor markers as small quads. Lines stay useful only as optional hairline extras.
+- Still unchecked: orbit smoothness at much larger node counts (thousands), textures, Linux build.
+
+### 8.13 Survey of three more sample sets (6 November 2026)
+
+Read-only pypdf survey (scratch scripts, not in the repo) of `out/3dpdf/samples-techsoft3d` (6 files), `samples-pdfa.org` (10 files) and `samples-simlab-soft` (21 zips, each one PDF; unpacked each into its own folder after checking for non-PDF content). Local study only, no content reused.
+
+- **TechSoft3D (SpinFire) and PDF Association samples: PRC.** One 3D annotation per page, `/MS /M` views, 3 to 30 named views, up to 245 `/NA` node entries per view, 300 KB to 4 MB of PRC. They carry 25 to 500 form fields (view buttons, BOM tables, text fields) and document-level JavaScript. Pages are 1 to 4 (cover, 3D, tables).
+- **SimLab samples: U3D**, 1 to 119 named views, one 3D annotation per page, page sizes like 1136 x 640 (a full-page 3D window). Their views are mostly `/MS /U3D` with a `/U3DPath` to camera nodes inside the U3D file (the camera set lives in the file; `/NA` lists just that camera), the stream has `/OnInstantiate` JavaScript and `/AN` animation entries, and navigation uses form buttons (`/Btn`). U3D streams are 1 to 61 MB (large textured scenes); 3D toolbar on or off per file.
+- **[Consequence]** Both approaches exist in the wild. For our exporter `/MS /M` with computed cameras (our spike) is the PRC-sample style and keeps the camera data in the PDF; `/MS /U3D` needs a camera node per view in the U3D file and has no advantage for us. View buttons are form widgets with JavaScript; that is phase 3 (interactivity), not phase 1.
+- **[Open, camera handedness]** All 35 `/MS /M` views checked in the NX, Creo and SpinFire samples have a positive determinant for the three rotation rows of `/C2W`, but our `look_at` (rows right, up, forward) has a negative determinant and was confirmed unmirrored in Acrobat (8.8). The `spike_lscene_det.pdf` test (right, up or forward row negated) is meant to settle which row conventions Acrobat really uses.
+
+### 8.14 Camera handedness test result (6 November 2026)
+
+`out/3dpdf/run/spike_lscene_det.pdf`: the Front view of the L-bracket scene with the camera matrix variations below (all other rows and the eye unchanged).
+
+- **[Owner observation]** Our matrix (right, up, forward; det -1): the normal, unmirrored Front image.
+- **[Owner observation]** Right row negated (det +1): IDENTICAL image. Acrobat ignores the first row.
+- **[Owner observation]** Up row negated (det +1): the image is rotated by 180 degrees in the screen plane (block on the left, L upside down and flipped). The second row is used.
+- **[Owner observation]** Forward row negated: empty view (the camera looks away from the scene). The third row is used.
+- **[Conclusion]** Acrobat takes the view direction from the third row and the up direction from the second, derives "right" itself, and takes the eye from the translation. The determinant of the matrix therefore does not matter, which resolves the 8.13 puzzle: commercial files write a right-handed-looking matrix, our right row has the opposite sign, both display identically. For the exporter, write (right, up, forward, eye) with `up` and `forward` exact; the right row can be either sign (write the right-handed one, `up x forward`, to match the commercial files).
+
+### 8.15 Linux build of u3d (6 November 2026, WSL Ubuntu 26.04)
+
+Built in the Linux dev checkout (`~/dev/ModelViewer-Qt/out/3dpdf-linux/`, git-ignored `out/`), same u3d commit `5c141d9`, g++ (GCC 16 default C++17), cmake 4.2.3, bundled jpeg/png/zlib.
+
+- **[Obs]** Source needs NO change. Three build/run requirements:
+  1. cmake 4: `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` (the project declares `cmake_minimum_required(2.8)`).
+  2. C++14: `-DCMAKE_CXX_STANDARD=14 -DCMAKE_CXX_FLAGS="-std=gnu++14 -fpermissive -w"`; with the C++17 default the build stops on `throw()` dynamic exception specifications in `IFXCorePluginStatic.cpp`.
+  3. Runtime: the `IFX*` plugin libraries must sit in `$U3D_LIBDIR/Plugins/` (symlinks to the built `.so` files work), and the converter calls `setlocale(LC_CTYPE, "en_US.UTF-8")` at startup, failing with `Exit code = 80000000` and no output when that locale is missing (the WSL install only has C/C.utf8/POSIX). A private locale generated with `localedef -i en_US -f UTF-8 <dir>/en_US.UTF-8` plus `LOCPATH=<dir>` fixes it without root. A production exporter must not depend on this: either link the library into the app and bypass the converter's `main`, or patch `IFXSetDefaultLocale` to accept `C.UTF-8`.
+- **[Result]** The Linux `IDTFConverter` produces BYTE-IDENTICAL `.u3d` files to the Windows build for the five small scenes (`lscene`, `mscene`, `nscene`, `oscene`, `pscene`), so the Windows-verified Acrobat behaviour carries over without a new Acrobat test. The 400-node scene differs by 388 bytes (301 260 vs 301 648 bytes), presumably an ordering or hashing detail with many resources; `out/3dpdf/run/spike_stress_linux.pdf` is the Linux-built variant for an optional Acrobat check.
+- **[Consequence]** Linux parity for the writer is not a risk. The open design point is how the app calls the library (embedding `IFXCore`/`IDTF` as a static library with the plugin lookup replaced, versus invoking the converter binary), see the exporter design.
+
+---
+
+## 9. PDF writer decision and exporter design (draft, 6 November 2026)
+
+### 9.1 PDF writer options, re-assessed after the spike
+
+What the spike showed about the file we need: one page, one `/3D` annotation with a Flate stream and a `/VA` view array, an optional poster; everything else is ordinary 2D page content (border, title block, parts list, text).
+
+- **A. In-house writer for the whole file** (what the Python spike does). Fine for the 3D part; the 2D page needs text, font embedding (Unicode, the app is translated), images and vector drawing, which is the large and error-prone part.
+- **B. `QPdfWriter` for the 2D page, then an in-house incremental update that appends the 3D annotation.** The app already uses `QPdfWriter` (`ReportExportDialog.cpp:359`), so fonts, text layout, images, A3/A4 pages and Linux parity come for free from Qt with no new dependency or licence. The update appends the 3D stream, the annotation object, a new copy of the page object with `/Annots`, a new xref section and a trailer with `/Prev`. This needs a small reader for Qt's output: last `startxref`, trailer (`/Root`, `/Size`, `/ID`), the page object.
+- **C. PoDoFo for everything** (LGPL-2.0-or-later or MPL-2.0 per the PDF Association release note for PoDoFo 1.0; vcpkg lists 1.0.x; upstream is at 1.1.1). Robust parsing and incremental saving, but it adds a sizeable dependency tree (openssl/libxml2/fontconfig/...) to a vcpkg build that is already large, and a search found no ready-made 3D annotation class (it would be built from raw dictionaries anyway).
+- **D. `QPdfWriter` then PoDoFo to append the annotation.** Same parsing robustness as C but the same dependency cost as C.
+
+**Recommendation: B**, with D as the fallback if Qt's output ever stops being simple to append to. Reasons: no new dependency, matches the existing report export, the 3D part is already proven by the spike, and Linux is identical.
+
+- **[Recall, to verify first]** Qt's PDF engine writes a classic xref table and no object streams. The three existing PDFs in `docs/guide/` are Skia (not Qt), so they do not confirm it. First implementation step: write a page with `QPdfWriter`, inspect its structure with pypdf/a hex dump, and confirm the append works in Acrobat; the code must detect an xref stream or object streams and fail with a clear message rather than corrupt the file.
+- **[Hyp, to test]** The poster can be drawn by `QPainter` onto the page inside the annotation rectangle, and the annotation can carry an empty appearance stream, so no image XObject has to be written by hand. Acrobat shows the page content until the 3D is activated. Needs one Acrobat check (the spike used a poster `/AP`).
+- **[Obs]** Acrobat only needs the `/Rect`, `/3DD`, `/3DV`, `/3DA` and `/VA` entries seen in the spike; a PDF/A-style conformance claim is out of scope.
+
+### 9.2 The U3D side: calling the library
+
+The u3d library is Apache-2.0 and builds on Windows (VS2022) and Linux (GCC with `-std=gnu++14`, 8.15) with identical output, but it needs a one-line patch (`setlocale(LC_CTYPE, "en_US.UTF-8")` in `IFXSetDefaultLocale` must not fail on systems without that locale) and its plugin lookup (`Plugins/` next to `U3D_LIBDIR`).
+
+- **Option 1: ship `IDTFConverter` plus the four plugin libraries as a helper and call it through `QProcess`** with an IDTF text file. Pro: no linking against a 2008-era code base, crash isolation, minimal code. Con: extra files in the installer and the `.deb`; text IDTF is slower than direct API for very large models (still fine at 400 nodes).
+- **Option 2: link the library in-process** (`IFXCoreStatic` exists) and drive it through the `libIDTF` API. Pro: no temp files or helper. Con: more patching and a harder-to-debug 32-bit-era API surface.
+- **[Superseded by 9.7: the owner chose Option 2, in-process.]** Earlier recommendation: Option 1 for the first version, keeping the IDTF generator behind an interface so Option 2 can replace it later. The one-line locale patch is carried as a patch file in a vendored `third_party/u3d` folder (Apache-2.0 notice added to `CREDITS.md`).
+- **[Hyp]** U3D mesh compression is controlled by the converter's `-compress` and quality options; the export dialog should map "Compress" to those. To measure on a real model before committing to a default.
+
+### 9.3 Mapping the app to the PDF (what the spike proved is possible)
+
+| App data | PDF/U3D result | Spike evidence |
+|---|---|---|
+| Visible parts (scene graph export) | One U3D node per exported part (unique stable name, e.g. uuid), one mesh/shader/material each | 8.12 (400 nodes fine) |
+| Material | Diffuse colour and opacity (Phong); no PBR; textures need a later test | 8.11, 8.12 |
+| Saved cameras | `/VA` views with `/MS /M`, `/C2W` (up, forward, eye used), `/CO`, `/FOV` (FOV 30 min-dimension fit) | 8.6, 8.14 |
+| Scene states (visibility, opacity, transforms, exploded) | Per-view `/NA` entries: `/V`, `/O`, `/M` full node transform | 8.8, 8.11 |
+| Measurement/annotation graphics | Flat double-sided quad meshes for text, dimension lines, arrows, markers (colour and weight come from the material); one node per measurement so views can toggle it | 8.9-8.12 |
+| 2D page (title block, parts list, border) | Drawn by `QPainter` via `QPdfWriter` | 9.1 |
+
+Open items inside the mapping: unit/scale handling (the camera fit assumes model units), text outlines (the app must turn `QPainterPath` text into triangles; options: an ear-clipping header library or the CGAL triangulation the app already ships), textures and PBR (not tested), instances/duplicate meshes (each export node writes its own mesh, so repeated parts multiply size; a shared-mesh option needs a spike test).
+
+### 9.4 Phased plan (revised)
+
+1. **Phase 1, minimal exporter** (`Save as 3D PDF...`): visible parts to IDTF, helper converts, `QPdfWriter` page with border and title, append the 3D annotation with Iso/Front/Top/Right views.
+2. **Phase 2, drawing page:** title block with editable fields, parts list from the scene, scale and sheet fields, A4/A3, language support.
+3. **Phase 3, measurement and annotation layer:** flat-quad geometry, one node per item, layer toggles through views.
+4. **Phase 4, saved views and scene states:** cameras to `/VA`, states to `/NA`, exploded view positions.
+5. **Phase 5, interactivity:** form buttons with JavaScript to switch views (as in the commercial samples), per the survey in 8.13.
+6. **Phase 6, packaging:** helper and plugins in the Windows installer and the `.deb`, Apache-2.0 notices, CI smoke test comparing converter output.
+
+### 9.5 Decisions needed from the owner
+
+1. Writer path: B (`QPdfWriter` plus own append, recommended) or C/D (PoDoFo).
+2. U3D library call: helper process first (recommended) or in-process from the start.
+3. Text outlines: which triangulation to use (CGAL, already a dependency, or a small header library).
+4. Page template: fixed layout first (recommended) or user-defined templates from the start.
+5. Where to vendor the u3d sources and the patch file (`third_party/u3d`).
+6. When phase 1 starts, and whether the exporter code goes into this branch or a separate one off `feature/3DPDF`.
+
+### 9.6 Sources for this section
+
+- PoDoFo 1.0 release: <https://pdfa.org/podofo-10-released/>; vcpkg port: <https://vcpkg.io/en/package/podofo.html>.
+- Qt forum thread on extending `QPdfWriter` with a widget annotation (needs Qt-internals changes, supports not using Qt's engine for annotations): <https://forum.qt.io/topic/153166/extend-qpdfwriter-for-adding-pdf-widget-annotation-field>.
+
+### 9.7 Owner decisions on 9.5 (6 November 2026)
+
+1. **Writer: `QPdfWriter` plus our own append** (9.1 option B). Fallback D (PoDoFo) only if Qt's output cannot be appended to safely.
+2. **u3d call: in-process from the start** (9.2 option 2). The helper-process route is dropped. Consequences and a new first step below.
+3. **Text triangulation: CGAL** (already a dependency): `QPainterPath` outlines to polygons to constrained triangulation to flat quad meshes for measurement/annotation text.
+4. **Page template: a fixed layout first.** Design note for later (user-defined templates): keep the layout in one `DrawingTemplate` description (page size, border, a list of rectangles with type and anchor: title block cells, parts list, 3D area, logo area, free text with `{field}` placeholders) that the fixed layout is simply the built-in instance of; a later step loads the same description from JSON in the user data folder and adds an editor. The exporter must therefore ask the template for the 3D area rectangle and field values instead of hard-coding coordinates.
+5. **Vendoring: a vcpkg overlay port** `overlay-ports/u3d/` (the repo already has `overlay-ports/openimagedenoise` and `vcpkg-configuration.json` points at it). Suggested layout: `portfile.cmake` that fetches the pinned upstream commit with `vcpkg_from_github` (`DmytroSytnyk/u3d`, `5c141d9`, with the archive SHA512), applies patches from `overlay-ports/u3d/patches/`, builds the static libraries with `vcpkg_cmake_configure` (`-DU3D_SHARED=OFF -DCMAKE_CXX_STANDARD=14`), and installs the headers, libs and the Apache-2.0 licence as `copyright`; `vcpkg.json` with version, license `Apache-2.0` and `supports` windows/linux; add `u3d` to the app's `vcpkg.json`. Patches: (a) `IFXSetDefaultLocale` must not fail when `en_US.UTF-8` is missing (use `C.UTF-8`, or ignore a failure), (b) static plugin registration or a plugin path next to the application so no `U3D_LIBDIR` environment variable is needed, (c) any C++17 fixes that remove the need for the `-std=gnu++14` flag (`throw()` specifications), (d) a CMake install of the library so it is a normal vcpkg package. This keeps third-party source out of the app repository.
+6. **Branching: everything on `feature/3DPDF`** (research, spike tools and the exporter).
+
+### 9.8 What the in-process choice changes
+
+- **New phase 0 spike (before phase 1):** link the patched u3d static libraries into a small test program under `out/`, drive the conversion through the API from memory (no IDTF file and no converter `main`), write a `.u3d` and compare it byte for byte with the converter output for `lscene`, `mscene` and `stress`. This proves the patches in (b) work on Windows and Linux. If the converter's logic lives in the `IDTF`/`libIDTF` source tree rather than the static library, the test also shows how much of it must be reused.
+- **Interface:** the exporter builds an in-memory scene description (nodes, meshes, materials, views); two back ends sit behind one interface: an IDTF text writer (kept for tests and debugging, since the spike files can be diffed against it) and the in-process API writer.
+- **Packaging:** no helper executable and no plugin folder to ship; the Apache-2.0 notice and the u3d licence line go into `CREDITS.md`.
+- **Risk:** the 2008-era API (COM-like interfaces, `IFXRESULT` codes, thread-unsafe globals); keep all calls behind one wrapper class, create and release the library per export, and run the export off the UI thread only after checking thread safety.
+
+### 9.9 Phase 0 spike result: in-process u3d (6 November 2026)
+
+`tools/3dpdf/inproc/inproc_u3d.cpp` (+ `CMakeLists.txt`, throwaway) builds the `lscene` scene (view, two meshes, light, shaders, materials, shading modifiers) in memory with the `libIDTF` classes (`SceneConverter` from `libIDTF/SceneConverterLib.h`, `NodeList`, `SceneResources`, `ModifierList`, the pattern of `Samples/SampleCode/IDTFGen.cpp`), calls `converter.Convert()` and `SceneUtilities::WriteSceneToFile()`, with no IDTF file and no converter `main`.
+
+- **[Result]** The `.u3d` is BYTE-IDENTICAL to the converter's output for `lscene.idtf` on Windows (VS2022) and on Linux (WSL, GCC, `-std=gnu++14`), and identical across the two platforms. The in-process API is therefore a complete replacement for the IDTF text route; the IDTF writer stays useful only for tests and diffs.
+- **[Obs]** Build notes: link the static `IDTF` library (it contains `IFXCoreStatic.cpp` and all the converters), plus `winmm.lib` on Windows; defines `U3D_NO_ASM` and (Windows) `UNICODE _UNICODE _CRT_SECURE_NO_DEPRECATE`, `LIN32` on Linux; the include list is the one in `inproc/CMakeLists.txt`. The C4311 pointer truncation warning in `IFXVoidStar.h` appears again (not investigated).
+- **[Obs, important]** "In-process" does NOT yet mean "no extra files". `IFXCoreStatic.cpp` is only a stub that loads `IFXCore.dll`/`libIFXCore.so` at run time (`IFXLoadCoreLibrary`), and the core then scans a `Plugins/` folder and loads the exporting, importing and scheduling modules, each exporting an `IFXPluginRegister` function. The test program only works with `U3D_LIBDIR` pointing at the folder with these libraries. Without them the Windows build crashed with a segmentation fault instead of returning an error code (not retested on Linux); the exporter must check for the modules before calling in.
+- **[Hyp, to test next]** Two ways to remove the run-time modules: (a) keep the modules as shared libraries but patch the loader to look next to the application binary instead of `U3D_LIBDIR` (small patch, still ships four libraries); (b) fuse everything into one static library: compile the `IFXCore` sources and the three plugin modules into the application, replace `IFXCoreStatic` by direct calls, and call each module's registration function directly, renaming the colliding `IFXPluginRegister` symbols per module (`-DIFXPluginRegister=IFXExporting_PluginRegister` style). (b) matches the in-process decision best (one binary, nothing to find at run time) but is a larger patch to the vcpkg overlay port; (a) is the cheap fallback.
+
+### 9.10 Owner decision: loader patch (6 November 2026) and its spike result
+
+The owner chose the loader patch (9.9, option a): keep the u3d modules as shared libraries and make them load from the application folder, rather than fusing everything into one static library.
+
+- **[Result, Windows]** No patch is needed. With `IFXCore.dll` next to the executable, the plugin DLLs either next to it (flat) or in a `Plugins\` subfolder, no `U3D_LIBDIR`, and a different working directory, the in-process program produces byte-identical output (both layouts tested).
+- **[Result, Linux]** Needed and done, saved as `tools/3dpdf/u3d-patches/0001-linux-static-idtf-and-module-dir.patch` (4 files): (1) `IDTF` is always built STATIC (it was SHARED on non-MSVC) so the executable's `RUNPATH $ORIGIN` governs the `dlopen` calls; (2) when `U3D_LIBDIR` is unset the module directory is the directory of the running executable (`/proc/self/exe`) instead of the compile-time `"."` default, in `libIDTF/IFXOSLoader.cpp`, `RTL/Platform/Lin32/Common/IFXOSLoader.cpp` and `RTL/Platform/Lin32/Common/IFXOSFileIterator.cpp`. The executable must be linked with `RUNPATH $ORIGIN` (`BUILD_RPATH`/`INSTALL_RPATH` in the spike's `CMakeLists.txt`). Result: both layouts (flat and `Plugins/`) give byte-identical output, started from another working directory with no `U3D_LIBDIR` and no `LD_LIBRARY_PATH`.
+- **[Result, locale]** The application does not need `IFXSetDefaultLocale` and must not call it: it changes the process-wide `LC_CTYPE`, and with `INPROC_SKIP_LOCALE=1` (call skipped) both platforms still produce identical output, without the private `en_US.UTF-8` locale. **[Caveat, untested]** The library converts file names with `wcstombs`, which in the default "C" locale can fail for non-ASCII paths; the exporter should write to a temporary ASCII file name and move it with Qt, or hold the data in memory, and a test with a non-ASCII path should be added.
+- **[Consequence for packaging]** Ship `IFXCore`, `IFXExporting`, `IFXImporting`, `IFXScheduling` (`.dll`/`.so`) next to the application (or in a `Plugins/` subfolder for the three plugins). The `.deb` puts them in the application's library folder; the exporter must verify they exist before calling in (a missing module crashes instead of returning an error code, 9.9). Overlay port tasks shrink to: apply the Linux patch, build `IDTF` static plus the four modules, install them with the headers; the locale patch is no longer needed.
+
+---
+
+## 10. Phase 1 implementation status (6 November 2026)
+
+Written but NOT yet built or run (the owner builds and tests, see the standing no-build rule); nothing of this part is committed.
+
+| Piece | Files | Notes |
+|---|---|---|
+| u3d vcpkg overlay port | `overlay-ports/u3d/` (`portfile.cmake`, `vcpkg.json`, `u3d-config.cmake`, `usage`, `patches/0001-*.patch`) | Pinned commit `5c141d9f...` with SHA512, builds `IDTF` static and the four IFX modules; installs headers, libs, modules and `find_package(u3d CONFIG)` giving `u3d::idtf` and the `U3D_MODULE_*` variables. Added to `vcpkg.json` and `packaging/linux/vendor/vcpkg.json`. |
+| CMake | `CMakeLists.txt` | `find_package(u3d)`, link `u3d::idtf`, copy the modules next to the executable after every build and install them beside it (`CMAKE_INSTALL_BINDIR`), Linux `$ORIGIN` rpath. Sources are globbed, so `src/Pdf3D/*.cpp` and `include/Pdf3D/*.h` need no listing. |
+| Scene description | `include/Pdf3D/U3dScene.h`, `src/Pdf3D/U3dScene.cpp` | Plain data: nodes, meshes, materials, bounds. |
+| aiScene to U3dScene | `SceneToU3d.*` | World-space node per mesh reference, shared meshes, diffuse/emissive/opacity materials, unique ASCII names, per-file import correction put back. |
+| u3d writer | `U3dWriter.*` | In-process libIDTF call from the spike (9.9), module presence check, temporary ASCII file name, no `IFXSetDefaultLocale`. |
+| Views | `Pdf3DViews.*` | Seven named views (Isometric, Front, Back, Left, Right, Top, Bottom), Y-up mapping, camera matrix per 8.6/8.14. |
+| PDF update | `PdfAppender.*` | Appends 3D stream, appearance, annotation and a rewritten `/Annots` array as an incremental update to a `QPdfWriter` page; refuses xref streams. |
+| Sheet and orchestration | `Pdf3DExporter.*` | A4 landscape sheet (border, 3D area, title block with title, source names, part count, date) with the viewport grab as the non-3D poster. |
+| UI | `ui/App/MainWindow.ui`, `MainWindow.cpp`, `ModelViewer.h/.cpp` | File > Save as 3D PDF... (`ModelViewer::exportAs3DPdf`): visible parts only (`isMeshDisplayed`), Y-up. |
+| Tests | `tests/pdf3d_tests.cpp`, `tests/CMakeLists.txt` | Views, aiScene conversion, appender on a real `QPdfWriter` page (this also verifies the Qt structure assumption of 9.1), in-process conversion; `--full` runs the whole exporter. Offscreen Qt platform. Enabled with `-DMV_BUILD_TESTS=ON`. |
+
+Known gaps in this first cut (all planned): no title-block fields editor or parts list (phase 2), no measurement or annotation layer (phase 3), saved cameras and scene states are not turned into views (phase 4), no view buttons (phase 5), textures and PBR are dropped, the up axis is fixed to Y, the file name is converted through the library only via a temporary ASCII path, packaging of the modules in the installer and `.deb` relies on the CMake `install(FILES ...)` added here and is untested.
+
+**Installing the port (manual vcpkg step).** The Windows dev configurations are configured with `VCPKG_MANIFEST_INSTALL=OFF`, so adding `u3d` to `vcpkg.json` does not install it; CMake then stops with "Could not find a package configuration file provided by u3d". Install it once per install folder, from the repo root:
+
+`.\vcpkg\vcpkg.exe install --triplet x64-windows --x-manifest-root=. --x-install-root=out\build\ninja_release_vcpkg\vcpkg_installed --overlay-ports=overlay-ports`
+
+(repeat with the other install folders in use, e.g. a Debug configuration). On Linux the `.deb` path takes it from `packaging/linux/vendor` (`setup-wsl-build-env.sh` installs that manifest with `--overlay-ports=overlay-ports`, so it now includes `u3d`). If the port build fails, the logs are in `vcpkg\buildtrees\u3d\`.
+
+**Phase 2 (title block fields and parts list).** The File > Save as 3D PDF action first shows `Pdf3DExportDialog` (title, drawing number, revision, author, company, scale, notes, "Add a parts list sheet"; everything except title and notes is remembered in QSettings `pdf3d/...`, the dialog keeps its geometry), then the file dialog. The title block is a left cell (title, source file, notes) plus a 2 x 3 field grid (drawing no., revision, author, date, company, scale | parts | sheet n/N) and is drawn identically on every sheet. The parts list is built from the exported nodes: one row per distinct (part name, mesh) pair in first-appearance order, with material name and quantity; it is paginated onto extra A4 sheets after the 3D sheet (`QPdfWriter::newPage()`), the 3D annotation stays on page 1. The menu action is enabled only while the active document has meshes. Also fixed in phase 1 testing: model nodes are written with visibility BOTH (the U3D default FRONT culls back faces, which made thin shells such as the skateboard tyres look see-through), and the standard views follow the viewport's up-axis mode (STEP opens Z Up).
+
+**Phase 4 (saved views and scene states as PDF views) and small tweaks.** With "Add saved views and scene states as PDF views" ticked, the PDF view list gets, after the seven standard views: the cameras of the Cameras panel's Captured Views, the glTF-authored cameras of each loaded file (mapped through the file's import correction; the user model transform is not applied), and one view per Scene State named "State: <name>". A `Pdf3D::CameraViewSpec` carries eye, direction, up, projection and, for a scene state, one `/NA` node visibility entry per exported part (`/Type /3DNode /N <u3d node> /V true|false`); parts the state does not list are hidden. The part names come from the new optional output of `SceneGraphExporter::buildExportScene` (mesh uuid to exported node name). Perspective views use `/PS /Min /FOV <fovY>` (the app's FOV is vertical, the 3D area is wider than tall, so the smaller dimension is the height); orthographic views first used `/OB /Min /OS <view range>`, which Acrobat showed as a camera inside the object filling the screen (owner test, 2026-11-06), so the meaning of /OS is not what the name suggests and is still unverified; they are now written as 2 degree narrow-field perspective views with the eye moved back so that the viewport's view range (the world length across the smaller viewport side, `Camera::updateProjectionMatrix`) spans the smaller dimension of the 3D area. The orbit centre `/CO` is the scene centre projected on the view axis. Names that are not ASCII are written as UTF-16 text strings, duplicates get " (2)". Tweaks: the standard views use a 5% fit margin (was 25%), the parts list drops the "<file> (...)" prefix the importers put on material names. Measurements and annotations (phase 3) wait for the JT importer branch's in-plane label capture.
+
+**Exploded views.** The explosion is viewport state only (per-mesh `explosionOffset` world translation and the manual-placement `explodedViewTransformation`, composed as `T(offset) * explodedViewTransformation * transformation * sceneRenderTransform`); `SceneGraphExporter` uses only the user transformation, so the exported scene is always the assembled model. When any part is displaced at export time (and "saved views" is on) the PDF gets two more views from the current camera: "Assembled" (explicit `/NA /M` of every node = its exported world matrix) and "Exploded" (`T(offset) * explodedViewTransformation * world`). `/M` is 12 numbers, the 3x3 as rows then the translation, the same layout as `/C2W`; nodes are direct children of the U3D root so local equals world.
+
+**Exploded views, correction (owner, 2026-11-06).** The Exploded View panel stores several exploded views (presets), and each can hold captured steps that form animations. The export must not depend on the active one, so `ExplodedViewPanel::computePresetPoses()` evaluates every preset without switching: the involved meshes are put into the assembled state for the evaluation, the auto/axis/vector offsets come from a private `ExplodedViewManager` fed with the unexploded bounding boxes (the same inputs as `ViewportWidget::updateExplosion()`), manual placement states (`uncapturedManualStates`) are read by applying each once, and every mesh's offset and exploded-view transform are restored. The PDF gets "Assembled" plus "Exploded: <preset name>" per preset. Captured steps are not exported as exploded poses; animations are a separate element (Animations panel) and would be added to the PDF on their own later (for example as sampled views or a U3D motion resource).
+
+**Planned: richer export dialog (owner, 2026-11-06).** The Save as 3D PDF dialog should list the views that can go into the PDF (standard views, Captured Views, glTF cameras, scene states, each exploded view, later section views) with a checkbox per entry instead of one all-or-nothing "saved views" box, and preferably show a preview of the selected view (a render of the model from that camera, and for scene states and exploded views with their part visibility and layout applied). Not started; build it after the view sources (section views, render modes) are in, so the list is complete.
+
+**Exploded views with captured steps (owner test, 2026-11-06).** A stored exploded view that is a multi-step explosion (for example "Exploded View 2", three steps, empty Assembly field, Output "Single Animation (Sequential)") has no auto offsets of its own: its pose lives in the captured steps, which hold per-node (or per-mesh) local translation/rotation tracks. The exported pose is the final one: the end of the last track that targets each node, in step order (the same end state `applyDraftPreviewPose` reaches at the end of the animation in every output mode), applied over the rest local transforms. Each mesh's pose matrix is `(userTransformation * finalSceneRender) * (userTransformation * restSceneRender)^-1`, premultiplied to the exported node matrix. Presets without steps still use the auto/axis/vector offsets plus the manual placement state. The steps themselves (the animation) are not exported.
+
+**Export dialog requirements, refined (owner, 2026-11-06).** The dialog must not depend on any panel being open. From the document's stored data alone it lists everything that can go into the PDF: the stored exploded views (presets, each exported at its final pose), the state captures (scene states), the camera captures (Captured Views and glTF cameras) and the animations of the Animations panel, each with a checkbox and later a preview. Exploded views already come from the stored presets, not from the viewport state; animations are not exported yet and need their own design (sampled views or a U3D motion resource).
+
+**Standard views fitted to the bounding box (owner observation, 2026-11-06).** The exploded and saved views filled the 3D area but the standard views (Isometric and so on) floated small, because their distance was computed from the bounding sphere, which is far larger than a long flat model. `standardViewsFitted` now computes, for every standard view, the smallest distance at which the eight corners of the bounding box fit the field of view (30 degrees on the smaller side of the 3D area, the area's aspect taken from the sheet layout) with a 5% margin.
+
+**Foundation for section views: clipping saved with captures (owner, 2026-11-06).** Clipping Planes (X/Y/Z planes one at a time or together, or the in/out box) were viewport-only and not stored anywhere, so no capture could carry a section view. New `ClippingState` (include/Scene/ClippingState.h): the planes that are on at their absolute world position with the kept side, or the box with its six world limits and the in/out choice, with a JSON encoding. `GltfCameraEntry` gets `hasClipping` + `clipping`; `ViewportWidget::captureCurrentCameraEntry` fills them, so Captured Views (Cameras panel) and Scene States (whose camera is a captured entry) both store the section view, and the MVF session persists it in the camera JSON (`"clipping"`, written in ModelViewer.cpp for scene states and MvfSceneBuilder.cpp for captured views, read back in ModelViewer.cpp). Activating a captured view or recalling a scene state calls `ViewportWidget::applyClippingState`, which switches everything off and applies the stored state through the Clipping Planes editor so its controls follow; entries without `hasClipping` (authored glTF cameras, captures from before this change) leave the clipping alone, entries captured with no clipping switch it off. The PDF export of section views builds on this.
+
+**Section views in the PDF (Acrobat calibration, owner, 2026-11-06).** Acrobat supports capped cross sections: the sample PDFs (SpinFire, NX) write `/SA [ << /Type /3DCrossSection /C [x y z] /O [a b c] /PO .. /PC .. /IV .. /IC .. /PV .. /SC true >> ]` in a view, and `/SC true` fills the cut face (a flat fill; the viewport's hatch pattern is not carried). Calibrated with `tools/3dpdf/make_section_spike.py` (two rounds, box 40 x 40 x 40 from z = 0 to 40, cut 10 mm off its centre): the centre `/C` is RELATIVE to the bounding box centre of the scene (a Z plane written as z = 30 acted as z = 50 for a box centred at z = 20), and the rotation `/O` is `[x y z]` degrees with exactly one angle null; the forms with the first angle null gave planes in unexpected places and are not used. Plane and kept side: Z: `[0 0 null]` keeps z <= position, `[180 0 null]` keeps z >= position; Y: `[-90 0 null]` keeps y <= position, `[90 0 null]` keeps y >= position; X: `[0 90 null]` keeps x <= position, `[0 -90 null]` keeps x >= position. A view holds one section, so a saved clipping state with several planes exports its first plane (reported to the user), and the box clip has no equivalent (reported). The translucent plane is written hidden (`/PV false`), the outline on (`/IV true`), capping on (`/SC true`). Section views come from the captured views and scene states that carry a `ClippingState`.
+
+**Flip bug in restoring captured section views (owner, 2026-11-06).** `ViewportWidget::clippingCuts()` reports the effective flip, and for the Y plane that is the stored Flip checkbox XOR the up-axis default (`SceneRenderController::clippingYFlipped()`: the Y plane's default cut side is the Front view in a Z-up scene). `applyClippingCuts` wrote that effective value into the Flip checkbox, which stores the choice relative to the default, so an unflipped Y plane captured in a Z-up scene came back with Flip ticked. It now converts back (`cut.keepPositive != clippingYDefaultInverted()` for the Y axis). The same latent mismatch existed for the simulation section snapshot that uses these two functions.
+
+**Section views, two corrections (owner test, 2026-11-06).** (1) A view without `/SA` keeps the section of the previous view in Acrobat (selecting a section view and then any other view left the section on), so every view now writes `/SA [...]`, an empty array when it has no section, as the commercial sample files do. (2) A captured view with two clipping planes showed only one section: the exporter had taken the first plane only. All planes of the saved state are now written into the view's `/SA` array (`CameraViewSpec::sections`); whether Acrobat applies more than one at a time is to be confirmed, and if it does not the one-plane limit with a report to the user comes back.
+
+**Acrobat applies one section per view (owner test, 2026-11-06).** With both planes of a saved state written into `/SA` Acrobat showed only one of them (the first plane when only the first was written, the second plane when both were), so a view can show a single section. The exporter writes the first plane of a saved state again and reports the others after the export (`ModelViewer::exportAs3DPdf`); `CameraViewSpec::sections` stays a list so the dictionary writer needs no change if a later Acrobat version applies several. Emulating a second cut would need real geometry (the capped cut baked into the model for that view), which is not planned.
+
+**Several clipping planes in one saved view (owner decision, 2026-11-06).** Acrobat shows one section per view and the app cannot combine them, so the export resolves it with the user: when saved views (captured views, scene states) carry more than one clipping plane, `Pdf3DSectionChoiceDialog` lists each such view with a choice "Only plane N: <axis = position, kept side>" or "Every plane in its own view" (default, nothing is lost); the latter writes one view per plane named "<name> (plane i of n)". Cancelling the dialog cancels the export. A box clip has no PDF equivalent and is reported after the export (the view has no section).
+
+**Richer export dialog (built 2026-11-06).** `Pdf3DExportDialog` has two tabs. Sheet: title block fields and the parts list option. Views: every view the document can offer, grouped (Standard views, Saved camera views, Cameras in the model files, Scene states, Exploded views), a checkbox per view and a note column; the first ticked view opens first; Ok is disabled while nothing is ticked. The list is built by `ModelViewer::exportAs3DPdf` from the stored data BEFORE the dialog (the export scene is built first), so nothing depends on a panel being open. A saved view with several clipping planes is listed once per plane ("<name> (plane i of n)", note "one section plane"); a view with the box clip is listed with a highlighted note "box clip not exported"; a subtle info line under the list explains both, instead of a warning dialog (the earlier section-choice dialog is gone). Standard views left unticked go into `Pdf3DOptions::excludedStandardViews`; the selected saved/state/exploded views into `extraViews`. Not yet: a preview of the selected view, remembering the selection.
+
+**Exploded views: live definition before captured steps (owner test after the JT merge, 2026-11-06).** "Exploded View 1" (Auto, assembly of 19 meshes, one captured step) exported differently from the viewport while "Exploded View 2" (no assembly, three steps) was right. The export had used the end of the captured steps whenever a view had steps, but a step is the layout as captured and the hierarchical Auto layout from the JT branch computes differently from the one that was captured. Rule now: a stored exploded view with a live definition (assembly selected and a distance above zero, or a manual pose) is exported as the viewport shows it; only a view with steps and no live definition (like Exploded View 2) is exported from the end of its last step. `computePresetPoses` also follows the hierarchical layout of `ViewportWidget::updateExplosion`.
+
+**Part states carry over between views (owner test, 2026-11-06).** Acrobat applies only the part overrides (`/NA`) a view lists and leaves the others as the previous view set them, so after "Exploded" every view kept the parts displaced until "Assembled" was picked (and hidden parts of a scene state would leak the same way, like the section did before every view wrote `/SA`). Every view now lists every part that ANY view changes (hidden, or moved by `/M`), with the default state (visible, the exported transform) where it has no override of its own, standard views included (`makeNodeOverrides`, `Pdf3DExporter::exportToFile`). Parts that no view changes are not listed, so a large assembly with no exploded or scene-state views pays nothing; with an exploded view the cost is one entry per moved part per view.
+
+**Phase 3: measurements and annotations (first version, 2026-11-06).** The overlay code already builds each item as plain coloured segments and triangles in world space (arrowheads, extension lines, and the label text as filled glyph triangles with a dark halo, in the plane the item's orientation setting gives it), so a capture mode was added instead of a second geometry builder: `MeasurementController::drawMeasurementOverlay` and `AnnotationController::drawAnnotationOverlay` take an optional `OverlayGraphic* capture` plus the id of ONE item; with it they skip every GL and text-renderer call, ignore selection and hover, skip pending picks and hover previews, and hand back the item's `lines` and `triangles` (6 floats per vertex). `captureGraphic()` wraps it and restores the live hit-testing state (`_labelHandles`, `_recordedStrokes`, `_minDistanceSegments`). `ViewportWidget::captureOverlayGraphics()` captures every visible item with a scratch orthographic `Camera` looking along its `offsetReferenceDir` (the view it was created from; world up axis from the camera mode) and a view range of the scene diameter, so markers and arrowheads come out at fitted-view size and a label oriented for its creation view stays that way. Pdf3D side: `OverlayToU3d` turns a graphic into nodes of the `U3dScene`, one per colour (flat materials: half diffuse, half emissive, so they read the same from any side): segments become two crossed ribbons (a U3D line set always draws as a black hairline), the dark halo of letters sits behind the bright fill by a small depth bias towards the creation view (coplanar faces would z-fight), nodes are flagged `overlay` so the parts list and part count skip them. The export dialog has a third tab, Measurements, listing the visible measurements and annotations with a checkbox each (all ticked); ticked ones are written into the 3D model and show in every view. Not done: per-view visibility of measurements, nodes grouped under one parent per item in the model tree, items that follow an exploded layout.
+
+**Phase 3 completed (2026-11-06): tree grouping, per-view visibility, exploded layouts.** (1) Model tree: an item with several colours is written under a group node (IDTF `GROUP`, identity transform, children of the root; `U3dScene::groups`, `U3dNode::parent`, written by `U3dWriter` with the group as the children's parent name), so the tree shows one entry per measurement or annotation; a single-colour item is one node. (2) Per view: the Views tab has a "Measurements" checkbox per view (column 3, only when there are items; `Pdf3DExportDialog::viewOverlaySelection`), written as `CameraViewSpec::showOverlays` and `Pdf3DOptions::standardViewsWithoutOverlays`; the exporter lists the overlay nodes with `/V true|false` in every view as soon as any view hides one, the same rule that stops part states leaking between views. (3) Exploded layouts: each item records the meshes it is attached to (`OverlayGraphic::meshUuids` from the measurement anchors, annotation anchor and recorded drawing; `OverlayGraphicData::followsNodes` are the matching part node names). In a view that moves parts (`/NA /M`), an item takes the pose delta of its parts (`M_part * world_part^-1`, the same for all of its parts) as its own `/M`; an item attached to parts that move differently is hidden in that view, an item with no known part stays where it is. Poses are compared with a 1e-4 tolerance.
+
+**Model tree entries per item (owner observation, 2026-11-06).** With the group node every measurement showed as a group with two children (the main colour and the dark halo behind the letters). An item is now ONE node: all its triangles and ribbons go into a single mesh with per-vertex colours (the halo triangles first and pushed back by the depth bias, the bright ones towards the viewer) and one shared material (white diffuse taken from the vertex colours, a little emission, `vertexColors`). `U3dScene::groups` and the group-node writing stay (unused for now). The emission is a first guess: too much washes out the halo, none leaves the colours to the lighting.
+
+**Folders in the model tree (owner, 2026-11-06).** Dropping the per-item group node also dropped all grouping, and the tree became a flat list of parts and items. The tree now has two folders, "Measurements" and "Annotations" (group nodes created on first use, `OverlayGraphicData::folder`, `U3dScene::groups`), each holding one node per item; the group nodes were already shown to work in Acrobat in the earlier per-item version. Parts stay at the root.
+
+**Assembly structure in the model tree (owner observation, 2026-11-06).** The model tree was flat: `SceneToU3d` wrote every part as a direct child of the root with its world matrix. The assembly structure is now kept as folders: every export node that has children with meshes below becomes a group node (identity transform, `G<n>_<name>`, `U3dScene::groups` / `groupParents`, written by `U3dWriter` with the parent group as parent name) and the parts sit in their group (`U3dNode::parent`). The groups carry no transform, so the parts keep their world matrices and everything keyed on part nodes (per-view `/NA` overrides, exploded poses, section centre) is unchanged. Folders of assemblies without any mesh below are not written. The folders only structure the tree; per-view overrides still address the parts by name, not the folders.
+
+**MVF load shows a saved exploded view exploded (owner observation, same day).** Not part of the export: `ExplodedViewPanel::restorePresetsFromJson` loads the active preset, which fires `explosionParametersChanged` (connected to `ViewportWidget::updateExplosion`, which does not check the panel) and `restoreExplodedViewManualStates` (applies the manual poses to the meshes), so a session saved with the Exploded View panel closed came back exploded although the app design is "explosion only while the panel is open" (`showExplodedViewPanel(false)` clears the offsets and stashes the manual poses). `ModelViewer` now calls `showExplodedViewPanel(false)` after restoring the presets when the panel is not visible, which puts that closed state back (the stashed poses return when the panel is opened).
+
+**Animations (spikes and design, 2026-11-06).** Three throwaway spikes (`tools/3dpdf/make_animation_spike.py`, `make_rotation_spike.py`, `make_u3d_pdf.py --anim-style/--live`) answered what Acrobat does with a U3D key frame animation (IDTF `MOTION` resource + `ANIMATION` modifier, both accepted by the library API): (1) Acrobat shows its animation controls (play/pause button, time slider that scrubs the motion), but does not start it by itself; (2) autoplay and looping come from PDF settings, not from the U3D file: the 3D STREAM dictionary carries `/AN << /Type /3DAnimationStyle /Subtype /Linear|/Oscillating /PC <count, -1 = forever> /TM 1 >>` and the annotation's `/3DA` gets `/AIS /L /DIS /I` (initial state live), exactly as the commercial sample files have it (the `/AIS` / `/PC` first tried on the activation dictionary did nothing); Linear loops from the start, Oscillating plays forwards and backwards; (3) a key frame is NOT an absolute transform: it is a transform in the node's own frame that Acrobat applies BEFORE the node's own (rest) transform. Measured with four boxes twisted 30 degrees: displacements add in the node frame (a key shift of -33 along X on a node twisted +30 ended up rotated by the rest twist) and rotations add (+30 plus +30 reads as 60). The quaternion is the usual `w x y z`, `(cos, 0, 0, +sin)` turns the same way as a +angle row-vector `PARENT_TM`. So a part with rest transform W that should follow the pose M(t) = Delta(t) * W gets the key `W^-1 * Delta(t) * W` (column vectors), decomposed into displacement, quaternion and scale by `U3dWriter`.
+
+Implementation: `ViewportWidget::exportableAnimations()` lists the clips with node transforms (the Animations panel's clips, which include those made from captured exploded steps); `sampleAnimationPoses()` evaluates a clip at about 20 samples per second (2 to 121) without touching the viewport (the nodes are evaluated from `AnimationRuntimeController::sampleClip` and the rest transforms, as `applyNodeTransformsToMeshes` does; the delta of a mesh is `(user * render(t)) * (user * rest)^-1`); `ModelViewer::exportAs3DPdf` turns the deltas of the parts that move into `U3dMotionTrack`s; `U3dScene::animation` (one animation: Acrobat plays one per 3D annotation) is written as one motion resource with one track per node and an animation modifier per animated node (before its shading modifier); `Pdf3DOptions::animationPlayback` (Loop = Linear forever, BackAndForth = Oscillating forever, Once = Linear count 1) and `animationAutoStart` (live on opening) set the PDF side. The export dialog has an Animation tab (one animation or none, playback, autostart). Not covered: morph, material, visibility and skin animations (only rigid node motion), measurements and annotations attached to a moving part stay where they were, and the views' `/NA` overrides are applied on top of the animation.
+
+**One motion resource per animated node (owner test, 2026-11-06).** The animation of the real skateboard clip gave a greyed-out play button although the 3D stream held a motion resource, 18 tracks and the right `/AN` and `/AIS`. Bisected with `pdf3d_tests.exe --spikes <folder>` (four animated PDFs through the real exporter): one animated part plays (at the root or in a group node, with 3 or 121 key frames), six animated parts in one motion resource do not. The writer had put every part's track into ONE motion resource and pointed all animation modifiers at it; the commercial files and the earlier two-box spike use one resource per animated node. Now each animated node gets its own `M_<node>` resource with a single track and its modifier names that resource.
+
+**Render mode per view, remembered view selection (2026-11-06).** A scene state brings the display mode it was saved with, written as the view's `/RM << /Type /3DRenderMode /Subtype ... >>` (`CameraViewSpec::renderMode`, default Solid, every other view stays Solid): Shaded = Solid, Hollow Mesh = HiddenWireframe, Mesh Edges = SolidWireframe, Wireframe = Wireframe, Shaded with Edges = SolidOutline; the Views tab notes a non-solid mode next to the view. The export dialog remembers the views the user unticked and the views whose Measurements box was unticked (`QSettings` pdf3d/viewsUnchecked and pdf3d/viewsWithoutMeasurements, keyed by group and name, so they carry over between documents; a view that is new in a document starts ticked).
+
+Owner test (2026-11-07): both behave as expected in Acrobat. Observation: the PDF wireframe modes draw the mesh triangulation, whereas the app's wireframe shows the real (feature) edges; this is how Acrobat renders the wireframe render modes of a U3D mesh and is accepted, not a bug.
+
+**Phase 5, page buttons (2026-11-07, written, not yet tested in Acrobat).** A 20 pt strip under the 3D area (the area shrinks by 26 pt; only when there is more than one view or an animation, and the Save dialog's "Add view and animation buttons" box is ticked, QSettings pdf3d/viewButtons). Left to right: "<" and ">" (previous/next view), one button per view when all of them fit at 54 pt or more, and at the right "Play" and "Pause" when the PDF has an animation. The view buttons are `/S /GoTo3DView /TA <annotation> /V <index | /P | /N>` actions (PDF 1.6, no JavaScript); Play/Pause have no PDF action, so they run `this.getAnnots3D(0)[0]`, activate the annotation if needed and call `context3D.runtime.play()` / `.pause()` (forum reports: <https://community.adobe.com/t5/acrobat-sdk-discussions/buttons-and-javascript/m-p/12321690>, <https://acrobatusers.com/forum/3d/need-answers-controlling-3d-animations-pdf>). The buttons are push-button widgets with drawn appearance streams, in a new /AcroForm together with the notes field (`PageButton` in PdfAppender.h). **[Hyp]** GoTo3DView works on a not yet activated annotation, and play/pause work from the button after activation; to be confirmed by the owner in Acrobat. The 3D toolbar's own play/pause remains.
+
+**Autostart off still played (owner test, 2026-11-07).** The 3D stream's animation modifiers were always written with the playing flag set, so the animation ran as soon as the area was activated, whatever `/AIS` said. `U3dAnimation::playing` now follows "Start playing when the file opens"; with it off the modifiers are written paused. **[Hyp]** the 3D toolbar's play button and the page Play button still start a paused animation; to be confirmed in Acrobat.
+
+**Autostart off, second attempt (2026-11-07).** The paused flag alone did not help: the library does write it (ModifierConverter.cpp passes `m_playing` on), but Acrobat plays an animation as soon as the 3D area is active, and `/3DA /A /PO` activates it when the page opens. With "Start playing when the file opens" off the annotation now uses `/A /XA` (activated by a click on the poster), still with the modifiers written paused. **[Hyp]** after the click the animation may still start by itself; to be confirmed in Acrobat.
+
+**Plan change (owner decision, 2026-11-07).** Export-dialog preview moved out of Phase 4 into the open-file-dialog work (one reusable offscreen snapshot call, also used for MVF save-time thumbnails). Phases 4 and 5 are done. Next: Linux build and test, then packaging of the u3d modules, then **Phase 6: sheet templates** (JSON: page size/orientation, border, logo, title block cells with `{placeholder}` text and custom fields; the dialog builds its input fields from the chosen template; the current layout becomes the built-in "Default"; no visual designer, no multi-page templates at first).
+
+**Linux build and test (2026-11-07, WSL Ubuntu 26.04, preset linux_system_release).** `vcpkg install` of `packaging/linux/vendor` builds the overlay port u3d; the preset's `CMAKE_PREFIX_PATH` needed `.../x64-linux/share/u3d` (added). The whole application builds (11 min, 16 threads) with `libIFXCore/Exporting/Importing/Scheduling.so` copied next to the executable, and `cmake --install` puts them into `usr/bin` beside `ModelViewer` (RUNPATH `$ORIGIN/../lib:$ORIGIN`), so the existing `install(FILES ...)` rule already covers the `.deb`; the stale `.deb` in the build tree (21 October) was not rebuilt. `pdf3d_tests --full` (with `-DMV_BUILD_TESTS=ON`): 163 checks, 0 failures, after one fix. **[Obs]** the first u3d write in a process works, the next fails with 0x80000003: the static `IFXCoreStatic` wrapper's `IFXCOMInitialize()` loads libIFXCore.so again and fails while it is still mapped, and after `IFXCOMUninitialize()` the core stays loaded (`IFX_W_CANNOT_UNLOAD`, the scheduling module keeps live components). Fix: on Linux `U3dWriter::write` initialises the library once per process and never uninitialises it (Windows unchanged). Not tested on Linux: an interactive export from the GUI, non-ASCII output paths, `.deb` installation.
+
+
+## 11. Phase 6 design: sheet templates (draft, 7 November 2026)
+
+Status: design only, nothing implemented. Owner decision of 7 November: Phase 6 is sheet templates; packaging of the u3d modules is covered in 11.8.
+
+### 11.1 Scope
+
+A template describes the 2D sheet around the 3D area: page size and orientation, border, an optional logo, and the title block (cells with fixed and `{placeholder}` text, plus the custom fields the user is asked for). The current hard-coded layout becomes the built-in template "Default" and must keep producing the same sheet. Out of scope at first: a visual designer, multi-page templates, templates for the parts list table (its columns stay fixed; it only inherits page size, border and title block), per-view sheets.
+
+### 11.2 Template file (JSON, version 1)
+
+Lengths are millimetres. A cell edge is given as `left`/`right`/`top`/`bottom` relative to the title block; a negative value is measured from the opposite edge (so `"right": -127` is 127 mm in from the right edge). No expressions or scripts: only placeholder substitution, so a template is data and cannot execute anything.
+
+```json
+{
+  "version": 1,
+  "name": "Default",
+  "page": { "size": "A4", "orientation": "landscape" },
+  "border": { "inset": 20, "lineWidth": 0.6 },
+  "titleBlock": {
+    "anchor": "bottom", "height": 32, "growWithCell": "notes", "maxHeight": 42,
+    "lineWidth": 0.6,
+    "lines": [ { "x1": -127, "y1": 0, "x2": -127, "y2": 32 } ],
+    "logo": { "file": "logo.svg", "left": -40, "right": -2, "top": 2, "bottom": -2, "fit": "contain" },
+    "cells": [
+      { "id": "title", "left": 3, "right": -127, "top": 2, "bottom": 14, "text": "{title}", "fontSize": 15, "bold": true },
+      { "id": "subtitle", "left": 3, "right": -127, "top": 14, "bottom": 19, "text": "{subtitle}", "fontSize": 9 },
+      { "id": "notes", "left": 3, "right": -127, "top": 19, "bottom": -1, "text": "{notes}", "fontSize": 8, "wrap": true, "scrollWhenOverflow": true },
+      { "left": -127, "right": -64, "top": 0, "bottom": 11, "label": "Drawing no.", "text": "{drawingNumber}" }
+    ]
+  },
+  "fields": [ { "id": "approvedBy", "label": "Approved by", "type": "text", "default": "" } ]
+}
+```
+
+- `page.size`: A0-A5, Letter, Legal, Tabloid, or `[width, height]` in mm. `anchor`: `bottom` (full width, today's layout) or `bottom-right` / `bottom-left` with a `width`.
+- `cells`: `text` with placeholders, optional `label` (small caption, as today), `fontSize`, `bold`, `align` (left, center, right), `wrap`. Standard placeholders: `{title} {subtitle} {notes} {drawingNumber} {revision} {author} {company} {scale} {date} {parts} {sheet} {sheets}`. Custom fields use their id: `{approvedBy}`. An unknown placeholder prints nothing and the dialog shows a warning for the template.
+- `fields`: extra values the dialog asks for (`text`, `multiline`, `date`, `choice` with `options`). A standard field is asked for only when some cell uses it, so a template without `{company}` has no Company box.
+- Only one cell may set `scrollWhenOverflow` (the existing scrollable notes form field; `PdfAppender` supports one).
+
+### 11.3 Where templates come from
+
+Built-in templates are Qt resources (`:/pdf3d/templates/*.json`): Default (A4 landscape, today's block) and A3 landscape. User templates are `*.json` files in `<AppDataLocation>/pdf3d-templates/`, listed after the built-in ones; the dialog has "Open templates folder". A logo `file` is relative to the template file or absolute; PNG, JPEG and SVG (Qt Svg is already linked); a missing or unreadable logo is skipped with a warning. A template that fails to parse or validate is not listed and the reason is shown in the dialog (version, unknown key types, cell outside the block, more than 64 cells, page size below 100 mm).
+
+### 11.4 Code
+
+- `include/Pdf3D/SheetTemplate.h`, `src/Pdf3D/SheetTemplate.cpp`: data model, `parse(QByteArray, QString* error)`, `resolveRects(pageSizePt)`, `substitute(text, values)`, the built-in list and the user folder scan. No GUI dependency, so it is unit-testable.
+- `Pdf3DExporter.cpp`: `Layout` and `drawFrame` are replaced by the template evaluator (page size, border, block rect, 3D area = border inset minus block minus the button strip, as now). The notes auto-grow becomes `growWithCell`. The 3D annotation, views and buttons code is unchanged because it only needs `Layout::area3d`, `buttonStrip`, `page` and the notes field rect.
+- `Pdf3DOptions`: `QString templateId` and `QMap<QString, QString> fieldValues` replace the individual author/company/... members (kept as the standard keys of the map).
+- `Pdf3DExportDialog`: a template combo on the Sheet tab; the input fields are built from the chosen template's used placeholders plus its `fields`; values remembered per template id in `QSettings pdf3d/templates/<id>/...`; the standard fields keep their current remembered values.
+- Page size from the template reaches `QPdfWriter::setPageSize`; the u3d view fitting already uses the area's aspect ratio, so other sizes need no change there.
+
+### 11.5 Tests (tests/pdf3d_tests.cpp, GUI-free)
+
+Parse a valid template; reject each invalid case in 11.3; negative edges resolve from the opposite side; placeholder substitution including an unknown one and a custom field; Default resolves to the same page, border, block, cell and 3D-area rectangles as the current constants (golden numbers taken from the current code, so the Default sheet cannot drift); a standard field is asked for only when used; `--full` exports with an A3 template and checks the PDF `/MediaBox`.
+
+### 11.6 Order of work and gates
+
+6a data model, parser, Default and A3 resources, tests (owner builds and runs `pdf3d_tests`). 6b exporter uses the template evaluator, Default only (owner opens a PDF in Acrobat and compares it with the previous export: must be identical). 6c dialog fields, template combo, user folder, one sample template with a logo. 6d Quick Help and tutorial text, changelog. Each step stops for the owner's build and test.
+
+### 11.7 Decisions proposed, for the owner to confirm
+
+1. Millimetres in the JSON (the PDF stays in points internally).
+2. User templates in `AppData/pdf3d-templates`, no template editor in v1.
+3. Logo formats PNG, JPEG, SVG.
+4. Two built-in templates (Default A4, A3 landscape); more later from real company layouts.
+5. The parts list table keeps fixed columns for now.
+
+### 11.8 Packaging (the earlier Phase 6 item)
+
+The Windows installer script copies the whole install directory (`{#MyAppInstallDir}\*`, recursive) and CMake installs the four u3d run-time modules into `bin` (`install(FILES ...)` in `CMakeLists.txt`), so they ship with the installer without a script change; the Linux `.deb` path installs them beside the executable the same way (verified by `cmake --install` in WSL on 7 November, the `.deb` itself was not rebuilt). Open for the owner: build the installer and the `.deb` once and open a 3D PDF export from the installed application. A u3d entry was added to `THIRD_PARTY_NOTICES.md`; the Apache-2.0 licence text must also accompany the binaries (confirm where the installer places it).
+
+### 11.9 Step 6a, written 7 November 2026 (not yet built or run)
+
+Files: `include/Pdf3D/SheetTemplate.h`, `src/Pdf3D/SheetTemplate.cpp` (no GUI code), `tests/pdf3d_tests.cpp` (`testSheetTemplates`), `tests/CMakeLists.txt` (adds `SheetTemplate.cpp` to `pdf3d_tests`; the application globs `src/*.cpp`). Differences from the sketch in 11.2 and 11.3, all to make Default reproducible exactly:
+
+- A top-level `"units"` key, `"mm"` (default) or `"pt"`; the built-in templates use `"pt"` so their numbers are the constants of `Pdf3DExporter.cpp` (margin 28, border 20, gap 12, block 90 to 120, grid 360 wide, notes 52 below the top).
+- Frame keys are top-level: `border.inset`, `margin`, `areaGap`, `lineWidth` (one pen width for the border, the 3D area frame, the title block and its lines), plus `titleBlock.growPadding`.
+- A coordinate is a number, or a fraction `"1/3"` or percentage `"50%"` of the block size (the Default grid rows are thirds of a block whose height grows with the notes); positive counts from the top-left, negative from the opposite edge.
+- `{name|fallback}` prints the fallback when the value is empty (Default: `{scale|-}`).
+- Built-in templates are JSON strings inside `SheetTemplate.cpp`, not Qt resources, so the GUI-free test executable needs no resource file; their labels use the translation context `Pdf3DExporter`, the one the exporter's own labels already have. User templates: `loadUserSheetTemplates(folder)`; the dialog will pass `<AppDataLocation>/pdf3d-templates`.
+- `resolveSheet(template, pageSizePt, blockHeightPt)` takes the page size as an argument: step 6b will read it back from `QPdfWriter` after `setPageSize`, so the sheet is computed for the page Qt really produces.
+- Limits: file 256 KiB, 64 cells, 64 lines, 16 custom fields, text 500 characters, custom page size 100 to 5000 mm, one `scrollWhenOverflow` cell.
+
+`testSheetTemplates` checks: both built-ins parse; for block heights 90, 100 and 120 the Default page, border, block, 3D area, all nine cells and the four lines equal the rectangles the current exporter computes; the block growth rule (52 + text + 6, within 90..120, overflow flag); the coordinate rules; placeholders, fallbacks and unknown names; a custom field with a choice list; a bottom-right corner block; 28 rejection cases, each with the expected message; the user folder (good, broken, missing logo, ignored non-JSON). Gate: the owner builds and runs `pdf3d_tests`; step 6b starts after that.
+
+### 11.10 Step 6a result and step 6b, 7 November 2026
+
+6a: the owner built and ran `ctest -R pdf3d_tests` (Release): passed. Observation only; the `--full` run was not part of it.
+
+6b, written, not yet built or run: `Pdf3DExporter.cpp` no longer has the layout constants. `Layout` holds the template and its `ResolvedSheet`; `drawFrame` draws the border, the 3D area frame, the title block and its lines from the template, then every cell (a cell with a label as the old field cell: 6.5 pt grey caption, value below; a cell without a label as plain text, word-wrapped and clipped when `wrap` is set, otherwise one elided line). The page size and orientation go to `QPdfWriter` from the template and the real page size is read back before `resolveSheet`. The block height comes from `titleBlockHeightFor` (the notes text measured at the grow cell's width, as before); the scrollable notes form field uses the scroll cell's rectangle, text and font size. `Pdf3DOptions` gained `templateId` (default `builtin:default`, unknown ids fall back to Default) and `fieldValues` (custom fields, used from 6c). Logos are not drawn yet (6c). `pdf3d_tests --full` gained checks: Default page is A4 landscape, `builtin:a3-landscape` gives an A3 landscape `/MediaBox`, an unknown id falls back to Default, a 2000-character note still produces the scrollable `/FT /Tx` field.
+
+Gate for 6b (owner): build, run `pdf3d_tests --full`, then export one model with the previous build and with this one (same title, notes, fields; once with a short note and once with a note long enough to scroll) and compare the sheets in Acrobat: they must look identical. Only then does 6c start.
+
+### 11.11 Step 6b result and step 6c, 7 November 2026
+
+6b: the owner exported with the refactored exporter and saw no difference in the sheet (a screenshot of the Default sheet was reviewed: border, 3D area, button strip, title block with the six field cells). Observation only. Also found while checking: per-view page buttons appear only with 12 or fewer ticked views (the owner confirmed they work with fewer), and long captions were clipped at both ends because Acrobat redraws the face from `/MK /CA`; fixed in `ea0d77c`.
+
+6c, written, not yet built or run:
+- Dialog (Sheet tab): a template combo (built-in first, then the user's, "(yours)"), "Open folder", "Reload" and "Create sample" buttons, an info line (page size, plus the problems and warnings of files in the user folder). Title block fields the chosen template does not use are hidden (the title is always asked); the template's custom fields are built below the notes from `fields` (text, multiline, date, choice) and their last values come back per template (`pdf3d/templates/<id>/<field>`; the chosen template in `pdf3d/template`). `applyTo` fills `Pdf3DOptions::templateId` and `fieldValues`.
+- Logo: `drawLogo` in `Pdf3DExporter.cpp` (SVG as vectors through `QSvgRenderer`, PNG and JPEG as images, `fit` contain or stretch); a relative file name is resolved against the template's folder; a missing or unreadable file leaves the space empty. `pdf3d_tests` now links Qt6::Svg.
+- Sample: `writeSampleSheetTemplate(folder)` writes `sample-company.json` (A4 landscape, millimetres, logo cell, a four-row grid with "Approved by" (text) and "Material" (choice) custom fields) and `sample-logo.svg`; existing files are never overwritten.
+- Tests: the sample parses without problems with its logo and fields, the logo and grid rectangles are where the design puts them, a second write keeps an edited file; `--full` exports with the sample template (the exporter finds it by id in the user folder, which the tests move to a Qt test location with `QStandardPaths::setTestModeEnabled`).
+
+Gate for 6c (owner): build, run `pdf3d_tests --full`; in the app open File > Save as 3D PDF: pick "Company sample" after "Create sample", fill the two extra fields, export and open the PDF in Acrobat (logo at the left of the title block, four-row grid at the right); switch back to Default and check the sheet is unchanged; edit the sample JSON (for example move a cell) and press Reload. Step 6d (Quick Help, tutorial, changelog) follows.
+
+### 11.12 Step 6c, owner feedback and the second round, 7 November 2026
+
+6c test result (owner): `pdf3d_tests --full` 331 checks, 0 failures. Owner trial of the dialog: "Create sample" works, but there was no way to add a logo, edit a template or save one under a name. My design (11.7, decision 2) had no editor in v1; after using it the owner asked for in-dialog saving, and for editing in place in the combo.
+
+Second round, written, not yet built or run:
+- The template combo is editable. Typing a new name and pressing Enter saves a copy of the current template (built-in or the user's) under that name in the user folder and selects it; typing the name of an existing template selects it; a built-in name is refused; there is no rename (a copy is made; delete files from the folder).
+- "Logo...": file dialog (PNG, JPEG, SVG). On a built-in template it first asks for a name and saves a copy. The file is copied next to the template; a template without a logo gets a logo cell at the left of the title block (width max(60, 1.2 x block height) points, 4 points padding): cells measured from the left edge move right, with a separating line, the field grid stays; a template that already has a logo keeps its cell and only the file changes.
+- "Edit...": opens the user template's JSON in the system editor (disabled for built-ins); "Reload" reads the folder again.
+- `SheetTemplate`: `sheetTemplateToJson` (points, always parses again: `writeUserSheetTemplate` parses what it is about to write and refuses a template that would not load, for example a logo that leaves no room), `saveSheetTemplateAs`, `setSheetTemplateLogo`, `sheetLogoPath`, `sanitizedTemplateFileName`.
+- Tests: round trip of the built-ins (same page, rectangles, lines, texts, styles, fields at two block heights), Save as (new name, same name selects, built-in name refused, bad names, sanitised file names), logo placement numbers (title moves by 116 pt, grid unchanged, logo inside the block, second logo keeps the place), a copy takes its logo file along, a broken template is never written.
+Still not covered: moving cells or changing fonts without a text editor (a cell table or visual editor, a later option).
+
+### 11.13 Step 6e-1: shared sheet renderer and live preview, 7 November 2026
+
+Owner: after trying 6c (logo, custom fields and the sample worked in Acrobat; `pdf3d_tests` 364 checks, 0 failures; 6c committed as `13e6149`) the owner said a template editing UI would be far more reasonable than editing JSON. Plan: Phase 6e, three steps, each with the owner's build and test: (1) shared renderer and live preview, (2) cell editing, (3) the Page, Logo, Fields and Save tabs; dragging cells in the preview afterwards if wanted.
+
+6e-1, written, not yet built or run:
+- `SheetRenderer.h/.cpp`: `sheetValues`, `layoutSheet` (title block height from the grow cell's text, the scroll cell), `drawSheetFrame` (border, 3D area frame, block, lines, logo, cells), `renderSheetPreview` (the page as an image with the 3D area greyed and an optional blue frame on a selected cell). The exporter's own drawing and layout code moved there unchanged, so `Pdf3DExporter.cpp` calls the same functions as the preview: the PDF must come out exactly as before (the owner re-checks one sheet).
+- Painter device: 72 dpi (a `QPdfWriter` at 72 dpi, or a `QImage` with 72 dpi dots per metre), so font sizes in points and text measurements agree between the PDF and the preview.
+- `SheetPreviewWidget`: shows the picture scaled to the widget, re-renders when the template, the values or the size change; a click selects the cell under it (`cellClicked`), used by the cell editor in 6e-2.
+- The export dialog's Sheet tab shows the preview below the fields; it follows every edit (title, fields, custom fields, template). `setSheetSample(partCount, subtitle)` gives the preview the real part count and file names.
+- Tests (`testSheetRenderer`): the grow rule (90 for no or one line, between 90 and 120 for four lines, 120 with the scroll flag for 2000 characters), the preview picture's size, background, grey 3D area, dark text in the block, determinism, the selection frame (out-of-range ignored), the logo cell drawing something.
+
+Gate for 6e-1 (owner): build, run `pdf3d_tests --full`, export one sheet with Default and compare it with an earlier one (must be identical), and look at the preview in the dialog while typing and when switching templates.
+
+
+### 11.14 Step 6e-1 result, layout, and step 6e-2: the cell editor, 8 November 2026
+
+6e-1 result (owner, 8 November): `pdf3d_tests --full` passed (382 checks then 411 after the material and mass work), the live preview follows every edit, and the Sheet tab was re-laid out with the fields at the left and the preview at the right (default size 1000 x 560, geometry key `pdf3d/dialogGeometry2`) because the stacked layout was too tall. Committed in b250a52 together with the `{material}` and `{mass}` values (research/materials/MATERIAL_AND_MASS_SOURCES.md).
+
+6e-2, written, not built:
+- **Where.** "Edit..." in the Sheet tab now opens `SheetTemplateEditor` (include/Pdf3D/SheetTemplateEditor.h, src/Pdf3D/SheetTemplateEditor.cpp, pure code, geometry key `pdf3d/templateEditorGeometry2`) for the chosen template, built-in ones included (they can only be saved under a new name). The JSON files stay in the templates folder ("Open folder") as the fallback.
+- **What it edits.** The title block cells: a list (Add, Duplicate, Delete, Up, Down; order is drawing order) and, for the selected cell, the caption, the text with an "Insert field" menu (standard, scene and the template's custom fields), font size, bold, colour, left/centre/right, wrap, "scrollable when it does not fit" and "the title block grows with this cell" (one cell each; choosing one releases the other), and the position as four boxes. Clicking a cell in the preview selects it in the list. Page, logo and custom fields are 6e-3.
+- **Coordinates.** Shown and read as text by `sheetEdgeToText` / `parseSheetEdgeText`: millimetres ("12.5"), negative from the opposite edge ("-99"), a fraction ("1/4") or a percentage ("37.5%"); a decimal comma is accepted; a box that cannot be read turns red and keeps the old value.
+- **Validity.** After every edit `validateSheetTemplate` writes the template as JSON and parses it again (the check saving uses): while it fails the reason is shown (it names the cell and key), the preview keeps the last valid state and Save and Save as are off. Save writes the user template; Save as uses `saveSheetTemplateAs` and refuses a name that is already a template of the user's (that function would hand back the old one and drop the edits).
+- **Tests.** `testSheetEditing`: coordinate text parsing and writing (round trip, bad input), the validity check on built-ins, an empty name, a cell outside the block, left and right out of order, the cell the Add button makes, and an edited template (text, colour, alignment) surviving write and read.
+
+Gate for 6e-2 (owner): build, run `pdf3d_tests --full`, open Save as 3D PDF, press Edit... on a built-in template and on one of yours, click cells in the preview, change text, font, colour, alignment and position, add, duplicate, move and delete a cell, make an invalid position (it must turn red and Save must go off), Save as under a new name, and export a PDF with the result.
+
+### 11.15 Step 6e-3: the Page, Logo and Fields tabs, 8 November 2026
+
+6e-2 result (owner, 8 November): the cell editor works and looks right; the default size was raised (1380 x 800, never more than 85% of the screen, preview column 5 parts to 3, settings key `pdf3d/templateEditorGeometry2`).
+
+6e-3, written, not built. The editor's right side is now a tab widget: Cells (6e-2), Page, Logo, Fields.
+- **Page.** Named size (A0-A5, Letter, Legal, Tabloid from `sheetPageSizeChoices()`) or Custom with width and height (100-5000 mm), orientation, border inset, margin, the gap above the title block (all in millimetres, kept in points), line width (points), and the title block: position (full width, left corner, right corner), width (corner blocks), height, largest height (never below the height; it is raised with it) and the space under the growing text. Cell coordinates are measured from the block, so changing the block or the page can make cells reach outside it: the validity check then names the cell and Save goes off.
+- **Logo.** Choose (PNG, JPEG or SVG), Remove, the four position boxes (same text syntax as cells) and "keep the proportions". A template without a logo gets the logo cell and separator line that `setSheetTemplateLogo` makes (cells measured from the left move right). A picture chosen here is copied to a scratch folder first; it reaches the template's folder when Save is pressed (`ensureLogoInFolder`) or, for Save as, through `saveSheetTemplateAs`, so cancelling leaves nothing behind.
+- **Fields.** The template's custom fields: list with Add, Delete, Up, Down (at most 16); id, label, type (text, several lines, date, choice from a list), default value and, for a choice, one choice per line. The Cells tab's "Insert field" menu follows the list. The preview prints a field's default (or first choice) where the export dialog has no value yet. A field named like a standard placeholder is refused by the validity check; "material" and "mass" are allowed and override the model's values when filled.
+- **Tests** (`testSheetEditing`, extended): all nine named sizes round trip, custom size round trip and range, corner block width, block height bound, fields of every type with a choice list round trip, the refusals (standard name, empty choice list, bad id, two fields with one id, more than 16), "material" as a field id, and a logo with its position round trip.
+
+Gate for 6e-3 (owner): build, run `pdf3d_tests --full`, then in the editor: change the page size and orientation and watch the preview; move the title block to a corner; set a custom size; choose a logo on a built-in template and Save as, and on one of yours and Save (the picture must appear in the templates folder); remove a logo; add a choice field, insert it in a cell, and see it in the export dialog; make an invalid value (Save must go off with a reason).
+
+Owner feedback on 6e-3 (8 November): changing the page size or orientation in the Page tab left the cells where they were, the validity check then reported "cell 1 has no area" (the cells measured from the right edge of a 190 mm block do not fit a 128 mm one) and every further page change showed the same error. Decision: a change of the page, orientation, margins or block should carry the layout over, and a user's own edits must not be lost silently.
+
+Implemented (not yet built): `sheetBlockWidthPt()` and `scaleSheetTemplateWidth()` (SheetTemplate.h): the lengths of the cells, lines and logo (not fractions, not heights) are multiplied by the ratio of the new to the old block width. `SheetTemplateEditor::adaptCellsToPage`:
+- cells the user has not moved (no position changed by more than 0.02 pt, no cell added or deleted, no logo added since the editor opened or the cells were last adapted): scaled to the new width without asking;
+- cells the user has edited that still fit the new page: left alone;
+- edited cells that no longer fit: a warning with "Scale the cells", "Keep my cells" (fix by hand) and "Cancel the change" (the page widgets and the template go back to the state before);
+- a template that was already invalid before the change: no prompt (the page did not break it).
+The Page tab's spin boxes report a value when it is finished, not on every digit, so a prompt cannot appear in the middle of typing. A validity error about a cell now names the cell and selects it in the list.
+Tests (`testSheetEditing`): every built-in template scaled to every named page size in both orientations is valid; scaling multiplies lengths only, scaling by the inverse restores the template; the block width rule for full width and corner blocks.
+
+Owner request (8 November): a Number type for custom fields, and everything should respect the language style the application is set to. Implemented (not yet built):
+- `SheetField` gained `decimals` (0-6, default 2), `unit`, `minimum`, `maximum` (defaults mean no limit); JSON `"type": "number"` with `"decimals"`, `"unit"`, `"min"`, `"max"` (only non-default values are written; the parser refuses decimals out of range, a unit over 20 characters, a minimum above the maximum and a default that is not a number within the limits). The default of a number field is plain text with a point.
+- `parseSheetNumber(text, locale, &value)` reads what a person typed (the language's separators first, then a plain point, so "12.5" works in a German setting; "1.234,5" is 1234.5 there) and `formatSheetNumber(field, value, locale)` prints it with the field's decimals and unit and without digit grouping ("12,50 kg" in German, "12.50 kg" in English).
+- The language: `LanguageManager::currentLanguage()` gives the locale (`appLocale()` in the export dialog; the system locale when no language is loaded). The export dialog's number box is a line edit with a `QDoubleValidator` in that locale, shows the default in that style the first time, remembers the text as typed, and hands the sheet the formatted value; an empty box prints nothing. The field's label carries the unit. The template editor's Fields tab has Number with decimals, unit, minimum and maximum (limits typed in the language's style) and its preview prints a number default the way the sheet will.
+- Not changed: the `{date}` value and date fields stay ISO 8601 (2026-11-08), which is unambiguous on drawings; whether dates should follow the language too is open (a per-field date style is the likely answer).
+- Tests (`testSheetEditing`): the type round trip, the defaults not being written, the refusals, reading and printing in German and English, no digit grouping, rounding to the decimals.
+
+Owner feedback on placing cells (8 November): a newly added cell landed over the title and the only way to move it was typing four numbers; "3.52778" in a box was confusing. Implemented (not yet built):
+- **Dragging in the preview** (`SheetPreviewWidget::setEditable`): drag the selected cell to move it, drag an edge or corner to resize it (cursors show which), arrow keys nudge it 1 pt (Shift: 5 pt). The widget changes nothing itself: it reports the new rectangle in block coordinates (`cellGeometryChanged`) and `SheetTemplateEditor::moveCellTo` writes it back with `sheetRectFromBlockRect`, which keeps each edge in the form the cell used (a length from the left or top, a length from the right or bottom when negative, a fraction of the block). Edges snap to the title block's edges and to the other cells' edges within 6 screen pixels, the cell stays inside the block and is never smaller than 6 pt. The export dialog's own preview stays read-only.
+- **Add** puts the new cell directly under the selected one with its left and right edges, 16 pt high (or a third of the block), so it only has to be dragged into place.
+- **Position boxes are spin boxes** (`SheetEdgeBox`): a spin box (two decimals, step 0.5) and a mm / % switch per coordinate, laid out as Left, Top / Right, Bottom; a negative number counts from the opposite edge (tooltip). The same boxes are used for the logo. They cannot hold a malformed value, so the red-border error path for position text is gone; rounding of the spin box (0.005 mm) is below the edit tolerance (0.02 pt, or 0.0005 of the block for fractions).
+- `sheetEdgeToText` now writes at most two decimals ("3.53"); the "1/4" text form is replaced by "25 %" in the editor (the JSON still writes percentages).
+- Tests: `sheetRectFromBlockRect` keeps the edge forms and resolves back to the dragged rectangle; the edited template stays valid; the two-decimal position text.
+
+Owner feedback (8 November): the number field's box in the export dialog was a text box with a number validator; a spin box was expected. Changed (not yet built): `SheetNumberBox`, a `QDoubleSpinBox` in the application's language style with the field's decimals, limits and unit as its suffix. It can also be empty (nothing printed): the position one step below the minimum shows blank and stands for that; the first step up from it goes to 0 (or to the minimum when above 0); deleting the number (leaving only the unit) gives empty. The last value is remembered in the plain form with a point ("12.50"; empty stays empty), the default of the field is used the first time, and a value remembered by the earlier text box (in the language's style) is still read. The unit is no longer repeated in the label.
+
+Owner report (8 November): adding a logo to "Material and mass test 1" in the editor failed with "cell 3 has no area". Cause: `setSheetTemplateLogo` makes room for a new logo by moving the left edge of every cell that is measured from the left by the logo width plus gaps (116 pt or more). Right edges are moved too only when they are positive lengths from the left; a right edge measured from the right or written as a fraction stays, so a cell narrower than the shift (here a small cell placed by hand at the left) ended up with its left edge past its right edge and the template was refused. Fixed (not yet built): such a cell, when the shift would squeeze it below its own width (or 24 points), moves clear of the logo as a whole (its right edge becomes a length from the left, clamped to the block). Cells that were fine are unchanged. Test: a narrow cell with a fraction right edge ends up valid, right of the logo, with its width kept. Known limit: a cell whose left edge is a fraction is not moved, so it can still overlap the logo; drag it clear.
+
+Project standard (owner, 8 November): the template editor was built in code at first; for consistency with the other dialogs its layout now lives in `ui/Pdf3D/SheetTemplateEditor.ui` (the Cells, Page, Logo and Fields tabs, ranges, tooltips and captions), with `SheetEdgeBox` and `SheetPreviewWidget` as promoted widgets. The C++ keeps the data-carrying combo items, the signal wiring and all logic; members are `ui->name`. Pure refactor, no behaviour change intended.
+

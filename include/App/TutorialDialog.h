@@ -78,6 +78,6 @@ private:
     QPushButton* _closeButton;
 
     int _currentListIndex;  // Current position in list (0=index, 1-TOTAL_LESSONS=lessons)
-    static constexpr int TOTAL_LESSONS = 29;
+    static constexpr int TOTAL_LESSONS = 30;
     static constexpr int TOTAL_LIST_ITEMS = TOTAL_LESSONS + 1;  // Include index page
 };
