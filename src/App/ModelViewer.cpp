@@ -411,6 +411,13 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 	// but grayed out when there's nothing to search keeps the panel's layout
 	// identical either way - only its usability changes.
 	connect(treeWidgetModel, &SceneTreeWidget::rebuildComplete, this, [this]() {
+		// The rebuild kept the checkbox states the old tree had when it started; a visibility change made since (a tool hiding its input
+		// meshes right after updateDisplayList(), for instance) is in _visibleMeshUuids only.
+		if (_syncTreeVisibilityAfterRebuild)
+		{
+			_syncTreeVisibilityAfterRebuild = false;
+			syncTreeVisibilityFromModel();
+		}
 		const bool hasItems = treeWidgetModel->topLevelItemCount() > 0;
 		label_23->setEnabled(hasItems);
 		searchBox->setEnabled(hasItems);
@@ -7788,6 +7795,12 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			_viewportWidget->setDisplayList(visibleIndicesFromState());
 			_viewportWidget->setAutoFitViewOnUpdate(shouldAutoFit);
 			updateVisibilityUiFromState();
+			// updateDisplayList() above started a tree rebuild with every mesh visible; the saved visible set was applied to the viewport
+			// directly, so the tree gets it here (now, or when the running rebuild completes).
+			if (treeWidgetModel->isRebuildInProgress())
+				_syncTreeVisibilityAfterRebuild = true;
+			else
+				syncTreeVisibilityFromModel();
 
 			// Restore selection
 			const QJsonArray selArr = result.document.mvfSession[QStringLiteral("selectedMeshUuids")].toArray();
@@ -9361,6 +9374,8 @@ void ModelViewer::applyVisibleMeshState(bool syncTree,
 			_treeVisibilityDirty = false;
 			syncTreeVisibilityFromModel();
 		}
+		if (treeWidgetModel->isRebuildInProgress())
+			_syncTreeVisibilityAfterRebuild = true;
 	}
 }
 
@@ -9383,6 +9398,10 @@ void ModelViewer::rebuildTreeFromCurrentState()
 	_treeRebuildPending = false;
 	treeWidgetModel->rebuild();
 	syncTreeVisibilityFromModel();
+	// The rebuilt tree takes its checkboxes from the old tree, and checks every mesh when none of them was checked (all hidden). With some
+	// meshes hidden, the document's visible set is applied again when the rebuild completes.
+	if (_viewportWidget && static_cast<size_t>(_visibleMeshUuids.size()) < _viewportWidget->getMeshStore().size())
+		_syncTreeVisibilityAfterRebuild = true;
 	// updateMeshTools() deliberately NOT called here - rebuild() only starts
 	// an async batched reconstruction, so the tree/selection aren't restored
 	// yet at this point. It's connected to SceneTreeWidget::rebuildComplete

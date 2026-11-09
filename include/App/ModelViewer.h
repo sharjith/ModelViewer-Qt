@@ -1277,6 +1277,7 @@ private:
 	bool _treeRebuildDeferred = false;   // progressive-load batches skip the tree rebuild; the final update builds it once
 	int _treeVisibilitySyncGeneration = 0;
 	bool _treeVisibilityDirty = false;
+	bool _syncTreeVisibilityAfterRebuild = false;   // visibility changed while the tree was rebuilding: apply it when that completes
 
 	// Material cache - MDI-scoped, auto-destroyed when MDI closes
 	QMap<QString, CachedMaterial> _materialCache;  // Maps material keys to cached materials with metadata

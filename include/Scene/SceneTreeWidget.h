@@ -102,6 +102,9 @@ public:
      * only the affected ancestor chain(s). Used for small selective edits.
      * Does NOT emit meshVisibilityChanged().
      */
+    // True from the moment rebuild() starts until the rebuilt tree is complete. The rebuild takes its checkbox states from the old tree when it
+    // starts, so a visibility change made meanwhile has to be applied again once it completes.
+    bool isRebuildInProgress() const { return _rebuildInProgress; }
     void setVisibilityDelta(const QSet<QUuid>& changedUuids,
                             const QSet<QUuid>& visibleUuids);
 
