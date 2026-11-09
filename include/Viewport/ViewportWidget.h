@@ -278,6 +278,7 @@ public:
 	void updateClipBoxGizmos();
 	void showClippingPlaneEditor(bool show);
 	void showExplodedViewPanel(bool show);
+	bool isExplodedViewPanelShown() const;
 	ExplodedViewPanel* getExplodedViewPanel() const { return _explodedViewPanel; }
 	void updateExplosion();
 	QWidget* attachOverlayPanel(QWidget* contentWidget, const QRect& geometry,
@@ -301,6 +302,14 @@ public:
 
 	void showAxis(bool show);
 	bool isAxisShown() const { return _viewCtrl.showAxis(); }
+	// The camera's orientation and the standard view it was last set to (ViewMode::NONE after a free orbit): what an MVF saves of the view.
+	QVector3D cameraViewDirection() const;
+	QVector3D cameraUpVector() const;
+	ViewMode currentViewMode() const { return _viewCtrl.viewMode(); }
+	IsoCorner currentIsoCorner() const { return _viewCtrl.isoCorner(); }
+	// Sets the orientation of an orbit camera at once (no animation), keeping its pivot, range and projection, and the view selector state
+	// (standard view or axonometric type and corner). Used to restore a saved view; fit-to-view afterwards keeps the orientation.
+	void restoreViewOrientation(const QVector3D& viewDirection, const QVector3D& upVector, ViewMode mode, IsoCorner corner);
 	void showTransformGizmoForSelection(bool show);
 	bool beginExplodedViewManualPlacement(const QVector<QUuid>& selectionUuids = {});
 	void finishExplodedViewManualPlacement();
@@ -673,6 +682,9 @@ public:
 	};
 	CameraPose saveCameraPose() const;
 	void       restoreCameraPose(const CameraPose& pose);
+	// Restores a saved view (the pose saveCameraPose() took, kept in an MVF): stops any running view or fit animation, which would move the
+	// camera away again, applies the pose at once and rebuilds the projection. A corrupt pose (no range, parallel vectors) is ignored.
+	void       restoreSavedView(const CameraPose& pose);
 
 	RenderingMode getRenderingMode() const { return _renderCtrl.renderingMode(); }
 	void setRenderingMode(const RenderingMode& renderingMode);

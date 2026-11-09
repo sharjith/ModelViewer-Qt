@@ -2631,6 +2631,42 @@ void ViewportWidget::setIsoCorner(IsoCorner corner)
 	updateViewSelectorState();
 }
 
+QVector3D ViewportWidget::cameraViewDirection() const
+{
+	return _primaryCamera ? _primaryCamera->getViewDir() : QVector3D(0.0f, 0.0f, -1.0f);
+}
+
+QVector3D ViewportWidget::cameraUpVector() const
+{
+	return _primaryCamera ? _primaryCamera->getUpVector() : QVector3D(0.0f, 1.0f, 0.0f);
+}
+
+void ViewportWidget::restoreViewOrientation(const QVector3D& viewDirection, const QVector3D& upVector, ViewMode mode, IsoCorner corner)
+{
+	if (!_primaryCamera || _primaryCamera->getMode() != Camera::CameraMode::Orbit)
+		return;
+	const QVector3D dir = viewDirection.normalized();
+	const QVector3D rawUp = upVector.normalized();
+	QVector3D right = QVector3D::crossProduct(dir, rawUp);
+	// a zero or parallel pair of vectors (a corrupt file) leaves the camera as it is
+	if (dir.isNull() || rawUp.isNull() || right.lengthSquared() < 1.0e-8f)
+		return;
+	right.normalize();
+	const QVector3D up = QVector3D::crossProduct(right, dir).normalized();
+
+	const auto notifyState = qScopeGuard([this] { emit viewStateChanged(); });
+	// In orbit mode the camera's position is the pivot (see captureCurrentCameraEntry()), so setView() keeps it.
+	_primaryCamera->setView(_primaryCamera->getPosition(), dir, up, right);
+	_viewCtrl.syncPoseFromCamera(*_primaryCamera);
+	_viewCtrl.setViewMode(mode);
+	_viewCtrl.setIsoCorner(corner);
+	if (isAxonometricMode(mode))
+		_viewCtrl.setLastAxonometricMode(mode);
+	updateViewSelectorState();
+	resizeGL(width(), height());
+	update();
+}
+
 void ViewportWidget::updateViewSelectorState()
 {
 	if (!_viewToolbar)
@@ -4726,6 +4762,11 @@ void ViewportWidget::showClippingPlaneEditor(bool show)
 	{
 		_clippingPlanesEditor->hide();
 	}
+}
+
+bool ViewportWidget::isExplodedViewPanelShown() const
+{
+	return _explodedViewPanel && !_explodedViewPanel->isHidden();
 }
 
 void ViewportWidget::showExplodedViewPanel(bool show)
@@ -14425,6 +14466,20 @@ void ViewportWidget::restoreCameraPose(const CameraPose& pose)
 	_rtInteractionCtrl->notifyCameraJumpNonInteractive();
 }
 
+
+void ViewportWidget::restoreSavedView(const CameraPose& pose)
+{
+	if (!_primaryCamera || !std::isfinite(pose.viewRange) || pose.viewRange <= 0.0f)
+		return;
+	const QVector3D dir = pose.viewDir.normalized();
+	const QVector3D rawUp = pose.upVector.normalized();
+	if (dir.isNull() || rawUp.isNull() || QVector3D::crossProduct(dir, rawUp).lengthSquared() < 1.0e-8f)
+		return;
+	stopAnimations();
+	restoreCameraPose(pose);
+	resizeGL(width(), height());
+	emit zoomAndPanSet();
+}
 
 void ViewportWidget::splitScreen()
 {

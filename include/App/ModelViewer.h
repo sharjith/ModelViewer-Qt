@@ -1237,7 +1237,8 @@ private:
 	int _savedUndoIndex = 0;
 	bool _nonUndoDocumentDirty = false;
 	// View settings saved in the MVF count as document changes (see checkViewerStateDirty()).
-	QJsonObject buildViewerStateJson() const;
+	// `forDirtyCheck`: navigation and projection (camera orientation, pan, zoom, camera mode, projection, oblique mode) are saved with the document but left out of the comparison (not an edit).
+	QJsonObject buildViewerStateJson(bool forDirtyCheck = false) const;
 	void checkViewerStateDirty();
 	void resetViewerStateBaseline();
 	QTimer* _viewerStatePollTimer = nullptr;
@@ -1245,6 +1246,7 @@ private:
 	int _viewerStateBaselineMeshCount = 0;
 	int _viewerStateSettleTicks = 0;
 	bool _viewerStateDirty = false;
+	QJsonObject _savedCameraPose;    // the camera pose a loaded MVF carries, applied when the load is complete (empty: fit to view instead)
 	bool _documentLoading = false;   // an MVF is loading: no view-state checks until its baseline is taken
 	// Cleanup optimization
 	int _lastStackCount = 0;

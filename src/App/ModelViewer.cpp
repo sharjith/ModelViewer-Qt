@@ -2472,19 +2472,23 @@ void ModelViewer::setSessionNumber(int number)
 	refreshDocumentTitle();
 }
 
-// View settings the MVF saves (display and rendering mode, ground, floor, shadows, environment, skybox, lights, tone mapping, background, camera
-// mode, projection) are part of the document: changing one makes it modified. They are changed from many places (the panels, the toolbars, the
-// menus), so the state is compared against the one at the last load or save instead of hooking every setter. A change of what the document holds
+// View settings the MVF saves (display and rendering mode, shading, ground, floor, shadows, environment, skybox, lights, tone mapping, background,
+// axis, clipping, ray tracing, up axis, exploded view, debug overlay) are part of the document: changing one makes it modified. Navigation and
+// projection (orientation, pan, zoom, camera mode, projection, oblique mode) are saved too but are left out of the comparison
+// (buildViewerStateJson(forDirtyCheck)). They are
+// changed from many places (the panels, the toolbars, the menus), so the state is compared against the one at the last load or save instead of
+// hooking every setter. A change of what the document holds
 // (meshes added or removed, an import, an undo) re-bases the comparison for a couple of seconds, because those operations change the view too.
 void ModelViewer::resetViewerStateBaseline()
 {
 	_viewerStateDirty = false;
 	if (!_viewportWidget)
 		return;
-	_viewerStateBaseline = QJsonDocument(buildViewerStateJson()).toJson(QJsonDocument::Compact);
+	_viewerStateBaseline = QJsonDocument(buildViewerStateJson(true)).toJson(QJsonDocument::Compact);
 	_viewerStateBaselineMeshCount = static_cast<int>(_viewportWidget->getMeshStore().size());
 	_viewerStateSettleTicks = 0;
 }
+
 
 void ModelViewer::checkViewerStateDirty()
 {
@@ -2496,7 +2500,7 @@ void ModelViewer::checkViewerStateDirty()
 		resetViewerStateBaseline();
 		return;
 	}
-	const QByteArray current = QJsonDocument(buildViewerStateJson()).toJson(QJsonDocument::Compact);
+	const QByteArray current = QJsonDocument(buildViewerStateJson(true)).toJson(QJsonDocument::Compact);
 	if (meshCount != _viewerStateBaselineMeshCount)
 	{
 		_viewerStateBaseline = current;
@@ -7903,7 +7907,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		// An explosion only shows while the Exploded View panel is open (closing it hides the explosion and keeps the manual poses
 		// for when it opens again). Restoring the presets applies the active one to the meshes, so a session that was saved with the
 		// panel closed came back exploded. Put the closed state back: the saved views are all there, the model starts assembled.
-		if (!explodedViewPanel->isVisible())
+		// A document saved with the panel open (explosion showing) opens it again; older files have no flag and keep the closed start.
+		if (result.viewerState.value(QStringLiteral("explodedViewShown")).toBool(false))
+			_viewportWidget->showExplodedViewPanel(true);
+		else if (!explodedViewPanel->isVisible())
 			_viewportWidget->showExplodedViewPanel(false);
 	}
 
@@ -8130,6 +8137,34 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		// View state saved since later than the rest (a file without a key keeps the viewport's current value). After the projection and the
 		// camera mode, which the oblique mode builds on, and after the display list, which the clipping positions are relative to.
 		_viewportWidget->makeCurrent();
+		{
+			// the view: orientation at once, then the load's own fit (which keeps it) frames the model
+			const QJsonArray viewDirection = viewerState[QStringLiteral("viewDirection")].toArray();
+			const QJsonArray viewUp = viewerState[QStringLiteral("viewUp")].toArray();
+			const QJsonArray cameraPosition = viewerState[QStringLiteral("cameraPosition")].toArray();
+			if (viewDirection.size() == 3 && viewUp.size() == 3 && cameraPosition.size() == 3 && viewerState.contains(QStringLiteral("cameraViewRange")))
+			{
+				// the load fits the model to the view while it runs; this pose replaces that fit once the load is complete
+				_savedCameraPose = QJsonObject{
+					{ QStringLiteral("position"), cameraPosition },
+					{ QStringLiteral("direction"), viewDirection },
+					{ QStringLiteral("up"), viewUp },
+					{ QStringLiteral("viewRange"), viewerState[QStringLiteral("cameraViewRange")] } };
+			}
+			if (viewDirection.size() == 3 && viewUp.size() == 3)
+			{
+				_viewportWidget->restoreViewOrientation(
+					QVector3D(static_cast<float>(viewDirection[0].toDouble()), static_cast<float>(viewDirection[1].toDouble()), static_cast<float>(viewDirection[2].toDouble())),
+					QVector3D(static_cast<float>(viewUp[0].toDouble()), static_cast<float>(viewUp[1].toDouble()), static_cast<float>(viewUp[2].toDouble())),
+					static_cast<ViewMode>(qBound(0, viewerState[QStringLiteral("viewMode")].toInt(static_cast<int>(ViewMode::NONE)), static_cast<int>(ViewMode::NONE))),
+					static_cast<IsoCorner>(qBound(0, viewerState[QStringLiteral("isoCorner")].toInt(0), 3)));
+			}
+		}
+		if (viewerState.contains(QStringLiteral("debugOverlayMode")))
+		{
+			_viewportWidget->setDebugOverlayMode(static_cast<DebugOverlayMode>(qBound(0, viewerState[QStringLiteral("debugOverlayMode")].toInt(0), 2)));
+			_viewportWidget->setDebugOverlayEnabled(viewerState[QStringLiteral("debugOverlayEnabled")].toBool(false));
+		}
 		if (viewerState.contains(QStringLiteral("shadingNormalMode")))
 		{
 			const int mode = qBound(0, viewerState[QStringLiteral("shadingNormalMode")].toInt(0), 1);
@@ -8137,6 +8172,10 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		}
 		if (viewerState.contains(QStringLiteral("showAxis")))
 			_viewportWidget->showAxis(viewerState[QStringLiteral("showAxis")].toBool(true));
+		// The four-view layout: the layout only. The toolbar also turns the camera to the isometric view when it is switched on, but the saved
+		// camera (restored when the load is complete) is that view already, or whatever the user turned it to since.
+		if (viewerState.contains(QStringLiteral("multiView")))
+			_viewportWidget->setMultiView(viewerState[QStringLiteral("multiView")].toBool(false));
 		if (viewerState.contains(QStringLiteral("obliqueMode")))
 		{
 			const ObliqueMode oblique = static_cast<ObliqueMode>(qBound(0, viewerState[QStringLiteral("obliqueMode")].toInt(0), 2));
@@ -8174,6 +8213,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	resetViewerStateBaseline();
 	emit documentStateRestored();
 
+	// A file that carries the camera pose (orientation, pan, zoom) restores it below; older files fit to view.
 	// The load starts several animated fits (Phase 3.5, the refit above, setCameraMode()). An animated fit takes its pan from the camera
 	// position at the animation's start and only updates that baseline when it completes; setCameraMode()/setProjection() reset the zoom
 	// baseline in the middle of one, and a later fitAll() retargets the running animation instead of restarting it, so the camera ends
@@ -8181,12 +8221,30 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	// every run). Finish with one immediate fit once the load is done: it stops the animation and sets the camera directly. The camera is not
 	// part of the MVF, so the load's own framing is the intended one.
 	QPointer<ModelViewer> fitSelf(this);
-	QTimer::singleShot(0, this, [fitSelf]() {
+	const QJsonObject savedPose = _savedCameraPose;
+	_savedCameraPose = QJsonObject();
+	QTimer::singleShot(0, this, [fitSelf, savedPose]() {
 		if (!fitSelf || !fitSelf->_viewportWidget)
 			return;
 		ViewportWidget* viewport = fitSelf->_viewportWidget;
-		if (viewport->getMeshStore().empty() || !viewport->autoFitViewOnUpdate() || viewport->isGltfCameraActive()
-			|| viewport->cameraMode() != Camera::CameraMode::Orbit)
+		if (viewport->getMeshStore().empty() || viewport->isGltfCameraActive())
+			return;
+		if (!savedPose.isEmpty())
+		{
+			// the exact saved view (orientation, pan and zoom), applied after every fit the load started
+			const auto vector = [](const QJsonArray& a) {
+				return QVector3D(static_cast<float>(a[0].toDouble()), static_cast<float>(a[1].toDouble()), static_cast<float>(a[2].toDouble()));
+			};
+			ViewportWidget::CameraPose pose;
+			pose.position = vector(savedPose[QStringLiteral("position")].toArray());
+			pose.viewDir = vector(savedPose[QStringLiteral("direction")].toArray());
+			pose.upVector = vector(savedPose[QStringLiteral("up")].toArray());
+			pose.rightVector = QVector3D::crossProduct(pose.viewDir, pose.upVector).normalized();
+			pose.viewRange = static_cast<float>(savedPose[QStringLiteral("viewRange")].toDouble());
+			viewport->restoreSavedView(pose);
+			return;
+		}
+		if (!viewport->autoFitViewOnUpdate() || viewport->cameraMode() != Camera::CameraMode::Orbit)
 			return;
 		viewport->fitAllImmediate();
 	});
@@ -8198,7 +8256,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 
 // Everything about the view that the MVF saves ("viewerState"): camera mode and projection, display and rendering mode, ground, floor, shadows,
 // environment, skybox, lights, tone mapping, background. Also what checkViewerStateDirty() compares against the state at the last load or save.
-QJsonObject ModelViewer::buildViewerStateJson() const
+QJsonObject ModelViewer::buildViewerStateJson(bool forDirtyCheck) const
 {
 	QJsonObject viewerState;
 	if (!_viewportWidget)
@@ -8207,9 +8265,16 @@ QJsonObject ModelViewer::buildViewerStateJson() const
 		return QJsonArray{ color.red(), color.green(), color.blue(), color.alpha() };
 	};
 
+	// Navigation and projection are saved with the document but are not an edit, so they are not part of the dirty comparison: the camera
+	// orientation, pan and zoom (below), the camera mode (how the camera navigates) and the projection with its oblique form. Everything else
+	// here changes what the scene shows (the up axis too) and counts as a change.
 	viewerState.insert(QStringLiteral("cameraUpAxisZUp"), _viewportWidget->isCameraUpAxisZUp());
-	viewerState.insert(QStringLiteral("projection"), static_cast<int>(_viewportWidget->projection()));
-	viewerState.insert(QStringLiteral("cameraMode"), static_cast<int>(_viewportWidget->cameraMode()));
+	if (!forDirtyCheck)
+	{
+		viewerState.insert(QStringLiteral("projection"), static_cast<int>(_viewportWidget->projection()));
+		viewerState.insert(QStringLiteral("cameraMode"), static_cast<int>(_viewportWidget->cameraMode()));
+		viewerState.insert(QStringLiteral("obliqueMode"), static_cast<int>(_viewportWidget->obliqueMode()));
+	}
 	viewerState.insert(QStringLiteral("displayMode"), static_cast<int>(_viewportWidget->getDisplayMode()));
 	viewerState.insert(QStringLiteral("realismEnabled"), _viewportWidget->isRealismEnabled());
 	viewerState.insert(QStringLiteral("renderingMode"), static_cast<int>(_viewportWidget->getRenderingMode()));
@@ -8261,10 +8326,29 @@ QJsonObject ModelViewer::buildViewerStateJson() const
 	viewerState.insert(QStringLiteral("bgBotColor"), colorToJson(_viewportWidget->getBgBotColor()));
 	// Saved since later than the settings above (a file without them keeps the viewport's current value when it loads).
 	viewerState.insert(QStringLiteral("shadingNormalMode"), static_cast<int>(_viewportWidget->shadingNormalMode()));
-	viewerState.insert(QStringLiteral("obliqueMode"), static_cast<int>(_viewportWidget->obliqueMode()));
 	viewerState.insert(QStringLiteral("showAxis"), _viewportWidget->isAxisShown());
+	viewerState.insert(QStringLiteral("multiView"), _viewportWidget->isMultiViewActive());   // the four-view layout
 	viewerState.insert(QStringLiteral("rayTracedArmed"), _viewportWidget->isRayTracedRenderingModeArmed());
 	viewerState.insert(QStringLiteral("clipping"), clippingStateToJson(_viewportWidget->currentClippingState()));
+	// Whatever else changes what the scene shows is part of the document too: the Exploded View panel being open (the explosion shows only
+	// then) and the debug overlay (bounding boxes, vertex or face normals).
+	viewerState.insert(QStringLiteral("explodedViewShown"), _viewportWidget->isExplodedViewPanelShown());
+	viewerState.insert(QStringLiteral("debugOverlayEnabled"), _viewportWidget->isDebugOverlayEnabled());
+	viewerState.insert(QStringLiteral("debugOverlayMode"), static_cast<int>(_viewportWidget->debugOverlayMode()));
+	if (!forDirtyCheck)
+	{
+		// the view: the camera orientation (any orbit, not only a standard view) and the standard view / axonometric corner it came from
+		const QVector3D viewDirection = _viewportWidget->cameraViewDirection();
+		const QVector3D viewUp = _viewportWidget->cameraUpVector();
+		viewerState.insert(QStringLiteral("viewDirection"), QJsonArray{ viewDirection.x(), viewDirection.y(), viewDirection.z() });
+		viewerState.insert(QStringLiteral("viewUp"), QJsonArray{ viewUp.x(), viewUp.y(), viewUp.z() });
+		viewerState.insert(QStringLiteral("viewMode"), static_cast<int>(_viewportWidget->currentViewMode()));
+		viewerState.insert(QStringLiteral("isoCorner"), static_cast<int>(_viewportWidget->currentIsoCorner()));
+		// with the orientation above: the pan (the orbit pivot, the eye in fly modes) and the zoom (the view range) make the exact view
+		const ViewportWidget::CameraPose pose = _viewportWidget->saveCameraPose();
+		viewerState.insert(QStringLiteral("cameraPosition"), QJsonArray{ pose.position.x(), pose.position.y(), pose.position.z() });
+		viewerState.insert(QStringLiteral("cameraViewRange"), static_cast<double>(pose.viewRange));
+	}
 	// Only-write-if-non-default, same convention SceneNode::importUnit
 	// uses on the per-node side - an old MVF reader/file simply lacks
 	// this key, correctly falling through to the hardcoded Millimeter
