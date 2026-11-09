@@ -8265,6 +8265,9 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		// camera (restored when the load is complete) is that view already, or whatever the user turned it to since.
 		if (viewerState.contains(QStringLiteral("multiView")))
 			_viewportWidget->setMultiView(viewerState[QStringLiteral("multiView")].toBool(false));
+		// The swap only changes which of the two sets is shown. Any display-list update turns it off (setDisplayList()), and the load runs
+		// several after this point, so it is applied in the last step of the load, below.
+		_savedVisibleSwapped = viewerState[QStringLiteral("visibleSwapped")].toBool(false);
 		if (viewerState.contains(QStringLiteral("obliqueMode")))
 		{
 			const ObliqueMode oblique = static_cast<ObliqueMode>(qBound(0, viewerState[QStringLiteral("obliqueMode")].toInt(0), 2));
@@ -8312,7 +8315,9 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	QPointer<ModelViewer> fitSelf(this);
 	const QJsonObject savedPose = _savedCameraPose;
 	_savedCameraPose = QJsonObject();
-	QTimer::singleShot(0, this, [fitSelf, savedPose]() {
+	const bool savedSwapped = _savedVisibleSwapped;
+	_savedVisibleSwapped = false;
+	QTimer::singleShot(0, this, [fitSelf, savedPose, savedSwapped]() {
 		// the load is complete once the camera is final: the baselines of the "modified" checks are taken from this state
 		const auto rebase = qScopeGuard([fitSelf]() {
 			if (fitSelf)
@@ -8323,6 +8328,9 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 		ViewportWidget* viewport = fitSelf->_viewportWidget;
 		if (viewport->getMeshStore().empty() || viewport->isGltfCameraActive())
 			return;
+		// before the camera: swapping fits the view to the newly shown set, and the saved pose is applied over that
+		if (savedSwapped && !viewport->isVisibleSwapped())
+			viewport->swapVisible(true);
 		if (!savedPose.isEmpty())
 		{
 			// the exact saved view (orientation, pan and zoom), applied after every fit the load started
@@ -8422,6 +8430,9 @@ QJsonObject ModelViewer::buildViewerStateJson(bool forDirtyCheck) const
 	viewerState.insert(QStringLiteral("shadingNormalMode"), static_cast<int>(_viewportWidget->shadingNormalMode()));
 	viewerState.insert(QStringLiteral("showAxis"), _viewportWidget->isAxisShown());
 	viewerState.insert(QStringLiteral("multiView"), _viewportWidget->isMultiViewActive());   // the four-view layout
+	// "Swap visible" shows the hidden meshes instead of the visible ones. The visibility itself (visibleMeshUuids) is saved as it is
+	// whatever this mode, so this is only the mode.
+	viewerState.insert(QStringLiteral("visibleSwapped"), _viewportWidget->isVisibleSwapped());
 	viewerState.insert(QStringLiteral("rayTracedArmed"), _viewportWidget->isRayTracedRenderingModeArmed());
 	viewerState.insert(QStringLiteral("clipping"), clippingStateToJson(_viewportWidget->currentClippingState()));
 	// Whatever else changes what the scene shows is part of the document too: the Exploded View panel being open (the explosion shows only

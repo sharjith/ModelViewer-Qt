@@ -1257,6 +1257,7 @@ private:
 	int _viewerStateBaselineMeshCount = 0;
 	int _viewerStateSettleTicks = 0;
 	bool _viewerStateDirty = false;
+	bool _savedVisibleSwapped = false;   // the swap a loaded MVF was saved with, applied last (any later display-list update turns swap off)
 	QJsonObject _savedCameraPose;    // the camera pose a loaded MVF carries, applied when the load is complete (empty: fit to view instead)
 	enum class DiskState { Unchanged, Changed, Missing };
 	void rememberFileOnDisk(const QString& fileName);   // the file as this document read or wrote it
