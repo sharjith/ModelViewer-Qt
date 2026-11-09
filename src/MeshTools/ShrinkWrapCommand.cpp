@@ -37,6 +37,35 @@ ShrinkWrapCommand::~ShrinkWrapCommand()
     }
 }
 
+// The inputs go to hidden space with the result visible in their place. The visible set is read and written through the viewer, so swap mode
+// and the saved visibility stay consistent.
+void ShrinkWrapCommand::hideInputs()
+{
+    _hiddenByThis.clear();
+    if (_inputsToHide.isEmpty())
+        return;
+    QSet<QUuid> visible = _viewer->getVisibleUuids();
+    visible.insert(_wrappedMeshUuid);
+    for (const QUuid& input : _inputsToHide)
+    {
+        if (input != _wrappedMeshUuid && visible.remove(input))
+            _hiddenByThis.append(input);
+    }
+    if (!_hiddenByThis.isEmpty())
+        _viewer->setVisibilityWithoutUndo(visible);
+}
+
+void ShrinkWrapCommand::restoreInputs()
+{
+    if (_hiddenByThis.isEmpty())
+        return;
+    QSet<QUuid> visible = _viewer->getVisibleUuids();
+    for (const QUuid& input : _hiddenByThis)
+        visible.insert(input);
+    _hiddenByThis.clear();
+    _viewer->setVisibilityWithoutUndo(visible);
+}
+
 void ShrinkWrapCommand::undo()
 {
     if (!_viewer || !_viewportWidget)
@@ -58,6 +87,7 @@ void ShrinkWrapCommand::undo()
 
     _viewportWidget->updateView();
     _viewer->updateDisplayList();
+    restoreInputs();
     _viewer->setSelectionWithoutUndo(_originalSelection);
 }
 
@@ -71,6 +101,7 @@ void ShrinkWrapCommand::redo()
         // The wrap already happened at push time; just select the result.
         _firstRedo = false;
         _attached = true;
+        hideInputs();
         _viewer->setSelectionWithoutUndo(QSet<QUuid>{ _wrappedMeshUuid });
         return;
     }
@@ -86,6 +117,7 @@ void ShrinkWrapCommand::redo()
 
     _viewportWidget->updateView();
     _viewer->updateDisplayList();
+    hideInputs();
     _viewer->setSelectionWithoutUndo(QSet<QUuid>{ _wrappedMeshUuid });
 }
 

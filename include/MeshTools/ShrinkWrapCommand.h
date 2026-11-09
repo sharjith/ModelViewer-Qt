@@ -5,6 +5,7 @@
 
 #include <QSet>
 #include <QUuid>
+#include <QVector>
 
 // ---------------------------------------------------------------------------
 // ShrinkWrapCommand
@@ -50,6 +51,10 @@ public:
 
     QSet<QUuid> getReferencedUuids() const;
 
+    // The meshes this result was made from. Redo hides those that are visible (the result stands in for them), undo makes visible again
+    // exactly the ones this command hid. Set before the command is pushed.
+    void setInputsToHide(const QVector<QUuid>& inputs) { _inputsToHide = inputs; }
+
 private:
     SceneNode*  _wrapNode;
     SceneNode*  _wrapParent;
@@ -58,4 +63,9 @@ private:
     QSet<QUuid> _originalSelection;
     bool        _firstRedo;
     bool        _attached; // true = wrap node is live in the tree and owns the mesh
+    QVector<QUuid> _inputsToHide;
+    QVector<QUuid> _hiddenByThis; // the inputs that were visible when redo ran
+
+    void hideInputs();
+    void restoreInputs();
 };

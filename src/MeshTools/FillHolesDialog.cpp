@@ -311,7 +311,7 @@ void FillHolesDialog::onGenerateClicked()
 		sceneGraph->insertChildNode(topParent, fillNode, position);
 		sceneGraph->restoreMeshUuid(fillNode, filledUuid, 0);
 
-		results.append({ fillNode, topParent, position, filledUuid });
+		results.append({ fillNode, topParent, position, filledUuid, mesh->uuid() });
 		newResultUuids.append(filledUuid);
 
 		++filledCount;

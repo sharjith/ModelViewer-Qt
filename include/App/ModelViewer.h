@@ -90,6 +90,7 @@ struct RepairMeshResult
 	SceneNode* parent = nullptr;
 	int position = 0;
 	QUuid meshUuid;
+	QUuid sourceUuid;   // the mesh this result was made from (hidden by the commit)
 };
 
 // Same shape/role as RepairMeshResult above, for FillHolesDialog::onGenerateClicked() ->
@@ -101,6 +102,7 @@ struct FillHolesResult
 	SceneNode* parent = nullptr;
 	int position = 0;
 	QUuid meshUuid;
+	QUuid sourceUuid;   // the mesh this result was made from (hidden by the commit)
 };
 
 namespace Mvf
@@ -630,8 +632,11 @@ public slots:
 	// remembers how to undo/redo that already-done attachment, same
 	// "already happened, command just replays it" convention as
 	// GroupMeshesCommand/MergeByAdjacencyCommand.
+	// `inputsToHide` (here and in the commit functions below): the meshes the result was made from; they move to hidden space with the
+	// result, as part of the same undo step.
 	void commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
-	                       const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection);
+	                       const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection,
+	                       const QVector<QUuid>& inputsToHide = {});
 
 	// Undoably deletes a set of previously-committed tool results (Shrink
 	// Wrap/Subdivision) - the "Replace previous result" checkbox's delete
@@ -656,7 +661,8 @@ public slots:
 	// `text` argument), just with text = tr("Subdivide") so the undo-stack
 	// entry reads correctly.
 	void commitSubdivision(SceneNode* node, SceneNode* parent, int position,
-	                        const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
+	                        const QUuid& meshUuid, const QSet<QUuid>& originalSelection,
+	                        const QVector<QUuid>& inputsToHide = {});
 
 	// Reconstruct Surface: opens the non-modal ReconstructSurfaceDialog
 	// (Tools -> Reconstruct Surface...), same findChild-reuse-or-create/
@@ -794,7 +800,8 @@ public slots:
 	// commitSubdivision() above, reusing the exact same ShrinkWrapCommand
 	// class with text = tr("Reconstruct Surface").
 	void commitReconstructSurface(SceneNode* node, SceneNode* parent, int position,
-	                               const QUuid& meshUuid, const QSet<QUuid>& originalSelection);
+	                               const QUuid& meshUuid, const QSet<QUuid>& originalSelection,
+	                               const QVector<QUuid>& inputsToHide = {});
 
 	// Repair Mesh: opens the non-modal RepairMeshDialog (Tools -> Repair Mesh...), same
 	// findChild-reuse-or-create/show/raise/seed-with-tree-selection pattern as

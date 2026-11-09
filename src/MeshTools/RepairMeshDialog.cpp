@@ -199,7 +199,7 @@ void RepairMeshDialog::onGenerateClicked()
 		sceneGraph->insertChildNode(topParent, repairNode, position);
 		sceneGraph->restoreMeshUuid(repairNode, repairedUuid, 0);
 
-		results.append({ repairNode, topParent, position, repairedUuid });
+		results.append({ repairNode, topParent, position, repairedUuid, mesh->uuid() });
 		newResultUuids.append(repairedUuid);
 
 		++repairedCount;

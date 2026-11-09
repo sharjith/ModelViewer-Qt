@@ -4674,12 +4674,15 @@ void ModelViewer::openMassPropertiesDialog()
 }
 
 void ModelViewer::commitShrinkWrap(SceneNode* wrapNode, SceneNode* wrapParent, int wrapPosition,
-                                    const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection)
+                                    const QUuid& wrappedMeshUuid, const QSet<QUuid>& originalSelection,
+                                    const QVector<QUuid>& inputsToHide)
 {
 	if (!_sceneGraph || !_viewportWidget || !_undoStack || !wrapNode || !wrapParent)
 		return;
-	_undoStack->push(new ShrinkWrapCommand(
-		this, _viewportWidget, wrapNode, wrapParent, wrapPosition, wrappedMeshUuid, originalSelection));
+	auto* command = new ShrinkWrapCommand(
+		this, _viewportWidget, wrapNode, wrapParent, wrapPosition, wrappedMeshUuid, originalSelection);
+	command->setInputsToHide(inputsToHide);
+	_undoStack->push(command);
 }
 
 void ModelViewer::openSubdivisionDialog()
@@ -4700,12 +4703,15 @@ void ModelViewer::openSubdivisionDialog()
 }
 
 void ModelViewer::commitSubdivision(SceneNode* node, SceneNode* parent, int position,
-                                     const QUuid& meshUuid, const QSet<QUuid>& originalSelection)
+                                     const QUuid& meshUuid, const QSet<QUuid>& originalSelection,
+                                     const QVector<QUuid>& inputsToHide)
 {
 	if (!_sceneGraph || !_viewportWidget || !_undoStack || !node || !parent)
 		return;
-	_undoStack->push(new ShrinkWrapCommand(
-		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Subdivide")));
+	auto* command = new ShrinkWrapCommand(
+		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Subdivide"));
+	command->setInputsToHide(inputsToHide);
+	_undoStack->push(command);
 }
 
 void ModelViewer::openReconstructSurfaceDialog()
@@ -4726,12 +4732,15 @@ void ModelViewer::openReconstructSurfaceDialog()
 }
 
 void ModelViewer::commitReconstructSurface(SceneNode* node, SceneNode* parent, int position,
-                                            const QUuid& meshUuid, const QSet<QUuid>& originalSelection)
+                                            const QUuid& meshUuid, const QSet<QUuid>& originalSelection,
+                                            const QVector<QUuid>& inputsToHide)
 {
 	if (!_sceneGraph || !_viewportWidget || !_undoStack || !node || !parent)
 		return;
-	_undoStack->push(new ShrinkWrapCommand(
-		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Reconstruct Surface")));
+	auto* command = new ShrinkWrapCommand(
+		this, _viewportWidget, node, parent, position, meshUuid, originalSelection, tr("Reconstruct Surface"));
+	command->setInputsToHide(inputsToHide);
+	_undoStack->push(command);
 }
 
 void ModelViewer::openRepairMeshDialog()
@@ -4769,9 +4778,12 @@ void ModelViewer::commitRepairMesh(const QVector<RepairMeshResult>& results, con
 	{
 		if (!result.node || !result.parent)
 			continue;
-		_undoStack->push(new ShrinkWrapCommand(
+		auto* command = new ShrinkWrapCommand(
 			this, _viewportWidget, result.node, result.parent, result.position,
-			result.meshUuid, originalSelection, tr("Repair Mesh")));
+			result.meshUuid, originalSelection, tr("Repair Mesh"));
+		if (!result.sourceUuid.isNull())
+			command->setInputsToHide({ result.sourceUuid });
+		_undoStack->push(command);
 	}
 
 	if (macro)
@@ -4809,9 +4821,12 @@ void ModelViewer::commitFillHoles(const QVector<FillHolesResult>& results, const
 	{
 		if (!result.node || !result.parent)
 			continue;
-		_undoStack->push(new ShrinkWrapCommand(
+		auto* command = new ShrinkWrapCommand(
 			this, _viewportWidget, result.node, result.parent, result.position,
-			result.meshUuid, originalSelection, tr("Fill Holes")));
+			result.meshUuid, originalSelection, tr("Fill Holes"));
+		if (!result.sourceUuid.isNull())
+			command->setInputsToHide({ result.sourceUuid });
+		_undoStack->push(command);
 	}
 
 	if (macro)
@@ -9267,11 +9282,10 @@ void ModelViewer::setVisibilityWithoutUndo(const QSet<QUuid>& visibleUuids)
 QSet<QUuid> ModelViewer::collectVisibleUuidsFromDisplayList() const
 {
 	QSet<QUuid> visibleUuids;
-	// `displayedObjectsIds()` is the raw primary list.  The View toolbar can
-	// temporarily swap it with the hidden list, so it is not necessarily what
-	// is on screen.  Every document-level visibility snapshot must use the
-	// runtime's resolved list or an import/update can resurrect hidden plots.
-	for (int id : _viewportWidget->currentVisibleObjectIds())
+	// The LOGICAL visible set: the primary list, which is what the document means by "visible" and what the MVF saves. While the View toolbar's
+	// swap is on, what is on screen is the hidden list (currentVisibleObjectIds()); reading that here made updateDisplayList() (run after a mesh
+	// tool) take the hidden meshes as the new visible set. setDisplayList() then turns swap off, so the swapped view was committed.
+	for (int id : _viewportWidget->getDisplayedObjectsIds())
 	{
 		QUuid uuid = _viewportWidget->getUuidByIndex(id);
 		if (!uuid.isNull())

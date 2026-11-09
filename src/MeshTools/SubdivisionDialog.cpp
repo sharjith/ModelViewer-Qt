@@ -184,7 +184,7 @@ void SubdivisionDialog::onGenerateClicked()
 		// Pushed immediately, not deferred to dialog close - matches
 		// MeasurementDialog: every result is independently undoable right
 		// away (see this class's header doc comment for the bug this fixes).
-		_modelViewer->commitSubdivision(resultNode, topParent, resultPosition, resultUuid, originalSelection);
+		_modelViewer->commitSubdivision(resultNode, topParent, resultPosition, resultUuid, originalSelection, { mesh->uuid() });
 		newResultMeshUuids.append(resultUuid);
 
 		++succeeded;
