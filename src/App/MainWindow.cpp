@@ -1050,6 +1050,11 @@ MainWindow::MainWindow(QWidget* parent)
 
 }
 
+QMenu* MainWindow::recentFilesMenu() const
+{
+	return recentFileSubMenuAct ? recentFileSubMenuAct->menu() : nullptr;
+}
+
 void MainWindow::retranslateUI()
 {
 	updateCornerIcons();

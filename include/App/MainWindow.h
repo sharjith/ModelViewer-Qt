@@ -8,6 +8,7 @@ QT_BEGIN_NAMESPACE
 class QProgressBar;
 class QPushButton;
 class QAction;
+class QMenu;
 class QTabWidget;
 class QCheckBox;
 class QLabel;
@@ -46,6 +47,7 @@ class MainWindow : public QMainWindow
 
 public:
 	static MainWindow* mainWindow();
+	QMenu* recentFilesMenu() const;   // the File menu's Recent submenu (the File tab of the viewport toolbar opens it too)
 	~MainWindow();
 
 	void retranslateUI();

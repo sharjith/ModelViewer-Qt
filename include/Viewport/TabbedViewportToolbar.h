@@ -2,6 +2,7 @@
 #include <QWidget>
 class ViewToolbar;
 class ToolsToolbar;
+class FileToolbar;
 class QTabBar;
 class QStackedWidget;
 class QPropertyAnimation;
@@ -29,7 +30,10 @@ private:
     bool isInteracting() const;
     void applyPinned(bool pinned);
     void updatePinButton();
+    // The tabs in order: File, Standard, Tools. Standard is the default; the last one used is remembered.
+    static constexpr int kFileTab = 0, kStandardTab = 1, kToolsTab = 2;
     QWidget* _viewport;
+    FileToolbar* _file;
     ViewToolbar* _standard;
     ToolsToolbar* _tools;
     QTabBar* _tabs;

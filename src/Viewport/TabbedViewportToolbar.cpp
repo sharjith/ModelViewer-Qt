@@ -1,6 +1,7 @@
 #include "TabbedViewportToolbar.h"
 #include "ViewToolbar.h"
 #include "ToolsToolbar.h"
+#include "FileToolbar.h"
 #include "LanguageManager.h"
 #include <QApplication>
 #include <QCursor>
@@ -42,6 +43,7 @@ TabbedViewportToolbar::TabbedViewportToolbar(QWidget* viewport) : QWidget(viewpo
     _tabs->setAutoFillBackground(false);
     _tabs->setExpanding(false);
     _tabs->setDrawBase(false);
+    _tabs->addTab(tr("File"));
     _tabs->addTab(tr("Standard"));
     _tabs->addTab(tr("Tools"));
     _pinButton = new QToolButton(this);
@@ -61,8 +63,10 @@ TabbedViewportToolbar::TabbedViewportToolbar(QWidget* viewport) : QWidget(viewpo
     _pages = new QStackedWidget(this);
     _pages->setObjectName(QStringLiteral("toolbarPages"));
     _pages->setAutoFillBackground(false);
+    _file = new FileToolbar(_pages);
     _standard = new ViewToolbar(viewport, _pages);
     _tools = new ToolsToolbar(_pages);
+    _pages->addWidget(_file);
     _pages->addWidget(_standard);
     _pages->addWidget(_tools);
     layout->addWidget(_pages);
@@ -79,13 +83,16 @@ TabbedViewportToolbar::TabbedViewportToolbar(QWidget* viewport) : QWidget(viewpo
     connect(_tabs, &QTabBar::currentChanged, this, [this](int index) {
         _standard->stopScrolling();
         _pages->setCurrentIndex(index);
+        QSettings().setValue(QStringLiteral("ViewportToolbar/tab"), index);
         reveal();
     });
+    connect(_file, &FileToolbar::contentSizeChanged, this, &TabbedViewportToolbar::reposition);
     connect(_tools, &ToolsToolbar::commandRequested, this, &TabbedViewportToolbar::commandRequested);
     connect(_tools, &ToolsToolbar::contentSizeChanged, this, &TabbedViewportToolbar::reposition);
     connect(&LanguageManager::instance(), &LanguageManager::languageChanged, this, [this]() {
-        _tabs->setTabText(0, tr("Standard"));
-        _tabs->setTabText(1, tr("Tools"));
+        _tabs->setTabText(kFileTab, tr("File"));
+        _tabs->setTabText(kStandardTab, tr("Standard"));
+        _tabs->setTabText(kToolsTab, tr("Tools"));
         updatePinButton();
         reposition();
     });
@@ -94,6 +101,14 @@ TabbedViewportToolbar::TabbedViewportToolbar(QWidget* viewport) : QWidget(viewpo
         if (now && (now == this || isAncestorOf(now))) reveal();
         else if (!_pinned && !_hideTimer->isActive()) _hideTimer->start();
     });
+    // The tab last used (Standard on a first run); the stored value is the tab's position.
+    {
+        const int stored = QSettings().value(QStringLiteral("ViewportToolbar/tab"), kStandardTab).toInt();
+        const int tab = (stored >= 0 && stored < _tabs->count()) ? stored : kStandardTab;
+        const QSignalBlocker blocker(_tabs);
+        _tabs->setCurrentIndex(tab);
+        _pages->setCurrentIndex(tab);
+    }
     reposition();
     applyPinned(QSettings().value(QStringLiteral("ViewportToolbar/pinned"), false).toBool());
 }
@@ -101,10 +116,10 @@ void TabbedViewportToolbar::reposition()
 {
     _animation->stop();
     _tabs->ensurePolished();
-    const int desired = std::max(_standard->sizeHint().width(), _tools->sizeHint().width()) + 6;
+    const int desired = std::max({ _file->sizeHint().width(), _standard->sizeHint().width(), _tools->sizeHint().width() }) + 6;
     const int w = std::max(1, std::min(desired, _viewport->width() - 20));
     const QMargins margins = layout()->contentsMargins();
-    const int pageHeight = std::max(_standard->sizeHint().height(), _tools->sizeHint().height());
+    const int pageHeight = std::max({ _file->sizeHint().height(), _standard->sizeHint().height(), _tools->sizeHint().height() });
     const int h = pageHeight + std::max(_tabs->sizeHint().height(), _pinButton->height())
         + margins.top() + margins.bottom();
     setFixedSize(w, h);
@@ -125,7 +140,7 @@ bool TabbedViewportToolbar::isInteracting() const
 {
     QWidget* focus = QApplication::focusWidget();
     return underMouse() || (focus && (focus == this || isAncestorOf(focus)))
-        || _standard->isFlyoutMenuVisible() || _tools->isFlyoutMenuVisible();
+        || _standard->isFlyoutMenuVisible() || _tools->isFlyoutMenuVisible() || _file->isMenuVisible();
 }
 void TabbedViewportToolbar::tryHide()
 {
