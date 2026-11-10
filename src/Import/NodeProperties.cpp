@@ -292,7 +292,7 @@ DeclaredPartNumber declaredPartNumber(const NodePropertyChain& chain)
 	DeclaredPartNumber found;
 	for (const NodePropertyRow& row : chain.back()->rows)
 	{
-		if (row.key == QLatin1String("3DXML_V_Name") && !row.value.trimmed().isEmpty())
+		if ((row.key == QLatin1String("3DXML_V_Name") || row.key == QLatin1String("STEP_PRODUCT_ID")) && !row.value.trimmed().isEmpty())
 		{
 			found.number = row.value.trimmed();
 			found.sourceKey = row.key;

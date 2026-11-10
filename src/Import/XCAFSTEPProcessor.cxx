@@ -40,8 +40,79 @@
 #include <StepVisual_StyledItemTarget.hxx>
 #include <StepRepr_Representation.hxx>
 #include <StepData_StepModel.hxx>
+#include <StepBasic_Product.hxx>
+#include <StepBasic_ProductDefinition.hxx>
+#include <StepBasic_ProductDefinitionFormation.hxx>
+#include <StepRepr_NextAssemblyUsageOccurrence.hxx>
+#include <TCollection_AsciiString.hxx>
+#include <TCollection_HAsciiString.hxx>
+#include <TDF_LabelSequence.hxx>
+#include <TDataStd_AsciiString.hxx>
+#include "StepProductIdentity.h"
+#include <set>
+#include <vector>
 #include <TransferBRep.hxx>
 #include <XSControl_WorkSession.hxx>
+
+// The id of the STEP file's one root product: the product definition that is the relating side of assembly usages and never the related side,
+// or the only product definition of a file without assembly structure. Empty when there is no unique root: nothing is guessed.
+static std::string stepRootProductId(const STEPCAFControl_Reader& cafReader)
+{
+	Handle(StepData_StepModel) model = cafReader.Reader().StepModel();
+	if (model.IsNull()) return std::string();
+
+	std::vector<Handle(StepBasic_ProductDefinition)> all, relating;
+	std::set<const Standard_Transient*> related;
+	for (Standard_Integer i = 1; i <= model->NbEntities(); ++i)
+	{
+		Handle(Standard_Transient) entity = model->Value(i);
+		Handle(StepBasic_ProductDefinition) definition = Handle(StepBasic_ProductDefinition)::DownCast(entity);
+		if (!definition.IsNull())
+		{
+			all.push_back(definition);
+			continue;
+		}
+		Handle(StepRepr_NextAssemblyUsageOccurrence) usage = Handle(StepRepr_NextAssemblyUsageOccurrence)::DownCast(entity);
+		if (usage.IsNull()) continue;
+		Handle(StepBasic_ProductDefinition) relatingSide = usage->RelatingProductDefinition();
+		Handle(StepBasic_ProductDefinition) relatedSide = usage->RelatedProductDefinition();
+		if (relatingSide.IsNull()) relatingSide = usage->RelatingProductDefinitionAP242().ProductDefinition();
+		if (relatedSide.IsNull()) relatedSide = usage->RelatedProductDefinitionAP242().ProductDefinition();
+		if (!relatingSide.IsNull()) relating.push_back(relatingSide);
+		if (!relatedSide.IsNull()) related.insert(relatedSide.get());
+	}
+
+	Handle(StepBasic_ProductDefinition) root;
+	if (relating.empty())
+	{
+		if (all.size() != 1) return std::string();
+		root = all.front();
+	}
+	else
+	{
+		for (const Handle(StepBasic_ProductDefinition)& candidate : relating)
+		{
+			if (related.count(candidate.get()) != 0) continue;
+			if (!root.IsNull() && root.get() != candidate.get()) return std::string();   // more than one root
+			root = candidate;
+		}
+	}
+	if (root.IsNull() || root->Formation().IsNull() || root->Formation()->OfProduct().IsNull()) return std::string();
+	Handle(TCollection_HAsciiString) id = root->Formation()->OfProduct()->Id();
+	return id.IsNull() ? std::string() : std::string(id->ToCString());
+}
+
+// Puts that id on the label of the document's one free shape (the root), where XCAFDocProcessor picks it up.
+static void tagRootProductId(const Handle(TDocStd_Document)& doc, const std::string& id)
+{
+	if (id.empty() || doc.IsNull()) return;
+	Handle(XCAFDoc_ShapeTool) shapeTool = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
+	if (shapeTool.IsNull()) return;
+	TDF_LabelSequence freeShapes;
+	shapeTool->GetFreeShapes(freeShapes);
+	if (freeShapes.Length() != 1) return;
+	TDataStd_AsciiString::Set(freeShapes.Value(1), stepProductIdGuid(), TCollection_AsciiString(id.c_str()));
+}
 
 // ---------------------------------------------------------------------------
 // buildStepColorMap
@@ -418,6 +489,7 @@ void XCAFSTEPProcessor::readSTEPFile(const std::string & filename, Handle(TDocSt
 	ImportDiagnostics::checkpoint("step.transfer-end");
 	buildStepColorMap(reader);
 	ImportDiagnostics::checkpoint("step.colour-map-end");
+	tagRootProductId(doc, stepRootProductId(reader));
 
 #ifdef __DEBUG__
 	auto endTraverse = std::chrono::high_resolution_clock::now();

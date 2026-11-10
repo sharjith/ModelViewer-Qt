@@ -70,7 +70,7 @@ struct DeclaredPartNumber
 namespace NodeProperties
 {
 // The declared part number of the outermost node of the chain (a mesh's properties, innermost first): the product structure's root, so every mesh
-// of a file gives the same answer. 3DXML: the root reference's V_Name ("3DXML_V_Name") and V_description. Other formats: none yet.
+// of a file gives the same answer. 3DXML: the root reference's V_Name ("3DXML_V_Name") and V_description. STEP: the root product's id ("STEP_PRODUCT_ID"). Other formats: none.
 DeclaredPartNumber declaredPartNumber(const NodePropertyChain& chain);
 
 // The declared material of a mesh's part: the first property set of the chain (innermost node first) with a non-empty "STEP_MATERIAL_NAME"

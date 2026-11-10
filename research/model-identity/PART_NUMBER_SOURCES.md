@@ -29,10 +29,15 @@ number is derived from node names: naming and revision schemes are a company's c
 - 3DXML: the reader keeps `V_Name` and `V_description` of every reference; the scene builder writes them to the node as `3DXML_V_Name` and
   `3DXML_V_description`. `NodeProperties::declaredPartNumber()` returns the root node's values (the outermost node of a mesh's property
   chain), never a sub-assembly's.
+- STEP: after the transfer, the reader finds the file's one root product (the product definition that is the relating side of assembly
+  usages and never the related side; or the only product definition of a file without assembly structure) and puts its `PRODUCT` id on the
+  label of the document's one free shape. `XCAFDocProcessor` writes it to the root node as `STEP_PRODUCT_ID` (the root assembly node, or the
+  part when the root is a single part). With no unique root or more than one free shape nothing is written.
 - Save as 3D PDF and Print pre-fill Drawing no. with that value (the user can change it); with no declared number the last typed one is offered.
 
 ## Open items
 
-- STEP: read the root product's id. XCAF gives the label name; the entity's `id` needs the transfer reader's entity-to-shape mapping.
+- STEP: checked on one Autodesk-exported file only (id `LD200 torsen`); other exporters, and AP242 files whose usages use the reference forms,
+  are untested.
 - JT and other formats: a verified key is needed. Teamcenter-style files with a per-property mapping may carry one; the viewer does not guess.
 - Revision: 3DXML has `V_version` (a counter) but its meaning as a drawing revision is not established, so no revision is taken.
