@@ -14,7 +14,7 @@ class PrintDialog : public QDialog
 {
     Q_OBJECT
 public:
-    // `declaredNumber`: the part number the model declares; it fills Drawing no. when there is one, otherwise the last one typed is offered.
+    // `declaredNumber`: the part number the model declares; it fills Drawing no. when there is one; otherwise the field is empty.
     explicit PrintDialog(const QString& defaultTitle, const QString& declaredNumber, QWidget* parent = nullptr);
 
     bool useTemplate() const;

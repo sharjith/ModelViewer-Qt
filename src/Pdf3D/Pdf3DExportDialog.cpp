@@ -144,8 +144,8 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	QSettings settings;
 	restoreGeometry(settings.value(QStringLiteral("pdf3d/dialogGeometry2")).toByteArray());
 	ui->titleEdit->setText(defaultTitle);
-	ui->drawingNumberEdit->setText(settings.value(QStringLiteral("pdf3d/drawingNumber")).toString());
-	ui->revisionEdit->setText(settings.value(QStringLiteral("pdf3d/revision")).toString());
+	// Drawing number and revision belong to one drawing, so they start empty for each model (setDeclaredDrawingNumber() fills the number when the
+	// model declares one); author, company and scale are the user's and are remembered.
 	ui->authorEdit->setText(settings.value(QStringLiteral("pdf3d/author")).toString());
 	ui->companyEdit->setText(settings.value(QStringLiteral("pdf3d/company")).toString());
 	ui->scaleEdit->setText(settings.value(QStringLiteral("pdf3d/scale")).toString());
@@ -639,8 +639,8 @@ void Pdf3DExportDialog::done(int result)
 	settings.setValue(QStringLiteral("pdf3d/dialogGeometry2"), saveGeometry());
 	if (result == QDialog::Accepted)
 	{
-		settings.setValue(QStringLiteral("pdf3d/drawingNumber"), ui->drawingNumberEdit->text().trimmed());
-		settings.setValue(QStringLiteral("pdf3d/revision"), ui->revisionEdit->text().trimmed());
+		settings.remove(QStringLiteral("pdf3d/drawingNumber"));   // older versions remembered these two
+		settings.remove(QStringLiteral("pdf3d/revision"));
 		settings.setValue(QStringLiteral("pdf3d/author"), ui->authorEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/company"), ui->companyEdit->text().trimmed());
 		settings.setValue(QStringLiteral("pdf3d/scale"), ui->scaleEdit->text().trimmed());

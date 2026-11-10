@@ -5,7 +5,9 @@ names or values are recorded here.
 
 ## Owner decision (2026-11-10)
 
-Take the number from the model's own property when the format has one; otherwise fall back to the last value typed in the dialog. No part
+Take the number from the model's own property when the format has one. When it has none the field is empty: the drawing number and the
+revision are not remembered between models (owner, 2026-11-10; they belong to one drawing). Author, company and scale are the user's and
+stay remembered. No part
 number is derived from node names: naming and revision schemes are a company's convention and differ between companies.
 
 ## Observations
@@ -33,7 +35,7 @@ number is derived from node names: naming and revision schemes are a company's c
   usages and never the related side; or the only product definition of a file without assembly structure) and puts its `PRODUCT` id on the
   label of the document's one free shape. `XCAFDocProcessor` writes it to the root node as `STEP_PRODUCT_ID` (the root assembly node, or the
   part when the root is a single part). With no unique root or more than one free shape nothing is written.
-- Save as 3D PDF and Print pre-fill Drawing no. with that value (the user can change it); with no declared number the last typed one is offered.
+- Save as 3D PDF and Print pre-fill Drawing no. with that value (the user can change it); with no declared number the field starts empty.
 
 ## Open items
 

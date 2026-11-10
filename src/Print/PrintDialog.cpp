@@ -35,7 +35,7 @@ PrintDialog::PrintDialog(const QString& defaultTitle, const QString& declaredNum
     form->addRow(tr("Sheet template:"), _template);
 
     _title = new QLineEdit(defaultTitle, this);
-    _drawingNumber = new QLineEdit(declaredNumber.isEmpty() ? settings.value(QStringLiteral("Print/drawingNumber")).toString() : declaredNumber, this);
+    _drawingNumber = new QLineEdit(declaredNumber, this);   // empty unless the model declares one: a drawing number is not remembered between models
     if (!declaredNumber.isEmpty())
         _drawingNumber->setToolTip(tr("Taken from the model. You can change it."));
     _revision = new QLineEdit(this);
@@ -91,7 +91,7 @@ void PrintDialog::saveSettings() const
     settings.setValue(QStringLiteral("Print/templateId"), _template->currentData().toString());
     settings.setValue(QStringLiteral("Print/author"), _author->text());
     settings.setValue(QStringLiteral("Print/company"), _company->text());
-    settings.setValue(QStringLiteral("Print/drawingNumber"), _drawingNumber->text());
+    settings.remove(QStringLiteral("Print/drawingNumber"));   // an earlier build remembered it
     settings.setValue(QStringLiteral("Print/dpi"), dpi());
 }
 
