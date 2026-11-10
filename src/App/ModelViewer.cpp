@@ -88,6 +88,7 @@
 #include <QEventLoop>
 #include <QFile>
 #include <QFileDialog>
+#include <QSaveFile>
 #include <QLineEdit>
 #include <QMdiSubWindow>
 #include <QMenu>
@@ -492,7 +493,7 @@ ModelViewer::ModelViewer(QWidget* parent) : QWidget(parent)
 
 	_viewerStatePollTimer = new QTimer(this);
 	_viewerStatePollTimer->setInterval(1000);
-	connect(_viewerStatePollTimer, &QTimer::timeout, this, &ModelViewer::checkViewerStateDirty);
+	connect(_viewerStatePollTimer, &QTimer::timeout, this, [this] { checkViewerStateDirty(); });
 	_viewerStatePollTimer->start();
 
 	QTimer* searchTimer = new QTimer(this);
@@ -2398,7 +2399,8 @@ void ModelViewer::closeEvent(QCloseEvent* event)
 		// If No, just proceed with closing (materials will be discarded)
 	}
 
-	// Check for unsaved document changes
+	// Check the live view state even if the timer has not ticked since the last edit.
+	checkViewerStateDirty(true);
 	if (_documentModified)
 	{
 		auto ret = QMessageBox::question(this, tr("Unsaved Changes"),
@@ -2505,9 +2507,9 @@ bool ModelViewer::hasUnsavedViewState() const
 	return QJsonDocument(buildViewerStateJson(false)).toJson(QJsonDocument::Compact) != _fullStateBaseline;
 }
 
-void ModelViewer::checkViewerStateDirty()
+void ModelViewer::checkViewerStateDirty(bool closing)
 {
-	if (_documentLoading || !_viewportWidget || !isVisible())
+	if (_documentLoading || !_viewportWidget || (!closing && !isVisible()))
 		return;
 	const int meshCount = static_cast<int>(_viewportWidget->getMeshStore().size());
 	if (meshCount == 0)
@@ -2516,7 +2518,7 @@ void ModelViewer::checkViewerStateDirty()
 		return;
 	}
 	const QByteArray current = QJsonDocument(buildViewerStateJson(true)).toJson(QJsonDocument::Compact);
-	if (meshCount != _viewerStateBaselineMeshCount)
+	if (!closing && meshCount != _viewerStateBaselineMeshCount)
 	{
 		_viewerStateBaseline = current;
 		_viewerStateBaselineMeshCount = meshCount;
@@ -2529,7 +2531,7 @@ void ModelViewer::checkViewerStateDirty()
 		}
 		return;
 	}
-	if (_viewerStateBaseline.isEmpty() || _viewerStateSettleTicks > 0)
+	if (_viewerStateBaseline.isEmpty() || (!closing && _viewerStateSettleTicks > 0))
 	{
 		if (_viewerStateSettleTicks > 0)
 			--_viewerStateSettleTicks;
@@ -2614,14 +2616,14 @@ bool ModelViewer::save()
 		return saveAs();
 	}
 
-	return writeDocument(false);
+	return writeDocument(_currentFile, false);
 }
 
-bool ModelViewer::writeDocument(bool force)
+bool ModelViewer::writeDocument(QString fileName, bool force)
 {
 	// Nothing to write: neither the content nor any saved state (the camera included) differs from the file, and the file is still there.
 	// Save is available for every document with content, so a repeated click must not rewrite the file for nothing.
-	if (!force && !_documentModified && !hasUnsavedViewState() && QFileInfo::exists(_currentFile))
+	if (!force && !_documentModified && !hasUnsavedViewState() && QFileInfo::exists(fileName))
 	{
 		MainWindow::showStatusMessage(tr("Nothing to save"), 2000);
 		return true;
@@ -2629,11 +2631,11 @@ bool ModelViewer::writeDocument(bool force)
 
 	// The file changed on disk since this document read or wrote it (another program, another ModelViewer): saving would overwrite that.
 	// A deleted file is simply written again.
-	if (!_trackedFile.isEmpty() && QFileInfo(_trackedFile) == QFileInfo(_currentFile) && diskState() == DiskState::Changed)
+	if (!_trackedFile.isEmpty() && QFileInfo(_trackedFile) == QFileInfo(fileName) && diskState() == DiskState::Changed)
 	{
 		QMessageBox box(QMessageBox::Warning, tr("File changed on disk"),
 			tr("%1 was changed on disk since it was opened or last saved, by another program or another ModelViewer.\n\n"
-			   "Saving overwrites those changes.").arg(QFileInfo(_currentFile).fileName()), QMessageBox::NoButton, this);
+			   "Saving overwrites those changes.").arg(QFileInfo(fileName).fileName()), QMessageBox::NoButton, this);
 		QPushButton* overwrite = box.addButton(tr("Overwrite"), QMessageBox::DestructiveRole);
 		QPushButton* saveUnderAnotherName = box.addButton(tr("Save As..."), QMessageBox::ActionRole);
 		QPushButton* cancel = box.addButton(tr("Cancel"), QMessageBox::RejectRole);
@@ -2648,9 +2650,10 @@ bool ModelViewer::writeDocument(bool force)
 	if (!promptSimulationSaveOptions())
 		return false; // cancelled
 
-	if (saveToFile(_currentFile))
+	if (saveToFile(fileName))
 	{
-		rememberFileOnDisk(_currentFile);
+		_currentFile = fileName;
+		rememberFileOnDisk(fileName);
 		_documentSaved = true;
 		_nonUndoDocumentDirty = false;
 		resetViewerStateBaseline();
@@ -2664,7 +2667,7 @@ bool ModelViewer::writeDocument(bool force)
 	}
 	else
 	{
-		QMessageBox::critical(this, tr("Error"), tr("Failed to save file: %1").arg(_currentFile));
+		QMessageBox::critical(this, tr("Error"), tr("Failed to save file: %1").arg(fileName));
 		return false;
 	}
 }
@@ -2682,8 +2685,7 @@ bool ModelViewer::saveAs()
 	if (!fileName.endsWith(".mvf", Qt::CaseInsensitive))
 		fileName += ".mvf";
 
-	_currentFile = fileName;
-	return writeDocument(true);   // the chosen file is written even when the document has nothing new to save
+	return writeDocument(fileName, true);   // the chosen file is written even when the document has nothing new to save
 }
 
 void ModelViewer::setDocumentSaved(bool saved)
@@ -6386,6 +6388,8 @@ void ModelViewer::exportModelDialog(bool select3dPdfFilter)
 
 QString ModelViewer::declaredPartNumber() const
 {
+	if (!_restoredDrawingNumber.isEmpty())
+		return _restoredDrawingNumber;
 	if (!_viewportWidget)
 		return QString();
 	for (const SceneMesh* mesh : _viewportWidget->getMeshStore())
@@ -8000,6 +8004,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 	const QJsonArray sceneRootNodes =
 		result.document.scenes[sceneIndex][QStringLiteral("nodes")].toArray();
 	_sceneGraph->rebuildFromMvf(result.document.nodes, sceneRootNodes);
+	_restoredDrawingNumber = result.document.mvfSession.value(QStringLiteral("declaredDrawingNumber")).toString();
 	// Restore punctual light data.  New MVF files store a per-file structure
 	// ("punctualLightsByFile") with display names, enabled flags, and the
 	// user's repositioned positions.  Older files fall back to the flat
@@ -8636,6 +8641,9 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 	                                               selectedSet,
 	                                               cameraDataByFile,
 	                                               simulationBakedColors());
+	const QString drawingNumber = declaredPartNumber();
+	if (!drawingNumber.isEmpty())
+		package.document.mvfSession.insert(QStringLiteral("declaredDrawingNumber"), drawingNumber);
 	appendSimulationSnapshots(package);
 	appendPlot3DSessions(package);
 	// Simulation snapshots and Plot3D sessions append their blobs to the GEOM chunk AFTER Mvf::buildMVFPackage() recorded
@@ -9020,10 +9028,10 @@ bool ModelViewer::saveToFile(const QString& fileName)
 			&& out.status() == QDataStream::Ok;
 	};
 
-	QFile file(fileName);
+	QSaveFile file(fileName);
 	if (!file.open(QIODevice::WriteOnly))
 		return false;
-	return writeAll(file);
+	return writeAll(file) && file.commit();
 }
 
 void ModelViewer::setMaterialToSelectedItems(const Material& mat)

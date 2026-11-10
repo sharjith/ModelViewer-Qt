@@ -1102,6 +1102,7 @@ private:
 	bool _runningFirstTime;
 
 	QString _currentFile;
+	QString _restoredDrawingNumber; // document identity read from an MVF
 	bool _textureDirOpenedFirstTime;
 	bool _documentSaved;
 	bool _documentModified;
@@ -1261,7 +1262,7 @@ private:
 	// View settings saved in the MVF count as document changes (see checkViewerStateDirty()).
 	// `forDirtyCheck`: navigation and projection (camera orientation, pan, zoom, camera mode, projection, oblique mode) are saved with the document but left out of the comparison (not an edit).
 	QJsonObject buildViewerStateJson(bool forDirtyCheck = false) const;
-	void checkViewerStateDirty();
+	void checkViewerStateDirty(bool closing = false);
 	void resetViewerStateBaseline();
 	// The second "save needed" flag, next to the document-modified flag (the `*`): true when the saved view state differs from what was last
 	// loaded or saved, camera, projection and navigation included. Save does nothing when neither flag is set.
@@ -1281,7 +1282,7 @@ private:
 	QDateTime _trackedModified;
 	qint64 _trackedSize = -1;
 	bool _diskNotice = false;   // the current difference has been reported once
-	bool writeDocument(bool force);   // save() and saveAs(): force writes even when there is nothing new to save (Save As)
+	bool writeDocument(QString fileName, bool force);   // save() and saveAs(): force writes even when there is nothing new to save (Save As)
 	bool _documentLoading = false;   // an MVF is loading: no view-state checks until its baseline is taken
 	// Cleanup optimization
 	int _lastStackCount = 0;
