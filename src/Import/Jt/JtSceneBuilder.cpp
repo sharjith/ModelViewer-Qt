@@ -16,6 +16,8 @@
 #include <JtNode_RangeLOD.hxx>
 #include <JtNode_Switch.hxx>
 #include <JtNode_Shape_Base.hxx>
+#include <JtNode_Shape_PointSet.hxx>
+#include <JtNode_Shape_PolylineSet.hxx>
 #include <JtElement_MetaData_PMIManager.hxx>
 #include <JtElement_ShapeLOD_Vertex.hxx>
 #include <JtData_SkippedContent.hxx>
@@ -556,6 +558,7 @@ struct Builder {
     const Options& options; QString rootDirectory;
     ImportResult result;
     // Automatic detail level: scout() adds up the polygon counts the shape nodes advertise (see Detail::buildScene).
+    size_t omittedPrimitiveShapes = 0;
     bool estimating=false;unsigned long long estimatedPolygons=0;unsigned estimatedWithoutCounts=0;
     std::vector<std::unique_ptr<aiMesh>> meshes;
     // Canonical decoded geometry is independent of material/flat-normal variants.
@@ -1231,11 +1234,12 @@ struct Builder {
         size_t meshes,materials,shapes,hidden,geometries;
         qsizetype warnings;
         unsigned stored,exact,fallback;
-        size_t parts;
+        size_t parts, omittedPrimitives;
     };
-    Checkpoint checkpoint() const {return {meshes.size(),materials.size(),result.exactShapes.size(),hiddenJournal.size(),geometries.size(),result.warnings.size(),result.storedMeshes,result.exactParts,result.fallbackParts,partNodes.size()};}
+    Checkpoint checkpoint() const {return {meshes.size(),materials.size(),result.exactShapes.size(),hiddenJournal.size(),geometries.size(),result.warnings.size(),result.storedMeshes,result.exactParts,result.fallbackParts,partNodes.size(),omittedPrimitiveShapes};}
     void rollback(const Checkpoint& c) {
         partNodes.resize(c.parts);
+        omittedPrimitiveShapes = c.omittedPrimitives;
         meshStyles.resize(c.meshes);meshVariantMat.resize(c.meshes);
         meshes.resize(c.meshes);materials.resize(c.materials);result.exactShapes.resize(c.shapes);
         geometries.resize(c.geometries);geometryGroups.resize(c.geometries);
@@ -1628,11 +1632,13 @@ struct Builder {
             if(file.isEmpty()||!insideDirectory(file,rootDirectory))return; // visit() reports it
             auto& root=partitions[fileKey(file)];
             if(root.IsNull()) {
+                Detail::beginUnit(options);
                 try {
-                    Timed timed(openMs);++filesOpened;JtData_Limits::beginUnit();
+                    Timed timed(openMs);++filesOpened;
                     Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));
                     root=m->Init();
                 } catch(const Cancelled&) {throw;}
+                  catch(const std::bad_alloc&) {throw;}
                   catch(...) {root.Nullify();return;} // visit() opens it again and reports the failure
             }
             scout(root,seen,out);
@@ -1820,9 +1826,13 @@ struct Builder {
             const auto shape=Handle(JtNode_Shape_Base)::DownCast(object);
             if(!shape.IsNull()) {
                 bool loaded=false;
+                const bool wireOrPoint = !Handle(JtNode_Shape_PolylineSet)::DownCast(object).IsNull() ||
+                                         !Handle(JtNode_Shape_PointSet)::DownCast(object).IsNull();
                 const size_t planIndex=lodPlan ? lodPlan->next++ : size_t(-1); // position of this shape in its LOD alternative
                 for(size_t i=0;i<shape->LateLoads().Count();++i) {
                     const auto prop=shape->LateLoads()[i];if(prop->SegmentType()<6 || prop->SegmentType()>16) continue;
+                    const auto saved = wireOrPoint ? std::optional<Checkpoint>(checkpoint()) : std::nullopt;
+                    QString rejection;
                     try {
                         unsigned geometryIndex;
                         const auto geometry=geometryCache.find(prop.get());
@@ -1948,11 +1958,22 @@ struct Builder {
                         ++result.storedMeshes;loaded=true;break;
                     } catch(const Cancelled&) {throw;}
                       catch(const std::bad_alloc&) {throw;}
-                      catch(const Standard_Failure& e) {result.warnings.append(label+": display alternative rejected: "+QString::fromUtf8(e.GetMessageString()));}
-                      catch(const std::exception& e) {result.warnings.append(label+": display alternative rejected: "+QString::fromUtf8(e.what()));}
+                      catch(const Standard_Failure& e) {rejection = QString::fromUtf8(e.GetMessageString());}
+                      catch(const std::exception& e) {rejection = QString::fromUtf8(e.what());}
+                    if (saved) {
+                        children.clear();
+                        attached.clear();
+                        rollback(*saved);
+                    }
+                    result.warnings.append(label + ": display alternative rejected: " + rejection);
                 }
-                if(!loaded) throw std::runtime_error((label+": no supported JT display tessellation"+
-                    (result.warnings.isEmpty()?QString():QString("; ")+result.warnings.last())).toStdString());
+                if (!loaded && wireOrPoint) {
+                    ++omittedPrimitiveShapes;
+                    result.warnings.append(label + ": omitted unsupported JT polyline or point shape");
+                } else if (!loaded) {
+                    throw std::runtime_error((label+": no supported JT display tessellation"+
+                        (result.warnings.isEmpty()?QString():QString("; ")+result.warnings.last())).toStdString());
+                }
             }
             const auto instance=Handle(JtNode_Instance)::DownCast(object);
             if(!instance.IsNull()) children.push_back(visit(instance->Object(),style,hidden,transformLocked,world,palette,materialSource));
@@ -2018,6 +2039,7 @@ struct Builder {
                         }
                     } else {
                         bool selected=false;
+                        bool omittedPrimitiveAlternative = false;
                         for(size_t attempt=0;attempt<childCount;++attempt) {
                             // Preferred, then the remaining source-order alternatives.
                             const size_t i=!lod ? attempt : attempt==0 ? preferred : attempt<=preferred ? attempt-1 : attempt;
@@ -2028,6 +2050,11 @@ struct Builder {
                                 const auto planHolder=buildPlan(group,i,style,hidden,transformLocked,world,palette,materialSource);
                                 lodPlan=planHolder.get();
                                 auto child=visit(group->Children()[i],style,hidden,transformLocked,world,palette,materialSource);
+                                if (!containsMesh(*child) && omittedPrimitiveShapes > saved.omittedPrimitives) {
+                                    omittedPrimitiveAlternative = true;
+                                    rollback(saved);
+                                    continue;
+                                }
                                 if(!containsMesh(*child)) throw std::runtime_error("LOD alternative contains no render geometry");
                                 children.push_back(std::move(child));selected=true;selectedChild=int(i);
                                 if(!rangeNode.IsNull() && i!=preferred)
@@ -2038,8 +2065,13 @@ struct Builder {
                               catch(const Standard_Failure& e) {rollback(saved);result.warnings.append(label+": LOD alternative "+QString::number(i+1)+" rejected: "+QString::fromUtf8(e.GetMessageString()));}
                               catch(const std::exception& e) {rollback(saved);result.warnings.append(label+": LOD alternative "+QString::number(i+1)+" rejected: "+QString::fromUtf8(e.what()));}
                         }
-                        if(lod && !selected) throw std::runtime_error((label+": no usable JT LOD alternative"+
-                            (result.warnings.isEmpty()?QString():QString("; ")+result.warnings.last())).toStdString());
+                        if (lod && !selected && omittedPrimitiveAlternative) {
+                            ++omittedPrimitiveShapes;
+                            result.warnings.append(label + ": omitted JT LOD with unsupported polyline or point geometry");
+                        } else if (lod && !selected) {
+                            throw std::runtime_error((label+": no usable JT LOD alternative"+
+                                (result.warnings.isEmpty()?QString():QString("; ")+result.warnings.last())).toStdString());
+                        }
                     }
                 }
             }
@@ -2356,6 +2388,7 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
     if(b.meshes.empty()) {
         std::string message="JT contains no supported tessellation and no validated exact geometry";
         if(!skippedContent.isEmpty()) message+="; it does contain display content that is not decoded yet ("+skippedContent.join(QStringLiteral("; ")).toStdString()+")";
+        if (b.omittedPrimitiveShapes && !b.result.warnings.isEmpty()) message += "; " + b.result.warnings.last().toStdString();
         throw std::runtime_error(message);
     }
     if(!skippedContent.isEmpty())

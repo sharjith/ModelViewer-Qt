@@ -14,6 +14,8 @@
 #include <JtNode_Switch.hxx>
 #include <JtNode_Part.hxx>
 #include <JtNode_Shape_Base.hxx>
+#include <JtNode_Shape_PointSet.hxx>
+#include <JtNode_Shape_PolylineSet.hxx>
 #include <JtElement_ShapeLOD_Vertex.hxx>
 #include <JtAttribute_Material.hxx>
 #include <JtAttribute_GeometricTransform.hxx>
@@ -652,6 +654,27 @@ void lineAndPointScenePaths() {
         check(references(*result.scene->mRootNode)==1 && anyHidden(*result.scene->mRootNode,result.hiddenNodes),"A point shape did not inherit its hidden parent");
         check(result.scene->mMeshes[0]->mPrimitiveTypes==aiPrimitiveType_POINT && result.scene->mMeshes[0]->mNumFaces==3,"Point shape did not stay a point mesh");
     }
+    // Unsupported line/point alternatives cannot discard an otherwise valid solid.
+    for (bool nestedInLod : {false, true}) {
+        auto root = node<JtNode_Partition>("root");
+        auto lines = node<JtNode_Shape_PolylineSet>("unsupported lines");
+        auto points = node<JtNode_Shape_PointSet>("unsupported points");
+        lines->late({new Property(false)});
+        points->late({new Property(false)});
+        auto wires = node<JtNode_Group>("wires");
+        wires->children({lines, points});
+        auto lod = node<JtNode_LOD>("wire LOD");
+        lod->children({wires});
+        const Object wireContent = nestedInLod ? Object(lod) : Object(wires);
+        root->children({leaf(), wireContent});
+        const auto result = build(root);
+        check(result.scene->mNumMeshes == 1 &&
+              result.scene->mMeshes[0]->mPrimitiveTypes == aiPrimitiveType_TRIANGLE,
+              "An unsupported JT wire shape discarded or changed the solid");
+        check(result.warnings.join(' ').contains("unsupported polyline or point") ||
+              result.warnings.join(' ').contains("unsupported JT polyline or point"),
+              "An unsupported JT wire shape was omitted without a warning");
+    }
     // Part merging only merges triangles: a part with a triangle, a line and a point shape keeps all three kinds.
     {
         auto root=node<JtNode_Partition>("root");auto part=node<JtNode_Part>("part");
@@ -759,6 +782,13 @@ void containerTests(const QString& samples) {
     QDir(temp.path()).mkpath("parts");const auto bridge=temp.filePath("parts/bridge.jt");
     Fixture::write(path,"parts/bridge.jt");Fixture::write(bridge,"../assembly.jt",false,false);
     rejected([&]{Jt::Importer::read(path);},"JT partition");
+
+    // The memory guard must run before the Automatic scout opens and caches the external partition.
+    Jt::Options lowMemory;
+    lowMemory.detailLevel = Jt::Options::DetailLevel::Automatic;
+    lowMemory.minFreeMemoryBytes = size_t(2) * 1024 * 1024;
+    lowMemory.availableMemory = [] { return size_t(1) * 1024 * 1024; };
+    rejected([&]{Jt::Importer::read(path, lowMemory);}, "Not enough free memory");
     QTemporaryDir outside;Fixture::write(outside.filePath("outside.jt"),"",false,false);
     Fixture::write(path,outside.filePath("outside.jt"));rejected([&]{Jt::Importer::read(path);},"JT partition");
     if(!samples.isEmpty()) {
