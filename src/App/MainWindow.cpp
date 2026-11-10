@@ -62,6 +62,7 @@
 #include <QHelpEvent>
 #include <QToolTip>
 #include <QSet>
+#include <algorithm>
 #include <QStyle>
 #include <QScrollArea>
 #include <QShortcut>
@@ -1867,15 +1868,41 @@ void MainWindow::writeSettings()
 }
 
 
+namespace
+{
+// One file is one entry of the recent list however its path was spelled: the separators (the file dialog hands over "D:/a/b.mvf", a
+// native path is "D:\\a\\b.mvf"), "." and ".." parts, and on Windows the letter case.
+QString recentFilePath(const QString& path)
+{
+	return QDir::cleanPath(QDir::fromNativeSeparators(path));
+}
+
+QString recentFileKey(const QString& path)
+{
+	const QString p = recentFilePath(path);
+#ifdef Q_OS_WIN
+	return p.toLower();
+#else
+	return p;
+#endif
+}
+} // namespace
+
 QStringList MainWindow::readRecentFiles(QSettings& settings)
 {
 	QStringList result;
+	QSet<QString> seen;
 	const int count = settings.beginReadArray(recentFilesKey());
 	// Only the first MaxRecentFiles entries are ever used. Older versions never trimmed the stored list, so it can
-	// hold hundreds of stale entries; reading just the head keeps every open and menu refresh cheap.
-	for (int i = 0; i < qMin(count, int(MaxRecentFiles)); ++i) {
+	// hold hundreds of stale entries; reading just the head keeps every open and menu refresh cheap. A file stored twice under
+	// different spellings of its path (older versions kept the path as it came) is listed once, at its first position.
+	for (int i = 0; i < qMin(count, int(MaxRecentFiles) * 2) && result.size() < int(MaxRecentFiles); ++i) {
 		settings.setArrayIndex(i);
-		result.append(settings.value(fileKey()).toString());
+		const QString path = settings.value(fileKey()).toString();
+		if (path.isEmpty() || seen.contains(recentFileKey(path)))
+			continue;
+		seen.insert(recentFileKey(path));
+		result.append(recentFilePath(path));
 	}
 	settings.endArray();
 	return result;
@@ -3087,9 +3114,12 @@ void MainWindow::prependToRecentFiles(const QString& fileName)
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 
 	const QStringList oldRecentFiles = readRecentFiles(settings);
-	QStringList recentFiles = oldRecentFiles;
-	recentFiles.removeAll(fileName);
-	recentFiles.prepend(fileName);
+	QStringList recentFiles{ recentFilePath(fileName) };
+	for (const QString& file : oldRecentFiles)
+	{
+		if (recentFileKey(file) != recentFileKey(fileName))
+			recentFiles.append(file);
+	}
 	if (oldRecentFiles != recentFiles)
 		writeRecentFiles(recentFiles, settings);
 
@@ -3118,7 +3148,7 @@ void MainWindow::updateRecentFileActions()
 		QAction* act = recentFileActs[i];
 		act->setText(tr("&%1 %2").arg(i + 1).arg(fileName));
 		act->setData(filePath);
-		act->setStatusTip(tr("%1 -> Shift-click to import into active document").arg(filePath));
+		act->setStatusTip(tr("%1 -> Shift-click to import into active document").arg(QDir::toNativeSeparators(filePath)));
 		act->setToolTip(tr("Click to open • Shift-click to import into active window"));
 		act->setVisible(true);
 	}
@@ -3144,7 +3174,8 @@ void MainWindow::removeFromRecentFiles(const QString& fileName)
 {
     QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
     QStringList recentFiles = readRecentFiles(settings);
-    recentFiles.removeAll(fileName);
+    recentFiles.erase(std::remove_if(recentFiles.begin(), recentFiles.end(),
+        [&fileName](const QString& file) { return recentFileKey(file) == recentFileKey(fileName); }), recentFiles.end());
     writeRecentFiles(recentFiles, settings);
     setRecentFilesVisible(!recentFiles.isEmpty());
 }
