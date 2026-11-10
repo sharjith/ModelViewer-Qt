@@ -62,6 +62,7 @@ class ToolsToolbar;
 #include <QRubberBand>
 #include <QPolygon>
 #include "LassoOverlayWidget.h"
+#include <QScopedValueRollback>
 #include <QSet>
 #include <QString>
 #include <array>
@@ -1047,11 +1048,11 @@ public:
 	// QOpenGLWidget::grabFramebuffer(), which paintGL() then sees
 	// _capturingCleanFrame set for) rather than reading back whatever was
 	// last on screen, then restores normal HUD-visible display afterward.
-	QImage captureCleanRayTracedImage()
+	QImage captureCleanRayTracedImage(bool whiteBackground = false)
 	{
-		_capturingCleanFrame = true;
+		const QScopedValueRollback<bool> cleanFrame(_capturingCleanFrame, true);
+		const QScopedValueRollback<bool> background(_captureOnWhite, whiteBackground);
 		QImage img = grabFramebuffer();
-		_capturingCleanFrame = false;
 		update(); // restore the normal HUD-visible view
 		return img;
 	}
@@ -2523,6 +2524,7 @@ private:
 	// only the composited raster+ray-traced scene, matching what a render-
 	// to-file export should look like rather than a viewport screenshot.
 	bool _capturingCleanFrame = false;
+	bool _captureOnWhite = false;
 
 	// cameraInteracting: false (default) is today's original behavior - stop
 	// both sessions, invalidate the presenter, fall back to raster, restart

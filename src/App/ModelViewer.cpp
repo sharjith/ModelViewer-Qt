@@ -6439,27 +6439,33 @@ void ModelViewer::printView()
 		return;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
-	// The view as shown, without the axis triad and HUD, on white: the background colours are set for the one grab and put back.
-	const QColor topColor = _viewportWidget->getBgTopColor();
-	const QColor bottomColor = _viewportWidget->getBgBotColor();
-	_viewportWidget->setBgTopColor(Qt::white);
-	_viewportWidget->setBgBotColor(Qt::white);
-	const QImage view = _viewportWidget->captureCleanRayTracedImage();
-	_viewportWidget->setBgTopColor(topColor);
-	_viewportWidget->setBgBotColor(bottomColor);
+	const QImage view = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
 
 	const QSizeF pagePt = printer.pageLayout().fullRect(QPageLayout::Point).size();
 	const QImage page = PrintPage::render(pagePt, dialog.dpi(), dialog.useTemplate(), options,
-		static_cast<int>(getVisibleUuids().size()), view);
+		static_cast<int>(_viewportWidget->currentVisibleObjectIds().size()), view);
+
+	const QSize printableSize = printer.pageLayout().paintRectPixels(printer.resolution()).size();
+	if (view.isNull() || page.isNull() || printableSize.isEmpty())
+	{
+		QApplication::restoreOverrideCursor();
+		QMessageBox::warning(this, tr("Print"), tr("The page could not be prepared for printing."));
+		return;
+	}
 
 	QPainter painter(&printer);
-	if (!painter.isActive() || page.isNull())
+	if (!painter.isActive())
 	{
 		QApplication::restoreOverrideCursor();
 		QMessageBox::warning(this, tr("Print"), tr("The printer could not be started."));
 		return;
 	}
-	painter.drawImage(QRect(QPoint(0, 0), printer.pageLayout().paintRectPixels(printer.resolution()).size()), page);
+	// The printer origin is at the printable area. Fit the whole sheet with one scale so driver margins cannot stretch it.
+	const QSize targetSize = page.size().scaled(printableSize, Qt::KeepAspectRatio);
+	const QPoint targetTopLeft((printableSize.width() - targetSize.width()) / 2,
+	                           (printableSize.height() - targetSize.height()) / 2);
+	painter.setRenderHint(QPainter::SmoothPixmapTransform);
+	painter.drawImage(QRect(targetTopLeft, targetSize), page);
 	painter.end();
 	QApplication::restoreOverrideCursor();
 	MainWindow::showStatusMessage(tr("Sent to the printer"), 3000);

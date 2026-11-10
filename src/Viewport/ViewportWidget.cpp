@@ -1845,6 +1845,8 @@ void ViewportWidget::paintGL()
 	QColor botColor = !_sceneRuntime.visibleSwapped() ? rc_bot : QColor::fromRgbF(1.0f - rc_bot.redF(),
 		1.0f - rc_bot.greenF(), 1.0f - rc_bot.blueF(),
 		rc_bot.alphaF());
+	if (_captureOnWhite)
+		topColor = botColor = Qt::white;
 	try
 	{
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
@@ -1933,7 +1935,8 @@ void ViewportWidget::paintGL()
 			// when a skybox is enabled: the PT frame already carries its own
 			// background RGB, and presenting it opaquely avoids mixing two
 			// independently-produced backgrounds in the same image.
-			const bool forceOpaqueInteractive = _rayTracedInteractiveActive;
+			// A print capture composites primary-ray misses over its white raster background.
+			const bool forceOpaqueInteractive = _rayTracedInteractiveActive && !_captureOnWhite;
 			_rtPresenter.draw(_renderCtrl.hdrToneMapping(), _renderCtrl.gammaCorrection(),
 				_renderCtrl.screenGamma(), _renderCtrl.iblExposure(), static_cast<int>(_renderCtrl.toneMappingMode()),
 				/*forceOpaque=*/forceOpaqueInteractive);
@@ -13474,7 +13477,7 @@ void ViewportWidget::render(Camera* camera)
 	}
 
 	// --- 1) Skybox ---
-	if (_renderCtrl.skyBoxEnabled())
+	if (_renderCtrl.skyBoxEnabled() && !_captureOnWhite)
 	{
 		glDisable(GL_DEPTH_TEST);
 		glDepthMask(GL_FALSE);
