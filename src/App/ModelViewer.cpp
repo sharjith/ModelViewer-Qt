@@ -6030,7 +6030,6 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "PrintDialog.h"
 #include "PrintPage.h"
 #include <QPageLayout>
-#include <QPageSize>
 #include <QPrintDialog>
 #include <QPrinter>
 #include "OverlayToU3d.h"
@@ -6412,25 +6411,19 @@ void ModelViewer::printView()
 	if (defaultTitle.isEmpty() && _sceneGraph && _sceneGraph->root() && !_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
 
-	PrintDialog dialog(defaultTitle, declaredPartNumber(), this);
+	// Freeze the same clean view for the preview and the eventual print job.
+	const QImage view = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
+	if (view.isNull())
+	{
+		QMessageBox::warning(this, tr("Print"), tr("The page could not be prepared for printing."));
+		return;
+	}
+	const int partCount = static_cast<int>(_viewportWidget->currentVisibleObjectIds().size());
+	QPrinter printer(QPrinter::HighResolution);
+	PrintDialog dialog(printer, view, partCount, defaultTitle, declaredPartNumber(), this);
 	if (dialog.exec() != QDialog::Accepted)
 		return;
-	Pdf3D::Pdf3DOptions options = dialog.options();
-
-	// The paper starts as the template's page (or A4 for a plain page, turned to suit the view); the printer dialog may change it,
-	// and the page is laid out for whatever it ends up as.
-	QPrinter printer(QPrinter::HighResolution);
-	if (dialog.useTemplate())
-	{
-		const QSizeF pt = Pdf3D::sheetPageSizePt(Pdf3D::findSheetTemplate(options.templateId));
-		printer.setPageSize(QPageSize(QSizeF(qMin(pt.width(), pt.height()), qMax(pt.width(), pt.height())), QPageSize::Point));
-		printer.setPageOrientation(pt.width() > pt.height() ? QPageLayout::Landscape : QPageLayout::Portrait);
-	}
-	else
-	{
-		printer.setPageSize(QPageSize(QPageSize::A4));
-		printer.setPageOrientation(_viewportWidget->width() >= _viewportWidget->height() ? QPageLayout::Landscape : QPageLayout::Portrait);
-	}
+	const Pdf3D::Pdf3DOptions options = dialog.options();
 	printer.setDocName(options.title.isEmpty() ? defaultTitle : options.title);
 
 	QPrintDialog printDialog(&printer, this);
@@ -6439,14 +6432,11 @@ void ModelViewer::printView()
 		return;
 
 	QApplication::setOverrideCursor(Qt::WaitCursor);
-	const QImage view = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
-
 	const QSizeF pagePt = printer.pageLayout().fullRect(QPageLayout::Point).size();
-	const QImage page = PrintPage::render(pagePt, dialog.dpi(), dialog.useTemplate(), options,
-		static_cast<int>(_viewportWidget->currentVisibleObjectIds().size()), view);
+	const QImage page = PrintPage::render(pagePt, dialog.dpi(), dialog.useTemplate(), options, partCount, view);
 
 	const QSize printableSize = printer.pageLayout().paintRectPixels(printer.resolution()).size();
-	if (view.isNull() || page.isNull() || printableSize.isEmpty())
+	if (page.isNull() || printableSize.isEmpty())
 	{
 		QApplication::restoreOverrideCursor();
 		QMessageBox::warning(this, tr("Print"), tr("The page could not be prepared for printing."));
@@ -6460,12 +6450,7 @@ void ModelViewer::printView()
 		QMessageBox::warning(this, tr("Print"), tr("The printer could not be started."));
 		return;
 	}
-	// The printer origin is at the printable area. Fit the whole sheet with one scale so driver margins cannot stretch it.
-	const QSize targetSize = page.size().scaled(printableSize, Qt::KeepAspectRatio);
-	const QPoint targetTopLeft((printableSize.width() - targetSize.width()) / 2,
-	                           (printableSize.height() - targetSize.height()) / 2);
-	painter.setRenderHint(QPainter::SmoothPixmapTransform);
-	painter.drawImage(QRect(targetTopLeft, targetSize), page);
+	PrintPage::paint(painter, printableSize, page);
 	painter.end();
 	QApplication::restoreOverrideCursor();
 	MainWindow::showStatusMessage(tr("Sent to the printer"), 3000);

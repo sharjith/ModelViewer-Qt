@@ -198,6 +198,7 @@ bool parseSheetEdgeText(const QString& text, SheetEdge* edge, QString* error = n
 
 // The width of the title block in points: the page width between the margins for a full width block, the block's own width (at most
 // that) for a corner block.
+double sheetBlockWidthPt(const SheetTemplate& tpl, const QSizeF& pageSizePt);
 double sheetBlockWidthPt(const SheetTemplate& tpl);
 
 // A copy of `tpl` with every horizontal measure of the cells, the lines and the logo that is a length (not a fraction of the block)

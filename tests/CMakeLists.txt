@@ -102,8 +102,9 @@ add_executable(pdf3d_tests
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/SheetTemplate.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/SheetRenderer.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/PartData.cpp
+    ${CMAKE_SOURCE_DIR}/src/Print/PrintPage.cpp
 )
-target_include_directories(pdf3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Pdf3D ${CMAKE_SOURCE_DIR}/include/Scene)
+target_include_directories(pdf3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Pdf3D ${CMAKE_SOURCE_DIR}/include/Scene ${CMAKE_SOURCE_DIR}/include/Print)
 target_link_libraries(pdf3d_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Svg assimp::assimp u3d::idtf)
 set_target_properties(pdf3d_tests PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON)
 foreach(U3D_MODULE ${U3D_MODULE_NAMES})

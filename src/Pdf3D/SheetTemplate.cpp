@@ -353,10 +353,15 @@ QString formatSheetNumber(const SheetField& field, double value, const QLocale& 
     return field.unit.isEmpty() ? number : number + QLatin1Char(' ') + field.unit;
 }
 
+double sheetBlockWidthPt(const SheetTemplate& tpl, const QSizeF& pageSizePt)
+{
+    const double available = pageSizePt.width() - 2.0 * tpl.margin;
+    return tpl.anchor == TitleBlockAnchor::Bottom ? available : std::min(tpl.blockWidth, available);
+}
+
 double sheetBlockWidthPt(const SheetTemplate& tpl)
 {
-    const double available = sheetPageSizePt(tpl).width() - 2.0 * tpl.margin;
-    return tpl.anchor == TitleBlockAnchor::Bottom ? available : std::min(tpl.blockWidth, available);
+    return sheetBlockWidthPt(tpl, sheetPageSizePt(tpl));
 }
 
 SheetTemplate scaleSheetTemplateWidth(const SheetTemplate& tpl, double ratio)
@@ -529,8 +534,7 @@ ResolvedSheet resolveSheet(const SheetTemplate& tpl, const QSizeF& pageSizePt, d
     r.page = QRectF(QPointF(0, 0), pageSizePt);
     r.border = r.page.adjusted(tpl.borderInset, tpl.borderInset, -tpl.borderInset, -tpl.borderInset);
 
-    const double fullWidth = pageSizePt.width() - 2.0 * tpl.margin;
-    const double width = tpl.anchor == TitleBlockAnchor::Bottom ? fullWidth : std::min(tpl.blockWidth, fullWidth);
+    const double width = sheetBlockWidthPt(tpl, pageSizePt);
     const double left = tpl.anchor == TitleBlockAnchor::BottomRight ? pageSizePt.width() - tpl.margin - width : tpl.margin;
     r.titleBlock = QRectF(left, pageSizePt.height() - tpl.margin - blockHeightPt, width, blockHeightPt);
     r.area3d = QRectF(QPointF(tpl.margin, tpl.margin), QPointF(pageSizePt.width() - tpl.margin, r.titleBlock.top() - tpl.areaGap));
@@ -680,7 +684,7 @@ bool parseSheetTemplate(const QByteArray& json, const QString& id, SheetTemplate
         return finish(false);
     t.growWithCell = block.value(QLatin1String("growWithCell")).toString();
 
-    const double blockWidth = t.anchor == TitleBlockAnchor::Bottom ? pagePt.width() - 2.0 * t.margin : std::min(t.blockWidth, pagePt.width() - 2.0 * t.margin);
+    const double blockWidth = sheetBlockWidthPt(t, pagePt);
     if (blockWidth <= 0.0)
         return p.fail(QStringLiteral("the margins leave no room for the title block")), finish(false);
 

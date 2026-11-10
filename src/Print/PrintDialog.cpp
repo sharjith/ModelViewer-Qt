@@ -1,28 +1,45 @@
 #include "PrintDialog.h"
+#include "PrintPage.h"
 #include "SheetTemplate.h"
 
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
+#include <QPainter>
+#include <QPageLayout>
+#include <QPageSetupDialog>
+#include <QPageSize>
+#include <QPrinter>
+#include <QPrintPreviewWidget>
 #include <QPushButton>
 #include <QSettings>
 #include <QVBoxLayout>
+#include <QtMath>
 
-PrintDialog::PrintDialog(const QString& defaultTitle, const QString& declaredNumber, QWidget* parent) : QDialog(parent)
+PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, int partCount,
+                         const QString& defaultTitle, const QString& declaredNumber, QWidget* parent) : QDialog(parent)
 {
     setWindowTitle(tr("Print"));
-    setMinimumWidth(420);
+    resize(940, 560);
     QSettings settings;
 
     auto* layout = new QVBoxLayout(this);
-    layout->addWidget(new QLabel(tr("Prints the view as it is shown now, on a white background. The printer is chosen next."), this));
+    auto* intro = new QLabel(tr("Use Page Setup to change the paper, orientation, or margins. The sheet adapts to the selected paper."), this);
+    intro->setWordWrap(true);
+    layout->addWidget(intro);
+
+    auto* body = new QHBoxLayout;
+    auto* settingsLayout = new QVBoxLayout;
+    body->addLayout(settingsLayout);
+    layout->addLayout(body, 1);
 
     _useTemplate = new QCheckBox(tr("Print on a sheet template (border and title block)"), this);
     _useTemplate->setChecked(settings.value(QStringLiteral("Print/useTemplate"), true).toBool());
-    layout->addWidget(_useTemplate);
+    settingsLayout->addWidget(_useTemplate);
 
     auto* form = new QFormLayout;
     _template = new QComboBox(this);
@@ -59,9 +76,81 @@ PrintDialog::PrintDialog(const QString& defaultTitle, const QString& declaredNum
     const int savedQuality = _quality->findData(settings.value(QStringLiteral("Print/dpi"), 300).toInt());
     _quality->setCurrentIndex(savedQuality >= 0 ? savedQuality : 1);
     form->addRow(tr("Quality:"), _quality);
-    layout->addLayout(form);
+    settingsLayout->addLayout(form);
+    settingsLayout->addStretch();
+
+    auto* previewLayout = new QVBoxLayout;
+    auto* preview = new QPrintPreviewWidget(&printer, this);
+    preview->setMinimumSize(320, 280);
+    preview->setZoomMode(QPrintPreviewWidget::FitInView);
+    previewLayout->addWidget(preview, 1);
+    auto* previewError = new QLabel(tr("The sheet could not be previewed at this paper size."), this);
+    previewError->setWordWrap(true);
+    previewError->hide();
+    previewLayout->addWidget(previewError);
+    body->addLayout(previewLayout, 1);
+
+    const auto configurePaper = [this, &printer, viewSize = view.size()] {
+        if (useTemplate())
+        {
+            const QSizeF pt = Pdf3D::sheetPageSizePt(Pdf3D::findSheetTemplate(options().templateId));
+            printer.setPageSize(QPageSize(QSizeF(qMin(pt.width(), pt.height()), qMax(pt.width(), pt.height())), QPageSize::Point));
+            printer.setPageOrientation(pt.width() > pt.height() ? QPageLayout::Landscape : QPageLayout::Portrait);
+        }
+        else
+        {
+            printer.setPageSize(QPageSize(QPageSize::A4));
+            printer.setPageOrientation(viewSize.width() >= viewSize.height() ? QPageLayout::Landscape : QPageLayout::Portrait);
+        }
+    };
+    configurePaper();
+
+    connect(preview, &QPrintPreviewWidget::paintRequested, this, [this, view, partCount, previewError](QPrinter* device) {
+        const QPageLayout layout = device->pageLayout();
+        const QSizeF pagePt = layout.fullRect(QPageLayout::Point).size();
+        const QSize printableSize = layout.paintRectPixels(device->resolution()).size();
+        if (pagePt.isEmpty() || printableSize.isEmpty())
+        {
+            previewError->show();
+            return;
+        }
+
+        // Limit the longest edge of the preview raster to about 2000 pixels, independently of print quality.
+        const int previewDpi = qBound(1, qFloor(144000.0 / qMax(pagePt.width(), pagePt.height())), 120);
+        const QImage page = PrintPage::render(pagePt, previewDpi, useTemplate(), options(), partCount, view);
+        QPainter painter;
+        if (page.isNull() || !painter.begin(device))
+        {
+            previewError->show();
+            return;
+        }
+        PrintPage::paint(painter, printableSize, page);
+        previewError->hide();
+    });
+
+    const auto refreshPaper = [this, configurePaper, preview] {
+        if (!_paperOverridden)
+            configurePaper();
+        preview->updatePreview();
+    };
+    connect(_template, &QComboBox::currentIndexChanged, preview, refreshPaper);
+    connect(_useTemplate, &QCheckBox::toggled, this, [this, refreshPaper] {
+        updateEnabled();
+        refreshPaper();
+    });
+    for (auto* edit : { _title, _drawingNumber, _revision, _author, _company, _scale, _notes })
+        connect(edit, &QLineEdit::textChanged, preview, &QPrintPreviewWidget::updatePreview);
 
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
+    auto* pageSetup = buttons->addButton(tr("Page Setup..."), QDialogButtonBox::ActionRole);
+    connect(pageSetup, &QPushButton::clicked, this, [this, &printer, preview] {
+        QPageSetupDialog setup(&printer, this);
+        if (setup.exec() == QDialog::Accepted)
+        {
+            _paperOverridden = true;
+            preview->updatePreview();
+        }
+    });
     QPushButton* print = buttons->addButton(tr("Print..."), QDialogButtonBox::AcceptRole);
     print->setDefault(true);
     connect(buttons, &QDialogButtonBox::accepted, this, [this]() {
@@ -71,7 +160,6 @@ PrintDialog::PrintDialog(const QString& defaultTitle, const QString& declaredNum
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
     layout->addWidget(buttons);
 
-    connect(_useTemplate, &QCheckBox::toggled, this, &PrintDialog::updateEnabled);
     updateEnabled();
 }
 

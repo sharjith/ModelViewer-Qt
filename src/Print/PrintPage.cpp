@@ -12,7 +12,7 @@ QImage render(const QSizeF& pagePt, int dpi, bool useTemplate, const Pdf3D::Pdf3
 {
     if (pagePt.isEmpty() || view.isNull())
         return {};
-    const qreal scale = qMax(72, dpi) / 72.0;
+    const qreal scale = qMax(1, dpi) / 72.0;
     const QSize px(qMax(1, qRound(pagePt.width() * scale)), qMax(1, qRound(pagePt.height() * scale)));
     QImage page(px, QImage::Format_ARGB32_Premultiplied);
     if (page.isNull())
@@ -31,9 +31,22 @@ QImage render(const QSizeF& pagePt, int dpi, bool useTemplate, const Pdf3D::Pdf3
     QRectF target;
     if (useTemplate)
     {
-        const Pdf3D::SheetTemplate tpl = Pdf3D::findSheetTemplate(options.templateId);
+        const auto source = Pdf3D::findSheetTemplate(options.templateId);
+        // Keep the authored point sizes when the frame fits. On very small paper, shrink the frame and text
+        // together to reserve space for the model, even when the title block grows to its maximum.
+        constexpr qreal minimumModelSpan = 24.0;
+        const qreal frameWidth = 2.0 * qMax(source.margin, source.borderInset);
+        const qreal frameHeight = qMax(2.0 * source.borderInset,
+                                      2.0 * source.margin + source.blockMaxHeight + source.areaGap);
+        const qreal frameScale = std::min<qreal>({1.0, pagePt.width() / (frameWidth + minimumModelSpan),
+                                                     pagePt.height() / (frameHeight + minimumModelSpan)});
+        const QSizeF layoutPage = pagePt / frameScale;
+        const qreal blockWidthRatio = Pdf3D::sheetBlockWidthPt(source, layoutPage) / Pdf3D::sheetBlockWidthPt(source);
+        const auto tpl = Pdf3D::scaleSheetTemplateWidth(source, blockWidthRatio);
+        p.scale(frameScale, frameScale);
+
         const QMap<QString, QString> values = Pdf3D::sheetValues(options, partCount, 1, 1);
-        const Pdf3D::SheetLayout layout = Pdf3D::layoutSheet(p, tpl, pagePt, values);
+        const Pdf3D::SheetLayout layout = Pdf3D::layoutSheet(p, tpl, layoutPage, values);
         const auto& sheet = layout.sheet;
         const QRectF titleBlockBounds = sheet.titleBlock.adjusted(-0.01, -0.01, 0.01, 0.01);
         const auto insideBlock = [&](const QRectF& rect) { return !rect.isEmpty() && titleBlockBounds.contains(rect); };
@@ -60,6 +73,15 @@ QImage render(const QSizeF& pagePt, int dpi, bool useTemplate, const Pdf3D::Pdf3
     p.drawImage(where, view);
     p.end();
     return page;
+}
+
+void paint(QPainter& painter, const QSize& printableSize, const QImage& page)
+{
+    const QSize targetSize = page.size().scaled(printableSize, Qt::KeepAspectRatio);
+    const QPoint targetTopLeft((printableSize.width() - targetSize.width()) / 2,
+                               (printableSize.height() - targetSize.height()) / 2);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    painter.drawImage(QRect(targetTopLeft, targetSize), page);
 }
 
 } // namespace PrintPage

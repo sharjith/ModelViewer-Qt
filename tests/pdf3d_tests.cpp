@@ -12,6 +12,7 @@
 #include "SceneToU3d.h"
 #include "PartData.h"
 #include "SheetRenderer.h"
+#include "PrintPage.h"
 #include "SheetTemplate.h"
 #include "U3dWriter.h"
 
@@ -1441,6 +1442,45 @@ void testSheetRenderer()
 
 // What the exported parts declare (PartData.h) and how it reaches the sheet: {material} and {mass} come from the parts, the user's own entry in
 // a custom field of the same id wins, and a mass is counted once per part however many meshes the part became.
+void testPrintPageReflow()
+{
+    QImage view(32, 32, QImage::Format_RGB32);
+    const QRgb modelColor = qRgb(220, 30, 95);
+    view.fill(modelColor);
+    Pdf3D::Pdf3DOptions options;
+    options.templateId = QStringLiteral("builtin:a3-landscape");
+    options.drawingNumber = QStringLiteral("DWG-0123");
+
+    // Reuse the landscape template on portrait, narrower and unusually short sheets.
+    for (const QSize paper : {QSize(842, 595), QSize(595, 842), QSize(420, 595), QSize(420, 160)})
+    {
+        const QImage page = PrintPage::render(QSizeF(paper), 72, true, options, 1, view);
+        CHECK(!page.isNull() && page.size() == paper);
+        if (page.isNull())
+            continue;
+
+        int left = paper.width(), right = -1, top = paper.height(), bottom = -1;
+        for (int y = 0; y < paper.height(); ++y)
+        {
+            const auto* pixels = reinterpret_cast<const QRgb*>(page.constScanLine(y));
+            for (int x = 0; x < paper.width(); ++x)
+            {
+                if (pixels[x] != modelColor)
+                    continue;
+                left = qMin(left, x);
+                right = qMax(right, x);
+                top = qMin(top, y);
+                bottom = qMax(bottom, y);
+            }
+        }
+        CHECK(right > left && bottom > top && qAbs((right - left) - (bottom - top)) <= 2);
+
+        Pdf3D::Pdf3DOptions blank = options;
+        blank.drawingNumber.clear();
+        CHECK(page != PrintPage::render(QSizeF(paper), 72, true, blank, 1, view));
+    }
+}
+
 void testPartData()
 {
     using namespace Pdf3D;
@@ -1914,6 +1954,7 @@ int main(int argc, char** argv)
     testU3dWriter();
     testSheetTemplates();
     testSheetRenderer();
+    testPrintPageReflow();
     testPartData();
     testSheetEditing();
     if (full)
