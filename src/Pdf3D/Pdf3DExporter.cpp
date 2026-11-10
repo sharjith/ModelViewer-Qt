@@ -311,6 +311,11 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             layout.buttonStrip = QRectF(layout.area3d.left(), layout.area3d.bottom() - kButtonStripHeight, layout.area3d.width(), kButtonStripHeight);
             layout.area3d.setBottom(layout.buttonStrip.top() - kButtonStripGap);
         }
+        if (layout.area3d.isEmpty() || !layout.page.contains(layout.area3d))
+        {
+            result.error = QCoreApplication::translate("Pdf3DExporter", "The sheet template leaves no usable area for the 3D model.");
+            return result;
+        }
         const QVector<PartRow> rows = options.includePartsList ? buildPartRows(scene, options.subtitle) : QVector<PartRow>();
         const int perSheet = partsRowsPerSheet(layout);
         const int listSheets = rows.isEmpty() ? 0 : (static_cast<int>(rows.size()) + perSheet - 1) / perSheet;
@@ -375,6 +380,11 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
                 {
                     QMatrix4x4 pose;   // how this view moves the part from its exported place (identity when it leaves it)
                     const int found = ownIndex.value(part, -1);
+                    if (found >= 0 && !partOverrides[found].visible)
+                    {
+                        consistent = false;
+                        break;
+                    }
                     if (found >= 0 && partOverrides[found].hasMatrix)
                     {
                         bool invertible = false;

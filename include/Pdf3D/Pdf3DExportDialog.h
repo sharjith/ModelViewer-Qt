@@ -63,7 +63,7 @@ public:
 	};
 
 	Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
-		const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations, QWidget* parent = nullptr);
+		const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations, bool omitsWireGeometry, QWidget* parent = nullptr);
 	~Pdf3DExportDialog() override;
 
 	// Copies the sheet tab's values into `options`: the title block fields (title, drawing number, revision, author, company, scale,

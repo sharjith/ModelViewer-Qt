@@ -741,15 +741,20 @@ void testFullExport()
     hidden.nodes.clear();
     hidden.showOverlays = false;
     followOptions.extraViews.append(hidden);
+    Pdf3D::CameraViewSpec hiddenPart = hidden;
+    hiddenPart.name = QStringLiteral("Hidden part");
+    hiddenPart.showOverlays = true;
+    hiddenPart.nodes.append({u.nodes[0].name, false});
+    followOptions.extraViews.append(hiddenPart);
     const QString pathFollow = dir.filePath(QStringLiteral("follow.pdf"));
     CHECK(Pdf3D::Pdf3DExporter::exportToFile(withOverlay, followOptions, pathFollow).ok);
     QFile fFollow(pathFollow);
     CHECK(fFollow.open(QIODevice::ReadOnly));
     const QByteArray pdfFollow = fFollow.readAll();
-    // 9 views (7 standard + moved + hidden) list the part and the overlay node: 18 node entries
-    CHECK(pdfFollow.count("/Type /3DNode") == 18);
+    // Ten views (seven standard, moved, overlays off and part hidden) each list the part and its overlay.
+    CHECK(pdfFollow.count("/Type /3DNode") == 20);
     CHECK(pdfFollow.count("/N (O0000_m1) /V true /M [1 0 0 0 1 0 0 0 1 5 0 0]") == 1);   // follows the part in the moved view only
-    CHECK(pdfFollow.count("/N (O0000_m1) /V false") == 1);                               // hidden in the view that asks for it
+    CHECK(pdfFollow.count("/N (O0000_m1) /V false") == 2);   // hidden with overlays off or with its part
     CHECK(pdfFollow.count("/N (O0000_m1) /V true /M [1 0 0 0 1 0 0 0 1 0 0 0]") == 7);   // default place elsewhere
 
     // an animation: the style (/AN) in the 3D stream dictionary, the annotation live on opening; none without an animation

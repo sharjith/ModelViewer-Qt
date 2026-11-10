@@ -6520,8 +6520,25 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 		sourceNames << fileNode->name;
 	}
 
+	bool hasWireGeometry = false;
+	for (unsigned int i = 0; i < exportScene->mNumMeshes; ++i)
+	{
+		if (exportScene->mMeshes[i]->mPrimitiveTypes & (aiPrimitiveType_LINE | aiPrimitiveType_POINT))
+		{
+			hasWireGeometry = true;
+			break;
+		}
+	}
 	Pdf3D::U3dScene u3dScene = Pdf3D::SceneToU3d::build(exportScene, corrections);
 	delete exportScene;
+	if (u3dScene.isEmpty())
+	{
+		QApplication::restoreOverrideCursor();
+		QMessageBox::warning(this, tr("Save as 3D PDF"), hasWireGeometry
+			? tr("The visible model contains only lines or points. 3D PDF export requires triangle meshes.")
+			: tr("There is no visible geometry to export."));
+		return;
+	}
 
 	// The visible measurements and annotations, each captured for the view it was made from (no drawing involved); the options
 	// dialog lists them and the ticked ones are written into the 3D model as nodes of their own.
@@ -6724,7 +6741,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 	QString defaultTitle;
 	if (!_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
-	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, this);
+	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, hasWireGeometry, this);
 	optionsDialog.setDeclaredDrawingNumber(declaredPartNumber());   // the model's own part number, when its format has one
 	{
 		// What each exported part declares about its mass and material (the viewer's meshes carry what the source file declared),

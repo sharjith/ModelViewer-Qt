@@ -133,13 +133,19 @@ namespace
 }
 
 Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
-	const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations, QWidget* parent)
+	const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations, bool omitsWireGeometry, QWidget* parent)
 	: QDialog(parent)
 	, ui(std::make_unique<Ui::Pdf3DExportDialog>())
 	, _viewCount(views.size())
 	, _overlayCount(overlays.size())
 {
 	ui->setupUi(this);
+	if (omitsWireGeometry)
+	{
+		auto* notice = new QLabel(tr("The interactive model omits visible line and point meshes. The poster image may still show them."), this);
+		notice->setWordWrap(true);
+		ui->verticalLayout->insertWidget(0, notice);
+	}
 
 	QSettings settings;
 	restoreGeometry(settings.value(QStringLiteral("pdf3d/dialogGeometry2")).toByteArray());
