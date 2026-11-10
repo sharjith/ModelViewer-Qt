@@ -16,6 +16,7 @@
 #include <set>
 #include <unordered_map>
 #include <unordered_set>
+#include <utility>
 
 namespace ThreeDXml {
 namespace {
@@ -98,13 +99,12 @@ struct MemberOutcome {
     double parseMs = 0, totalMs = 0;
 };
 
-// Parses one representation and converts it to meshes. Touches only its arguments, so it can run on any thread with its own
-// ArchiveReader.
-void processMember(const QString& member, const QString& format, ArchiveReader& archive, const Options& options,
+// Parses one representation and converts it to meshes independently of the archive reader.
+void processMember(const QString& member, const QString& format, const QByteArray& bytes, const Options& options,
                    const QHash<QString,QString>& partOfMember, MemberOutcome& out)
 {
     const auto memberStart = std::chrono::steady_clock::now();
-    struct Total { MemberOutcome& out; std::chrono::steady_clock::time_point start; ~Total() { out.totalMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(); } } total{ out, memberStart };
+    struct Total { MemberOutcome& out; std::chrono::steady_clock::time_point start; ~Total() { out.totalMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start).count(); } } total{ out, memberStart };
     const auto meshLabel = [&](const QString& suffix) {
         const QString part = partOfMember.value(member);
         return part.isEmpty() ? member + suffix : QStringLiteral("%1 [%2%3]").arg(part, member, suffix);
@@ -112,8 +112,8 @@ void processMember(const QString& member, const QString& format, ArchiveReader& 
     Geometry geometry;
     try {
         const auto parseStart = std::chrono::steady_clock::now();
-        geometry = format==QLatin1String("TESSELLATED") ? TessellatedReader::read(archive.read(member),options) : RepresentationReader::read(archive.read(member),options);
-        out.parseMs = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - parseStart).count();
+        geometry = format==QLatin1String("TESSELLATED") ? TessellatedReader::read(bytes,options) : RepresentationReader::read(bytes,options);
+        out.parseMs += std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - parseStart).count();
     }
     catch (const Error& e) {
         options.check(); // a cancellation is reported as an Error too and must never be turned into a skip
@@ -145,7 +145,10 @@ void processMember(const QString& member, const QString& format, ArchiveReader& 
     std::vector<std::vector<unsigned>> bodyResources;
     // A representation is one part: its leaves (the exporter may write one per CAD face or feature) are merged into one
     // mesh per opacity group, face colours becoming vertex colours. Every vertex keeps its leaf number as provenance.
-    const bool mergeLeaves = geometry.bodies.size() > 1;
+    std::unordered_set<size_t> usedBodies;
+    const bool mergeLeaves = geometry.bodies.size() > 1 &&
+        std::all_of(geometry.occurrences.begin(), geometry.occurrences.end(),
+                    [&](const BodyOccurrence& occurrence) { return usedBodies.insert(occurrence.body).second; });
     struct Merged { Primitive prim; std::vector<unsigned> leaf; std::shared_ptr<MeshEdges> edges; };
     std::map<quint64,size_t> mergedByStyle; std::vector<Merged> mergedPrims; unsigned leafNumber = 0;
     // Provenance tag per leaf: the exporter's own source id from the node header (unique per leaf in every heavily
@@ -331,11 +334,9 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         else throw Error(QStringLiteral("Unsupported 3DXML representation format: %1").arg(it->format));
     }
     members.removeDuplicates(); members.sort();
-    // Representations are independent: each is parsed and converted into meshes of its own (processMember), on a few threads when
-    // there are enough of them, each thread with its own archive handle. Outcomes are applied here strictly in member order, so
-    // meshes, materials and warnings come out exactly as a single-threaded run would produce them.
+    // Read members in order through the reader that already charged the structure and materials against the expansion budget.
+    // Parse and convert those bytes in parallel, then apply the results in the same order as a serial import.
     std::vector<MemberOutcome> outcomes(members.size());
-    const QString archivePath = archive.path(); // by value, at function scope: the worker threads outlive the block that starts them
     const unsigned cores = std::max(1u, std::thread::hardware_concurrency());
     const unsigned threads = options.threads ? options.threads : (cores > 1 ? cores - 1 : 1u);
     bool minimumSet = false; const int minimumEnv = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_PARALLEL_MIN", &minimumSet);
@@ -344,6 +345,28 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     const size_t window = size_t(std::min<size_t>(threads, 16)) * 3;
     std::mutex gate; std::condition_variable wake;
     size_t nextToStart = 0, applied = 0; bool stopping = false;
+    const auto runMember = [&](size_t i, std::unique_lock<std::mutex> readLock = {}) {
+        const QString& member = std::as_const(members)[int(i)];
+        MemberOutcome& outcome = outcomes[i];
+        try {
+            QByteArray bytes;
+            try {
+                const auto readStart = std::chrono::steady_clock::now();
+                bytes = archive.read(member);
+                outcome.parseMs = outcome.totalMs =
+                    std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - readStart).count();
+            } catch (const Error& e) {
+                options.check();
+                outcome.readFailed = true;
+                outcome.readFailure = QStringLiteral("%1: %2").arg(member, QString::fromUtf8(e.what()));
+                return;
+            }
+            if (readLock.owns_lock()) readLock.unlock();
+            processMember(member, formats.value(member), bytes, options, partOfMember, outcome);
+        } catch (...) {
+            outcome.error = std::current_exception();
+        }
+    };
     std::vector<std::thread> pool;
     struct PoolGuard {
         std::mutex& gate; std::condition_variable& wake; bool& stopping; std::vector<std::thread>& pool;
@@ -353,26 +376,15 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             for (auto& worker : pool) if (worker.joinable()) worker.join();
         }
     } poolGuard{ gate, wake, stopping, pool };
-    const auto runMember = [&](size_t i, ArchiveReader& reader) {
-        try { processMember(members[int(i)], formats.value(members[int(i)]), reader, options, partOfMember, outcomes[i]); }
-        catch (...) { outcomes[i].error = std::current_exception(); }
-    };
     if (parallel) {
         const unsigned workers = unsigned(std::min<size_t>(std::min(threads, 16u), members.size()));
         const auto work = [&]() {
-            std::unique_ptr<ArchiveReader> reader;
             for (;;) {
-                size_t i;
-                {
-                    std::unique_lock<std::mutex> lock(gate);
-                    wake.wait(lock, [&] { return stopping || nextToStart >= members.size() || nextToStart < applied + window; });
-                    if (stopping || nextToStart >= members.size()) return;
-                    i = nextToStart++;
-                }
-                try {
-                    if (!reader) reader = std::make_unique<ArchiveReader>(archivePath, options);
-                    runMember(i, *reader);
-                } catch (...) { outcomes[i].error = std::current_exception(); reader.reset(); }
+                std::unique_lock<std::mutex> lock(gate);
+                wake.wait(lock, [&] { return stopping || nextToStart >= members.size() || nextToStart < applied + window; });
+                if (stopping || nextToStart >= members.size()) return;
+                const size_t i = nextToStart++;
+                runMember(i, std::move(lock));
                 { std::lock_guard<std::mutex> lock(gate); outcomes[i].done = true; }
                 wake.notify_all();
             }
@@ -380,12 +392,13 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         for (unsigned t = 0; t < workers; ++t) pool.emplace_back(work);
     }
     for (int memberIndex = 0; memberIndex < members.size(); ++memberIndex) {
-        options.check(); const QString member = members[memberIndex];
+        options.check(); const QString member = std::as_const(members)[memberIndex];
         if (options.progress) options.progress(member, memberIndex, members.size());
         if (parallel) { std::unique_lock<std::mutex> lock(gate); wake.wait(lock, [&] { return outcomes[size_t(memberIndex)].done; }); }
-        else runMember(size_t(memberIndex), archive);
+        else runMember(size_t(memberIndex));
         MemberOutcome& outcome = outcomes[size_t(memberIndex)];
         parseMs += outcome.parseMs; memberMs += outcome.totalMs;
+        if (outcome.error) std::rethrow_exception(outcome.error);
         if (outcome.readFailed) {
             if (options.strict) throw Error(outcome.readFailure);
             // The rest of the assembly still loads; occurrences that reference the member simply have no geometry.
@@ -393,7 +406,6 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             result.warnings.append(QStringLiteral("Skipped unreadable representation %1").arg(outcome.readFailure));
         }
         else {
-            if (outcome.error) std::rethrow_exception(outcome.error);
             const unsigned base = static_cast<unsigned>(meshes.size());
             for (LocalMesh& local : outcome.meshes) {
                 local.mesh->mMaterialIndex = material(local.rgb, local.alpha);

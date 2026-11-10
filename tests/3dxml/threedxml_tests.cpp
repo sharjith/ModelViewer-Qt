@@ -12,6 +12,7 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QTemporaryDir>
+#include <QScopeGuard>
 #include <QCryptographicHash>
 #include <assimp/material.h>
 #include <minizip/zip.h>
@@ -372,10 +373,20 @@ void sceneVariants()
       <InstanceRep id='3'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>2</IsInstanceOf></InstanceRep>
       <InstanceRep id='5'><IsAggregatedBy>1</IsAggregatedBy><IsInstanceOf>6</IsInstanceOf></InstanceRep></ProductStructure>)";
     writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",twoReps},{"part.3DRep",representation(2)},{"bad.3DRep","this is not xml"}});
-    auto partial=Importer::read(zip);
-    require(partial.scene->mNumMeshes==1,"the readable representation still loads");
-    require(warned(partial,"Skipped unreadable representation bad.3DRep")&&warned(partial,"1 of 2 representations could not be read"),"the skipped member is listed by name");
-    Options strict; strict.strict=true;
+    const QByteArray originalMinimum = qgetenv("MODELVIEWER_3DXML_PARALLEL_MIN");
+    const auto restoreMinimum = qScopeGuard([&] {
+        if (originalMinimum.isNull()) qunsetenv("MODELVIEWER_3DXML_PARALLEL_MIN");
+        else qputenv("MODELVIEWER_3DXML_PARALLEL_MIN", originalMinimum);
+    });
+    qputenv("MODELVIEWER_3DXML_PARALLEL_MIN", "1");
+    for (unsigned threads : {1u, 2u}) {
+        Options options;
+        options.threads = threads;
+        const auto partial = Importer::read(zip, options);
+        require(partial.scene->mNumMeshes==1,"the readable representation still loads");
+        require(warned(partial,"Skipped unreadable representation bad.3DRep")&&warned(partial,"1 of 2 representations could not be read"),"the skipped member is listed by name");
+    }
+    Options strict; strict.strict=true; strict.threads=2;
     rejects([&] { Importer::read(zip,strict); });
     writeZip(zip,{{"Manifest.xml","<m><Root>main.xml</Root></m>"},{"main.xml",twoReps},{"part.3DRep","also not xml"},{"bad.3DRep","this is not xml"}});
     bool noGeometry=false;
