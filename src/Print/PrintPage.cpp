@@ -1,0 +1,54 @@
+#include "PrintPage.h"
+#include "SheetRenderer.h"
+#include "SheetTemplate.h"
+
+#include <QPainter>
+
+namespace PrintPage
+{
+
+QImage render(const QSizeF& pagePt, int dpi, bool useTemplate, const Pdf3D::Pdf3DOptions& options, int partCount, const QImage& view)
+{
+    const qreal scale = qMax(72, dpi) / 72.0;
+    const QSize px(qMax(1, qRound(pagePt.width() * scale)), qMax(1, qRound(pagePt.height() * scale)));
+    QImage page(px, QImage::Format_ARGB32_Premultiplied);
+    if (page.isNull())
+        return page;
+    page.fill(Qt::white);
+    // 72 dpi as far as fonts are concerned: the sheet renderer's text measurements and sizes are in points
+    page.setDotsPerMeterX(qRound(72.0 / 0.0254));
+    page.setDotsPerMeterY(qRound(72.0 / 0.0254));
+
+    QPainter p(&page);
+    p.setRenderHint(QPainter::Antialiasing, true);
+    p.setRenderHint(QPainter::TextAntialiasing, true);
+    p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    p.scale(scale, scale);
+
+    QRectF target;
+    if (useTemplate)
+    {
+        const Pdf3D::SheetTemplate tpl = Pdf3D::findSheetTemplate(options.templateId);
+        const QMap<QString, QString> values = Pdf3D::sheetValues(options, partCount, 1, 1);
+        const Pdf3D::SheetLayout layout = Pdf3D::layoutSheet(p, tpl, pagePt, values);
+        Pdf3D::drawSheetFrame(p, tpl, layout.sheet, layout.sheet.area3d, values);
+        target = layout.sheet.area3d.adjusted(2, 2, -2, -2);
+    }
+    else
+    {
+        constexpr qreal margin = 28.35;   // 10 mm
+        target = QRectF(QPointF(margin, margin), pagePt - QSizeF(2 * margin, 2 * margin));
+    }
+
+    if (!view.isNull() && target.width() > 0 && target.height() > 0)
+    {
+        QSizeF s = view.size();
+        s.scale(target.size(), Qt::KeepAspectRatio);
+        const QRectF where(QPointF(target.center().x() - s.width() / 2, target.center().y() - s.height() / 2), s);
+        p.drawImage(where, view);
+    }
+    p.end();
+    return page;
+}
+
+} // namespace PrintPage

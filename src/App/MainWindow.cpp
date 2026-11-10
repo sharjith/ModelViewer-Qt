@@ -941,6 +941,11 @@ MainWindow::MainWindow(QWidget* parent)
 		if (auto* child = activeMdiChild()) child->exportAs3DPdf();
 	});
 
+	// File → Print... - the view on a sheet template, to a printer
+	connect(ui->actionPrint, &QAction::triggered, this, [this]() {
+		if (auto* child = activeMdiChild()) child->printView();
+	});
+
 	// Tools → Batch Render Views... - same "modal, one-shot batch action"
 	// reasoning as actionExportReport above, just producing individual
 	// offline path-traced image files instead of one PDF.
@@ -1573,6 +1578,7 @@ void MainWindow::rebindSharedPanelsTo(ModelViewer* viewer)
 			ui->actionFilterByColor->setEnabled(hasMeshes);
 			ui->actionFilterByBoundingBox->setEnabled(hasMeshes);
 			ui->actionExport3DPdf->setEnabled(hasMeshes);   // nothing to export from an empty scene
+			ui->actionPrint->setEnabled(hasMeshes);
 			ui->actionSave->setEnabled(hasMeshes);
 			ui->actionSave_As->setEnabled(hasMeshes);
 		};
@@ -2884,6 +2890,7 @@ void MainWindow::updateMenus()
 	ui->actionSaveSceneState->setEnabled(hasMdiChild);
 	ui->actionAnnotate->setEnabled(hasMdiChild);
 	ui->actionExportReport->setEnabled(hasMdiChild);
+	ui->actionPrint->setEnabled(hasMeshesForFilters);
 	ui->actionExport3DPdf->setEnabled(hasMeshesForFilters);   // needs an open document that has geometry (kept live by the structureChanged sync)
 	ui->actionBatchRenderViews->setEnabled(hasMdiChild);
 	ui->actionMassProperties->setEnabled(hasMdiChild);
