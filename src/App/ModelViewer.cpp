@@ -6025,6 +6025,12 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "SceneGraphExporter.h"
 #include "Pdf3DExporter.h"
 #include "Pdf3DExportDialog.h"
+#include "PrintDialog.h"
+#include "PrintPage.h"
+#include <QPageLayout>
+#include <QPageSize>
+#include <QPrintDialog>
+#include <QPrinter>
 #include "OverlayToU3d.h"
 #include "PartData.h"
 #include "SceneToU3d.h"
@@ -6377,6 +6383,68 @@ void ModelViewer::exportModelDialog(bool select3dPdfFilter)
 		QMessageBox::critical(this, tr("Error"), tr("Export failed!"));
 }
 
+
+void ModelViewer::printView()
+{
+	if (!_viewportWidget || _viewportWidget->getMeshStore().empty())
+		return;
+
+	QString defaultTitle = _currentFile.isEmpty() ? QString() : QFileInfo(_currentFile).completeBaseName();
+	if (defaultTitle.isEmpty() && _sceneGraph && _sceneGraph->root() && !_sceneGraph->root()->children.isEmpty())
+		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
+
+	PrintDialog dialog(defaultTitle, this);
+	if (dialog.exec() != QDialog::Accepted)
+		return;
+	Pdf3D::Pdf3DOptions options = dialog.options();
+
+	// The paper starts as the template's page (or A4 for a plain page, turned to suit the view); the printer dialog may change it,
+	// and the page is laid out for whatever it ends up as.
+	QPrinter printer(QPrinter::HighResolution);
+	if (dialog.useTemplate())
+	{
+		const QSizeF pt = Pdf3D::sheetPageSizePt(Pdf3D::findSheetTemplate(options.templateId));
+		printer.setPageSize(QPageSize(QSizeF(qMin(pt.width(), pt.height()), qMax(pt.width(), pt.height())), QPageSize::Point));
+		printer.setPageOrientation(pt.width() > pt.height() ? QPageLayout::Landscape : QPageLayout::Portrait);
+	}
+	else
+	{
+		printer.setPageSize(QPageSize(QPageSize::A4));
+		printer.setPageOrientation(_viewportWidget->width() >= _viewportWidget->height() ? QPageLayout::Landscape : QPageLayout::Portrait);
+	}
+	printer.setDocName(options.title.isEmpty() ? defaultTitle : options.title);
+
+	QPrintDialog printDialog(&printer, this);
+	printDialog.setWindowTitle(tr("Print"));
+	if (printDialog.exec() != QDialog::Accepted)
+		return;
+
+	QApplication::setOverrideCursor(Qt::WaitCursor);
+	// The view as shown, without the axis triad and HUD, on white: the background colours are set for the one grab and put back.
+	const QColor topColor = _viewportWidget->getBgTopColor();
+	const QColor bottomColor = _viewportWidget->getBgBotColor();
+	_viewportWidget->setBgTopColor(Qt::white);
+	_viewportWidget->setBgBotColor(Qt::white);
+	const QImage view = _viewportWidget->captureCleanRayTracedImage();
+	_viewportWidget->setBgTopColor(topColor);
+	_viewportWidget->setBgBotColor(bottomColor);
+
+	const QSizeF pagePt = printer.pageLayout().fullRect(QPageLayout::Point).size();
+	const QImage page = PrintPage::render(pagePt, dialog.dpi(), dialog.useTemplate(), options,
+		static_cast<int>(getVisibleUuids().size()), view);
+
+	QPainter painter(&printer);
+	if (!painter.isActive() || page.isNull())
+	{
+		QApplication::restoreOverrideCursor();
+		QMessageBox::warning(this, tr("Print"), tr("The printer could not be started."));
+		return;
+	}
+	painter.drawImage(QRect(QPoint(0, 0), printer.pageLayout().paintRectPixels(printer.resolution()).size()), page);
+	painter.end();
+	QApplication::restoreOverrideCursor();
+	MainWindow::showStatusMessage(tr("Sent to the printer"), 3000);
+}
 
 void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 {

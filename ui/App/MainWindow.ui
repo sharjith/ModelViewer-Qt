@@ -33,6 +33,7 @@
     <addaction name="actionImport"/>
     <addaction name="actionExport"/>
     <addaction name="actionExport3DPdf"/>
+    <addaction name="actionPrint"/>
     <addaction name="separator"/>
     <addaction name="actionSave"/>
     <addaction name="actionSave_As"/>
@@ -894,6 +895,21 @@
    </property>
    <property name="statusTip">
     <string>Save the visible parts as a 3D PDF drawing sheet that opens in Adobe Acrobat or Reader</string>
+   </property>
+  </action>
+  <action name="actionPrint">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/print.png</normaloff>:/icons/res/print.png</iconset>
+   </property>
+   <property name="text">
+    <string>Print...</string>
+   </property>
+   <property name="statusTip">
+    <string>Print the view on a white background, on a sheet template, to a printer or a PDF printer</string>
+   </property>
+   <property name="shortcut">
+    <string>Ctrl+P</string>
    </property>
   </action>
   <action name="actionExportReport">
