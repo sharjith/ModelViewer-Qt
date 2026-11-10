@@ -280,3 +280,26 @@ DeclaredMaterial declaredMaterial(const NodePropertyChain& chain)
 	return {};
 }
 }
+
+namespace NodeProperties
+{
+DeclaredPartNumber declaredPartNumber(const NodePropertyChain& chain)
+{
+	// Only the outermost node that has properties: the root of the product structure. A part number a sub-assembly declares is not the
+	// document's, so it is never taken when the root has none.
+	if (chain.empty() || !chain.back())
+		return {};
+	DeclaredPartNumber found;
+	for (const NodePropertyRow& row : chain.back()->rows)
+	{
+		if ((row.key == QLatin1String("3DXML_V_Name") || row.key == QLatin1String("STEP_PRODUCT_ID")) && !row.value.trimmed().isEmpty())
+		{
+			found.number = row.value.trimmed();
+			found.sourceKey = row.key;
+		}
+		else if (row.key == QLatin1String("3DXML_V_description"))
+			found.description = row.value.trimmed();
+	}
+	return found.valid() ? found : DeclaredPartNumber();
+}
+}

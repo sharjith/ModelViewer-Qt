@@ -41,17 +41,25 @@ Document ProductStructureReader::read(const QByteArray& bytes, const Options& op
             throw Error(QStringLiteral("Missing/duplicate/excessive product ID: %1").arg(id));
         ids.insert(id);
     };
+    QString currentReference;   // the Reference3D being read: its V_Name and V_description children belong to it
     while (!xml.atEnd()) {
         options.check(); xml.readNext(); checkToken(xml);
+        if (xml.isEndElement() && xml.name() == QLatin1String("Reference3D")) currentReference.clear();
         if (!xml.isStartElement()) continue;
         const QString tag = xml.name().toString();
         const auto attrs = xml.attributes();
+        if (!currentReference.isEmpty() && (tag == QLatin1String("V_Name") || tag == QLatin1String("V_description"))) {
+            const QString value = xml.readElementText().trimmed();
+            auto found = doc.references.find(currentReference);
+            if (found != doc.references.end()) (tag == QLatin1String("V_Name") ? found->partNumber : found->description) = value;
+            continue;
+        }
         if (tag == QLatin1String("ProductStructure")) {
             if (!doc.root.isEmpty()) throw Error(QStringLiteral("Multiple product structures"));
             doc.root = attrs.value("root").toString();
         } else if (tag == QLatin1String("Reference3D")) {
             Reference ref; ref.id = attrs.value("id").toString(); ref.name = attrs.value("name").toString();
-            identity(ref.id); doc.references.insert(ref.id, ref);
+            identity(ref.id); doc.references.insert(ref.id, ref); currentReference = ref.id;
         } else if (tag == QLatin1String("ReferenceRep")) {
             Representation rep;
             rep.id = attrs.value("id").toString(); rep.name = attrs.value("name").toString();

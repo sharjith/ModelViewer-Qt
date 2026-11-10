@@ -485,6 +485,14 @@ void Pdf3DExportDialog::applyTemplateSelection()
 	updatePreview();
 }
 
+void Pdf3DExportDialog::setDeclaredDrawingNumber(const QString& number)
+{
+	if (number.isEmpty())
+		return;
+	ui->drawingNumberEdit->setText(number);
+	ui->drawingNumberEdit->setToolTip(tr("Taken from the model. You can change it."));
+}
+
 void Pdf3DExportDialog::setSheetSample(int partCount, const QString& subtitle, const QString& material, const QString& mass)
 {
 	_sampleParts = partCount;

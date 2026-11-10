@@ -57,8 +57,22 @@ struct DeclaredMaterial
     bool valid() const { return !name.isEmpty(); }
 };
 
+// The part number a file declares for its product structure's root (not for a part inside it) and the description that goes with it, as the
+// file writes them. Empty number when the format has no such field; nothing is derived from names.
+struct DeclaredPartNumber
+{
+    QString number;
+    QString description;
+    QString sourceKey;   // the property key the number came from, e.g. "3DXML_V_Name"
+    bool valid() const { return !number.isEmpty(); }
+};
+
 namespace NodeProperties
 {
+// The declared part number of the outermost node of the chain (a mesh's properties, innermost first): the product structure's root, so every mesh
+// of a file gives the same answer. 3DXML: the root reference's V_Name ("3DXML_V_Name") and V_description. STEP: the root product's id ("STEP_PRODUCT_ID"). Other formats: none.
+DeclaredPartNumber declaredPartNumber(const NodePropertyChain& chain);
+
 // The declared material of a mesh's part: the first property set of the chain (innermost node first) with a non-empty "STEP_MATERIAL_NAME"
 // (written by the STEP importer from OpenCASCADE's XCAF material of the part).
 DeclaredMaterial declaredMaterial(const NodePropertyChain& chain);

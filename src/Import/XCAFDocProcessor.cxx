@@ -1,6 +1,8 @@
 #include "XCAFDocProcessor.hxx"
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
+#include "StepProductIdentity.h"
+#include <TDataStd_AsciiString.hxx>
 #include <TCollection_HAsciiString.hxx>
 #include <TDF_Tool.hxx>
 #include <TDataStd_TreeNode.hxx>
@@ -52,16 +54,30 @@ std::string declaredMaterialName(const TDF_Label& definition, const TDF_Label& i
 
 // Adds "STEP_MATERIAL_NAME" to a node's metadata. An aiMetadata cannot grow, so a node that already has metadata keeps it as a nested
 // "SourceMetadata" block next to the new entry.
-void attachDeclaredMaterial(aiNode* node, const std::string& name)
+void attachNodeEntry(aiNode* node, const char* key, const std::string& value)
 {
     aiMetadata* fresh = aiMetadata::Alloc(node->mMetaData ? 2 : 1);
-    fresh->Set(0, "STEP_MATERIAL_NAME", aiString(name));
+    fresh->Set(0, key, aiString(value));
     if (node->mMetaData)
     {
         fresh->Set(1, "SourceMetadata", *node->mMetaData);
         delete node->mMetaData;
     }
     node->mMetaData = fresh;
+}
+
+void attachDeclaredMaterial(aiNode* node, const std::string& name)
+{
+    attachNodeEntry(node, "STEP_MATERIAL_NAME", name);
+}
+
+// The id of the file's root product, put on the root's label by the STEP reader (StepProductIdentity.h); empty on every other label.
+std::string stepProductIdOf(const TDF_Label& label)
+{
+    Handle(TDataStd_AsciiString) attr;
+    if (label.IsNull() || !label.FindAttribute(stepProductIdGuid(), attr))
+        return std::string();
+    return trimmedName(attr->Get().ToCString());
 }
 
 std::string labelAttributeName(const TDF_Label& label)
@@ -254,6 +270,8 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         // recursive call below can use direct index assignment instead of realloc().
         aiNode* assemblyNode = new aiNode();
         assemblyNode->mName        = aiString(nodeName);
+        if (const std::string productId = stepProductIdOf(label); !productId.empty())
+            attachNodeEntry(assemblyNode, "STEP_PRODUCT_ID", productId);
         assemblyNode->mNumChildren = 0;
         assemblyNode->mChildren    = comps.Length() > 0 ? new aiNode*[comps.Length()] : nullptr;
 
@@ -439,6 +457,9 @@ void XCAFDocProcessor::traverseXCAFAssembly(
         const std::string declaredMaterial = declaredMaterialName(defLabel, label);
         if (!declaredMaterial.empty())
             attachDeclaredMaterial(nodeCopy, declaredMaterial);
+        // a file whose root is a single part: that part carries the file's product id
+        if (const std::string productId = stepProductIdOf(label); !productId.empty())
+            attachNodeEntry(nodeCopy, "STEP_PRODUCT_ID", productId);
 
         // Direct assignment — parentNode's array was pre-allocated by its creator.
         parentNode->mChildren[parentNode->mNumChildren++] = nodeCopy;

@@ -6384,6 +6384,21 @@ void ModelViewer::exportModelDialog(bool select3dPdfFilter)
 }
 
 
+QString ModelViewer::declaredPartNumber() const
+{
+	if (!_viewportWidget)
+		return QString();
+	for (const SceneMesh* mesh : _viewportWidget->getMeshStore())
+	{
+		if (!mesh || !mesh->getNodeProperties())
+			continue;
+		const DeclaredPartNumber declared = NodeProperties::declaredPartNumber(*mesh->getNodeProperties());
+		if (declared.valid())
+			return declared.number;
+	}
+	return QString();
+}
+
 void ModelViewer::printView()
 {
 	if (!_viewportWidget || _viewportWidget->getMeshStore().empty())
@@ -6393,7 +6408,7 @@ void ModelViewer::printView()
 	if (defaultTitle.isEmpty() && _sceneGraph && _sceneGraph->root() && !_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
 
-	PrintDialog dialog(defaultTitle, this);
+	PrintDialog dialog(defaultTitle, declaredPartNumber(), this);
 	if (dialog.exec() != QDialog::Accepted)
 		return;
 	Pdf3D::Pdf3DOptions options = dialog.options();
@@ -6706,6 +6721,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 	if (!_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
 	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, this);
+	optionsDialog.setDeclaredDrawingNumber(declaredPartNumber());   // the model's own part number, when its format has one
 	{
 		// What each exported part declares about its mass and material (the viewer's meshes carry what the source file declared),
 		// so the sheet can show {material} and {mass}; the export node of a mesh is named like its mesh node.

@@ -490,11 +490,16 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             if (found!=doc.representations.cend() && (found->format==QLatin1String("UVR") || found->format==QLatin1String("TESSELLATED")) && resources.at(found->member).size()==1)
                 attachedRep=&found.value();
         }
-        node->mMetaData=aiMetadata::Alloc(attachedRep ? 6 : 3);
+        // V_Name and V_description of the reference, as the file writes them (a part number and a description in the PLM system's terms)
+        const unsigned declared = (ref.partNumber.isEmpty() ? 0u : 1u) + (ref.description.isEmpty() ? 0u : 1u);
+        node->mMetaData=aiMetadata::Alloc((attachedRep ? 6 : 3) + declared);
         if (attachedRep) setRepresentation(*node->mMetaData,3,*attachedRep);
         node->mMetaData->Set(0,"3DXMLReference",aiString(reference.toUtf8().constData()));
         node->mMetaData->Set(1,"3DXMLPath",aiString(path.toUtf8().constData()));
         node->mMetaData->Set(2,"3DXMLInstance",aiString(id.toUtf8().constData()));
+        unsigned declaredIndex = attachedRep ? 6 : 3;
+        if (!ref.partNumber.isEmpty()) node->mMetaData->Set(declaredIndex++,"3DXML_V_Name",aiString(ref.partNumber.toUtf8().constData()));
+        if (!ref.description.isEmpty()) node->mMetaData->Set(declaredIndex++,"3DXML_V_description",aiString(ref.description.toUtf8().constData()));
         result.occurrencePaths.insert(node.get(),path);
         if (!visible) result.hiddenNodes.insert(node.get());
         std::vector<std::unique_ptr<aiNode>> nodes;
