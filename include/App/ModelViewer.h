@@ -203,6 +203,9 @@ public:
 	// File > Print...: the view as shown, on a white background, on a sheet template or a plain page, to any printer (print to PDF
 	// is the printer driver's). Raster output at the chosen resolution.
 	void printView();
+	// The part number the model declares for its root (NodeProperties::declaredPartNumber), taken from the first mesh that has one; empty
+	// when the format has no such field. Print and Save as 3D PDF offer it as the drawing number.
+	QString declaredPartNumber() const;
 
 	bool saveToFile(const QString& fileName);
 	// The .mvf file is not held while its document is open. Its size and modification time at the moment this document read or wrote it are

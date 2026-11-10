@@ -32,7 +32,9 @@ struct Options {
 };
 struct Representation { QString id, name, format, member; };
 struct Instance { QString id, name, parent, reference; aiMatrix4x4 local; };
-struct Reference { QString id, name; QStringList instances, representations; };
+// partNumber and description: the reference's V_Name and V_description fields (the product's name and description as the PLM system holds
+// them; empty when the file has none). `name` is the PLM_ExternalID, which can differ ("prd-<V_Name>").
+struct Reference { QString id, name, partNumber, description; QStringList instances, representations; };
 // Fields of a material's rendering representation (Osm RenderingFeature); defaults are the published ones.
 // Texture fields are not read: none of the supported samples uses a texture.
 struct MaterialRendering {

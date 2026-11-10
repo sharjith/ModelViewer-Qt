@@ -72,6 +72,9 @@ public:
 
 	// What the sheet preview shows for the values the dialog does not ask for: the number of parts and the source file names (the
 	// {parts} and {subtitle} placeholders).
+	// The part number the model declares (NodeProperties::declaredPartNumber): it replaces the remembered drawing number, and the user may
+	// change it. Does nothing for an empty string, so the remembered value stays.
+	void setDeclaredDrawingNumber(const QString& number);
 	void setSheetSample(int partCount, const QString& subtitle, const QString& material = QString(), const QString& mass = QString());
 
 	// For each ViewItem passed to the constructor, in order: whether it is ticked.
