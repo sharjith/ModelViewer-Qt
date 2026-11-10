@@ -56,7 +56,7 @@ Consulted the retained JT10.0 Rev-B texture Blend Type table and compatible JT9.
 
 ## Static review and owner handoff - 23 October 2026
 
-Python syntax, all 78 recorded root hashes, the 13 case/reference mappings (11 unique reference documents), expected base/terminal dimensions, shared-resource URI containment, 29 unique positive launch paths and changed relative document links were inspected. The checklist initially repeated two content-identical RGB/BGR and RGBA/BGRA references; it now opens each shared reference once. `git diff --check` passed. The existing production diagnostics JSON records under research/jt/diagnostics are unrelated owner-supplied evidence and were preserved; this gate adds no generated research data.
+Python syntax, all 78 recorded root hashes, the 13 case/reference mappings (11 unique reference documents), expected base/terminal dimensions, shared-resource URI containment, 29 unique positive launch paths and changed relative document links were inspected. The checklist initially repeated two content-identical RGB/BGR and RGBA/BGRA references; it now opens each shared reference once. `git diff --check` passed. The production diagnostics are unrelated owner-supplied evidence kept locally under out/jt-research/diagnostics.
 
 Source review confirms the new Assimp filter macro has its explicit GltfMaterial header, nonlinear negative cases remain prepared, and the existing geometry fallback and resource checks remain active. No C++ build, native suite, importer execution or C2z viewer verification was performed. The owner should build normally; after build completion the agent can launch the 29 positive documents together for the visual checks above. C2z remains uncommitted and unaccepted.
 
