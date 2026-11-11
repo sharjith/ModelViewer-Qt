@@ -6,6 +6,7 @@
 //   pdf3d_tests --full   additionally runs Pdf3DExporter::exportToFile (text layout and fonts) and checks the written file
 #include "ClippingState.h"
 #include "ViewOverlayVisibility.h"
+#include "InPlaneText.h"
 #include "OverlayToU3d.h"
 #include "PdfAppender.h"
 #include "Pdf3DExporter.h"
@@ -171,6 +172,20 @@ aiScene* makeTriangleScene()
     mat->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
     s->mMaterials[0] = mat;
     return s;
+}
+
+void testAnnotationText()
+{
+    for (const QString& text : {QStringLiteral("N"), QStringLiteral("n"),
+                               QStringLiteral("Nescafe"), QStringLiteral("nescafe")})
+    {
+        const auto& outline = InPlaneText::outline(text);
+        float firstTriangle = outline.right;
+        for (size_t i = 0; i < outline.uv.size(); i += 2)
+            firstTriangle = std::min(firstTriangle, outline.uv[i]);
+        CHECK(!outline.uv.empty());
+        CHECK(nearly(firstTriangle, outline.left));
+    }
 }
 
 void testViewOverlayVisibilityJson()
@@ -2383,6 +2398,7 @@ int main(int argc, char** argv)
     testFittedViews();
     testClippingStateJson();
     testViewOverlayVisibilityJson();
+    testAnnotationText();
     testAssemblyFolders();
     testOverlayToU3d();
     testSceneToU3d();

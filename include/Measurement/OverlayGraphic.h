@@ -21,6 +21,7 @@
 // ---------------------------------------------------------------------------
 struct OverlayGraphic
 {
+    bool visibleInViewer = true;
 	QUuid               id;
 	bool                annotation = false;   // an annotation, else a measurement
 	QString             name;                 // what the user sees for it (a measurement's summary, an annotation's text)

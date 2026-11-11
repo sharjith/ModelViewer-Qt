@@ -65,7 +65,8 @@ inline const Outline& outline(const QString& text)
 			loops.push_back(std::move(loop));
 	}
 	std::vector<std::array<RecordedPmi::Glyph::P2, 3>> triangles;
-	RecordedPmi::Glyph::fillLoops(loops, 1e-6, triangles);
+	// Font contours describe filled shapes. Recorded PMI can also contain circles drawn as strokes.
+	RecordedPmi::Glyph::fillLoops(loops, 1e-6, triangles, /*preserveLineCircles=*/false);
 	for (const auto& t : triangles)
 		for (const RecordedPmi::Glyph::P2& p : t)
 			result.uv.insert(result.uv.end(), { float(p.u), float(p.v) });

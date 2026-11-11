@@ -103,14 +103,13 @@ inline Basis forOrientation(LabelOrientation mode, const QVector3D& viewDir)
 	return Basis();
 }
 
-// The same plane turned so the text reads for the viewer at `eye` looking at `position`: the normal faces the viewer and the text
-// runs toward `liveRight` (screen right). Seen from behind, or when it would read upside down, the text rotates half a turn; it never mirrors.
-inline Basis readable(const Basis& b, const QVector3D& eye, const QVector3D& position, const QVector3D& liveRight)
+// Orient the label toward the viewing ray and keep its baseline pointing to screen right.
+inline Basis readable(const Basis& b, const QVector3D& towardViewer, const QVector3D& liveRight)
 {
 	Basis r;
 	if (!b.valid)
 		return r;
-	r.normal = QVector3D::dotProduct(b.normal, eye - position) < 0.0f ? -b.normal : b.normal;
+	r.normal = QVector3D::dotProduct(b.normal, towardViewer) < 0.0f ? -b.normal : b.normal;
 	r.x = QVector3D::dotProduct(b.x, liveRight) >= 0.0f ? b.x : -b.x;
 	r.y = QVector3D::crossProduct(r.normal, r.x).normalized();
 	r.valid = true;

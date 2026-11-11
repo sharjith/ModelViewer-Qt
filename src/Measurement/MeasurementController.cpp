@@ -4750,9 +4750,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 
 	for (const Measurement& m : measurements)
 	{
-		if (!isEffectivelyVisible(m))
-			continue;
-		if (capture && m.id != captureId)
+		if (capture ? m.id != captureId : !isEffectivelyVisible(m))
 			continue;
 
 		dimPlaneValid = false;

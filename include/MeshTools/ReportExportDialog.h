@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ViewOverlayVisibility.h"
+
 #include <QDialog>
 #include <QHash>
 #include <QSet>
@@ -58,6 +60,11 @@ public:
     // destructors instead of leaving them implicit.
     ~ReportExportDialog();
 
+    // Returns false on cancel. Resetting clears the export-only override.
+    static bool editOverlayVisibility(ModelViewer& viewer, QWidget* parent,
+        const std::optional<ViewOverlayVisibility>& captured,
+        std::optional<ViewOverlayVisibility>& overrideVisibility);
+
 private slots:
     void onExportClicked();
     // Keeps the Export button's enabled state honest - disabled until
@@ -80,20 +87,10 @@ private:
     // in one method.
     bool generateReport(const QString& path);
 
-    // Per-view show/hide override, set via editViewVisibility(). A view
-    // with no entry here just uses whatever's globally visible in the
-    // document at export time (today's plain behavior) - only a view the
-    // user has explicitly customized gets an entry.
-    struct ViewVisibilityOverride
-    {
-        QSet<QUuid> visibleMeasurementIds;
-        QSet<QUuid> visibleAnnotationIds;
-    };
-
     ModelViewer* _modelViewer; // not owned - dialog is a transient child of the ModelViewer document
     std::unique_ptr<Ui::ReportExportDialog> ui;
 
     // Keyed by the view's row/camera index (same index generateReport()
     // already uses to pair ui->viewsList rows with the captured-views vector).
-    QHash<int, ViewVisibilityOverride> _perViewOverrides;
+    QHash<int, ViewOverlayVisibility> _perViewOverrides;
 };

@@ -6490,6 +6490,33 @@ void ModelViewer::printView(bool publish)
 			item->setCheckState(Qt::Unchecked);
 		}
 		layout->addWidget(views);
+		QHash<int, ViewOverlayVisibility> overlayOverrides;
+		auto* editOverlays = new QPushButton(tr("Measurements and Annotations..."), &selection);
+		const bool hasOverlays = !_sceneGraph->measurements().isEmpty() || !_sceneGraph->annotations().isEmpty();
+		editOverlays->setEnabled(false);
+		editOverlays->setToolTip(tr("Choose which overlays to show on the highlighted sheet."));
+		layout->addWidget(editOverlays);
+		connect(views, &QListWidget::currentItemChanged, &selection, [editOverlays, hasOverlays](QListWidgetItem* item) {
+			editOverlays->setEnabled(hasOverlays && item);
+		});
+		connect(editOverlays, &QPushButton::clicked, &selection, [&] {
+			auto* item = views->currentItem();
+			if (!item)
+				return;
+			const int index = item->data(Qt::UserRole).toInt();
+			const auto& camera = cameras.at(index);
+			std::optional<ViewOverlayVisibility> overrideVisibility;
+			const auto existing = overlayOverrides.constFind(index);
+			if (existing != overlayOverrides.constEnd())
+				overrideVisibility = *existing;
+			if (!ReportExportDialog::editOverlayVisibility(*this, &selection, camera.overlayVisibility, overrideVisibility))
+				return;
+			if (overrideVisibility)
+				overlayOverrides.insert(index, *overrideVisibility);
+			else
+				overlayOverrides.remove(index);
+			item->setText(overrideVisibility ? tr("%1 (custom visibility)").arg(camera.name) : camera.name);
+		});
 		auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &selection);
 		auto* preview = buttons->button(QDialogButtonBox::Ok);
 		preview->setText(tr("Preview"));
@@ -6542,7 +6569,10 @@ void ModelViewer::printView(bool publish)
 				camera.clipping = {};
 				camera.hasClipping = true;
 			}
-			if (!camera.overlayVisibility)
+			const auto overrideVisibility = overlayOverrides.constFind(index);
+			if (overrideVisibility != overlayOverrides.constEnd())
+				camera.overlayVisibility = *overrideVisibility;
+			else if (!camera.overlayVisibility)
 				camera.overlayVisibility = previous.overlayVisibility;
 			_viewportWidget->activateCameraEntry(camera);
 			QImage image = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
@@ -6842,12 +6872,12 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 	for (const Pdf3D::U3dMesh& mesh : u3dScene.meshes)
 		geometry.triangles += mesh.indices.size() / 3;
 
-	// The visible measurements and annotations, each captured for the view it was made from (no drawing involved); the options
+	// Measurements and annotations are captured for the view they were made from. The options
 	// dialog lists them and the ticked ones are written into the 3D model as nodes of their own.
 	const QVector<OverlayGraphic> overlayGraphics = _viewportWidget->captureOverlayGraphics();
 	QVector<Pdf3DExportDialog::OverlayItem> overlayItems;
 	for (const OverlayGraphic& graphic : overlayGraphics)
-		overlayItems.append({ graphic.annotation ? tr("Annotations") : tr("Measurements"), graphic.name });
+		overlayItems.append({ graphic.annotation ? tr("Annotations") : tr("Measurements"), graphic.name, graphic.visibleInViewer });
 
 	// The animations of the model (a PDF plays one): the Animations panel's clips with node transforms.
 	const QVector<ViewportWidget::ExportableAnimation> animations = _viewportWidget->exportableAnimations();

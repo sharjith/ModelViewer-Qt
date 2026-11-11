@@ -122,28 +122,41 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
     if (index < 0 || index >= capturedViews.size())
         return;
 
-    const auto& savedVisibility = capturedViews.at(index).overlayVisibility;
-    const bool hadOverride = _perViewOverrides.contains(index);
-    const ViewVisibilityOverride existing = _perViewOverrides.value(index);
+    std::optional<ViewOverlayVisibility> overrideVisibility;
+    const auto existing = _perViewOverrides.constFind(index);
+    if (existing != _perViewOverrides.constEnd())
+        overrideVisibility = *existing;
+    if (!editOverlayVisibility(*_modelViewer, this, capturedViews.at(index).overlayVisibility, overrideVisibility))
+        return;
+    if (overrideVisibility)
+        _perViewOverrides.insert(index, *overrideVisibility);
+    else
+        _perViewOverrides.remove(index);
 
-    // Anonymous, throwaway dialog built fresh from live measurement/
-    // annotation data every time it's opened - not a persistent named
-    // class, so it stays hand-built rather than getting its own .ui file
-    // (see the plan behind this conversion for the reasoning).
-    QDialog dialog(this);
-    dialog.setWindowTitle(tr("View Visibility"));
+    const QString baseName = capturedViews.at(index).name;
+    item->setText(overrideVisibility ? baseName + tr(" (custom visibility)") : baseName);
+}
 
-    // Two checklists (not a shared combined one) - simplest layout for two
-    // unrelated id spaces, same "one dialog, two plain QListWidgets" weight
-    // as the rest of this dialog's own controls.
+bool ReportExportDialog::editOverlayVisibility(ModelViewer& viewer, QWidget* parent,
+    const std::optional<ViewOverlayVisibility>& captured,
+    std::optional<ViewOverlayVisibility>& overrideVisibility)
+{
+    const SceneGraph* sceneGraph = viewer.sceneGraph();
+    auto* viewport = viewer.getViewportWidget();
+    if (!sceneGraph || !viewport)
+        return false;
+
+    const auto& visibility = overrideVisibility ? overrideVisibility : captured;
+    QDialog dialog(parent);
+    dialog.setWindowTitle(tr("Measurement and Annotation Visibility"));
+
     QListWidget* measurementsList = new QListWidget(&dialog);
     QVector<QUuid> measurementIds;
     for (const Measurement& m : sceneGraph->measurements())
     {
         QListWidgetItem* row = new QListWidgetItem(viewport->measurementSummaryText(m), measurementsList);
         row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
-        const bool defaultVisibility = savedVisibility ? savedVisibility->measurements.contains(m.id) : m.visible;
-        const bool checked = hadOverride ? existing.visibleMeasurementIds.contains(m.id) : defaultVisibility;
+        const bool checked = visibility ? visibility->measurements.contains(m.id) : m.visible;
         row->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
         measurementIds.append(m.id);
     }
@@ -154,13 +167,12 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
     {
         QListWidgetItem* row = new QListWidgetItem(annotationRowLabel(a.text), annotationsList);
         row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
-        const bool defaultVisibility = savedVisibility ? savedVisibility->annotations.contains(a.id) : a.visible;
-        const bool checked = hadOverride ? existing.visibleAnnotationIds.contains(a.id) : defaultVisibility;
+        const bool checked = visibility ? visibility->annotations.contains(a.id) : a.visible;
         row->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
         annotationIds.append(a.id);
     }
 
-    QPushButton* useCurrentButton = new QPushButton(savedVisibility ? tr("Use Captured Visibility")
+    QPushButton* useCurrentButton = new QPushButton(captured ? tr("Use Captured Visibility")
                                                                    : tr("Use Current Visibility"), &dialog);
     QPushButton* okButton = new QPushButton(tr("OK"), &dialog);
     QPushButton* cancelButton = new QPushButton(tr("Cancel"), &dialog);
@@ -190,30 +202,27 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
         });
 
     if (dialog.exec() != QDialog::Accepted)
-        return;
+        return false;
 
     if (useCurrentClicked)
     {
-        _perViewOverrides.remove(index);
-    }
-    else
-    {
-        ViewVisibilityOverride ov;
-        for (int i = 0; i < measurementsList->count(); ++i)
-        {
-            if (measurementsList->item(i)->checkState() == Qt::Checked)
-                ov.visibleMeasurementIds.insert(measurementIds.at(i));
-        }
-        for (int i = 0; i < annotationsList->count(); ++i)
-        {
-            if (annotationsList->item(i)->checkState() == Qt::Checked)
-                ov.visibleAnnotationIds.insert(annotationIds.at(i));
-        }
-        _perViewOverrides.insert(index, ov);
+        overrideVisibility.reset();
+        return true;
     }
 
-    const QString baseName = capturedViews.at(index).name;
-    item->setText(_perViewOverrides.contains(index) ? baseName + tr(" (custom visibility)") : baseName);
+    ViewOverlayVisibility selected;
+    for (int i = 0; i < measurementsList->count(); ++i)
+    {
+        if (measurementsList->item(i)->checkState() == Qt::Checked)
+            selected.measurements.insert(measurementIds.at(i));
+    }
+    for (int i = 0; i < annotationsList->count(); ++i)
+    {
+        if (annotationsList->item(i)->checkState() == Qt::Checked)
+            selected.annotations.insert(annotationIds.at(i));
+    }
+    overrideVisibility = std::move(selected);
+    return true;
 }
 
 void ReportExportDialog::onExportClicked()
@@ -267,7 +276,7 @@ bool ReportExportDialog::generateReport(const QString& path)
         // Report-specific overrides take precedence over the saved view.
         const auto overrideIt = _perViewOverrides.constFind(i);
         if (overrideIt != _perViewOverrides.constEnd())
-            sceneGraph->applyViewOverlayVisibility({overrideIt->visibleMeasurementIds, overrideIt->visibleAnnotationIds});
+            sceneGraph->applyViewOverlayVisibility(*overrideIt);
         else if (!view.overlayVisibility && originalOverlays)
             sceneGraph->applyViewOverlayVisibility(*originalOverlays);
 

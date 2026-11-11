@@ -60,6 +60,7 @@ public:
 	{
 		QString group;   // "Measurements" or "Annotations"
 		QString name;
+		bool initiallyChecked = true;
 	};
 
 	// An animation of the model that can be played in the PDF (only one can be chosen).

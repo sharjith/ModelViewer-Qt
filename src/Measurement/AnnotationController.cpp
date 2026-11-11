@@ -212,7 +212,10 @@ AnnotationController::InPlaneNote AnnotationController::layoutInPlaneNote(const 
     const LabelPlane::Basis plane = annotationPlane(a);
     if (plane.valid)
     {
-        const LabelPlane::Basis reading = LabelPlane::readable(plane, camera->getRenderPosition(), labelPos, camera->getRightVector());
+        // Orthographic rays remain parallel as zoom changes the camera's render position.
+        const QVector3D towardViewer = camera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC
+            ? -camera->getViewDir() : camera->getRenderPosition() - labelPos;
+        const LabelPlane::Basis reading = LabelPlane::readable(plane, towardViewer, camera->getRightVector());
         note.x = reading.x;
         note.y = reading.y;
         note.capHeight = std::max(camera->getViewRange(), 0.0001f) * 0.01f * LabelPlane::InPlaneCapScale * textScale;
@@ -706,9 +709,7 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
 
     for (const Annotation& a : annotations)
     {
-        if (!isEffectivelyVisible(a))
-            continue;
-        if (capture && a.id != captureId)
+        if (capture ? a.id != captureId : !isEffectivelyVisible(a))
             continue;
 
         const bool isSelected = !capture && _selectedAnnotationIds.contains(a.id);

@@ -284,7 +284,8 @@ inline bool isLineCircle(const std::vector<P2>& loop, double area, double bigges
 // Fills closed loops by even-odd containment: a loop wholly inside an odd number of others is a hole of the smallest loop around
 // it, and loops that merely overlap are separate shapes. Triangles are appended to `out`. A loop that is a circle drawn as one line,
 // alone or as a ring of two concentric ones, is not filled (see isLineCircle).
-inline void fillLoops(const std::vector<std::vector<P2>>& loops, double tol, std::vector<std::array<P2, 3>>& out)
+inline void fillLoops(const std::vector<std::vector<P2>>& loops, double tol, std::vector<std::array<P2, 3>>& out,
+	bool preserveLineCircles = true)
 {
 	const size_t n = loops.size();
 	std::vector<double> area(n);
@@ -318,9 +319,9 @@ inline void fillLoops(const std::vector<std::vector<P2>>& loops, double tol, std
 				holeIndex.push_back(j);
 			}
 		bool lineCircle = false;
-		if (holeIndex.empty())
+		if (preserveLineCircles && holeIndex.empty())
 			lineCircle = isLineCircle(loops[i], area[i], biggest);
-		else if (holeIndex.size() == 1 && isLineCircle(loops[i], area[i], biggest) && isLineCircle(loops[holeIndex[0]], area[holeIndex[0]], 0.0))
+		else if (preserveLineCircles && holeIndex.size() == 1 && isLineCircle(loops[i], area[i], biggest) && isLineCircle(loops[holeIndex[0]], area[holeIndex[0]], 0.0))
 		{
 			const Box o = boxOf(loops[i]), h = boxOf(loops[holeIndex[0]]);
 			lineCircle = std::abs((o.u0 + o.u1) - (h.u0 + h.u1)) < 0.1 * o.width() && std::abs((o.v0 + o.v1) - (h.v0 + h.v1)) < 0.1 * o.height();

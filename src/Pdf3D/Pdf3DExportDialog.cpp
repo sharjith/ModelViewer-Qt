@@ -185,7 +185,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	connect(ui->selectNoneButton, &QPushButton::clicked, this, [this]() { setAllViewsChecked(false); });
 	ui->tabWidget->setTabEnabled(1, !views.isEmpty());
 
-	// the measurements and annotations, grouped; all ticked at first
+	// Group overlays and use viewer visibility as the initial selection.
 	QTreeWidgetItem* overlayGroup = nullptr;
 	QString overlayGroupName;
 	for (int i = 0; i < overlays.size(); ++i)
@@ -203,7 +203,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 		}
 		auto* item = new QTreeWidgetItem(overlayGroup, QStringList{overlay.name});
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
-		item->setCheckState(0, Qt::Checked);
+		item->setCheckState(0, overlay.initiallyChecked ? Qt::Checked : Qt::Unchecked);
 		item->setData(0, kViewIndexRole, i);
 	}
 	ui->overlayTree->expandAll();

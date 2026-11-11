@@ -4138,13 +4138,12 @@ QVector<OverlayGraphic> ViewportWidget::captureOverlayGraphics() const
 		const QVector<QUuid> visibleMeasurements = _measurementController->visibleMeasurementIds();
 		for (const Measurement& m : _viewer->sceneGraph()->measurements())
 		{
-			if (!visibleMeasurements.contains(m.id))
-				continue;
 			Camera cam(static_cast<float>(size.width()), static_cast<float>(size.height()), 2.0f * radius, 45.0f);
 			const QVector3D dir = aimCamera(cam, m.offsetReferenceDir);
 			OverlayGraphic graphic;
 			if (!_measurementController->captureGraphic(m.id, &cam, size, &graphic))
 				continue;
+			graphic.visibleInViewer = visibleMeasurements.contains(m.id);
 			graphic.name = _measurementController->measurementSummaryText(m).replace(QLatin1Char('\n'), QStringLiteral(" - "));
 			graphic.viewDirection = dir;
 			for (const MeasurementAnchorRef& anchor : m.anchors)
@@ -4162,13 +4161,12 @@ QVector<OverlayGraphic> ViewportWidget::captureOverlayGraphics() const
 		const QVector<QUuid> visibleAnnotations = _annotationController->visibleAnnotationIds();
 		for (const Annotation& a : _viewer->sceneGraph()->annotations())
 		{
-			if (!visibleAnnotations.contains(a.id))
-				continue;
 			Camera cam(static_cast<float>(size.width()), static_cast<float>(size.height()), 2.0f * radius, 45.0f);
 			const QVector3D dir = aimCamera(cam, a.offsetReferenceDir);
 			OverlayGraphic graphic;
 			if (!_annotationController->captureGraphic(a.id, &cam, size, &graphic))
 				continue;
+			graphic.visibleInViewer = visibleAnnotations.contains(a.id);
 			graphic.name = a.text.split(QLatin1Char('\n')).value(0);
 			graphic.viewDirection = dir;
 			if (!a.anchor.meshUuid.isNull())
