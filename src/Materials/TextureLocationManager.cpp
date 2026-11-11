@@ -128,14 +128,17 @@ TexturePackage TextureLocationManager::packageTextures(
     package.textureSubfolder = textureSubfolder;
     package.textureDirectory = outputDirectory + "/" + textureSubfolder;
 
-    // Create textures directory
-    QDir texDir(package.textureDirectory);
-    if (!texDir.mkpath("."))
-    {
-        qCritical() << "[TextureLocationManager] Failed to create texture directory:"
-            << package.textureDirectory;
-        return package;
-    }
+    // The textures directory is created when the first texture is written into it, not before: a model without textures must not leave an
+    // empty "<name>_textures" folder next to the exported file (or, for GLB, in the temp folder).
+    bool directoryReady = false;
+    const auto ensureDirectory = [&]() {
+        if (directoryReady)
+            return true;
+        directoryReady = QDir().mkpath(package.textureDirectory);
+        if (!directoryReady)
+            qCritical() << "[TextureLocationManager] Failed to create texture directory:" << package.textureDirectory;
+        return directoryReady;
+    };
 
     qDebug() << "[TextureLocationManager] Packaging textures to:"
         << package.textureDirectory;
@@ -172,6 +175,8 @@ TexturePackage TextureLocationManager::packageTextures(
             }
             else
             {
+                if (!ensureDirectory())
+                    throw std::runtime_error("Cannot create the texture directory");
                 meta.outputName = generateUniqueFilename(package.textureDirectory,
                     "embedded_" + QString::fromLatin1(meta.hash.toHex()) + ".png");
                 QSaveFile file(QDir(package.textureDirectory).filePath(meta.outputName));
@@ -243,6 +248,8 @@ TexturePackage TextureLocationManager::packageTextures(
             else
             {
                 // New unique texture - copy it to output directory
+                if (!ensureDirectory())
+                    continue;
                 QString originalName = QFileInfo(meta.resolvedPath).fileName();
                 meta.outputName = generateUniqueFilename(
                     package.textureDirectory,
@@ -304,6 +311,8 @@ TexturePackage TextureLocationManager::packageTextures(
                     }
                     else
                     {
+                        if (!ensureDirectory())
+                            continue;
                         QString originalName = QFileInfo(meta.resolvedPath).fileName();
                         meta.outputName = generateUniqueFilename(package.textureDirectory, originalName);
                         QString destPath = package.textureDirectory + "/" + meta.outputName;
@@ -328,6 +337,10 @@ TexturePackage TextureLocationManager::packageTextures(
             }
         }
     }
+
+    // Nothing was written: an empty folder an earlier export left is removed too (rmdir fails, and leaves it, if it holds anything).
+    if (package.textures.empty() && !directoryReady)
+        QDir().rmdir(package.textureDirectory);
 
     qDebug() << "[TextureLocationManager] Packaging complete:"
         << package.textures.size() << "unique textures,"
