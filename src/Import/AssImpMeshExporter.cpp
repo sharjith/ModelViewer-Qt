@@ -2483,8 +2483,10 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
 
             // a material coloured from vertex colours (ObjColourBaking) carries a "_vc<RRGGBBAA>" suffix after the name of the original
             QString name = trimmed.mid(7).trimmed();
-            name.remove(QRegularExpression(QStringLiteral("_vc[0-9A-Fa-f]{8}$")));
-            auto it = matByName.find(name);
+            name.remove(QRegularExpression(QStringLiteral("(_m[0-9]+)?(_vc[0-9A-Fa-f]{8})?$")));
+            auto it = matByName.find(trimmed.mid(7).trimmed());   // an original name that itself ends like a suffix
+            if (it == matByName.end())
+                it = matByName.find(name);
             current = (it != matByName.end()) ? &it.value() : nullptr;
         }
         else

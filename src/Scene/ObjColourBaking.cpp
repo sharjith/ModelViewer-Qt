@@ -168,6 +168,35 @@ void remapNodeMeshes(aiNode* node, const std::vector<std::vector<unsigned>>& new
     for (unsigned i = 0; i < node->mNumChildren; ++i)
         remapNodeMeshes(node->mChildren[i], newIndices);
 }
+
+// An MTL file is read by name: two materials with the same name but different colours become two "newmtl" blocks of one name, and an OBJ reader
+// keeps the first, so every mesh that uses the second takes the colour of the first. Give each later material of a name a "_m<index>" suffix
+// (the MTL patch ignores that suffix, see AssImpMeshExporter::patchMtlWithPbrExtensions).
+void uniquifyMaterialNames(aiScene* scene)
+{
+    std::unordered_map<std::string, unsigned> seen;
+    for (unsigned i = 0; i < scene->mNumMaterials; ++i)
+    {
+        aiMaterial* material = scene->mMaterials[i];
+        if (!material)
+            continue;
+        aiString name;
+        if (material->Get(AI_MATKEY_NAME, name) != AI_SUCCESS || name.length == 0)
+            continue;   // unnamed: the OBJ writer names it "$Material_<index>", which is unique
+        std::string text(name.C_Str());
+        if (seen.emplace(text, i).second)
+            continue;
+        std::string unique;
+        for (unsigned n = i; ; ++n)
+        {
+            unique = text + "_m" + std::to_string(n);
+            if (seen.emplace(unique, i).second)
+                break;
+        }
+        const aiString renamed(unique);
+        material->AddProperty(&renamed, AI_MATKEY_NAME);
+    }
+}
 } // namespace
 
 namespace ObjColourBaking
@@ -273,7 +302,10 @@ Result bake(aiScene* scene)
     }
 
     if (result.meshesChanged == 0)
+    {
+        uniquifyMaterialNames(scene);
         return result;
+    }
 
     // install the new lists
     delete[] scene->mMeshes;
@@ -288,6 +320,7 @@ Result bake(aiScene* scene)
         delete old;
     if (scene->mRootNode)
         remapNodeMeshes(scene->mRootNode, newIndices);
+    uniquifyMaterialNames(scene);
     return result;
 }
 }
