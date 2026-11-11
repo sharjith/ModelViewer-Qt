@@ -89,6 +89,7 @@ void FileToolbar::populate()
     addActionButton(QStringLiteral("actionExport"));
     addActionButton(QStringLiteral("actionExport3DPdf"));
     addActionButton(QStringLiteral("actionPrint"));
+    addActionButton(QStringLiteral("actionPublishSheets"));
     addSeparator();
     addActionButton(QStringLiteral("actionUndo"));
     addActionButton(QStringLiteral("actionRedo"));

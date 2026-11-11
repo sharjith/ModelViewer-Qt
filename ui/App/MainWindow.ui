@@ -899,8 +899,15 @@
    </property>
   </action>
   <action name="actionPublishSheets">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/publish_sheets.png</normaloff>:/icons/res/publish_sheets.png</iconset>
+   </property>
    <property name="text">
     <string>Publish Sheets...</string>
+   </property>
+   <property name="statusTip">
+    <string>Publish the captured views as drawing sheets, in the order you choose, to print or save</string>
    </property>
   </action>
   <action name="actionPrint">
