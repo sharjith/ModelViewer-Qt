@@ -30,8 +30,11 @@
 
 #include "U3dWriter.h"
 
+#include <QMutex>
+#include <QScopeGuard>
 #include <QCoreApplication>
 #include <QDir>
+#include <QFileInfo>
 #include <QMatrix3x3>
 #include <QMatrix4x4>
 #include <QQuaternion>
@@ -182,39 +185,44 @@ bool U3dWriter::modulesAvailable(QStringList* missing)
 
 U3dWriteResult U3dWriter::write(const U3dScene& scene)
 {
+    const QString tempPath = QDir::temp().filePath(QStringLiteral("mv3dpdf_%1.u3d").arg(QUuid::createUuid().toString(QUuid::Id128)));
+    const auto removeTemporaryFile = qScopeGuard([&] { QFile::remove(tempPath); });
     U3dWriteResult out;
-
-    if (scene.isEmpty())
-    {
-        out.error = QStringLiteral("There is no visible geometry to export.");
+    out.error = writeTemporaryFile(scene, tempPath);
+    if (!out.error.isEmpty())
         return out;
-    }
+
+    QFile file(tempPath);
+    if (file.open(QIODevice::ReadOnly))
+        out.data = file.readAll();
+    out.ok = !out.data.isEmpty() && file.error() == QFileDevice::NoError;
+    if (!out.ok)
+        out.error = QStringLiteral("The 3D library output could not be read.");
+    return out;
+}
+
+QString U3dWriter::writeTemporaryFile(const U3dScene& scene, const QString& path)
+{
+    if (scene.isEmpty())
+        return QStringLiteral("There is no visible geometry to export.");
 
     QStringList missing;
     if (!modulesAvailable(&missing))
-    {
-        out.error = QStringLiteral("The 3D PDF export modules are missing next to the application: %1").arg(missing.join(QStringLiteral(", ")));
-        return out;
-    }
+        return QStringLiteral("The 3D PDF export modules are missing next to the application: %1").arg(missing.join(QStringLiteral(", ")));
 
     QVector3D lo, hi;
     if (!scene.computeBounds(&lo, &hi))
-    {
-        out.error = QStringLiteral("The scene has no geometry.");
-        return out;
-    }
-    // at least one material so every node has a shader
+        return QStringLiteral("The scene has no geometry.");
+
     QVector<U3dMaterial> materials = scene.materials;
     if (materials.isEmpty())
         materials.push_back(U3dMaterial());
-
     const QVector3D center = (lo + hi) * 0.5f;
     const float radius = qMax(0.5f * (hi - lo).length(), 1.0e-6f);
 
-    // The library writes to a file; use an ASCII-only temporary name (file names go through a locale dependent conversion on
-    // Linux) and read the bytes back.
-    const QString tempPath = QDir::temp().filePath(QStringLiteral("mv3dpdf_%1.u3d").arg(QUuid::createUuid().toString(QUuid::Id128)));
-
+    static QMutex libraryMutex;
+    const QMutexLocker lock(&libraryMutex);
+    QString geometryError;
     IFXRESULT result = IFX_OK;
 #ifdef _WIN32
     result = IFXCOMInitialize();
@@ -230,15 +238,15 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
     }
 #endif
     if (!IFXSUCCESS(result))
-    {
-        out.error = QStringLiteral("The 3D library could not be initialised (%1).").arg(resultText(result));
-        return out;
-    }
+        return QStringLiteral("The 3D library could not be initialised (%1).").arg(resultText(result));
 
     {
+#ifdef _WIN32
+        const auto uninitialize = qScopeGuard([] { IFXCOMUninitialize(); });
+#endif
         ConverterOptions opt;
         FileOptions fopt;
-        fopt.outFile = wide(tempPath).c_str();
+        fopt.outFile = wide(path).c_str();
         fopt.exportOptions = IFXExportOptions(65535);
         fopt.profile = 0;
         fopt.scalingFactor = 1.0f;
@@ -386,7 +394,7 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
                 QString err;
                 if (!addMeshResource(res, m, &err))
                 {
-                    out.error = err;
+                    geometryError = err;
                     result = IFX_E_UNDEFINED;
                     break;
                 }
@@ -467,33 +475,13 @@ U3dWriteResult U3dWriter::write(const U3dScene& scene)
         }
     }
 
-#ifdef _WIN32
-    IFXCOMUninitialize();
-#else
-    // On Linux the library stays initialised for the life of the process (see the guard at the top of this function).
-#endif
-
+    if (!geometryError.isEmpty())
+        return geometryError;
     if (!IFXSUCCESS(result))
-    {
-        if (out.error.isEmpty())
-            out.error = QStringLiteral("The 3D library reported an error (%1).").arg(resultText(result));
-        QFile::remove(tempPath);
-        return out;
-    }
-
-    QFile f(tempPath);
-    if (!f.open(QIODevice::ReadOnly))
-    {
-        out.error = QStringLiteral("The 3D library did not write its output file.");
-        return out;
-    }
-    out.data = f.readAll();
-    f.close();
-    QFile::remove(tempPath);
-    out.ok = !out.data.isEmpty();
-    if (!out.ok)
-        out.error = QStringLiteral("The 3D library wrote an empty file.");
-    return out;
+        return QStringLiteral("The 3D library reported an error (%1).").arg(resultText(result));
+    if (QFileInfo(path).size() <= 0)
+        return QStringLiteral("The 3D library wrote an empty file.");
+    return {};
 }
 
 } // namespace Pdf3D

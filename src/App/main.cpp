@@ -4,9 +4,12 @@
 #include "ModelViewer.h"
 #include "ModelViewerApplication.h"
 #include "StartupSplash.h"
+#include "U3dWorker.h"
 #include "ViewportWidget.h"
+#include <cstring>
 #include <iostream>
 #include <QApplication>
+#include <QCoreApplication>
 #include <QDebug>
 #include <QEvent>
 #include <QFileInfo>
@@ -37,6 +40,12 @@ protected:
 
 int main(int argc, char** argv)
 {
+	if (argc == 3 && std::strcmp(argv[1], Pdf3D::kU3dWorkerArgument) == 0)
+	{
+		QCoreApplication worker(argc, argv);
+		return Pdf3D::runU3dWorker(worker.arguments().value(2));
+	}
+
 	Q_INIT_RESOURCE(ModelViewer);
 
 #if defined(Q_OS_LINUX)

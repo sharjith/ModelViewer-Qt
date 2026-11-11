@@ -5,19 +5,41 @@
 #include <QImage>
 #include <QSizeF>
 
+class QPageLayout;
+class QPagedPaintDevice;
 class QPainter;
 
-// One page for preview or print: the view on white, inside a sheet template (border, title block, logo, fields; the same templates Save as 3D PDF
-// uses) or on a plain page. The page is drawn as a raster image, so it prints the same on any printer or print-to-PDF driver.
+// Draw the same vector sheet in preview, on a printer, or in a static PDF or SVG.
 namespace PrintPage
 {
 
-// `pagePt` is the page in points (1/72 inch), `dpi` the resolution of the image (150 draft, 300 normal, 600 fine). The sheet renderer
-// measures text in points and needs a 72 dpi paint device (SheetRenderer.h), so the image carries 72 dpi and the painter scales it up.
-// The preview may use a lower resolution. A null view or an unusable layout returns a null image.
-QImage render(const QSizeF& pagePt, int dpi, bool useTemplate, const Pdf3D::Pdf3DOptions& options, int partCount, const QImage& view);
+// The painter origin is the top left of the printable area. Page dimensions are in points, and
+// deviceDpi converts those points to the painter's coordinates. A supplied modelSizeMm is the
+// physical footprint of the complete captured view. Empty means fit the view to the printable area.
+bool paint(QPainter& painter, const QSizeF& pagePt, int deviceDpi, bool useTemplate,
+           const Pdf3D::Pdf3DOptions& options, int partCount, const QImage& view,
+           const QSizeF& modelSizeMm = {}, bool* scaleTooLarge = nullptr, int sheet = 1, int sheets = 1);
 
-// Paint the full sheet within the printable rectangle, whose origin is (0, 0) on the device.
-void paint(QPainter& painter, const QSize& printableSize, const QImage& page);
+// Pixel dimensions for the fitted model at the requested DPI, bounded to a practical capture budget.
+QSize rasterSize(const QSizeF& pagePt, int dpi, bool useTemplate,
+                 const Pdf3D::Pdf3DOptions& options, int partCount, const QSize& viewSize, const QSizeF& modelSizeMm = {});
+
+struct Sheet
+{
+    QString name;
+    QImage image;
+};
+
+bool paintSheets(QPagedPaintDevice& device, int dpi, bool useTemplate, const Pdf3D::Pdf3DOptions& options,
+                 int partCount, const QVector<Sheet>& sheets, int first = 1, int last = 0);
+bool saveSheets(const QString& path, const QPageLayout& layout, bool useTemplate, const Pdf3D::Pdf3DOptions& options,
+                int partCount, const QVector<Sheet>& sheets, QString* error);
+
+enum class FileFormat { Pdf, Svg };
+
+// Atomically save a sheet using the selected paper, orientation and margins.
+bool saveFile(const QString& path, FileFormat format, const QPageLayout& layout, bool useTemplate,
+              const Pdf3D::Pdf3DOptions& options, int partCount, const QImage& view, QString* error,
+              const QSizeF& modelSizeMm = {});
 
 } // namespace PrintPage

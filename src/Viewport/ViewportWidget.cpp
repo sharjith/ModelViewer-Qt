@@ -68,6 +68,7 @@
 #include <string>
 #include <QCryptographicHash>
 #include <QOpenGLContext>
+#include <QOpenGLFramebufferObject>
 #include <QDateTime>
 #include <QElapsedTimer>
 #include <QMessageBox>
@@ -7718,6 +7719,109 @@ GLuint ViewportWidget::getSheenPrefilterMap(int index, bool regenerate)
 	}
 }
 
+bool ViewportWidget::canCaptureSheetImage() const
+{
+	return _renderCtrl.isOpenGLInitialized() && isValid() && _primaryCamera &&
+		!_viewCtrl.multiViewActive() && !_compareActive && !isRayTracedRenderingModeArmed() &&
+		!interactionLowRes() && !sceneHasVisibleSSSMaterials() &&
+		!(_simulationVolumeController && _simulationVolumeController->hasVolumes()) &&
+		!(_renderCtrl.transmissionEnabled() && sceneHasVisibleTransmissionMaterials());
+}
+
+QSizeF ViewportWidget::sheetOrthographicSpan() const
+{
+	if (!canCaptureSheetImage() || _viewCtrl.obliqueMode() != ObliqueMode::NONE ||
+		_primaryCamera->getProjectionType() != Camera::ProjectionType::ORTHOGRAPHIC)
+		return {};
+
+	const QMatrix4x4 projection = _primaryCamera->getProjectionMatrix();
+	const double x = qAbs(projection(0, 0));
+	const double y = qAbs(projection(1, 1));
+	if (x <= 0.0 || y <= 0.0 || !qIsFinite(x) || !qIsFinite(y))
+		return {};
+
+	return QSizeF(2.0 / x, 2.0 / y);
+}
+
+QImage ViewportWidget::captureSheetImage(const QSize& pixels)
+{
+	if (pixels.isEmpty() || !canCaptureSheetImage())
+		return {};
+
+	QOpenGLContext* const previousContext = QOpenGLContext::currentContext();
+	QSurface* const previousSurface = previousContext ? previousContext->surface() : nullptr;
+	if (previousContext != context())
+		makeCurrent();
+	const auto restoreContext = qScopeGuard([&] {
+		if (previousContext != context())
+		{
+			doneCurrent();
+			if (previousContext && previousSurface)
+				previousContext->makeCurrent(previousSurface);
+		}
+	});
+	if (QOpenGLContext::currentContext() != context())
+		return {};
+
+	GLint maxTexture = 0, maxRenderbuffer = 0, maxViewport[2] = {};
+	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxTexture);
+	glGetIntegerv(GL_MAX_RENDERBUFFER_SIZE, &maxRenderbuffer);
+	glGetIntegerv(GL_MAX_VIEWPORT_DIMS, maxViewport);
+	const int maxAttachment = qMin(maxTexture, maxRenderbuffer);
+	if (pixels.width() > qMin(maxAttachment, maxViewport[0]) || pixels.height() > qMin(maxAttachment, maxViewport[1]))
+		return {};
+
+	GLint oldDraw = 0, oldRead = 0, oldViewport[4] = {};
+	GLfloat oldClearColor[4] = {};
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &oldDraw);
+	glGetIntegerv(GL_READ_FRAMEBUFFER_BINDING, &oldRead);
+	glGetIntegerv(GL_VIEWPORT, oldViewport);
+	glGetFloatv(GL_COLOR_CLEAR_VALUE, oldClearColor);
+	const bool wasScissoring = glIsEnabled(GL_SCISSOR_TEST);
+	const auto restoreTarget = qScopeGuard([&] {
+		glBindFramebuffer(GL_DRAW_FRAMEBUFFER, oldDraw);
+		glBindFramebuffer(GL_READ_FRAMEBUFFER, oldRead);
+		glViewport(oldViewport[0], oldViewport[1], oldViewport[2], oldViewport[3]);
+		glClearColor(oldClearColor[0], oldClearColor[1], oldClearColor[2], oldClearColor[3]);
+		if (wasScissoring)
+			glEnable(GL_SCISSOR_TEST);
+		else
+			glDisable(GL_SCISSOR_TEST);
+	});
+
+	QOpenGLFramebufferObject buffer(pixels, QOpenGLFramebufferObject::CombinedDepthStencil);
+	if (!buffer.isValid() || !buffer.bind())
+		return {};
+
+	const QScopedValueRollback<QSize> captureSize(_sheetCaptureSize, pixels);
+	const QScopedValueRollback<bool> cleanFrame(_capturingCleanFrame, true);
+	const QScopedValueRollback<bool> whiteBackground(_captureOnWhite, true);
+	const QMatrix4x4 previousModelMatrix = _viewCtrl.modelMatrix();
+	const auto restoreModelMatrix = qScopeGuard([&] {
+		_viewCtrl.setModelMatrix(previousModelMatrix);
+		_viewCtrl.syncMatricesFromCamera(*_primaryCamera);
+	});
+
+	glDisable(GL_SCISSOR_TEST);
+	_renderCtrl.fgShader()->bind();
+	_renderCtrl.punctualLights()->bind(_renderCtrl.fgShader()->programId());
+	_renderCtrl.fgShader()->setUniformValue("lightCount", _renderCtrl.punctualLights()->getLightCount());
+	_viewCtrl.setModelMatrix(QMatrix4x4());
+
+	QColor top = Qt::white;
+	QColor bottom = Qt::white;
+	try
+	{
+		renderSingleView(top, bottom);
+		return buffer.toImage();
+	}
+	catch (const std::exception& error)
+	{
+		qWarning() << "Offscreen sheet capture failed:" << error.what();
+		return {};
+	}
+}
+
 void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 {
 	QMatrix4x4 projection;
@@ -7725,7 +7829,9 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	_renderCtrl.textShader()->bind();
 	_renderCtrl.textShader()->setUniformValue("projection", projection);
 	_renderCtrl.textShader()->release();
-	glViewport(0, 0, width(), height());
+	const bool offscreen = !_sheetCaptureSize.isEmpty();
+	const QSize rasterSize = offscreen ? _sheetCaptureSize : size();
+	glViewport(0, 0, rasterSize.width(), rasterSize.height());
 	// showShadows (setCommonUniforms()) already skips SAMPLING the shadow map
 	// during this same lowResEnabled+oversized window, but that alone leaves
 	// the full-resolution shadow depth pass itself still running for nothing
@@ -7740,10 +7846,20 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	if (_renderCtrl.transmissionEnabled() && sceneHasVisibleTransmissionMaterials())
 		renderToTransmissionBuffer(_primaryCamera, topColor, botColor);
 
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
-		botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
+	if (offscreen)
+	{
+		glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+		glDepthMask(GL_TRUE);
+		glStencilMask(0xFF);
+		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+	}
+	else
+	{
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		gradientBackground(topColor.redF(), topColor.greenF(), topColor.blueF(), topColor.alphaF(),
+			botColor.redF(), botColor.greenF(), botColor.blueF(), botColor.alphaF(), _renderCtrl.gradientStyle());
+	}
 	render(_primaryCamera);
 	drawSimulationVolumes(_primaryCamera);
 	drawTransformGizmo(_primaryCamera);
@@ -8292,7 +8408,8 @@ void ViewportWidget::drawFloor(const bool& drawReflection)
 	_renderCtrl.fgShader()->setUniformValue("groundMode", static_cast<int>(_renderCtrl.groundMode()));
 	_renderCtrl.fgShader()->setUniformValue("topColor", QVector4D(_renderCtrl.bgTopColor().red(), _renderCtrl.bgTopColor().green(), _renderCtrl.bgTopColor().blue(), _renderCtrl.bgTopColor().alpha()));
 	_renderCtrl.fgShader()->setUniformValue("botColor", QVector4D(_renderCtrl.bgBotColor().red(), _renderCtrl.bgBotColor().green(), _renderCtrl.bgBotColor().blue(), _renderCtrl.bgBotColor().alpha()));
-	_renderCtrl.fgShader()->setUniformValue("screenSize", QVector2D(width(), height()));
+	const QSize rasterSize = _sheetCaptureSize.isEmpty() ? size() : _sheetCaptureSize;
+	_renderCtrl.fgShader()->setUniformValue("screenSize", QVector2D(rasterSize.width(), rasterSize.height()));
 	_renderCtrl.fgShader()->setUniformValue("screenCenter", _floorCenter);
 	_renderCtrl.fgShader()->setUniformValue("gradientStyle", _renderCtrl.gradientStyle());
 	_renderCtrl.fgShader()->setUniformValue("floorSize",
@@ -13956,7 +14073,9 @@ void ViewportWidget::renderToShadowBuffer()
 		return;
 	_renderCtrl.setShadowMapNeedsInitialization(false);
 
-	// save current viewport
+	// Restore the caller's target, which can be an offscreen sheet.
+	GLint drawFramebuffer = 0;
+	glGetIntegerv(GL_DRAW_FRAMEBUFFER_BINDING, &drawFramebuffer);
 	int viewport[4];
 	glGetIntegerv(GL_VIEWPORT, viewport);
 
@@ -14141,7 +14260,7 @@ void ViewportWidget::renderToShadowBuffer()
 		}
 	}
 
-	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, defaultFramebufferObject());
+	glBindFramebuffer(GL_DRAW_FRAMEBUFFER, drawFramebuffer);
 	// End Shadow Mapping
 	// restore viewport
 	glViewport(viewport[0], viewport[1], viewport[2], viewport[3]);

@@ -1057,6 +1057,12 @@ public:
 		return img;
 	}
 
+	// Offscreen capture of the current single raster view, with its camera and overlay layout preserved.
+	// An empty image lets the caller use the original viewport capture.
+	bool canCaptureSheetImage() const;
+	QSizeF sheetOrthographicSpan() const;   // world width and height for a stationary, unskewed orthographic capture
+	QImage captureSheetImage(const QSize& pixels);
+
 	// Current on-screen device-pixel resolution - same fbWidth/fbHeight
 	// computation startRayTracedSession() uses. RtRenderDialog compares
 	// its requested export resolution against this to decide whether a
@@ -2525,6 +2531,7 @@ private:
 	// to-file export should look like rather than a viewport screenshot.
 	bool _capturingCleanFrame = false;
 	bool _captureOnWhite = false;
+	QSize _sheetCaptureSize; // framebuffer size during an offscreen sheet render
 
 	// cameraInteracting: false (default) is today's original behavior - stop
 	// both sessions, invalidate the presenter, fall back to raster, restart

@@ -645,6 +645,15 @@ bool parseSheetTemplate(const QByteArray& json, const QString& id, SheetTemplate
     if (orientation != QLatin1String("landscape") && orientation != QLatin1String("portrait"))
         return p.fail(QStringLiteral("\"page.orientation\" must be \"landscape\" or \"portrait\"")), finish(false);
     t.landscape = orientation == QLatin1String("landscape");
+    const QJsonValue companion = page.value(QLatin1String("printCompanion"));
+    if (!companion.isUndefined())
+    {
+        if (!p.text(companion, QStringLiteral("page.printCompanion"), &t.printCompanionId, 256))
+            return finish(false);
+        if (!t.printCompanionId.isEmpty() && !t.printCompanionId.startsWith(QLatin1String("user:")) &&
+            !t.printCompanionId.startsWith(QLatin1String("builtin:")))
+            return p.fail(QStringLiteral("page.printCompanion must be a sheet template ID")), finish(false);
+    }
     const QSizeF pagePt = sheetPageSizePt(t);
 
     // frame
@@ -981,6 +990,8 @@ QByteArray sheetTemplateToJson(const SheetTemplate& t)
                 page.insert(QStringLiteral("size"), QString::fromLatin1(n.name));
     }
     page.insert(QStringLiteral("orientation"), t.landscape ? QStringLiteral("landscape") : QStringLiteral("portrait"));
+    if (!t.printCompanionId.isEmpty())
+        page.insert(QStringLiteral("printCompanion"), t.printCompanionId);
     root.insert(QStringLiteral("page"), page);
     root.insert(QStringLiteral("border"), QJsonObject{ { QStringLiteral("inset"), t.borderInset } });
     root.insert(QStringLiteral("margin"), t.margin);
@@ -1254,6 +1265,18 @@ SheetTemplate findSheetTemplate(const QString& id)
                 return t;
     }
     return builtIn.isEmpty() ? SheetTemplate() : builtIn.first();
+}
+
+const SheetTemplate& printTemplateForOrientation(const SheetTemplate& primary, bool landscape,
+                                                const QVector<SheetTemplate>& available)
+{
+    if (primary.landscape != landscape && !primary.printCompanionId.isEmpty())
+    {
+        for (const SheetTemplate& candidate : available)
+            if (candidate.id == primary.printCompanionId && candidate.landscape == landscape)
+                return candidate;
+    }
+    return primary;
 }
 
 } // namespace Pdf3D

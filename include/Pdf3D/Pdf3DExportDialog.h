@@ -1,5 +1,7 @@
 #pragma once
 
+#include "SheetFieldEditors.h"
+
 #include "SheetTemplate.h"
 
 #include <QDialog>
@@ -9,6 +11,11 @@
 #include <QVector>
 
 #include <memory>
+
+class QCheckBox;
+class QComboBox;
+class QLabel;
+class QPushButton;
 
 namespace Ui
 {
@@ -24,7 +31,7 @@ namespace Pdf3D
 // ---------------------------------------------------------------------------
 // Pdf3DExportDialog
 //
-// Modal "Save as 3D PDF" options dialog, two tabs:
+// Modal "Save as 3D PDF" options dialog:
 //  - Sheet: the sheet template (built-in or a JSON file of the user's, see SheetTemplate.h), the title block fields it uses
 //    (title, drawing number, revision, author, company, scale, notes; fields the template does not use are hidden) plus the
 //    template's own custom fields, and whether to add a parts list sheet. Everything except the title and the notes is remembered
@@ -62,8 +69,18 @@ public:
 		double  durationSeconds = 0.0;
 	};
 
+	struct GeometrySummary
+	{
+		qsizetype meshInstances = 0;
+		qsizetype meshResources = 0;
+		qint64 triangles = 0;   // counted once per mesh resource
+		bool omitsWireGeometry = false;
+		bool omitsTextures = false;
+	};
+
 	Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
-		const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations, bool omitsWireGeometry, QWidget* parent = nullptr);
+		const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations,
+		const GeometrySummary& geometry, bool openAfterSaving, QWidget* parent = nullptr);
 	~Pdf3DExportDialog() override;
 
 	// Copies the sheet tab's values into `options`: the title block fields (title, drawing number, revision, author, company, scale,
@@ -79,6 +96,10 @@ public:
 
 	// For each ViewItem passed to the constructor, in order: whether it is ticked.
 	QVector<bool> viewSelection() const;
+
+	// Index in the list of checked views, in export order.
+	int openingViewIndex() const;
+	bool openAfterSaving() const;
 
 	// For each OverlayItem passed to the constructor, in order: whether it is ticked.
 	QVector<bool> overlaySelection() const;
@@ -96,6 +117,7 @@ protected:
 
 private:
 	void updateOkEnabled();
+	void updateReview();
 	void setAllViewsChecked(bool checked);
 	void setAllOverlaysChecked(bool checked);
 	void reloadTemplates(const QString& selectId);   // rescans the templates, fills the combo and selects `selectId` (or the first)
@@ -110,9 +132,14 @@ private:
 	std::unique_ptr<Ui::Pdf3DExportDialog> ui;
 	int _viewCount = 0;
 	int _overlayCount = 0;
+	GeometrySummary _geometry;
+	QComboBox* _openingView = nullptr;
+	QLabel* _reviewSummary = nullptr;
+	QCheckBox* _openAfterSaving = nullptr;
+	QPushButton* _reviewNotice = nullptr;
 	QVector<Pdf3D::SheetTemplate> _templates;   // parallel to the combo
 	QStringList _templateProblems;              // files of the user folder that could not be used, and warnings
-	QMap<QString, QWidget*> _customFields;      // custom field id -> its editor (owned by the form layout)
+	Pdf3D::SheetFieldEditors _customFields;
 	Pdf3D::SheetPreviewWidget* _preview = nullptr;   // below the fields, owned by the Sheet tab's layout
 	int _sampleParts = 12;
 	QString _sampleSubtitle;

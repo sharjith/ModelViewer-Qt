@@ -82,6 +82,7 @@ private:
     void setupLogoTab();
     void setupFieldsTab();
     void loadPage();
+    void loadPrintCompanions();
     void applyPage();
     void adaptCellsToPage(const SheetTemplate& before);
     void refreshCellViews();
@@ -101,6 +102,7 @@ private:
     QMap<QString, QString> previewValues() const;
 
     std::unique_ptr<Ui::SheetTemplateEditor> ui;
+    QComboBox* _printCompanion = nullptr;
 
     SheetTemplate _tpl;     // the template being edited
     SheetTemplate _valid;   // the last state of it that passed the check; what the preview draws

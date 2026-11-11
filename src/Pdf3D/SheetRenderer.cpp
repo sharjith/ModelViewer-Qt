@@ -19,6 +19,12 @@ namespace Pdf3D
 namespace
 {
 
+// The sheet's world coordinates are points, even when a printer paints in high-resolution pixels.
+void setSheetFontSize(QFont& font, const QPainter& painter, qreal sizePt)
+{
+    font.setPointSizeF(sizePt * 72.0 / painter.device()->logicalDpiY());
+}
+
 int cellIndexById(const SheetTemplate& tpl, const QString& id)
 {
     if (id.isEmpty())
@@ -61,12 +67,12 @@ void drawFieldCell(QPainter& p, const QRectF& cell, const QString& label, const 
     p.save();
     QFont f = p.font();
     f.setBold(false);
-    f.setPointSizeF(6.5);
+    setSheetFontSize(f, p, 6.5);
     p.setFont(f);
     p.setPen(QColor(110, 110, 110));
     p.drawText(cell.adjusted(5, 2, -3, 0), Qt::AlignLeft | Qt::AlignTop | Qt::TextSingleLine, label);
     f.setBold(c.bold);
-    f.setPointSizeF(c.fontSize);
+    setSheetFontSize(f, p, c.fontSize);
     p.setFont(f);
     p.setPen(c.color);
     const QRectF v = cell.adjusted(5, 10, -3, -2);
@@ -120,7 +126,7 @@ SheetLayout layoutSheet(QPainter& measure, const SheetTemplate& tpl, const QSize
         measure.save();
         QFont nf = measure.font();
         nf.setBold(c.bold);
-        nf.setPointSizeF(c.fontSize);
+        setSheetFontSize(nf, measure, c.fontSize);
         measure.setFont(nf);
         const qreal h = measure.boundingRect(QRectF(0, 0, rect.width(), 10000), Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, text).height();
         measure.restore();
@@ -176,7 +182,7 @@ void drawSheetFrame(QPainter& p, const SheetTemplate& tpl, const ResolvedSheet& 
         p.save();
         QFont f = base;
         f.setBold(c.bold);
-        f.setPointSizeF(c.fontSize);
+        setSheetFontSize(f, p, c.fontSize);
         p.setFont(f);
         p.setPen(c.color);
         if (c.wrap)

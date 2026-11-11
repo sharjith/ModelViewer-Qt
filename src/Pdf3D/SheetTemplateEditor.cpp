@@ -565,6 +565,17 @@ void SheetTemplateEditor::setupPageTab()
     ui->anchor->addItem(tr("Corner, left"), static_cast<int>(TitleBlockAnchor::BottomLeft));
     ui->anchor->addItem(tr("Corner, right"), static_cast<int>(TitleBlockAnchor::BottomRight));
 
+    _printCompanion = new QComboBox(ui->pageTab);
+    _printCompanion->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+    _printCompanion->setMinimumContentsLength(20);
+    _printCompanion->setToolTip(tr("Use a separately authored template when printing in the opposite orientation. "
+                                  "The paper size and margins still come from Page Setup."));
+    ui->pageTabLayout->insertRow(ui->pageTabLayout->rowCount() - 1, tr("Opposite orientation for print:"), _printCompanion);
+    connect(_printCompanion, &QComboBox::currentIndexChanged, this, [this] {
+        _tpl.printCompanionId = _printCompanion->currentData().toString();
+        revalidate();
+    });
+
     for (QDoubleSpinBox* s : { ui->customWidth, ui->customHeight, ui->borderInset, ui->margin, ui->areaGap, ui->lineWidth, ui->blockWidth, ui->blockHeight, ui->blockMaxHeight, ui->growPadding })
         connect(s, &QDoubleSpinBox::valueChanged, this, [this]() { applyPage(); });
     for (QComboBox* c : { ui->pageSize, ui->orientation, ui->anchor })
@@ -594,7 +605,28 @@ void SheetTemplateEditor::loadPage()
     ui->customWidth->setEnabled(custom);
     ui->customHeight->setEnabled(custom);
     ui->blockWidth->setEnabled(_tpl.anchor != TitleBlockAnchor::Bottom);
+    loadPrintCompanions();
     _loading = false;
+}
+
+void SheetTemplateEditor::loadPrintCompanions()
+{
+    const QSignalBlocker blocker(_printCompanion);
+    _printCompanion->clear();
+    _printCompanion->addItem(tr("Reflow this template"), QString());
+    QVector<SheetTemplate> templates = builtInSheetTemplates();
+    templates += loadUserSheetTemplates(_folder);
+    for (const SheetTemplate& candidate : templates)
+        if (candidate.id != _tpl.id && candidate.landscape != _tpl.landscape)
+            _printCompanion->addItem(candidate.name, candidate.id);
+
+    int index = _printCompanion->findData(_tpl.printCompanionId);
+    if (index < 0)
+    {
+        _printCompanion->addItem(tr("Unavailable (%1)").arg(_tpl.printCompanionId), _tpl.printCompanionId);
+        index = _printCompanion->count() - 1;
+    }
+    _printCompanion->setCurrentIndex(index);
 }
 
 void SheetTemplateEditor::applyPage()
@@ -649,6 +681,8 @@ void SheetTemplateEditor::applyPage()
         }
     }
     adaptCellsToPage(before);
+    if (_tpl.landscape != before.landscape)
+        loadPrintCompanions();
     revalidate();
 }
 

@@ -87,7 +87,9 @@
 #include <QDir>
 #include <QEventLoop>
 #include <QFile>
+#include <QDesktopServices>
 #include <QFileDialog>
+#include <QUrl>
 #include <QSaveFile>
 #include <QLineEdit>
 #include <QMdiSubWindow>
@@ -6027,6 +6029,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "SceneGraphExporter.h"
 #include "Pdf3DExporter.h"
 #include "Pdf3DExportDialog.h"
+#include "Pdf3DExportProgress.h"
 #include "PrintDialog.h"
 #include "PrintPage.h"
 #include <QPageLayout>
@@ -6036,6 +6039,7 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include "PartData.h"
 #include "SceneToU3d.h"
 #include "U3dWriter.h"
+#include <assimp/material.h>
 #include <QDialog>
 #include <QDialogButtonBox>
 #include <QLabel>
@@ -6402,58 +6406,335 @@ QString ModelViewer::declaredPartNumber() const
 	return QString();
 }
 
-void ModelViewer::printView()
+namespace
+{
+
+double printMillimetersPerWorldUnit(SceneMesh* mesh, SceneGraph* graph, const QJsonObject& viewerState)
+{
+	const ResolvedLengthUnit resolved = resolveEffectiveImportUnit(mesh, graph, viewerState);
+	if (!resolved.wasExplicit)
+		return 0.0;
+
+	const SceneNode* file = graph ? graph->findFileNode(mesh->getSourceFile()) : nullptr;
+	if (!file)
+		return lengthUnitToMillimeters(resolved.unit);
+
+	// Viewer coordinates already include the import correction. Remove its uniform scale
+	// when translating a viewer distance back to the file's physical units.
+	const glm::mat4 correction = SceneUtils::aiMatrixToGlm(file->importCorrection);
+	const glm::vec3 x(correction[0]), y(correction[1]), z(correction[2]);
+	const double scale = glm::length(x);
+	if (!qIsFinite(scale) || scale <= 0.0 ||
+		!qIsFinite(glm::length(y)) || !qIsFinite(glm::length(z)) ||
+		qAbs(glm::length(y) - scale) > scale * 1e-5 || qAbs(glm::length(z) - scale) > scale * 1e-5 ||
+		qAbs(glm::dot(x, y)) > scale * scale * 1e-5 || qAbs(glm::dot(x, z)) > scale * scale * 1e-5 ||
+		qAbs(glm::dot(y, z)) > scale * scale * 1e-5)
+		return 0.0;
+
+	return lengthUnitToMillimeters(resolved.unit) / scale;
+}
+
+const auto kOpenSavedSheetKey = QStringLiteral("Export/openSavedSheet");
+
+bool openSavedSheetByDefault()
+{
+	return QSettings().value(kOpenSavedSheetKey, false).toBool();
+}
+
+void handleSavedSheet(QWidget* parent, const QString& path, QLatin1String extension, bool open)
+{
+	QSettings().setValue(kOpenSavedSheetKey, open);
+	if (!open)
+		return;
+
+	const QFileInfo file(path);
+	if (file.suffix().compare(extension, Qt::CaseInsensitive) == 0 &&
+		QDesktopServices::openUrl(QUrl::fromLocalFile(file.absoluteFilePath())))
+		return;
+
+	QMessageBox::warning(parent, QCoreApplication::translate("ModelViewer", "Open saved file"),
+		QCoreApplication::translate("ModelViewer", "Saved %1, but it could not be opened automatically.").arg(file.fileName()));
+}
+
+} // namespace
+
+void ModelViewer::printView(bool publish)
 {
 	if (!_viewportWidget || _viewportWidget->getMeshStore().empty())
 		return;
+
+	QVector<PrintPage::Sheet> sheets;
+	if (publish)
+	{
+		const auto cameras = _sceneGraph
+			? _sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras : QVector<GltfCameraEntry>();
+		if (cameras.isEmpty())
+		{
+			QMessageBox::information(this, tr("Publish Sheets"), tr("Capture a view in the Cameras panel first."));
+			return;
+		}
+
+		QDialog selection(this);
+		selection.setWindowTitle(tr("Publish Sheets"));
+		auto* layout = new QVBoxLayout(&selection);
+		auto* hint = new QLabel(tr("Check the saved views to publish. Drag them to set the sheet order."), &selection);
+		hint->setWordWrap(true);
+		layout->addWidget(hint);
+		auto* views = new QListWidget(&selection);
+		views->setDragDropMode(QAbstractItemView::InternalMove);
+		for (int i = 0; i < cameras.size(); ++i)
+		{
+			auto* item = new QListWidgetItem(cameras.at(i).name, views);
+			item->setFlags((item->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsDropEnabled);
+			item->setData(Qt::UserRole, i);
+			item->setCheckState(Qt::Unchecked);
+		}
+		layout->addWidget(views);
+		auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &selection);
+		auto* preview = buttons->button(QDialogButtonBox::Ok);
+		preview->setText(tr("Preview"));
+		preview->setEnabled(false);
+		connect(views, &QListWidget::itemChanged, &selection, [views, preview] {
+			bool any = false;
+			for (int row = 0; row < views->count() && !any; ++row)
+				any = views->item(row)->checkState() == Qt::Checked;
+			preview->setEnabled(any);
+		});
+		connect(buttons, &QDialogButtonBox::accepted, &selection, &QDialog::accept);
+		connect(buttons, &QDialogButtonBox::rejected, &selection, &QDialog::reject);
+		layout->addWidget(buttons);
+		selection.resize(460, 420);
+		if (selection.exec() != QDialog::Accepted)
+			return;
+
+		QVector<int> selected;
+		for (int row = 0; row < views->count(); ++row)
+		{
+			const auto* item = views->item(row);
+			if (item->checkState() == Qt::Checked)
+				selected.append(item->data(Qt::UserRole).toInt());
+		}
+		if (selected.isEmpty())
+			return;
+
+		const auto previous = _viewportWidget->captureCurrentCameraEntry(QString());
+		const QString cameraFile = _viewportWidget->activeGltfCameraFile();
+		const int cameraIndex = _viewportWidget->activeGltfCameraIndex();
+		const bool hadGltfCamera = _viewportWidget->isGltfCameraActive();
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+		const auto restore = qScopeGuard([&] {
+			_viewportWidget->activateCameraEntry(previous);
+			if (hadGltfCamera)
+				_viewportWidget->activateGltfCamera(cameraFile, cameraIndex);
+			QApplication::restoreOverrideCursor();
+		});
+		// Bound the total size of the frozen page images for long sets of views.
+		const int edge = qBound(256, static_cast<int>(std::sqrt(24000000.0 / selected.size())), 2200);
+		for (const int index : selected)
+		{
+			auto camera = cameras.at(index);
+			if (!camera.hasClipping)
+			{
+				camera.clipping = {};
+				camera.hasClipping = true;
+			}
+			_viewportWidget->activateCameraEntry(camera);
+			QImage image = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
+			if (image.isNull())
+				break;
+			if (qMax(image.width(), image.height()) > edge)
+				image = image.scaled(edge, edge, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+			if (image.isNull())
+				break;
+			sheets.append({camera.name, image});
+		}
+		if (sheets.size() != selected.size())
+		{
+			QMessageBox::warning(this, tr("Publish Sheets"), tr("One of the saved views could not be captured."));
+			return;
+		}
+	}
 
 	QString defaultTitle = _currentFile.isEmpty() ? QString() : QFileInfo(_currentFile).completeBaseName();
 	if (defaultTitle.isEmpty() && _sceneGraph && _sceneGraph->root() && !_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
 
-	// Freeze the same clean view for the preview and the eventual print job.
-	const QImage view = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
+	const bool canRenderOffscreen = _viewportWidget->canCaptureSheetImage();
+	const QSizeF orthographicSpan = publish ? QSizeF() : _viewportWidget->sheetOrthographicSpan();
+	QJsonObject unitSettings;
+	if (_defaultImportUnit != LengthUnit::Unknown)
+		unitSettings.insert(QStringLiteral("defaultImportUnit"), lengthUnitToString(_defaultImportUnit));
+
+	Pdf3D::PartSummaryBuilder partData;
+	double mmPerWorldUnit = 0.0;
+	bool consistentUnits = !orthographicSpan.isEmpty();
+	for (const int id : _viewportWidget->currentVisibleObjectIds())
+	{
+		SceneMesh* mesh = _viewportWidget->getMeshByIndex(id);
+		if (!mesh)
+			continue;
+
+		partData.addPart(mesh->declaredMaterialName(), mesh->declaredMassKg(), mesh->declaredMassGroup());
+		if (consistentUnits)
+		{
+			const double next = printMillimetersPerWorldUnit(mesh, _sceneGraph, unitSettings);
+			consistentUnits = next > 0.0 && qIsFinite(next) &&
+				(mmPerWorldUnit == 0.0 || qAbs(next - mmPerWorldUnit) <= mmPerWorldUnit * 1e-5);
+			mmPerWorldUnit = next;
+		}
+	}
+	const Pdf3D::PartSummary parts = partData.summary();
+
+	// A calibrated image must cover the entire camera span, including on HiDPI screens.
+	QImage view;
+	QSizeF orthographicSizeMm;
+	if (consistentUnits && mmPerWorldUnit > 0.0)
+	{
+		QSize previewPixels = _viewportWidget->size();
+		if (qMax(previewPixels.width(), previewPixels.height()) > 2048)
+			previewPixels.scale(QSize(2048, 2048), Qt::KeepAspectRatio);
+		view = _viewportWidget->captureSheetImage(previewPixels);
+		if (!view.isNull())
+			orthographicSizeMm = orthographicSpan * mmPerWorldUnit;
+	}
+	if (publish)
+		view = sheets.first().image;
+	else if (view.isNull())
+		view = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
 	if (view.isNull())
 	{
 		QMessageBox::warning(this, tr("Print"), tr("The page could not be prepared for printing."));
 		return;
 	}
-	const int partCount = static_cast<int>(_viewportWidget->currentVisibleObjectIds().size());
-	QPrinter printer(QPrinter::HighResolution);
-	PrintDialog dialog(printer, view, partCount, defaultTitle, declaredPartNumber(), this);
+	const int partCount = parts.parts;
+	QPrinter previewPrinter(QPrinter::HighResolution);
+	previewPrinter.setOutputFormat(QPrinter::PdfFormat);
+	PrintDialog dialog(previewPrinter, view, parts, defaultTitle, declaredPartNumber(), orthographicSizeMm,
+		openSavedSheetByDefault(), this, sheets);
 	if (dialog.exec() != QDialog::Accepted)
 		return;
-	const Pdf3D::Pdf3DOptions options = dialog.options();
+	const QPageLayout layout = previewPrinter.pageLayout();
+	const Pdf3D::Pdf3DOptions options = dialog.options(layout.orientation());
+	const QSizeF modelSizeMm = dialog.modelSizeMm();
+	bool usedViewportFallback = false;
+	const auto outputImage = [&](const QPageLayout& paper, const Pdf3D::Pdf3DOptions& sheetOptions) {
+		const QSize pixels = PrintPage::rasterSize(paper.paintRect(QPageLayout::Point).size(), dialog.imageDpi(),
+			dialog.useTemplate(), sheetOptions, partCount, view.size(), modelSizeMm);
+		if (pixels.isEmpty())
+			return QImage();
+		if (pixels == view.size())
+			return view;
+		if (pixels.width() <= view.width() && pixels.height() <= view.height())
+			return view.scaled(pixels, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+		if (canRenderOffscreen && (modelSizeMm.isEmpty() || _viewportWidget->sheetOrthographicSpan() == orthographicSpan))
+		{
+			const QImage captured = _viewportWidget->captureSheetImage(pixels);
+			if (!captured.isNull())
+				return captured;
+		}
+		usedViewportFallback = true;
+		return view;
+	};
+
+	if (dialog.output() != PrintDialog::Output::Printer)
+	{
+		const QString suggestedName = defaultTitle.isEmpty() ? tr("Model") : defaultTitle;
+		const bool svg = dialog.output() == PrintDialog::Output::Svg;
+		const QString caption = svg ? tr("Save as SVG") : tr("Save as PDF");
+		QFileDialog saveDialog(this, caption, QString(), svg ? tr("SVG files (*.svg)") : tr("PDF files (*.pdf)"));
+		saveDialog.setAcceptMode(QFileDialog::AcceptSave);
+		saveDialog.setDefaultSuffix(svg ? QStringLiteral("svg") : QStringLiteral("pdf"));
+		saveDialog.selectFile(suggestedName);
+		if (saveDialog.exec() != QDialog::Accepted || saveDialog.selectedFiles().isEmpty())
+			return;
+		const QString path = saveDialog.selectedFiles().first();
+
+		QString error;
+		const auto format = svg ? PrintPage::FileFormat::Svg : PrintPage::FileFormat::Pdf;
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+		const bool saved = publish
+			? PrintPage::saveSheets(path, layout, dialog.useTemplate(), options, partCount, sheets, &error)
+			: PrintPage::saveFile(path, format, layout, dialog.useTemplate(), options, partCount,
+				outputImage(layout, options), &error, modelSizeMm);
+		QApplication::restoreOverrideCursor();
+		if (!saved)
+		{
+			QMessageBox::warning(this, caption, error);
+			return;
+		}
+		const QString status = svg ? tr("Saved SVG") : tr("Saved PDF");
+		MainWindow::showStatusMessage(usedViewportFallback ? tr("%1 using viewport resolution").arg(status) : status, 4000);
+		handleSavedSheet(this, path, svg ? QLatin1String("svg") : QLatin1String("pdf"), dialog.openAfterSaving());
+		return;
+	}
+
+	QPrinter printer(QPrinter::HighResolution);
+	if (!printer.isValid() || printer.outputFormat() != QPrinter::NativeFormat)
+	{
+		QMessageBox::warning(this, tr("Print"), tr("No printer is available. Use Save as PDF to create a copy."));
+		return;
+	}
 	printer.setDocName(options.title.isEmpty() ? defaultTitle : options.title);
+	printer.setPageSize(layout.pageSize());
+	printer.setPageOrientation(layout.orientation());
+	printer.setPageMargins(layout.margins(), layout.units());
 
 	QPrintDialog printDialog(&printer, this);
 	printDialog.setWindowTitle(tr("Print"));
+	if (publish)
+	{
+		printDialog.setMinMax(1, static_cast<int>(sheets.size()));
+		printDialog.setOption(QAbstractPrintDialog::PrintPageRange);
+	}
 	if (printDialog.exec() != QDialog::Accepted)
 		return;
 
+#ifdef Q_OS_WIN
+	// Use Qt's glyph-outline fallback for native Windows printing. Sending glyph IDs
+	// through GDI can produce the wrong characters when the driver resolves the font.
+	if (printer.outputFormat() == QPrinter::NativeFormat)
+		printer.setFontEmbeddingEnabled(false);
+#endif
+
 	QApplication::setOverrideCursor(Qt::WaitCursor);
-	const QSizeF pagePt = printer.pageLayout().fullRect(QPageLayout::Point).size();
-	const QImage page = PrintPage::render(pagePt, dialog.dpi(), dialog.useTemplate(), options, partCount, view);
-
-	const QSize printableSize = printer.pageLayout().paintRectPixels(printer.resolution()).size();
-	if (page.isNull() || printableSize.isEmpty())
+	const QPageLayout printerLayout = printer.pageLayout();
+	const Pdf3D::Pdf3DOptions printerOptions = dialog.options(printerLayout.orientation());
+	if (publish)
 	{
+		const bool ranged = printer.printRange() == QPrinter::PageRange;
+		const int first = ranged ? qMax(1, printer.fromPage()) : 1;
+		const int last = ranged ? printer.toPage() : 0;
+		const bool printed = PrintPage::paintSheets(printer, printer.resolution(), dialog.useTemplate(),
+			printerOptions, partCount, sheets, first, last);
 		QApplication::restoreOverrideCursor();
-		QMessageBox::warning(this, tr("Print"), tr("The page could not be prepared for printing."));
+		if (printed)
+			MainWindow::showStatusMessage(tr("Sent to the printer"), 4000);
+		else
+			QMessageBox::warning(this, tr("Print"), tr("The sheets could not be printed."));
 		return;
 	}
-
+	const QImage image = outputImage(printerLayout, printerOptions);
+	if (image.isNull())
+	{
+		QApplication::restoreOverrideCursor();
+		QMessageBox::warning(this, tr("Print"), modelSizeMm.isEmpty() ? tr("The page could not be prepared for printing.")
+			: tr("The current view does not fit the printer's paper at the selected scale."));
+		return;
+	}
 	QPainter painter(&printer);
-	if (!painter.isActive())
+	const bool drawn = PrintPage::paint(painter, printerLayout.paintRect(QPageLayout::Point).size(),
+		printer.resolution(), dialog.useTemplate(), printerOptions, partCount, image, modelSizeMm);
+	if (!drawn && painter.isActive())
+		printer.abort();
+	const bool finished = painter.isActive() && painter.end();
+	QApplication::restoreOverrideCursor();
+	if (!drawn || !finished)
 	{
-		QApplication::restoreOverrideCursor();
-		QMessageBox::warning(this, tr("Print"), tr("The printer could not be started."));
+		QMessageBox::warning(this, tr("Print"), tr("The page could not be printed."));
 		return;
 	}
-	PrintPage::paint(painter, printableSize, page);
-	painter.end();
-	QApplication::restoreOverrideCursor();
-	MainWindow::showStatusMessage(tr("Sent to the printer"), 3000);
+	MainWindow::showStatusMessage(usedViewportFallback ? tr("Sent to the printer using viewport resolution")
+		: tr("Sent to the printer"), 4000);
 }
 
 void ModelViewer::exportAs3DPdf(const QString& presetFileName)
@@ -6511,13 +6792,25 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 		sourceNames << fileNode->name;
 	}
 
-	bool hasWireGeometry = false;
+	Pdf3DExportDialog::GeometrySummary geometry;
 	for (unsigned int i = 0; i < exportScene->mNumMeshes; ++i)
 	{
 		if (exportScene->mMeshes[i]->mPrimitiveTypes & (aiPrimitiveType_LINE | aiPrimitiveType_POINT))
 		{
-			hasWireGeometry = true;
+			geometry.omitsWireGeometry = true;
 			break;
+		}
+	}
+	for (unsigned int i = 0; i < exportScene->mNumMaterials && !geometry.omitsTextures; ++i)
+	{
+		const aiMaterial* material = exportScene->mMaterials[i];
+		for (int type = aiTextureType_DIFFUSE; material && type <= AI_TEXTURE_TYPE_MAX; ++type)
+		{
+			if (material->GetTextureCount(static_cast<aiTextureType>(type)) > 0)
+			{
+				geometry.omitsTextures = true;
+				break;
+			}
 		}
 	}
 	Pdf3D::U3dScene u3dScene = Pdf3D::SceneToU3d::build(exportScene, corrections);
@@ -6525,11 +6818,16 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 	if (u3dScene.isEmpty())
 	{
 		QApplication::restoreOverrideCursor();
-		QMessageBox::warning(this, tr("Save as 3D PDF"), hasWireGeometry
+		QMessageBox::warning(this, tr("Save as 3D PDF"), geometry.omitsWireGeometry
 			? tr("The visible model contains only lines or points. 3D PDF export requires triangle meshes.")
 			: tr("There is no visible geometry to export."));
 		return;
 	}
+
+	geometry.meshInstances = u3dScene.nodes.size();
+	geometry.meshResources = u3dScene.meshes.size();
+	for (const Pdf3D::U3dMesh& mesh : u3dScene.meshes)
+		geometry.triangles += mesh.indices.size() / 3;
 
 	// The visible measurements and annotations, each captured for the view it was made from (no drawing involved); the options
 	// dialog lists them and the ticked ones are written into the 3D model as nodes of their own.
@@ -6615,7 +6913,8 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 				entry.spec.sections = { spec.sections[k] };
 				entry.spec.name = tr("%1 (plane %2 of %3)").arg(spec.name).arg(k + 1).arg(spec.sections.size());
 				entry.item.name = entry.spec.name;
-				entry.item.note = tr("one section plane");
+				entry.item.note = tr("One plane from a multi-plane section");
+				entry.item.warning = true;
 				entries.append(entry);
 			}
 			return;
@@ -6635,7 +6934,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 		if (boxClip)
 		{
 			anyBox = true;
-			entry.item.note = tr("box clip not exported");
+			entry.item.note = tr("Box clipping is omitted from the interactive view.");
 			entry.item.warning = true;
 		}
 		entries.append(entry);
@@ -6732,7 +7031,8 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 	QString defaultTitle;
 	if (!_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
-	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, hasWireGeometry, this);
+	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, geometry,
+		openSavedSheetByDefault(), this);
 	optionsDialog.setDeclaredDrawingNumber(declaredPartNumber());   // the model's own part number, when its format has one
 	{
 		// What each exported part declares about its mass and material (the viewer's meshes carry what the source file declared),
@@ -6766,6 +7066,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 		return;
 	Pdf3D::Pdf3DOptions options;
 	optionsDialog.applyTo(options);
+	options.openingView = optionsDialog.openingViewIndex();
 
 	if (options.title.isEmpty())
 		options.title = QFileInfo(fileName).completeBaseName();
@@ -6896,15 +7197,27 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
 	// standard views (Front/Top/...) use the same convention as the viewport.
 	options.upAxis = _viewportWidget->isCameraUpAxisZUp() ? Pdf3D::UpAxis::Z : Pdf3D::UpAxis::Y;
-	options.poster = _viewportWidget->grabFramebuffer();
+	options.poster = _viewportWidget->captureCleanRayTracedImage();
 
-	const Pdf3D::Pdf3DResult result = Pdf3D::Pdf3DExporter::exportToFile(u3dScene, options, fileName);
 	QApplication::restoreOverrideCursor();
+	const Pdf3D::Pdf3DResult result = Pdf3D::exportWithProgress(this, u3dScene, options, fileName);
+	if (result.canceled)
+	{
+		MainWindow::showStatusMessage(tr("3D PDF export canceled"), 3000);
+		return;
+	}
 
 	if (result.ok)
-		QMessageBox::information(this, tr("Save as 3D PDF"),
-			animationNote.isEmpty() ? tr("Saved %1").arg(QFileInfo(fileName).fileName())
-			                        : tr("Saved %1\n\n%2").arg(QFileInfo(fileName).fileName(), animationNote));
+	{
+		const QString message = tr("Saved %1").arg(QFileInfo(fileName).fileName());
+		const bool open = optionsDialog.openAfterSaving();
+		if (open && animationNote.isEmpty())
+			MainWindow::showStatusMessage(message, 4000);
+		else
+			QMessageBox::information(this, tr("Save as 3D PDF"),
+				animationNote.isEmpty() ? message : message + QStringLiteral("\n\n") + animationNote);
+		handleSavedSheet(this, fileName, QLatin1String("pdf"), open);
+	}
 	else
 		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Saving the 3D PDF failed:\n%1").arg(result.error));
 }

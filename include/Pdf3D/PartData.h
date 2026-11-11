@@ -2,6 +2,7 @@
 
 #include "U3dScene.h"
 
+#include <QSet>
 #include <QString>
 #include <QStringList>
 
@@ -20,6 +21,18 @@ struct PartSummary
     double      massKg = 0.0;        // the declared masses added up, each part counted once (see U3dNode::declaredMassGroup)
     QString     material;            // the sheet text; empty when no part declares a material
     QString     mass;                // the sheet text; empty when no part declares a mass
+};
+
+// Counts mesh occurrences and adds each declared mass group once.
+class PartSummaryBuilder
+{
+public:
+    void addPart(const QString& material, double massKg, const QString& massGroup);
+    PartSummary summary() const;
+
+private:
+    PartSummary _counts;
+    QSet<QString> _countedMasses;
 };
 
 PartSummary summarisePartData(const U3dScene& scene);

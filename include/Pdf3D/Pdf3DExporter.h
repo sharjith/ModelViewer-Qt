@@ -1,12 +1,14 @@
 #pragma once
 
 #include "Pdf3DViews.h"
-#include "U3dScene.h"
+#include "U3dWriter.h"
 
 #include <QImage>
 #include <QMap>
 #include <QSet>
 #include <QString>
+
+#include <functional>
 
 // Save as 3D PDF: an A4 landscape drawing sheet (border, title block, 3D area), optionally followed by parts list sheets, written with QPdfWriter,
 // with the model embedded as a Universal 3D stream in a 3D annotation (appended as a PDF incremental update, see
@@ -39,6 +41,7 @@ struct Pdf3DOptions
     QString sceneMass;                 // the same id and a non-empty value takes precedence (the user's own entry)
     QVector<CameraViewSpec> extraViews; // saved camera views, scene states and exploded views, added after the standard views
     QSet<QString> excludedStandardViews; // names (standardViewNames()) of standard views left out of the PDF
+    int openingView = 0;                // zero-based index in the views included in the PDF
     QSet<QString> standardViewsWithoutOverlays; // standard views that hide the measurement and annotation nodes
     AnimationPlayback animationPlayback = AnimationPlayback::Loop;
     bool    animationAutoStart = true;   // start the animation when the 3D content opens (the 3D area is live on opening)
@@ -52,13 +55,32 @@ struct Pdf3DResult
 {
     bool    ok = false;
     QString error;
+    bool    canceled = false;
+};
+
+enum class ExportStage
+{
+    EncodeModel,
+    ComposeSheets,
+    EmbedModel,
+    WriteFile,
+    CommitFile
+};
+
+struct ExportControl
+{
+    std::function<bool(ExportStage)> proceed;
+    std::function<U3dWriteResult(const U3dScene&)> encode;
+    std::function<bool()> isCanceled;
 };
 
 class Pdf3DExporter
 {
 public:
-    // Writes `path`. The scene must contain geometry (U3dScene::isEmpty() false). Not re-entrant, see U3dWriter.
-    static Pdf3DResult exportToFile(const U3dScene& scene, const Pdf3DOptions& options, const QString& path);
+    // Writes `path` atomically. Return false from `proceed` at a stage boundary to cancel.
+    // The last checkpoint runs after writing the temporary output and before replacing the destination.
+    static Pdf3DResult exportToFile(const U3dScene& scene, const Pdf3DOptions& options, const QString& path,
+                                    const ExportControl& control = {});
 };
 
 } // namespace Pdf3D

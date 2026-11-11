@@ -6,12 +6,8 @@
 #include "SheetTemplateEditor.h"
 #include "SheetRenderer.h"
 
+#include <QCheckBox>
 #include <QComboBox>
-#include <QDate>
-#include <algorithm>
-#include <cmath>
-#include <QDateEdit>
-#include <QDoubleSpinBox>
 #include <QDesktopServices>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -19,6 +15,7 @@
 #include <QFileDialog>
 #include <QFormLayout>
 #include <QInputDialog>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QListWidgetItem>
@@ -31,121 +28,52 @@
 #include <QTreeWidgetItem>
 #include <QTreeWidgetItemIterator>
 #include <QUrl>
-
-#include "LanguageManager.h"
+#include <QVBoxLayout>
 
 namespace
 {
 	constexpr int kViewIndexRole = Qt::UserRole;       // the index into the caller's ViewItem list, on the leaf items
+	constexpr int kViewWarningRole = Qt::UserRole + 2;  // a limitation of an included view
 	constexpr int kViewKeyRole = Qt::UserRole + 1;     // "group|name" of a view, to remember its tick state
-	constexpr int kFixedFormRows = 7;                  // title .. notes in the Sheet tab's form; the template's custom fields follow
-
-	// The locale of the application's language: numbers are typed and printed in its style (the system's when no language is loaded).
-	QLocale appLocale()
-	{
-		const QString language = LanguageManager::instance().currentLanguage();
-		return language.isEmpty() ? QLocale() : QLocale(language);
-	}
-
-	// The box of a number field: a spin box in the application's language style with the field's decimals, limits and unit. It can also be
-	// empty (nothing is printed): the lowest position, one step below the minimum, stands for that and shows nothing, and the first step up
-	// from it goes to 0 (or to the minimum when that is above 0), not to the minimum of a field without limits.
-	class SheetNumberBox : public QDoubleSpinBox
-	{
-	public:
-		SheetNumberBox(const Pdf3D::SheetField& field, const QLocale& locale, QWidget* parent = nullptr)
-			: QDoubleSpinBox(parent)
-			, _minimum(field.minimum)
-			, _maximum(field.maximum)
-			, _unit(field.unit)
-		{
-			setLocale(locale);
-			setDecimals(field.decimals);
-			_step = std::pow(10.0, -field.decimals);
-			setRange(_minimum - _step, _maximum);
-			setSingleStep(std::max(_step, std::min(1.0, (_maximum - _minimum) / 10.0)));
-			setSpecialValueText(QStringLiteral(" "));
-			setGroupSeparatorShown(false);
-			if (!field.unit.isEmpty())
-				setSuffix(QLatin1Char(' ') + field.unit);
-			setEmpty();
-		}
-
-		bool isEmptyValue() const { return value() < _minimum - _step * 0.5; }
-		void setEmpty() { setValue(_minimum - _step); }
-		QString unitText() const { return _unit; }
-		void stepBy(int steps) override
-		{
-			if (isEmptyValue())
-				setValue(std::clamp(0.0, _minimum, _maximum));
-			else
-				QDoubleSpinBox::stepBy(steps);
-		}
-
-	protected:
-		// text with nothing in it but the unit is "empty": it is accepted, so the number can be deleted to print nothing
-		bool isBlankText(const QString& text) const
-		{
-			QString core = text;
-			core.remove(prefix());
-			core.remove(suffix());
-			return core.trimmed().isEmpty();
-		}
-		QValidator::State validate(QString& input, int& pos) const override
-		{
-			return isBlankText(input) ? QValidator::Acceptable : QDoubleSpinBox::validate(input, pos);
-		}
-		double valueFromText(const QString& text) const override
-		{
-			return isBlankText(text) ? _minimum - _step : QDoubleSpinBox::valueFromText(text);
-		}
-
-	private:
-		double _minimum, _maximum, _step = 0.01;
-		QString _unit;
-	};
-
-	// The text of a custom field's editor, whatever its type. A number box gives the number as the sheet prints it (`formatted`) or, for
-	// what is remembered, in the plain form with a point; empty when it is empty.
-	QString editorValue(const QWidget* editor, const QLocale& locale, bool formatted)
-	{
-		if (const auto* number = dynamic_cast<const SheetNumberBox*>(editor))
-		{
-			if (number->isEmptyValue())
-				return QString();
-			if (!formatted)
-				return QLocale::c().toString(number->value(), 'f', number->decimals());
-			Pdf3D::SheetField field;
-			field.decimals = number->decimals();
-			field.unit = number->unitText();
-			return Pdf3D::formatSheetNumber(field, number->value(), locale);
-		}
-		if (const auto* line = qobject_cast<const QLineEdit*>(editor))
-			return line->text().trimmed();
-		if (const auto* plain = qobject_cast<const QPlainTextEdit*>(editor))
-			return plain->toPlainText().trimmed();
-		if (const auto* combo = qobject_cast<const QComboBox*>(editor))
-			return combo->currentText();
-		if (const auto* date = qobject_cast<const QDateEdit*>(editor))
-			return date->date().toString(Qt::ISODate);
-		return QString();
-	}
 }
 
 Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
-	const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations, bool omitsWireGeometry, QWidget* parent)
+	const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations,
+	const GeometrySummary& geometry, bool openAfterSaving, QWidget* parent)
 	: QDialog(parent)
 	, ui(std::make_unique<Ui::Pdf3DExportDialog>())
 	, _viewCount(views.size())
 	, _overlayCount(overlays.size())
+	, _geometry(geometry)
 {
 	ui->setupUi(this);
-	if (omitsWireGeometry)
-	{
-		auto* notice = new QLabel(tr("The interactive model omits visible line and point meshes. The poster image may still show them."), this);
-		notice->setWordWrap(true);
-		ui->verticalLayout->insertWidget(0, notice);
-	}
+	_openAfterSaving = new QCheckBox(tr("Open 3D PDF after saving"), this);
+	_openAfterSaving->setChecked(openAfterSaving);
+	ui->verticalLayout->insertWidget(ui->verticalLayout->indexOf(ui->buttonBox), _openAfterSaving);
+
+	auto* review = new QWidget(ui->tabWidget);
+	auto* reviewLayout = new QVBoxLayout(review);
+	_reviewSummary = new QLabel(review);
+	_reviewSummary->setTextFormat(Qt::PlainText);
+	_reviewSummary->setWordWrap(true);
+	_reviewSummary->setTextInteractionFlags(Qt::TextSelectableByMouse);
+	reviewLayout->addWidget(_reviewSummary);
+
+	auto* openingForm = new QFormLayout;
+	_openingView = new QComboBox(review);
+	_openingView->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+	_openingView->setMinimumContentsLength(28);
+	openingForm->addRow(tr("Opening 3D view:"), _openingView);
+	reviewLayout->addLayout(openingForm);
+	auto* coverNote = new QLabel(tr("The cover image uses the current viewport. The opening view takes effect when the interactive model activates."), review);
+	coverNote->setWordWrap(true);
+	reviewLayout->addWidget(coverNote);
+	reviewLayout->addStretch();
+	ui->tabWidget->addTab(review, tr("Review"));
+	_reviewNotice = new QPushButton(tr("Review export limitations"), this);
+	_reviewNotice->setAutoDefault(false);
+	ui->verticalLayout->insertWidget(0, _reviewNotice, 0, Qt::AlignLeft);
+	connect(_reviewNotice, &QPushButton::clicked, this, [this, review] { ui->tabWidget->setCurrentWidget(review); });
 
 	QSettings settings;
 	restoreGeometry(settings.value(QStringLiteral("pdf3d/dialogGeometry2")).toByteArray());
@@ -221,6 +149,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 		item->setFlags(item->flags() | Qt::ItemIsUserCheckable);
 		const QString key = view.group + QLatin1Char('|') + view.name;
 		item->setData(0, kViewKeyRole, key);
+		item->setData(0, kViewWarningRole, view.warning);
 		item->setCheckState(0, uncheckedViews.contains(key) ? Qt::Unchecked : Qt::Checked);
 		item->setData(0, kViewIndexRole, i);
 		item->setCheckState(2, (view.overlays && !noOverlayViews.contains(key)) ? Qt::Checked : Qt::Unchecked);   // show the measurements and annotations in this view
@@ -292,6 +221,10 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 		ui->animationIntroLabel->setText(tr("This model has no animation that moves parts. Make one in the Animations panel, or with Create Animation in the Exploded View panel, and it will be listed here."));
 	ui->playbackCombo->setEnabled(!animations.isEmpty());
 	ui->autoStartCheck->setEnabled(!animations.isEmpty());
+	connect(ui->overlayTree, &QTreeWidget::itemChanged, this, [this] { updateReview(); });
+	connect(ui->animationList, &QListWidget::currentRowChanged, this, [this] { updateReview(); });
+	connect(ui->partsListCheck, &QCheckBox::toggled, this, [this] { updateReview(); });
+	connect(ui->viewButtonsCheck, &QCheckBox::toggled, this, [this] { updateReview(); });
 	updateOkEnabled();
 }
 
@@ -412,69 +345,7 @@ void Pdf3DExportDialog::applyTemplateSelection()
 		r.edit->setVisible(show);
 	}
 
-	// the template's own fields, below the standard ones; the last values used with this template come back
-	while (ui->formLayout->rowCount() > kFixedFormRows)
-		ui->formLayout->removeRow(ui->formLayout->rowCount() - 1);
-	_customFields.clear();
-	const QSettings settings;
-	const QLocale locale = appLocale();
-	for (const Pdf3D::SheetField& f : t.fields)
-	{
-		const QString stored = settings.value(QStringLiteral("pdf3d/templates/%1/%2").arg(t.id, f.id), f.defaultValue).toString();
-		QWidget* editor = nullptr;
-		if (f.type == QLatin1String("multiline"))
-		{
-			auto* e = new QPlainTextEdit;
-			e->setMinimumHeight(60);
-			e->setPlainText(stored);
-			editor = e;
-		}
-		else if (f.type == QLatin1String("date"))
-		{
-			const QDate fallback = QDate::fromString(f.defaultValue, Qt::ISODate);
-			auto* e = new QDateEdit(fallback.isValid() ? fallback : QDate::currentDate());
-			e->setCalendarPopup(true);
-			e->setDisplayFormat(QStringLiteral("yyyy-MM-dd"));
-			editor = e;
-		}
-		else if (f.type == QLatin1String("choice"))
-		{
-			auto* e = new QComboBox;
-			e->addItems(f.options);
-			const int i = e->findText(stored);
-			if (i >= 0)
-				e->setCurrentIndex(i);
-			editor = e;
-		}
-		else if (f.type == QLatin1String("number"))
-		{
-			// a spin box in the language's style; what was used last time comes back (empty stays empty), the first time the default does
-			const QString key = QStringLiteral("pdf3d/templates/%1/%2").arg(t.id, f.id);
-			auto* e = new SheetNumberBox(f, locale);
-			double remembered = 0.0;
-			if (Pdf3D::parseSheetNumber(settings.contains(key) ? stored : f.defaultValue, QLocale::c(), &remembered)
-				|| (settings.contains(key) && Pdf3D::parseSheetNumber(stored, locale, &remembered)))
-				e->setValue(std::clamp(remembered, f.minimum, f.maximum));
-			e->setToolTip(tr("A number. Leave it empty to print nothing; %1 decimals%2.").arg(f.decimals).arg(f.unit.isEmpty() ? QString() : tr(", unit %1").arg(f.unit)));
-			editor = e;
-		}
-		else
-		{
-			editor = new QLineEdit(stored);
-		}
-		ui->formLayout->addRow(f.label + QLatin1Char(':'), editor);
-		_customFields.insert(f.id, editor);
-		if (const auto* line = qobject_cast<QLineEdit*>(editor))
-			connect(line, &QLineEdit::textChanged, this, [this]() { updatePreview(); });
-		else if (const auto* spin = qobject_cast<QDoubleSpinBox*>(editor))
-			connect(spin, &QDoubleSpinBox::valueChanged, this, [this]() { updatePreview(); });
-		else if (const auto* plain = qobject_cast<QPlainTextEdit*>(editor))
-			connect(plain, &QPlainTextEdit::textChanged, this, [this]() { updatePreview(); });
-		else if (const auto* combo = qobject_cast<QComboBox*>(editor))
-			connect(combo, &QComboBox::currentIndexChanged, this, [this]() { updatePreview(); });
-		else if (const auto* date = qobject_cast<QDateEdit*>(editor))
-			connect(date, &QDateEdit::dateChanged, this, [this]() { updatePreview(); });
-	}
+	_customFields.rebuild(*ui->formLayout, t, this, [this] { updatePreview(); });
 
 	const bool isUser = t.id.startsWith(QLatin1String("user:"));
 	ui->editTemplateButton->setEnabled(true);   // a built-in template can be edited too, then saved under a new name
@@ -531,7 +402,7 @@ void Pdf3DExportDialog::editTemplate()
 	const int index = ui->templateCombo->currentIndex();
 	if (index < 0 || index >= _templates.size())
 		return;
-	Pdf3D::SheetTemplateEditor editor(_templates[index], currentSheetValues(), Pdf3D::userSheetTemplateFolder(), appLocale(), this);
+	Pdf3D::SheetTemplateEditor editor(_templates[index], currentSheetValues(), Pdf3D::userSheetTemplateFolder(), Pdf3D::sheetFieldLocale(), this);
 	if (editor.exec() == QDialog::Accepted && !editor.savedTemplateId().isEmpty())
 		reloadTemplates(editor.savedTemplateId());
 }
@@ -550,9 +421,7 @@ void Pdf3DExportDialog::applyTo(Pdf3D::Pdf3DOptions& options) const
 	options.templateId = currentTemplateId();
 	options.sceneMaterial = _sampleMaterial;
 	options.sceneMass = _sampleMass;
-	options.fieldValues.clear();
-	for (auto it = _customFields.constBegin(); it != _customFields.constEnd(); ++it)
-		options.fieldValues.insert(it.key(), editorValue(it.value(), appLocale(), true));
+	options.fieldValues = _customFields.values();
 }
 
 QVector<bool> Pdf3DExportDialog::viewSelection() const
@@ -565,6 +434,18 @@ QVector<bool> Pdf3DExportDialog::viewSelection() const
 			selection[index.toInt()] = ((*it)->checkState(0) == Qt::Checked);
 	}
 	return selection;
+}
+
+int Pdf3DExportDialog::openingViewIndex() const
+{
+	// The first combo item means "first included view". The remaining entries
+	// are the checked views in the same order the exporter emits them.
+	return qMax(0, _openingView->currentIndex() - 1);
+}
+
+bool Pdf3DExportDialog::openAfterSaving() const
+{
+	return _openAfterSaving->isChecked();
 }
 
 int Pdf3DExportDialog::selectedAnimation() const
@@ -609,34 +490,83 @@ QVector<bool> Pdf3DExportDialog::overlaySelection() const
 
 void Pdf3DExportDialog::setAllOverlaysChecked(bool checked)
 {
+	const QSignalBlocker blocker(ui->overlayTree);
 	for (QTreeWidgetItemIterator it(ui->overlayTree); *it; ++it)
 	{
 		if ((*it)->data(0, kViewIndexRole).isValid())
 			(*it)->setCheckState(0, checked ? Qt::Checked : Qt::Unchecked);
 	}
+	updateReview();
 }
 
 void Pdf3DExportDialog::setAllViewsChecked(bool checked)
 {
+	const QSignalBlocker blocker(ui->viewsTree);
 	for (QTreeWidgetItemIterator it(ui->viewsTree); *it; ++it)
 	{
 		if ((*it)->data(0, kViewIndexRole).isValid())
 			(*it)->setCheckState(0, checked ? Qt::Checked : Qt::Unchecked);
 	}
+	updateOkEnabled();
 }
 
 void Pdf3DExportDialog::updateOkEnabled()
 {
-	// the PDF needs at least one view
-	const QVector<bool> selection = viewSelection();
-	bool any = false;
-	for (const bool b : selection)
-		any = any || b;
+	const QVariant oldSelection = _openingView->currentData();
+	const QSignalBlocker blocker(_openingView);
+	_openingView->clear();
+	_openingView->addItem(tr("First included view"), -1);
+	for (QTreeWidgetItemIterator it(ui->viewsTree); *it; ++it)
+	{
+		const auto* item = *it;
+		const QVariant index = item->data(0, kViewIndexRole);
+		if (index.isValid() && item->checkState(0) == Qt::Checked)
+			_openingView->addItem(tr("%1 (%2)").arg(item->text(0), item->parent()->text(0)), index);
+	}
+	_openingView->setCurrentIndex(qMax(0, _openingView->findData(oldSelection)));
+	const bool any = _openingView->count() > 1;
+	_openingView->setEnabled(any);
 	if (QPushButton* ok = ui->buttonBox->button(QDialogButtonBox::Ok))
 	{
 		ok->setEnabled(any);
 		ok->setToolTip(any ? QString() : tr("Tick at least one view."));
 	}
+	updateReview();
+}
+
+void Pdf3DExportDialog::updateReview()
+{
+	const QLocale locale;
+	QStringList lines;
+	lines << tr("Visible geometry: %1 mesh instances, %2 mesh resources, %3 triangles across those resources.")
+		.arg(locale.toString(qlonglong(_geometry.meshInstances)), locale.toString(qlonglong(_geometry.meshResources)),
+		     locale.toString(_geometry.triangles));
+
+	qsizetype overlays = 0;
+	for (const bool enabled : overlaySelection())
+		overlays += enabled;
+	lines << tr("Included: %1 views, %2 measurements or annotations.").arg(_openingView->count() - 1).arg(overlays);
+	lines << (ui->partsListCheck->isChecked() ? tr("Parts list: included.") : tr("Parts list: off."));
+	lines << (ui->viewButtonsCheck->isChecked() ? tr("View buttons: on.") : tr("View buttons: off."));
+	lines << tr("Animation: %1").arg(ui->animationList->currentItem() ? ui->animationList->currentItem()->text() : tr("None"));
+
+	QStringList limitations;
+	if (_geometry.omitsWireGeometry)
+		limitations << tr("Lines and points appear only in the cover image if visible there.");
+	if (_geometry.omitsTextures)
+		limitations << tr("The interactive model uses material colors. Texture maps appear only in the cover image if visible there.");
+	if (_geometry.meshInstances >= 5000 || _geometry.triangles >= 500000)
+		limitations << tr("This is a large export. Creating and opening the interactive model may take longer.");
+	for (QTreeWidgetItemIterator it(ui->viewsTree); *it; ++it)
+	{
+		if ((*it)->checkState(0) == Qt::Checked && (*it)->data(0, kViewWarningRole).toBool())
+			limitations << (*it)->text(1);
+	}
+	limitations.removeDuplicates();
+	if (!limitations.isEmpty())
+		lines << QString() << tr("Export limitations") << limitations;
+	_reviewSummary->setText(lines.join(QLatin1Char('\n')));
+	_reviewNotice->setVisible(!limitations.isEmpty());
 }
 
 void Pdf3DExportDialog::done(int result)
@@ -653,12 +583,7 @@ void Pdf3DExportDialog::done(int result)
 		settings.setValue(QStringLiteral("pdf3d/partsList"), ui->partsListCheck->isChecked());
 		settings.setValue(QStringLiteral("pdf3d/viewButtons"), ui->viewButtonsCheck->isChecked());
 		settings.setValue(QStringLiteral("pdf3d/template"), currentTemplateId());
-		// the custom fields of the chosen template (a date is always today's unless the template says otherwise)
-		for (auto it = _customFields.constBegin(); it != _customFields.constEnd(); ++it)
-		{
-			if (!qobject_cast<const QDateEdit*>(it.value()))
-				settings.setValue(QStringLiteral("pdf3d/templates/%1/%2").arg(currentTemplateId(), it.key()), editorValue(it.value(), appLocale(), false));
-		}
+		_customFields.save();
 		// the view selection: forget what this list showed, then remember what is unticked in it (views of other documents stay)
 		QStringList unchecked = settings.value(QStringLiteral("pdf3d/viewsUnchecked")).toStringList();
 		QStringList noOverlays = settings.value(QStringLiteral("pdf3d/viewsWithoutMeasurements")).toStringList();

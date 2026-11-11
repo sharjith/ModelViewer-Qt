@@ -94,6 +94,7 @@ add_executable(pdf3d_tests
     pdf3d_tests.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/U3dScene.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/U3dWriter.cpp
+    ${CMAKE_SOURCE_DIR}/src/Pdf3D/U3dWorker.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/SceneToU3d.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/PdfAppender.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/Pdf3DViews.cpp
@@ -103,6 +104,7 @@ add_executable(pdf3d_tests
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/SheetRenderer.cpp
     ${CMAKE_SOURCE_DIR}/src/Pdf3D/PartData.cpp
     ${CMAKE_SOURCE_DIR}/src/Print/PrintPage.cpp
+    ${CMAKE_SOURCE_DIR}/src/Print/PrintPreset.cpp
 )
 target_include_directories(pdf3d_tests PRIVATE ${CMAKE_SOURCE_DIR}/include/Pdf3D ${CMAKE_SOURCE_DIR}/include/Scene ${CMAKE_SOURCE_DIR}/include/Print)
 target_link_libraries(pdf3d_tests PRIVATE Qt6::Core Qt6::Gui Qt6::Svg assimp::assimp u3d::idtf)

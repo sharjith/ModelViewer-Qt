@@ -17,7 +17,8 @@ struct U3dWriteResult
 {
     bool       ok = false;
     QByteArray data;     // the .u3d file contents
-    QString    error;    // set when ok is false
+    QString    error;    // set on failure
+    bool       canceled = false;
 };
 
 class U3dWriter
@@ -27,9 +28,11 @@ public:
     // (if given) lists the absent file names.
     static bool modulesAvailable(QStringList* missing = nullptr);
 
-    // Converts the scene. Not re-entrant: the library's COM layer is initialised and shut down per call, so call it from one
-    // thread at a time.
+    // Converts the scene. Calls serialize access to the library's shared state.
     static U3dWriteResult write(const U3dScene& scene);
+
+    // Encodes directly to a caller-owned temporary file. An empty return value means success.
+    static QString writeTemporaryFile(const U3dScene& scene, const QString& path);
 };
 
 } // namespace Pdf3D

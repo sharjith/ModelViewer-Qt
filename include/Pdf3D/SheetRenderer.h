@@ -10,8 +10,8 @@
 class QPainter;
 
 // Drawing and layout of the 2D sheet around the 3D area, shared by the exporter (Pdf3DExporter.cpp) and the template preview, so the
-// preview shows exactly what the PDF gets. Everything is in points; the painter's device must be 72 dpi (a QPdfWriter at 72 dpi, or
-// a QImage with 72 dpi dots per metre) so that font sizes and text measurements agree between the two.
+// preview shows exactly what the PDF gets. Everything is in points. Set the painter's world transform so one world unit equals one point;
+// font sizes are normalized to that coordinate system.
 namespace Pdf3D
 {
 

@@ -6,6 +6,8 @@
 #include <QVector>
 #include <QVector3D>
 
+#include <functional>
+
 // In-memory scene description for the Save as 3D PDF export. Plain data (no Assimp, no u3d types): SceneToU3d.* fills it from
 // the application's export scene, U3dWriter.* turns it into a Universal 3D (.u3d) byte stream, Pdf3DExporter.* embeds that
 // stream in a PDF. See research/3dpdf/3D_PDF_EXPORT_RESEARCH.md (sections 8 and 9).
@@ -84,8 +86,8 @@ struct U3dScene
 
     bool isEmpty() const { return nodes.isEmpty() || meshes.isEmpty(); }
 
-    // World-space axis aligned bounds of all nodes. Returns false when the scene has no geometry.
-    bool computeBounds(QVector3D* outMin, QVector3D* outMax) const;
+    // World-space axis aligned bounds of all nodes. Returns false for an empty scene or after cancellation.
+    bool computeBounds(QVector3D* outMin, QVector3D* outMax, const std::function<bool()>& isCanceled = {}) const;
 };
 
 } // namespace Pdf3D

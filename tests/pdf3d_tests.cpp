@@ -13,8 +13,10 @@
 #include "PartData.h"
 #include "SheetRenderer.h"
 #include "PrintPage.h"
+#include "PrintPreset.h"
 #include "SheetTemplate.h"
 #include "U3dWriter.h"
+#include "U3dWorker.h"
 
 #include <assimp/material.h>
 #include <assimp/mesh.h>
@@ -23,18 +25,25 @@
 #include <QBuffer>
 #include <QCoreApplication>
 #include <QDir>
+#include <QElapsedTimer>
 #include <QFile>
 #include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QPageLayout>
 #include <QPageSize>
 #include <QPainter>
 #include <QPdfWriter>
 #include <QRegularExpression>
+#include <QSaveFile>
+#include <QSettings>
 #include <QStandardPaths>
+#include <QSvgRenderer>
 #include <QTemporaryDir>
+#include <QThread>
 
+#include <algorithm>
 #include <cmath>
 #include <functional>
 #include <cstdio>
@@ -598,6 +607,98 @@ void testU3dWriter()
     CHECK(!Pdf3D::U3dWriter::write(Pdf3D::U3dScene()).ok);   // empty scene is refused, not crashed on
 }
 
+constexpr char kSlowEncoderMarker[] = "MODELVIEWER_TEST_U3D_CANCEL_MARKER";
+
+void testCancelRunningEncoder(const Pdf3D::U3dScene& scene, const QString& folder)
+{
+    const QString marker = QDir(folder).filePath(QStringLiteral("encoder-started.txt"));
+    const QByteArray oldMarker = qgetenv(kSlowEncoderMarker);
+    qputenv(kSlowEncoderMarker, marker.toUtf8().toBase64());
+
+    QElapsedTimer timeout, afterCancel;
+    timeout.start();
+    const auto result = Pdf3D::encodeU3dInWorker(QCoreApplication::applicationFilePath(), scene, [&] {
+        if (QFile::exists(marker))
+        {
+            if (!afterCancel.isValid())
+                afterCancel.start();
+            return true;
+        }
+        return timeout.elapsed() > 10000;
+    });
+
+    if (oldMarker.isNull())
+        qunsetenv(kSlowEncoderMarker);
+    else
+        qputenv(kSlowEncoderMarker, oldMarker);
+    CHECK(afterCancel.isValid() && afterCancel.elapsed() < 4000);
+    CHECK(result.canceled && !result.ok && result.data.isEmpty());
+    QFile file(marker);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const QString workspace = QString::fromUtf8(file.readAll());
+    CHECK(!workspace.isEmpty() && !QDir(workspace).exists());
+}
+
+void testExportCancellation(const Pdf3D::U3dScene& scene, const QString& folder)
+{
+    using namespace Pdf3D;
+    const QString path = QDir(folder).filePath(QStringLiteral("cancel.pdf"));
+    Pdf3DOptions options;
+    options.title = QStringLiteral("Background export");
+    ExportControl earlyControl;
+    earlyControl.proceed = [](ExportStage) { return false; };
+    const auto early = Pdf3DExporter::exportToFile(scene, options, path, earlyControl);
+    CHECK(early.canceled && !early.ok && early.error.isEmpty());
+    CHECK(!QFile::exists(path));
+
+    const QByteArray original("original destination");
+    {
+        QFile file(path);
+        CHECK(file.open(QIODevice::WriteOnly));
+        CHECK(file.write(original) == original.size());
+    }
+
+    const auto readDestination = [&] {
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    };
+
+    // Run the same backend on a worker as the application does. Check that a late cancel
+    // discards the temporary output and that a later job can use the library again.
+    QVector<ExportStage> stages;
+    const auto run = [&](bool cancel) {
+        Pdf3DResult result;
+        const std::unique_ptr<QThread> worker(QThread::create([&] {
+            ExportControl control;
+            control.proceed = [&](ExportStage stage) {
+                stages.append(stage);
+                return !cancel || stage != ExportStage::CommitFile;
+            };
+            control.encode = [](const U3dScene& model) {
+                return encodeU3dInWorker(QCoreApplication::applicationFilePath(), model, {});
+            };
+            result = Pdf3DExporter::exportToFile(scene, options, path, control);
+        }));
+        worker->start();
+        worker->wait();
+        return result;
+    };
+
+    const auto late = run(true);
+    const QVector<ExportStage> expected = {ExportStage::EncodeModel, ExportStage::ComposeSheets,
+        ExportStage::EmbedModel, ExportStage::WriteFile, ExportStage::CommitFile};
+    CHECK(stages == expected);
+    CHECK(late.canceled && !late.ok && late.error.isEmpty());
+    CHECK(readDestination() == original);
+
+    stages.clear();
+    const auto retry = run(false);
+    CHECK(stages == expected);
+    CHECK(retry.ok && !retry.canceled && retry.error.isEmpty());
+    const QByteArray pdf = readDestination();
+    CHECK(pdf.startsWith("%PDF-1.6") && pdf.contains("/Subtype /3D"));
+}
+
 void testFullExport()
 {
     QStringList missing;
@@ -611,10 +712,13 @@ void testFullExport()
     aiScene* scene = makeTriangleScene();
     const Pdf3D::U3dScene u = Pdf3D::SceneToU3d::build(scene);
     delete scene;
+    testCancelRunningEncoder(u, dir.path());
+    testExportCancellation(u, dir.path());
 
     Pdf3D::Pdf3DOptions options;
     options.title = QStringLiteral("Test sheet");
     options.subtitle = QStringLiteral("triangle.glb");
+    options.openingView = 2;
     const QString path = dir.filePath(QStringLiteral("out.pdf"));
     const Pdf3D::Pdf3DResult r = Pdf3D::Pdf3DExporter::exportToFile(u, options, path);
     CHECK(r.ok);
@@ -627,6 +731,7 @@ void testFullExport()
     CHECK(pdf.startsWith("%PDF-1.6") && pdf.size() > 1500);
     CHECK(pdf.contains("/Subtype /3D") && pdf.contains("/Type /3DView") && pdf.endsWith("%%EOF\n"));
     CHECK(pdf.count("/Type /3DView") == 7);
+    CHECK(pdf.contains("/3DV 2 "));
     // view buttons: previous, next and one per view (all seven fit), GoTo3DView actions aimed at the annotation, in an AcroForm;
     // no animation, so no JavaScript
     CHECK(pdf.count("/Subtype /Widget") == 9 && pdf.contains("/AcroForm"));
@@ -805,6 +910,7 @@ void testFullExport()
     CHECK(fTop.open(QIODevice::ReadOnly));
     const QByteArray pdfTop = fTop.readAll();
     CHECK(pdfTop.count("/Type /3DView") == 1 && pdfTop.contains("/XN (Top)"));
+    CHECK(pdfTop.contains("/3DV 0 "));
     onlyTop.excludedStandardViews.insert(QStringLiteral("Top"));
     CHECK(!Pdf3D::Pdf3DExporter::exportToFile(u, onlyTop, dir.filePath(QStringLiteral("none.pdf"))).ok);
 
@@ -1440,8 +1546,6 @@ void testSheetRenderer()
     }
 }
 
-// What the exported parts declare (PartData.h) and how it reaches the sheet: {material} and {mass} come from the parts, the user's own entry in
-// a custom field of the same id wins, and a mass is counted once per part however many meshes the part became.
 void testPrintPageReflow()
 {
     QImage view(32, 32, QImage::Format_RGB32);
@@ -1451,10 +1555,20 @@ void testPrintPageReflow()
     options.templateId = QStringLiteral("builtin:a3-landscape");
     options.drawingNumber = QStringLiteral("DWG-0123");
 
+    const auto render = [&](const QSize& paper, int dpi, const Pdf3D::Pdf3DOptions& pageOptions) {
+        QImage page(paper * (dpi / 72), QImage::Format_RGB32);
+        page.setDotsPerMeterX(qRound(dpi / 0.0254));
+        page.setDotsPerMeterY(qRound(dpi / 0.0254));
+        QPainter painter(&page);
+        const bool drawn = PrintPage::paint(painter, QSizeF(paper), dpi, true, pageOptions, 1, view);
+        painter.end();
+        return drawn ? page : QImage();
+    };
+
     // Reuse the landscape template on portrait, narrower and unusually short sheets.
     for (const QSize paper : {QSize(842, 595), QSize(595, 842), QSize(420, 595), QSize(420, 160)})
     {
-        const QImage page = PrintPage::render(QSizeF(paper), 72, true, options, 1, view);
+        const QImage page = render(paper, 72, options);
         CHECK(!page.isNull() && page.size() == paper);
         if (page.isNull())
             continue;
@@ -1477,10 +1591,282 @@ void testPrintPageReflow()
 
         Pdf3D::Pdf3DOptions blank = options;
         blank.drawingNumber.clear();
-        CHECK(page != PrintPage::render(QSizeF(paper), 72, true, blank, 1, view));
+        CHECK(page != render(paper, 72, blank));
     }
+
+    // Device DPI should change the number of pixels a label occupies, while its physical size stays the same.
+    Pdf3D::Pdf3DOptions blank = options;
+    blank.drawingNumber.clear();
+    const auto labelBounds = [&](int dpi) {
+        const QSize paper(595, 842);
+        const QImage withLabel = render(paper, dpi, options);
+        const QImage withoutLabel = render(paper, dpi, blank);
+        QRect bounds;
+        for (int y = 0; y < withLabel.height(); ++y)
+        {
+            const auto* with = reinterpret_cast<const QRgb*>(withLabel.constScanLine(y));
+            const auto* without = reinterpret_cast<const QRgb*>(withoutLabel.constScanLine(y));
+            for (int x = 0; x < withLabel.width(); ++x)
+                if (with[x] != without[x])
+                    bounds |= QRect(x, y, 1, 1);
+        }
+        return bounds;
+    };
+    const QRect at72 = labelBounds(72);
+    const QRect at144 = labelBounds(144);
+    CHECK(at72.isValid() && at144.isValid());
+    CHECK(qAbs(at72.width() * 2 - at144.width()) <= 8);
+    CHECK(qAbs(at72.height() * 2 - at144.height()) <= 4);
 }
 
+void testPrintTemplateCompanion()
+{
+    using namespace Pdf3D;
+    SheetTemplate landscape = builtInSheetTemplates().first();
+    landscape.id = QStringLiteral("user:landscape");
+    landscape.name = QStringLiteral("Landscape primary");
+
+    SheetTemplate portrait = landscape;
+    portrait.id = QStringLiteral("user:portrait");
+    portrait.name = QStringLiteral("Portrait companion");
+    portrait.landscape = false;
+    portrait = scaleSheetTemplateWidth(portrait, sheetBlockWidthPt(portrait) / sheetBlockWidthPt(landscape));
+    portrait.printCompanionId = landscape.id;
+    landscape.printCompanionId = portrait.id;
+
+    SheetTemplate restored;
+    QString error;
+    CHECK(parseSheetTemplate(sheetTemplateToJson(landscape), landscape.id, &restored, &error));
+    CHECK(restored.printCompanionId == portrait.id);
+    CHECK(validateSheetTemplate(portrait, &error));
+
+    const QVector<SheetTemplate> available{restored, portrait};
+    CHECK(printTemplateForOrientation(restored, true, available).id == restored.id);
+    CHECK(printTemplateForOrientation(restored, false, available).id == portrait.id);
+    CHECK(printTemplateForOrientation(portrait, true, available).id == restored.id);
+    CHECK(printTemplateForOrientation(restored, false, {}).id == restored.id);
+
+    SheetTemplate wrongOrientation = portrait;
+    wrongOrientation.landscape = true;
+    CHECK(printTemplateForOrientation(restored, false, {wrongOrientation}).id == restored.id);
+    landscape.printCompanionId = QStringLiteral("portrait.json");
+    CHECK(!validateSheetTemplate(landscape, &error));
+}
+
+void testPrintPresets()
+{
+    QTemporaryDir dir;
+    CHECK(dir.isValid());
+    if (!dir.isValid())
+        return;
+
+    const QMarginsF margins(12.75, 8, 4.5, 9);
+    const QPageSize custom(QSizeF(175.25, 280.5), QPageSize::Millimeter, QString(), QPageSize::ExactMatch);
+    const PrintPreset landscape{QPageLayout(custom, QPageLayout::Landscape, margins, QPageLayout::Millimeter),
+                                QStringLiteral("user:company"), true, 600, 0.2};
+    const PrintPreset portrait{QPageLayout(QPageSize(QPageSize::A4), QPageLayout::Portrait, margins, QPageLayout::Millimeter),
+                               QStringLiteral("builtin:default"), false, 150};
+
+    const QString path = dir.filePath(QStringLiteral("print.ini"));
+    {
+        QSettings settings(path, QSettings::IniFormat);
+        settings.setValue(QStringLiteral("presets"), QVariantMap{
+            {QStringLiteral("Custom / A"), landscape.toSettings()},
+            {QStringLiteral("A4"), portrait.toSettings()}
+        });
+        settings.sync();
+        CHECK(settings.status() == QSettings::NoError);
+    }
+
+    const QSettings settings(path, QSettings::IniFormat);
+    const QVariantMap stored = settings.value(QStringLiteral("presets")).toMap();
+    const auto verify = [&](const QString& name, const PrintPreset& expected) {
+        const auto restored = PrintPreset::fromSettings(stored.value(name).toMap());
+        CHECK(restored.has_value());
+        if (!restored)
+            return;
+        CHECK(restored->paper.isEquivalentTo(expected.paper));
+        CHECK(restored->paper.pageSize().id() == expected.paper.pageSize().id());
+        CHECK(restored->paper.margins(QPageLayout::Millimeter) == margins);
+        CHECK(restored->templateId == expected.templateId && restored->useTemplate == expected.useTemplate);
+        CHECK(restored->imageDpi == expected.imageDpi && restored->scaleRatio == expected.scaleRatio);
+    };
+    verify(QStringLiteral("Custom / A"), landscape);
+    verify(QStringLiteral("A4"), portrait);
+
+    QVariantMap bad = landscape.toSettings();
+    bad.insert(QStringLiteral("marginsMm"), QVariantList{500, 10, 500, 10});
+    CHECK(!PrintPreset::fromSettings(bad));
+    CHECK(!PrintPreset::fromSettings({}));
+}
+
+void testCalibratedPrintScale()
+{
+    const QSizeF pagePt(432, 360);
+    const QSizeF modelMm(100, 50);
+    Pdf3D::Pdf3DOptions options;
+    QImage view(400, 200, QImage::Format_RGB32);
+    view.fill(Qt::red);
+
+    for (const int dpi : {254, 508})
+    {
+        QImage page((pagePt * (dpi / 72.0)).toSize(), QImage::Format_RGB32);
+        QPainter painter(&page);
+        bool tooLarge = true;
+        CHECK(PrintPage::paint(painter, pagePt, dpi, false, options, 1, view, modelMm, &tooLarge));
+        CHECK(!tooLarge);
+        painter.end();
+
+        const auto* row = reinterpret_cast<const QRgb*>(page.constScanLine(page.height() / 2));
+        const int redPixels = std::count(row, row + page.width(), qRgb(255, 0, 0));
+        const int expectedWidth = dpi * 100 / 25.4;
+        CHECK(qAbs(redPixels - expectedWidth) <= 2);
+        const QSize capture = PrintPage::rasterSize(pagePt, dpi, false, options, 1, view.size(), modelMm);
+        CHECK(qAbs(capture.width() - expectedWidth) <= 1);
+    }
+
+    const QSizeF reduced = modelMm * 0.5;
+    CHECK(qAbs(PrintPage::rasterSize(pagePt, 254, false, options, 1, view.size(), reduced).width() - 500) <= 1);
+
+    QImage small(216, 216, QImage::Format_RGB32);
+    QPainter painter(&small);
+    bool tooLarge = false;
+    CHECK(!PrintPage::paint(painter, QSizeF(small.size()), 72, false, options, 1, view, modelMm, &tooLarge));
+    CHECK(tooLarge);
+    CHECK(PrintPage::rasterSize(QSizeF(small.size()), 254, false, options, 1, view.size(), modelMm).isEmpty());
+}
+
+void testPrintCaptureSize()
+{
+    const Pdf3D::Pdf3DOptions options;
+    const QSize view(1600, 800);
+    const QSizeF paper(720, 432);
+    const QSize draft = PrintPage::rasterSize(paper, 150, false, options, 1, view);
+    const QSize normal = PrintPage::rasterSize(paper, 300, false, options, 1, view);
+    CHECK(draft == QSize(1500, 750));
+    CHECK(normal == QSize(3000, 1500));
+
+    const QSize framed = PrintPage::rasterSize(paper, 300, true, options, 1, view);
+    CHECK(!framed.isEmpty() && framed.width() < normal.width());
+    CHECK(qAbs(framed.width() - 2 * framed.height()) <= 2);
+
+    const QSize bounded = PrintPage::rasterSize(QSizeF(3500, 3000), 600, false, options, 1, QSize(1, 1));
+    CHECK(!bounded.isEmpty() && bounded.width() == bounded.height());
+    CHECK(qint64(bounded.width()) * bounded.height() <= 12000000);
+    CHECK(PrintPage::rasterSize({}, 300, false, options, 1, view).isEmpty());
+}
+
+void testStaticPrintPdf()
+{
+    QTemporaryDir dir;
+    CHECK(dir.isValid());
+    if (!dir.isValid())
+        return;
+
+    const QString path = dir.filePath(QStringLiteral("sheet.pdf"));
+    const QPageLayout layout(QPageSize(QPageSize::A4), QPageLayout::Portrait,
+                             QMarginsF(15, 7, 9, 5), QPageLayout::Millimeter);
+    Pdf3D::Pdf3DOptions options;
+    options.title = QStringLiteral("Static sheet");
+    options.drawingNumber = QStringLiteral("DRAWING-1");
+    QImage view(32, 24, QImage::Format_RGB32);
+    view.fill(Qt::red);
+
+    QString error;
+    CHECK(PrintPage::saveFile(path, PrintPage::FileFormat::Pdf, layout, true, options, 1, view, &error));
+    const auto readPdf = [&path] {
+        QFile file(path);
+        return file.open(QIODevice::ReadOnly) ? file.readAll() : QByteArray();
+    };
+    const QByteArray pdf = readPdf();
+    CHECK(pdf.startsWith("%PDF-"));
+    CHECK(pdf.contains("/Subtype /Image"));
+    CHECK(pdf.contains("/Type /Font"));
+    CHECK(!pdf.contains("/Subtype /3D"));
+
+    // Failed export must keep an existing file intact.
+    CHECK(!PrintPage::saveFile(path, PrintPage::FileFormat::Pdf, layout, true, options, 1, QImage(), &error));
+    CHECK(!error.isEmpty());
+    CHECK(readPdf() == pdf);
+}
+
+void testPublishedSheets()
+{
+    QTemporaryDir dir;
+    CHECK(dir.isValid());
+    if (!dir.isValid())
+        return;
+    const QString path = dir.filePath(QStringLiteral("published.pdf"));
+    const QPageLayout paper(QPageSize(QPageSize::A4), QPageLayout::Portrait,
+                            QMarginsF(7, 11, 15, 8), QPageLayout::Millimeter);
+    Pdf3D::Pdf3DOptions options;
+    options.title = QStringLiteral("Publish sheets");
+    QImage view(64, 32, QImage::Format_RGB32);
+    view.fill(Qt::blue);
+    QVector<PrintPage::Sheet> sheets{{QStringLiteral("Assembly"), view},
+                                     {QStringLiteral("Detail"), view},
+                                     {QStringLiteral("Section"), view}};
+    QString error;
+    CHECK(PrintPage::saveSheets(path, paper, true, options, 1, sheets, &error));
+    QFile file(path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const QByteArray original = file.readAll();
+    file.close();
+    CHECK(QRegularExpression(QStringLiteral("/Count\\s+3\\b")).match(QString::fromLatin1(original)).hasMatch());
+
+    sheets[1].image = QImage();
+    CHECK(!PrintPage::saveSheets(path, paper, true, options, 1, sheets, &error));
+    CHECK(file.open(QIODevice::ReadOnly));
+    CHECK(file.readAll() == original);
+}
+
+void testStaticPrintSvg()
+{
+    QTemporaryDir dir;
+    CHECK(dir.isValid());
+    if (!dir.isValid())
+        return;
+
+    const QString path = dir.filePath(QStringLiteral("sheet.svg"));
+    const QPageLayout layout(QPageSize(QPageSize::A4), QPageLayout::Portrait,
+                             QMarginsF(15, 7, 9, 5), QPageLayout::Millimeter);
+    Pdf3D::Pdf3DOptions options;
+    options.title = QStringLiteral("SVG sheet");
+    options.drawingNumber = QStringLiteral("SVG-0123");
+    QImage view(32, 24, QImage::Format_RGB32);
+    view.fill(Qt::red);
+
+    QString error;
+    CHECK(PrintPage::saveFile(path, PrintPage::FileFormat::Svg, layout, true, options, 1, view, &error));
+    QFile file(path);
+    CHECK(file.open(QIODevice::ReadOnly));
+    const QByteArray svg = file.readAll();
+    file.close();
+    QSvgRenderer renderer(svg);
+    CHECK(renderer.isValid());
+    CHECK(renderer.viewBoxF() == layout.fullRect(QPageLayout::Point));
+    CHECK(svg.contains("<text") && svg.contains("SVG-0123"));
+    CHECK(svg.contains("data:image/png;base64,"));
+    CHECK(svg.contains("<rect"));
+
+    // In plain mode the image fills the printable width while leaving the chosen physical margins.
+    CHECK(PrintPage::saveFile(path, PrintPage::FileFormat::Svg, layout, false, options, 1, view, &error));
+    CHECK(renderer.load(path));
+    const QRectF printable = layout.paintRect(QPageLayout::Point);
+    QImage paper(layout.fullRect(QPageLayout::Point).size().toSize(), QImage::Format_RGB32);
+    paper.fill(Qt::black);
+    QPainter painter(&paper);
+    renderer.render(&painter, QRectF(paper.rect()));
+    painter.end();
+    const int y = qRound(printable.center().y());
+    CHECK(paper.pixelColor(qRound(printable.left()) - 2, y) == QColor(Qt::white));
+    CHECK(paper.pixelColor(qRound(printable.left()) + 2, y) == QColor(Qt::red));
+    CHECK(paper.pixelColor(qRound(printable.right()) - 2, y) == QColor(Qt::red));
+    CHECK(paper.pixelColor(qRound(printable.right()) + 2, y) == QColor(Qt::white));
+}
+
+// What the exported parts declare (PartData.h) and how it reaches the sheet: {material} and {mass} come from the parts, the user's own entry in
+// a custom field of the same id wins, and a mass is counted once per part however many meshes the part became.
 void testPartData()
 {
     using namespace Pdf3D;
@@ -1912,6 +2298,26 @@ void testSheetEditing()
 
 int main(int argc, char** argv)
 {
+    if (argc == 3 && std::strcmp(argv[1], Pdf3D::kU3dWorkerArgument) == 0)
+    {
+        QCoreApplication worker(argc, argv);
+        const QString workspace = worker.arguments().value(2);
+        const QByteArray marker = QByteArray::fromBase64(qgetenv(kSlowEncoderMarker));
+        if (!marker.isEmpty())
+        {
+            QSaveFile started(QString::fromUtf8(marker));
+            if (!started.open(QIODevice::WriteOnly))
+                return 1;
+            const QByteArray folder = workspace.toUtf8();
+            if (started.write(folder) != folder.size() || !started.commit())
+                return 1;
+            // The parent has to stop this process, which deliberately never runs the real encoder.
+            QThread::sleep(15);
+            return 1;
+        }
+        return Pdf3D::runU3dWorker(workspace);
+    }
+
     bool full = false;
     QString spikeFolder;
     for (int i = 1; i < argc; ++i)
@@ -1955,6 +2361,13 @@ int main(int argc, char** argv)
     testSheetTemplates();
     testSheetRenderer();
     testPrintPageReflow();
+    testPrintCaptureSize();
+    testCalibratedPrintScale();
+    testPrintPresets();
+    testPrintTemplateCompanion();
+    testStaticPrintPdf();
+    testStaticPrintSvg();
+    testPublishedSheets();
     testPartData();
     testSheetEditing();
     if (full)

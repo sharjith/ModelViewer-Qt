@@ -1,7 +1,6 @@
 #include "PartData.h"
 
 #include <QCoreApplication>
-#include <QSet>
 
 #include <cmath>
 
@@ -40,34 +39,30 @@ QString formatMass(double kilograms)
     return QCoreApplication::translate("Pdf3DExporter", "%1 kg").arg(number);
 }
 
-PartSummary summarisePartData(const U3dScene& scene)
+void PartSummaryBuilder::addPart(const QString& material, double massKg, const QString& massGroup)
 {
-    PartSummary s;
-    QSet<QString> countedMasses;   // part groups whose mass is already in the total
-    for (const U3dNode& node : scene.nodes)
+    ++_counts.parts;
+    if (!material.isEmpty())
     {
-        if (node.overlay || node.meshIndex < 0 || node.meshIndex >= scene.meshes.size())
-            continue;
-        ++s.parts;
-        if (!node.declaredMaterial.isEmpty())
+        ++_counts.withMaterial;
+        if (!_counts.materials.contains(material))
+            _counts.materials.append(material);
+    }
+    if (massKg >= 0.0 && std::isfinite(massKg))
+    {
+        ++_counts.withMass;
+        if (massGroup.isEmpty() || !_countedMasses.contains(massGroup))
         {
-            ++s.withMaterial;
-            if (!s.materials.contains(node.declaredMaterial))
-                s.materials.append(node.declaredMaterial);
-        }
-        if (node.declaredMassKg >= 0.0 && std::isfinite(node.declaredMassKg))
-        {
-            ++s.withMass;
-            // Meshes of one part share a group and carry the part's one mass; a node without a group counts on its own.
-            const QString key = node.declaredMassGroup.isEmpty() ? QStringLiteral("node:") + node.name : node.declaredMassGroup;
-            if (!countedMasses.contains(key))
-            {
-                countedMasses.insert(key);
-                s.massKg += node.declaredMassKg;
-            }
+            _counts.massKg += massKg;
+            if (!massGroup.isEmpty())
+                _countedMasses.insert(massGroup);
         }
     }
+}
 
+PartSummary PartSummaryBuilder::summary() const
+{
+    PartSummary s = _counts;
     const auto coverage = [&](int declared) {
         return declared < s.parts
             ? QCoreApplication::translate("Pdf3DExporter", " (%1 of %2 parts)").arg(declared).arg(s.parts)
@@ -82,6 +77,20 @@ PartSummary summarisePartData(const U3dScene& scene)
     if (s.withMass > 0)
         s.mass = formatMass(s.massKg) + coverage(s.withMass);
     return s;
+}
+
+PartSummary summarisePartData(const U3dScene& scene)
+{
+    PartSummaryBuilder summary;
+    for (const U3dNode& node : scene.nodes)
+    {
+        if (node.overlay || node.meshIndex < 0 || node.meshIndex >= scene.meshes.size())
+            continue;
+        const QString key = node.declaredMassKg >= 0.0 && node.declaredMassGroup.isEmpty()
+            ? QStringLiteral("node:") + node.name : node.declaredMassGroup;
+        summary.addPart(node.declaredMaterial, node.declaredMassKg, key);
+    }
+    return summary.summary();
 }
 
 } // namespace Pdf3D

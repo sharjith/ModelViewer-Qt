@@ -233,14 +233,29 @@ void drawPartsSheet(QPainter& p, const Layout& l, const Pdf3DOptions& options, c
 
 } // namespace
 
-Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOptions& options, const QString& path)
+Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOptions& options, const QString& path,
+                                       const ExportControl& control)
 {
     Pdf3DResult result;
+    const auto wasCanceled = [&] {
+        result.canceled = control.isCanceled && control.isCanceled();
+        return result.canceled;
+    };
+    const auto continueAt = [&](ExportStage stage) {
+        if (wasCanceled())
+            return false;
+        result.canceled = control.proceed && !control.proceed(stage);
+        return !result.canceled;
+    };
+
+    if (!continueAt(ExportStage::EncodeModel))
+        return result;
 
     QVector3D lo, hi;
-    if (scene.isEmpty() || !scene.computeBounds(&lo, &hi))
+    if (scene.isEmpty() || !scene.computeBounds(&lo, &hi, control.isCanceled))
     {
-        result.error = QCoreApplication::translate("Pdf3DExporter", "There is no visible geometry to export.");
+        if (!wasCanceled())
+            result.error = QCoreApplication::translate("Pdf3DExporter", "There is no visible geometry to export.");
         return result;
     }
 
@@ -248,12 +263,16 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
     // an animation that must not start by itself is written paused (the modifiers' playing flag), whatever the PDF's /AIS says
     U3dScene writeScene = scene;
     writeScene.animation.playing = options.animationAutoStart;
-    const U3dWriteResult u3d = U3dWriter::write(writeScene);
+    const U3dWriteResult u3d = control.encode ? control.encode(writeScene) : U3dWriter::write(writeScene);
     if (!u3d.ok)
     {
         result.error = u3d.error;
+        result.canceled = u3d.canceled;
         return result;
     }
+
+    if (!continueAt(ExportStage::ComposeSheets))
+        return result;
 
     // 2. the 2D sheet
     QByteArray pdf;
@@ -323,11 +342,16 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         drawModelSheet(painter, layout, options, partCount, sheetCount);
         for (int i = 0; i < listSheets; ++i)
         {
+            if (wasCanceled())
+                return result;
             writer.newPage();
             drawPartsSheet(painter, layout, options, rows, partCount, i, sheetCount);
         }
         painter.end();
     }
+
+    if (!continueAt(ExportStage::EmbedModel))
+        return result;
 
     // 3. the annotation, appended as an incremental update
     const QVector3D center = (lo + hi) * 0.5f;
@@ -504,6 +528,8 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             used.insert(n);
         for (CameraViewSpec spec : options.extraViews)
         {
+            if (wasCanceled())
+                return result;
             const QString base = spec.name.isEmpty() ? QCoreApplication::translate("Pdf3DExporter", "View") : spec.name;
             QString unique = base;
             for (int i = 2; used.contains(unique); ++i)
@@ -515,7 +541,8 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             viewNames.append(unique);
         }
     }
-    annotation.defaultView = 0;
+    annotation.defaultView = options.openingView >= 0 && options.openingView < annotation.viewDictionaries.size()
+        ? options.openingView : 0;
     annotation.description = QStringLiteral("3D model");
     if (!layout.buttonStrip.isEmpty())
         annotation.buttons = makeButtons(viewNames, scene.hasAnimation(), layout.buttonStrip, layout.pageHeightPt);
@@ -552,6 +579,9 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         return result;
     }
 
+    if (!continueAt(ExportStage::WriteFile))
+        return result;
+
     // 4. write the file
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
@@ -559,7 +589,22 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         result.error = QCoreApplication::translate("Pdf3DExporter", "Cannot write %1: %2").arg(path, file.errorString());
         return result;
     }
-    if (file.write(pdf) != pdf.size() || !file.commit())
+    constexpr qsizetype chunkBytes = 1024 * 1024;
+    for (qsizetype written = 0; written < pdf.size();)
+    {
+        if (wasCanceled())
+            return result;
+        const qsizetype count = qMin(chunkBytes, pdf.size() - written);
+        if (file.write(pdf.constData() + written, count) != count)
+        {
+            result.error = QCoreApplication::translate("Pdf3DExporter", "Cannot write %1: %2").arg(path, file.errorString());
+            return result;
+        }
+        written += count;
+    }
+    if (!continueAt(ExportStage::CommitFile))
+        return result;
+    if (!file.commit())
     {
         result.error = QCoreApplication::translate("Pdf3DExporter", "Cannot write %1: %2").arg(path, file.errorString());
         return result;

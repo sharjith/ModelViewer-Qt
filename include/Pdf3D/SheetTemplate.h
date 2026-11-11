@@ -93,6 +93,7 @@ struct SheetTemplate
     QPageSize::PageSizeId pageSizeId = QPageSize::A4;   // Custom: customSizeMm
     QSizeF customSizeMm;
     bool   landscape = true;
+    QString printCompanionId;  // optional template authored for the opposite orientation
 
     double borderInset = 20.0;  // points from the page edge to the border
     double margin = 28.0;       // points from the page edge to the title block and the 3D area
@@ -167,6 +168,10 @@ QString writeSampleSheetTemplate(const QString& folder, QString* error = nullptr
 
 // The template with this id (built-in, then the user folder); Default when the id is unknown.
 SheetTemplate findSheetTemplate(const QString& id);
+
+// Resolve one companion reference for print and static exports. The primary is the fallback.
+const SheetTemplate& printTemplateForOrientation(const SheetTemplate& primary, bool landscape,
+                                                const QVector<SheetTemplate>& available);
 
 // Saving. A template is written as JSON in points ("units": "pt"); what is written always parses again (the result is checked first).
 QByteArray sheetTemplateToJson(const SheetTemplate& tpl);

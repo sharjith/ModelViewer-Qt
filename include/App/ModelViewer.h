@@ -202,7 +202,7 @@ public:
 	void exportAs3DPdf(const QString& presetFileName = QString());
 	// File > Print...: the view as shown, on a white background, on a sheet template or a plain page, to any printer (print to PDF
 	// is the printer driver's). Raster output at the chosen resolution.
-	void printView();
+	void printView(bool publish = false);
 	// The part number the model declares for its root (NodeProperties::declaredPartNumber), taken from the first mesh that has one; empty
 	// when the format has no such field. Print and Save as 3D PDF offer it as the drawing number.
 	QString declaredPartNumber() const;

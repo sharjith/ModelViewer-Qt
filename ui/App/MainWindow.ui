@@ -34,6 +34,7 @@
     <addaction name="actionExport"/>
     <addaction name="actionExport3DPdf"/>
     <addaction name="actionPrint"/>
+    <addaction name="actionPublishSheets"/>
     <addaction name="separator"/>
     <addaction name="actionSave"/>
     <addaction name="actionSave_As"/>
@@ -895,6 +896,11 @@
    </property>
    <property name="statusTip">
     <string>Save the visible parts as a 3D PDF drawing sheet that opens in Adobe Acrobat or Reader</string>
+   </property>
+  </action>
+  <action name="actionPublishSheets">
+   <property name="text">
+    <string>Publish Sheets...</string>
    </property>
   </action>
   <action name="actionPrint">
