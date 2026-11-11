@@ -328,6 +328,16 @@ item number, part name, material and quantity.</string>
         </layout>
        </item>
        <item>
+        <widget class="QCheckBox" name="capturedVisibilityCheck">
+         <property name="text">
+          <string>Use captured measurement and annotation visibility in saved views</string>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QLabel" name="viewsInfoLabel">
          <property name="wordWrap">
           <bool>true</bool>
@@ -344,7 +354,7 @@ item number, part name, material and quantity.</string>
        <item>
         <widget class="QLabel" name="overlayIntroLabel">
          <property name="text">
-          <string>Tick the measurements and annotations to add to the 3D model. They are written for the view they were made from and show in every view.</string>
+          <string>Tick the measurements and annotations to add to the 3D model. Use the Views tab to control where they appear.</string>
          </property>
          <property name="wordWrap">
           <bool>true</bool>

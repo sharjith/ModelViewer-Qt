@@ -407,7 +407,8 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         return true;
     };
 
-    const auto overlayStates = [&](const QVector<NodeVisibility>& partOverrides, bool showOverlays) {
+    const auto overlayStates = [&](const QVector<NodeVisibility>& partOverrides, bool showOverlays,
+                                   const std::optional<QSet<int>>& visibleItems = std::nullopt) {
         QHash<QString, int> ownIndex;
         for (int i = 0; i < partOverrides.size(); ++i)
             ownIndex.insert(partOverrides[i].node, i);
@@ -418,9 +419,9 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
                 continue;
             NodeVisibility s;
             s.node = n.name;
-            s.visible = showOverlays;
+            s.visible = showOverlays && (!visibleItems || visibleItems->contains(n.overlayItem));
             s.matrix = n.world;
-            if (showOverlays && !n.follows.isEmpty())
+            if (s.visible && !n.follows.isEmpty())
             {
                 QMatrix4x4 common;
                 bool have = false;
@@ -481,7 +482,7 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         for (const CameraViewSpec& spec : options.extraViews)
         {
             note(spec.nodes);
-            note(overlayStates(spec.nodes, spec.showOverlays));
+            note(overlayStates(spec.nodes, spec.showOverlays, spec.visibleOverlayItems));
         }
         for (const QString& name : standardNames)
         {
@@ -500,9 +501,10 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
             defaultNodes.append(d);
         }
     }
-    const auto completeNodes = [&](const QVector<NodeVisibility>& ownParts, bool showOverlays) {
+    const auto completeNodes = [&](const QVector<NodeVisibility>& ownParts, bool showOverlays,
+                                   const std::optional<QSet<int>>& visibleItems = std::nullopt) {
         QVector<NodeVisibility> own = ownParts;
-        own += overlayStates(ownParts, showOverlays);
+        own += overlayStates(ownParts, showOverlays, visibleItems);
         QHash<QString, int> index;
         for (int i = 0; i < own.size(); ++i)
             index.insert(own[i].node, i);
@@ -561,7 +563,7 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
                 unique = QStringLiteral("%1 (%2)").arg(base).arg(i);
             used.insert(unique);
             spec.name = unique;
-            spec.nodes = completeNodes(spec.nodes, spec.showOverlays);
+            spec.nodes = completeNodes(spec.nodes, spec.showOverlays, spec.visibleOverlayItems);
             annotation.viewDictionaries.append(makeCameraView(spec, center, radius));
             viewNames.append(unique);
         }

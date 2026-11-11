@@ -39,7 +39,7 @@ namespace
 
 Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
 	const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations,
-	const GeometrySummary& geometry, bool openAfterSaving, int companionCount, QWidget* parent)
+	const GeometrySummary& geometry, bool openAfterSaving, int companionCount, bool hasCapturedVisibility, QWidget* parent)
 	: QDialog(parent)
 	, ui(std::make_unique<Ui::Pdf3DExportDialog>())
 	, _viewCount(views.size())
@@ -47,6 +47,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	, _geometry(geometry)
 {
 	ui->setupUi(this);
+	ui->capturedVisibilityCheck->setVisible(hasCapturedVisibility && !overlays.isEmpty());
 	_openAfterSaving = new QCheckBox(tr("Open 3D PDF after saving"), this);
 	_openAfterSaving->setChecked(openAfterSaving);
 	ui->verticalLayout->insertWidget(ui->verticalLayout->indexOf(ui->buttonBox), _openAfterSaving);
@@ -452,6 +453,11 @@ int Pdf3DExportDialog::openingViewIndex() const
 bool Pdf3DExportDialog::openAfterSaving() const
 {
 	return _openAfterSaving->isChecked();
+}
+
+bool Pdf3DExportDialog::useCapturedOverlayVisibility() const
+{
+	return ui->capturedVisibilityCheck->isChecked();
 }
 
 int Pdf3DExportDialog::selectedAnimation() const

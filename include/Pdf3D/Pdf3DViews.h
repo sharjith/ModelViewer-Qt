@@ -2,11 +2,14 @@
 
 #include <QByteArray>
 #include <QList>
+#include <QSet>
 #include <QString>
 #include <QMatrix4x4>
 #include <QStringList>
 #include <QVector>
 #include <QVector3D>
+
+#include <optional>
 
 // PDF 3D view dictionaries (/3DView) for the named views of a 3D PDF. Conventions verified in Adobe Acrobat (research doc
 // 8.6, 8.14): /MS /M with /C2W = 12 numbers (rows: right, up, forward, then the eye; only up, forward and the eye are read), /CO
@@ -55,6 +58,7 @@ struct CameraViewSpec
     // The PDF render mode of the view: the /Subtype of its /3DRenderMode ("Solid", "SolidWireframe", "Wireframe", "HiddenWireframe",
     // "SolidOutline", ...). A scene state brings the display mode it was saved with.
     QByteArray              renderMode = "Solid";
+    std::optional<QSet<int>> visibleOverlayItems; // absent: all included overlay items
 };
 
 // The /3DCrossSection dictionary for `plane` in a scene whose bounding box centre is `sceneCenter`. Verified in Acrobat (research doc,

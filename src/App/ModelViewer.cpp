@@ -6892,6 +6892,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		bool                        standard = false;   // a standard view (named only: the exporter builds it)
 		Pdf3D::CameraViewSpec       spec;               // otherwise
 		int                         savedViewIndex = -1;
+		std::optional<ViewOverlayVisibility> overlayVisibility;
 	};
 	QVector<ViewEntry> entries;
 	bool anySplit = false;     // a saved view with several clipping planes was listed once per plane
@@ -6945,7 +6946,8 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 
 	// Adds a view to the list. Acrobat shows ONE section per view (verified), so a view with several planes is listed once per plane
 	// ("<name> (plane 1 of 2)", ...); the user ticks the ones to export.
-	const auto addView = [&entries, &anySplit, &anyBox](const QString& group, const Pdf3D::CameraViewSpec& spec, bool boxClip, int savedViewIndex = -1) {
+	const auto addView = [&entries, &anySplit, &anyBox](const QString& group, const Pdf3D::CameraViewSpec& spec, bool boxClip, int savedViewIndex = -1,
+		const std::optional<ViewOverlayVisibility>& overlayVisibility = std::nullopt) {
 		if (spec.sections.size() > 1)
 		{
 			anySplit = true;
@@ -6954,6 +6956,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 				ViewEntry entry;
 				entry.item.group = group;
 				entry.spec = spec;
+				entry.overlayVisibility = overlayVisibility;
 				entry.spec.sections = { spec.sections[k] };
 				entry.spec.name = tr("%1 (plane %2 of %3)").arg(spec.name).arg(k + 1).arg(spec.sections.size());
 				entry.item.name = entry.spec.name;
@@ -6968,6 +6971,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		entry.item.name = spec.name;
 		entry.spec = spec;
 		entry.savedViewIndex = boxClip ? -1 : savedViewIndex;
+		entry.overlayVisibility = overlayVisibility;
 		if (!spec.sections.isEmpty())
 			entry.item.note = tr("with section");
 		if (spec.renderMode != "Solid")
@@ -7002,7 +7006,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		const auto& cam = savedCameras.at(index);
 		bool box = false;
 		const Pdf3D::CameraViewSpec spec = specFromEntry(cam, cam.name, QMatrix4x4(), &box);
-		addView(tr("Saved camera views"), spec, box, index);
+		addView(tr("Saved camera views"), spec, box, index, cam.overlayVisibility);
 	}
 
 	// Scene states: the camera plus the visibility of every exported part (a part the state does not list is hidden).
@@ -7028,7 +7032,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 			const QUuid uuid = uuidByNodeName.value(node.displayName);
 			spec.nodes.append({node.name, uuid.isNull() ? true : state.visibleMeshUuids.contains(uuid)});
 		}
-		addView(tr("Scene states"), spec, box);
+		addView(tr("Scene states"), spec, box, -1, state.camera.overlayVisibility);
 	}
 
 	// Exploded views: the export always holds the assembled model (explosion offsets and manual placement are viewport state, not
@@ -7078,8 +7082,10 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 	QString defaultTitle;
 	if (!_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
+	const bool hasCapturedVisibility = std::any_of(entries.cbegin(), entries.cend(),
+		[](const ViewEntry& entry) { return entry.overlayVisibility.has_value(); });
 	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, geometry,
-		openSavedSheetByDefault(), companionSheets ? static_cast<int>(companionSheets->size()) : 0, this);
+		openSavedSheetByDefault(), companionSheets ? static_cast<int>(companionSheets->size()) : 0, hasCapturedVisibility, this);
 	optionsDialog.setDeclaredDrawingNumber(declaredPartNumber());   // the model's own part number, when its format has one
 	{
 		// What each exported part declares about its mass and material (the viewer's meshes carry what the source file declared),
@@ -7124,6 +7130,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 
 	options.subtitle = sourceNames.join(QStringLiteral(", "));
 
+	QVector<int> overlayItemIds(overlayGraphics.size(), -1);
 	// Ticked measurements and annotations become nodes of the 3D model. The ribbon width of a line is a fixed fraction of the model's
 	// size, so lines read at the same weight whatever the units.
 	{
@@ -7157,7 +7164,9 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 			data.viewDirection = overlayGraphics[i].viewDirection;
 			data.lines = overlayGraphics[i].lines;
 			data.triangles = overlayGraphics[i].triangles;
-			Pdf3D::OverlayToU3d::append(u3dScene, data, lineWidth);
+			const int itemId = u3dScene.overlayItems;
+			if (Pdf3D::OverlayToU3d::append(u3dScene, data, lineWidth) > 0)
+				overlayItemIds[i] = itemId;
 		}
 	}
 
@@ -7244,6 +7253,18 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		{
 			Pdf3D::CameraViewSpec spec = entries[i].spec;
 			spec.showOverlays = showOverlays;
+			const auto& visibility = entries[i].overlayVisibility;
+			if (showOverlays && visibility && optionsDialog.useCapturedOverlayVisibility())
+			{
+				auto& visibleItems = spec.visibleOverlayItems.emplace();
+				for (int overlay = 0; overlay < overlayGraphics.size(); ++overlay)
+				{
+					const auto& graphic = overlayGraphics[overlay];
+					const auto& visibleIds = graphic.annotation ? visibility->annotations : visibility->measurements;
+					if (overlayItemIds[overlay] >= 0 && visibleIds.contains(graphic.id))
+						visibleItems.insert(overlayItemIds[overlay]);
+				}
+			}
 			options.extraViews.append(spec);
 		}
 	}

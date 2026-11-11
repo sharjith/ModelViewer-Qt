@@ -774,20 +774,65 @@ void testFullExport()
     const QRegularExpression onePage(QStringLiteral("/Count\\s+1\\b"));
     CHECK(twoPages.match(QString::fromLatin1(pdf)).hasMatch() && !onePage.match(QString::fromLatin1(pdf)).hasMatch());
 
+    Pdf3D::U3dScene annotated = u;
+    Pdf3D::OverlayGraphicData overlay;
+    overlay.name = QStringLiteral("Dimension");
+    overlay.lines = {0, 0, 0, 1, 1, 0, 1, 0, 0, 1, 1, 0};
+    const int dimensionItem = annotated.overlayItems;
+    CHECK(Pdf3D::OverlayToU3d::append(annotated, overlay, 0.01f) == 1);
+    const QString dimensionNode = annotated.nodes.last().name;
+    overlay.name = QStringLiteral("Note");
+    CHECK(Pdf3D::OverlayToU3d::append(annotated, overlay, 0.01f) == 1);
+    const QString noteNode = annotated.nodes.last().name;
+
     Pdf3D::Pdf3DOptions publication = options;
+    Pdf3D::CameraViewSpec captured;
+    captured.name = QStringLiteral("Captured subset");
+    captured.eye = QVector3D(0, 0, 3);
+    captured.direction = QVector3D(0, 0, -1);
+    captured.visibleOverlayItems = QSet<int>{dimensionItem};
+    publication.extraViews.append(captured);
+    captured.name = QStringLiteral("Captured empty");
+    captured.visibleOverlayItems->clear();
+    publication.extraViews.append(captured);
+    captured.name = QStringLiteral("Legacy view");
+    captured.visibleOverlayItems.reset();
+    publication.extraViews.append(captured);
+    captured.name = QStringLiteral("Overlays disabled");
+    captured.visibleOverlayItems = QSet<int>{dimensionItem};
+    captured.showOverlays = false;
+    publication.extraViews.append(captured);
     QImage detail(80, 50, QImage::Format_RGB32);
     detail.fill(Qt::red);
     QImage section(50, 80, QImage::Format_RGB32);
     section.fill(Qt::green);
     publication.companionSheets = {{QStringLiteral("Detail"), detail}, {QStringLiteral("Section"), section}};
     const QString publishedPath = dir.filePath(QStringLiteral("published-3d.pdf"));
-    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, publication, publishedPath).ok);
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(annotated, publication, publishedPath).ok);
     QFile published(publishedPath);
     CHECK(published.open(QIODevice::ReadOnly));
     const QByteArray publishedPdf = published.readAll();
     CHECK(QRegularExpression(QStringLiteral("/Count\\s+4\\b")).match(QString::fromLatin1(publishedPdf)).hasMatch());
     CHECK(publishedPdf.count("/Subtype /3D") == 1);
     CHECK(publishedPdf.count("/Subtype /Image") >= 2);
+    const auto view = [&](const QByteArray& name) {
+        const qsizetype start = publishedPdf.indexOf("/XN (" + name + ")");
+        if (start < 0)
+            return QByteArray();
+        const qsizetype end = publishedPdf.indexOf("/Type /3DView", start);
+        return end < 0 ? publishedPdf.mid(start) : publishedPdf.mid(start, end - start);
+    };
+    const auto nodeState = [](const QString& name, bool visible) {
+        return "/Type /3DNode /N " + Pdf3D::PdfAppender::pdfTextString(name) + (visible ? " /V true" : " /V false");
+    };
+    CHECK(view("Captured subset").contains(nodeState(dimensionNode, true)));
+    CHECK(view("Captured subset").contains(nodeState(noteNode, false)));
+    CHECK(view("Captured empty").contains(nodeState(dimensionNode, false)));
+    CHECK(view("Captured empty").contains(nodeState(noteNode, false)));
+    CHECK(view("Legacy view").contains(nodeState(dimensionNode, true)));
+    CHECK(view("Legacy view").contains(nodeState(noteNode, true)));
+    CHECK(view("Overlays disabled").contains(nodeState(dimensionNode, false)));
+    CHECK(view("Overlays disabled").contains(nodeState(noteNode, false)));
 
     options.viewButtons = false;
     options.author = QStringLiteral("A. Author");

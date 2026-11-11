@@ -81,7 +81,7 @@ public:
 
 	Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
 		const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations,
-		const GeometrySummary& geometry, bool openAfterSaving, int companionCount, QWidget* parent = nullptr);
+		const GeometrySummary& geometry, bool openAfterSaving, int companionCount, bool hasCapturedVisibility, QWidget* parent = nullptr);
 	~Pdf3DExportDialog() override;
 
 	// Copies the sheet tab's values into `options`: the title block fields (title, drawing number, revision, author, company, scale,
@@ -101,6 +101,7 @@ public:
 	// Index in the list of checked views, in export order.
 	int openingViewIndex() const;
 	bool openAfterSaving() const;
+	bool useCapturedOverlayVisibility() const;
 
 	// For each OverlayItem passed to the constructor, in order: whether it is ticked.
 	QVector<bool> overlaySelection() const;
