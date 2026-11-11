@@ -29,6 +29,11 @@ bool paintSheets(QPagedPaintDevice& device, int dpi, bool useTemplate, const Pdf
 bool saveSheets(const QString& path, const QPageLayout& layout, bool useTemplate, const Pdf3D::Pdf3DOptions& options,
                 int partCount, const QVector<Pdf3D::StaticSheet>& sheets, QString* error);
 
+// Publish a numbered set of SVG sheets in a new folder and return its absolute path.
+QString saveSvgSheets(const QString& parentPath, const QPageLayout& layout, bool useTemplate,
+                      const Pdf3D::Pdf3DOptions& options, int partCount,
+                      const QVector<Pdf3D::StaticSheet>& sheets, QString* error);
+
 enum class FileFormat { Pdf, Svg };
 
 // Atomically save a sheet using the selected paper, orientation and margins.

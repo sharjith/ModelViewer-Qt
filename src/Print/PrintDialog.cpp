@@ -449,22 +449,26 @@ PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::Par
         return button;
     };
     auto* savePdf = addSaveButton(tr("Save as PDF..."), Output::Pdf);
-    auto* saveOther = sheets.isEmpty() ? addSaveButton(tr("Save as SVG..."), Output::Svg)
-                                      : addSaveButton(tr("Save as 3D PDF..."), Output::Pdf3D);
+    auto* saveSvg = addSaveButton(tr("Save as SVG..."), Output::Svg);
+    QPushButton* save3dPdf = nullptr;
     if (!sheets.isEmpty())
-        saveOther->setToolTip(tr("Choose the 3D PDF sheet template and interactive views in the next dialog."));
+    {
+        saveSvg->setToolTip(tr("Save each sheet as a numbered SVG file in a new folder."));
+        save3dPdf = addSaveButton(tr("Save as 3D PDF..."), Output::Pdf3D);
+        save3dPdf->setToolTip(tr("Choose the 3D PDF sheet template and interactive views in the next dialog."));
+    }
     connect(buttons, &QDialogButtonBox::accepted, this, [this]() {
         saveSettings();
         accept();
     });
     connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    _openAfterSaving = new QCheckBox(sheets.isEmpty() ? tr("Open PDF or SVG after saving") : tr("Open PDF after saving"), this);
+    _openAfterSaving = new QCheckBox(sheets.isEmpty() ? tr("Open PDF or SVG after saving") : tr("Open PDF or SVG folder after saving"), this);
     _openAfterSaving->setChecked(openAfterSaving);
     layout->addWidget(_openAfterSaving);
     layout->addWidget(buttons);
 
     connect(preview, &QPrintPreviewWidget::paintRequested, this,
-        [this, view, sheets, partCount = parts.parts, previewError, print, savePdf, saveOther](QPrinter* device) {
+        [this, view, sheets, partCount = parts.parts, previewError, print, savePdf, saveSvg, save3dPdf](QPrinter* device) {
             const QPageLayout paper = device->pageLayout();
             const QSizeF pagePt = paper.paintRect(QPageLayout::Point).size();
             bool scaleTooLarge = false;
@@ -484,7 +488,7 @@ PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::Par
                 ? tr("The current view is too large at this scale. Choose a smaller scale or a larger paper size.")
                 : tr("The sheet could not be previewed at this paper size."));
             previewError->setVisible(!drawn);
-            for (auto* button : {print, savePdf, saveOther})
+            for (auto* button : {print, savePdf, saveSvg, save3dPdf})
                 if (button)
                     button->setEnabled(drawn);
         });

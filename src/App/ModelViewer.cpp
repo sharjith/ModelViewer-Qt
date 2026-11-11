@@ -6678,6 +6678,28 @@ void ModelViewer::printView(bool publish)
 		const bool svg = dialog.output() == PrintDialog::Output::Svg;
 		const bool interactive = dialog.output() == PrintDialog::Output::Pdf3D;
 		const QString caption = interactive ? tr("Save as 3D PDF") : (svg ? tr("Save as SVG") : tr("Save as PDF"));
+		if (publish && svg)
+		{
+			const QString parentFolder = QFileDialog::getExistingDirectory(this, tr("Choose where to save the SVG sheets"));
+			if (parentFolder.isEmpty())
+				return;
+
+			QString error;
+			QApplication::setOverrideCursor(Qt::WaitCursor);
+			const QString folder = PrintPage::saveSvgSheets(parentFolder, layout, dialog.useTemplate(), options, partCount, sheets, &error);
+			QApplication::restoreOverrideCursor();
+			if (folder.isEmpty())
+			{
+				QMessageBox::warning(this, caption, error);
+				return;
+			}
+			MainWindow::showStatusMessage(tr("Saved SVG sheets to %1").arg(QDir::toNativeSeparators(folder)), 6000);
+			const bool open = dialog.openAfterSaving();
+			QSettings().setValue(kOpenSavedSheetKey, open);
+			if (open && !QDesktopServices::openUrl(QUrl::fromLocalFile(folder)))
+				QMessageBox::warning(this, caption, tr("The sheets were saved to %1, but the folder could not be opened.").arg(folder));
+			return;
+		}
 		QFileDialog saveDialog(this, caption, QString(), svg ? tr("SVG files (*.svg)") : tr("PDF files (*.pdf)"));
 		saveDialog.setAcceptMode(QFileDialog::AcceptSave);
 		saveDialog.setDefaultSuffix(svg ? QStringLiteral("svg") : QStringLiteral("pdf"));

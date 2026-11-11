@@ -3,11 +3,14 @@
 #include "SheetTemplate.h"
 
 #include <QCoreApplication>
+#include <QDir>
+#include <QFileInfo>
 #include <QPageLayout>
 #include <QPainter>
 #include <QPdfWriter>
 #include <QSaveFile>
 #include <QSvgGenerator>
+#include <QTemporaryDir>
 #include <QtMath>
 
 #include <algorithm>
@@ -201,9 +204,9 @@ bool saveSheets(const QString& path, const QPageLayout& layout, bool useTemplate
     return false;
 }
 
-bool saveFile(const QString& path, FileFormat format, const QPageLayout& layout, bool useTemplate,
+static bool savePageFile(const QString& path, FileFormat format, const QPageLayout& layout, bool useTemplate,
               const Pdf3D::Pdf3DOptions& options, int partCount, const QImage& view, QString* error,
-              const QSizeF& modelSizeMm)
+              const QSizeF& modelSizeMm, int page, int count)
 {
     QSaveFile file(path);
     if (!file.open(QIODevice::WriteOnly))
@@ -224,7 +227,7 @@ bool saveFile(const QString& path, FileFormat format, const QPageLayout& layout,
             painter.fillRect(pageLayout.fullRect(QPageLayout::Point), Qt::white);
             painter.translate(printable.topLeft());
         }
-        const bool drawn = paint(painter, printable.size(), 72, useTemplate, options, partCount, view, modelSizeMm);
+        const bool drawn = paint(painter, printable.size(), 72, useTemplate, options, partCount, view, modelSizeMm, nullptr, page, count);
         return painter.end() && drawn;
     };
 
@@ -265,6 +268,60 @@ bool saveFile(const QString& path, FileFormat format, const QPageLayout& layout,
     if (error)
         *error = file.errorString();
     return false;
+}
+
+bool saveFile(const QString& path, FileFormat format, const QPageLayout& layout, bool useTemplate,
+              const Pdf3D::Pdf3DOptions& options, int partCount, const QImage& view, QString* error,
+              const QSizeF& modelSizeMm)
+{
+    return savePageFile(path, format, layout, useTemplate, options, partCount, view, error, modelSizeMm, 1, 1);
+}
+
+QString saveSvgSheets(const QString& parentPath, const QPageLayout& layout, bool useTemplate,
+                      const Pdf3D::Pdf3DOptions& options, int partCount,
+                      const QVector<Pdf3D::StaticSheet>& sheets, QString* error)
+{
+    const int count = static_cast<int>(sheets.size());
+    if (count == 0)
+    {
+        if (error)
+            *error = QCoreApplication::translate("PrintDialog", "Select at least one sheet to export.");
+        return {};
+    }
+
+    QDir parent(parentPath);
+    QTemporaryDir staged(parent.absoluteFilePath(QStringLiteral(".modelviewer-svg-XXXXXX")));
+    if (!staged.isValid())
+    {
+        if (error)
+            *error = staged.errorString();
+        return {};
+    }
+
+    const int digits = qMax(3, static_cast<int>(QString::number(count).size()));
+    for (int i = 0; i < count; ++i)
+    {
+        const auto& sheet = sheets.at(i);
+        auto pageOptions = options;
+        pageOptions.subtitle = sheet.name;
+        const QString name = QStringLiteral("Sheet-%1.svg").arg(i + 1, digits, 10, QLatin1Char('0'));
+        if (!savePageFile(staged.filePath(name), FileFormat::Svg, layout, useTemplate,
+                          pageOptions, partCount, sheet.image, error, {}, i + 1, count))
+            return {};
+    }
+
+    const QString base = QStringLiteral("Published Sheets");
+    QString destination = parent.absoluteFilePath(base);
+    for (int suffix = 2; QFileInfo::exists(destination) || QFileInfo(destination).isSymLink(); ++suffix)
+        destination = parent.absoluteFilePath(QStringLiteral("%1 (%2)").arg(base).arg(suffix));
+    if (!parent.rename(staged.path(), destination))
+    {
+        if (error)
+            *error = QCoreApplication::translate("PrintDialog", "Could not create the SVG output folder.");
+        return {};
+    }
+    staged.setAutoRemove(false);
+    return destination;
 }
 
 } // namespace PrintPage

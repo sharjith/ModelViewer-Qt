@@ -1904,7 +1904,34 @@ void testPublishedSheets()
     file.close();
     CHECK(QRegularExpression(QStringLiteral("/Count\\s+3\\b")).match(QString::fromLatin1(original)).hasMatch());
 
+    const QString svgFolder = PrintPage::saveSvgSheets(dir.path(), paper, true, options, 1, sheets, &error);
+    CHECK(!svgFolder.isEmpty());
+    if (!svgFolder.isEmpty())
+    {
+        const QDir output(svgFolder);
+        CHECK(output.entryList(QDir::Files) == QStringList({QStringLiteral("Sheet-001.svg"),
+            QStringLiteral("Sheet-002.svg"), QStringLiteral("Sheet-003.svg")}));
+        QFile second(output.filePath(QStringLiteral("Sheet-002.svg")));
+        CHECK(second.open(QIODevice::ReadOnly));
+        const QByteArray svg = second.readAll();
+        QSvgRenderer renderer(svg);
+        CHECK(renderer.isValid() && renderer.viewBoxF() == paper.fullRect(QPageLayout::Point));
+        CHECK(svg.contains("Detail") && svg.contains("2/3"));
+        QImage rendered(paper.fullRect(QPageLayout::Point).size().toSize(), QImage::Format_RGB32);
+        rendered.fill(Qt::black);
+        QPainter painter(&rendered);
+        renderer.render(&painter, QRectF(rendered.rect()));
+        painter.end();
+        CHECK(rendered.pixelColor(rendered.width() / 2, rendered.height() / 3) == QColor(Qt::blue));
+
+        const QString anotherFolder = PrintPage::saveSvgSheets(dir.path(), paper, true, options, 1, sheets, &error);
+        CHECK(!anotherFolder.isEmpty() && anotherFolder != svgFolder);
+    }
+
+    const auto savedFolders = QDir(dir.path()).entryList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden);
     sheets[1].image = QImage();
+    CHECK(PrintPage::saveSvgSheets(dir.path(), paper, true, options, 1, sheets, &error).isEmpty());
+    CHECK(QDir(dir.path()).entryList(QDir::Dirs | QDir::NoDotAndDotDot | QDir::Hidden) == savedFolders);
     CHECK(!PrintPage::saveSheets(path, paper, true, options, 1, sheets, &error));
     CHECK(file.open(QIODevice::ReadOnly));
     CHECK(file.readAll() == original);
@@ -1923,6 +1950,7 @@ void testStaticPrintSvg()
     Pdf3D::Pdf3DOptions options;
     options.title = QStringLiteral("SVG sheet");
     options.drawingNumber = QStringLiteral("SVG-0123");
+    options.notes = QStringLiteral("Wrapped notes in the title block\nSecond line");
     QImage view(32, 24, QImage::Format_RGB32);
     view.fill(Qt::red);
 
@@ -1938,6 +1966,13 @@ void testStaticPrintSvg()
     CHECK(svg.contains("<text") && svg.contains("SVG-0123"));
     CHECK(svg.contains("data:image/png;base64,"));
     CHECK(svg.contains("<rect"));
+
+    QImage templatedPaper(layout.fullRect(QPageLayout::Point).size().toSize(), QImage::Format_RGB32);
+    templatedPaper.fill(Qt::black);
+    QPainter templatedPainter(&templatedPaper);
+    renderer.render(&templatedPainter, QRectF(templatedPaper.rect()));
+    templatedPainter.end();
+    CHECK(templatedPaper.pixelColor(templatedPaper.width() / 2, templatedPaper.height() / 3) == QColor(Qt::red));
 
     // In plain mode the image fills the printable width while leaving the chosen physical margins.
     CHECK(PrintPage::saveFile(path, PrintPage::FileFormat::Svg, layout, false, options, 1, view, &error));

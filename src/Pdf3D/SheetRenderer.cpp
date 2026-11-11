@@ -8,6 +8,8 @@
 #include <QFileInfo>
 #include <QFont>
 #include <QPainter>
+#include <QPainterPath>
+#include <QPaintEngine>
 #include <QSvgRenderer>
 
 #include <algorithm>
@@ -168,6 +170,7 @@ void drawSheetFrame(QPainter& p, const SheetTemplate& tpl, const ResolvedSheet& 
         drawLogo(p, tpl, s.logo);
 
     const QFont base = p.font();
+    const bool svg = p.paintEngine()->type() == QPaintEngine::SVG;
     for (int i = 0; i < tpl.cells.size() && i < s.cells.size(); ++i)
     {
         const SheetCell& c = tpl.cells[i];
@@ -179,6 +182,8 @@ void drawSheetFrame(QPainter& p, const SheetTemplate& tpl, const ResolvedSheet& 
             drawFieldCell(p, rect, sheetLabelText(tpl, c.label), text, c);
             continue;
         }
+        if (text.isEmpty())
+            continue;
         p.save();
         QFont f = base;
         f.setBold(c.bold);
@@ -187,8 +192,17 @@ void drawSheetFrame(QPainter& p, const SheetTemplate& tpl, const ResolvedSheet& 
         p.setPen(c.color);
         if (c.wrap)
         {
-            p.setClipRect(rect);   // overflowing text is cut (a scrollable field with the full text sits on top of it, see the exporter)
+            const bool hadClip = svg && p.hasClipping();
+            const QPainterPath previousClip = hadClip ? p.clipPath() : QPainterPath();
+            p.setClipRect(rect, Qt::IntersectClip);
             p.drawText(rect, static_cast<int>(c.align) | Qt::AlignTop | Qt::TextWordWrap, text);
+            if (svg)
+            {
+                // Reset the SVG engine's cell clip before restoring the painter state.
+                p.setClipping(false);
+                if (hadClip)
+                    p.setClipPath(previousClip, Qt::ReplaceClip);
+            }
         }
         else
         {
