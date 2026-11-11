@@ -127,6 +127,8 @@ struct PendingPlot3DRestore
 	Plot3DRendererPayload payload; // the Quiver arrows / Voxel grid, which live in viewport controllers rather than the mesh
 };
 
+namespace Pdf3D { struct StaticSheet; }
+
 class ModelViewer : public QWidget, public Ui::ModelViewer
 {
 	Q_OBJECT
@@ -199,7 +201,7 @@ public:
 	void exportModel();
 	// File > Save as 3D PDF...: the visible parts as a drawing sheet with an embedded 3D model (see Pdf3D/Pdf3DExporter.h)
 	// `presetFileName`: the file the export dialog already asked for; without it the export dialog is shown first, with the 3D PDF filter selected.
-	void exportAs3DPdf(const QString& presetFileName = QString());
+	void exportAs3DPdf(const QString& presetFileName = QString(), const QVector<Pdf3D::StaticSheet>* companionSheets = nullptr);
 	// File > Print...: the view as shown, on a white background, on a sheet template or a plain page, to any printer (print to PDF
 	// is the printer driver's). Raster output at the chosen resolution.
 	void printView(bool publish = false);

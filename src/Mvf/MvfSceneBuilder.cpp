@@ -1404,6 +1404,8 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                 cameraObj.insert(QStringLiteral("capturedViewRange"), camera.capturedViewRange);
                 if (camera.hasClipping)
                     cameraObj.insert(QStringLiteral("clipping"), clippingStateToJson(camera.clipping));
+                if (camera.overlayVisibility)
+                    cameraObj.insert(QStringLiteral("overlayVisibility"), viewOverlayVisibilityToJson(*camera.overlayVisibility));
                 camerasArray.append(cameraObj);
             }
 

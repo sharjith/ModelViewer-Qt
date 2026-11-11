@@ -24,16 +24,10 @@ bool paint(QPainter& painter, const QSizeF& pagePt, int deviceDpi, bool useTempl
 QSize rasterSize(const QSizeF& pagePt, int dpi, bool useTemplate,
                  const Pdf3D::Pdf3DOptions& options, int partCount, const QSize& viewSize, const QSizeF& modelSizeMm = {});
 
-struct Sheet
-{
-    QString name;
-    QImage image;
-};
-
 bool paintSheets(QPagedPaintDevice& device, int dpi, bool useTemplate, const Pdf3D::Pdf3DOptions& options,
-                 int partCount, const QVector<Sheet>& sheets, int first = 1, int last = 0);
+                 int partCount, const QVector<Pdf3D::StaticSheet>& sheets, int first = 1, int last = 0);
 bool saveSheets(const QString& path, const QPageLayout& layout, bool useTemplate, const Pdf3D::Pdf3DOptions& options,
-                int partCount, const QVector<Sheet>& sheets, QString* error);
+                int partCount, const QVector<Pdf3D::StaticSheet>& sheets, QString* error);
 
 enum class FileFormat { Pdf, Svg };
 

@@ -118,9 +118,11 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
         return;
 
     const int index = ui->viewsList->row(item);
-    if (index < 0)
+    const auto capturedViews = sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras;
+    if (index < 0 || index >= capturedViews.size())
         return;
 
+    const auto& savedVisibility = capturedViews.at(index).overlayVisibility;
     const bool hadOverride = _perViewOverrides.contains(index);
     const ViewVisibilityOverride existing = _perViewOverrides.value(index);
 
@@ -140,7 +142,8 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
     {
         QListWidgetItem* row = new QListWidgetItem(viewport->measurementSummaryText(m), measurementsList);
         row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
-        const bool checked = hadOverride ? existing.visibleMeasurementIds.contains(m.id) : m.visible;
+        const bool defaultVisibility = savedVisibility ? savedVisibility->measurements.contains(m.id) : m.visible;
+        const bool checked = hadOverride ? existing.visibleMeasurementIds.contains(m.id) : defaultVisibility;
         row->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
         measurementIds.append(m.id);
     }
@@ -151,12 +154,14 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
     {
         QListWidgetItem* row = new QListWidgetItem(annotationRowLabel(a.text), annotationsList);
         row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
-        const bool checked = hadOverride ? existing.visibleAnnotationIds.contains(a.id) : a.visible;
+        const bool defaultVisibility = savedVisibility ? savedVisibility->annotations.contains(a.id) : a.visible;
+        const bool checked = hadOverride ? existing.visibleAnnotationIds.contains(a.id) : defaultVisibility;
         row->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
         annotationIds.append(a.id);
     }
 
-    QPushButton* useCurrentButton = new QPushButton(tr("Use Current Visibility"), &dialog);
+    QPushButton* useCurrentButton = new QPushButton(savedVisibility ? tr("Use Captured Visibility")
+                                                                   : tr("Use Current Visibility"), &dialog);
     QPushButton* okButton = new QPushButton(tr("OK"), &dialog);
     QPushButton* cancelButton = new QPushButton(tr("Cancel"), &dialog);
 
@@ -177,9 +182,7 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
     connect(okButton, &QPushButton::clicked, &dialog, &QDialog::accept);
     connect(cancelButton, &QPushButton::clicked, &dialog, &QDialog::reject);
 
-    // "Use Current Visibility" both clears any existing override AND closes
-    // the dialog as an accept - a deliberate, immediate action rather than
-    // "check the boxes to match current state yourself then hit OK".
+    // Clear the report override and return to the view's default visibility.
     bool useCurrentClicked = false;
     connect(useCurrentButton, &QPushButton::clicked, &dialog, [&dialog, &useCurrentClicked]() {
         useCurrentClicked = true;
@@ -209,9 +212,7 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
         _perViewOverrides.insert(index, ov);
     }
 
-    const QVector<GltfCameraEntry> capturedViews =
-        sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras;
-    const QString baseName = index < capturedViews.size() ? capturedViews.at(index).name : item->text();
+    const QString baseName = capturedViews.at(index).name;
     item->setText(_perViewOverrides.contains(index) ? baseName + tr(" (custom visibility)") : baseName);
 }
 
@@ -251,17 +252,7 @@ bool ReportExportDialog::generateReport(const QString& path)
     struct CapturedView { QString name; QImage image; };
     QVector<CapturedView> capturedImages;
 
-    // Snapshot the document's real visibility state once, before any
-    // per-view override (see editViewVisibility()) is applied below -
-    // restored unconditionally once every view has been captured, so
-    // generating a report never leaves this attribute changed from what it
-    // was before Export was clicked.
-    QHash<QUuid, bool> originalMeasurementVisibility;
-    for (const Measurement& m : sceneGraph->measurements())
-        originalMeasurementVisibility.insert(m.id, m.visible);
-    QHash<QUuid, bool> originalAnnotationVisibility;
-    for (const Annotation& a : sceneGraph->annotations())
-        originalAnnotationVisibility.insert(a.id, a.visible);
+    const auto originalOverlays = viewport->captureCurrentCameraEntry(QString()).overlayVisibility;
 
     const QVector<GltfCameraEntry> capturedViews =
         sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras;
@@ -270,36 +261,21 @@ bool ReportExportDialog::generateReport(const QString& path)
         if (ui->viewsList->item(i)->checkState() != Qt::Checked)
             continue;
 
-        // A view with a custom override shows exactly its chosen subset for
-        // this one capture; a view with none is left exactly as-is, so it
-        // captures whatever's currently globally visible - unchanged
-        // behavior for anyone who never opens the per-view editor.
+        const auto& view = capturedViews.at(i);
+        viewport->activateGltfCamera(capturedViewsSourceFileKey(), i);
+
+        // Report-specific overrides take precedence over the saved view.
         const auto overrideIt = _perViewOverrides.constFind(i);
         if (overrideIt != _perViewOverrides.constEnd())
-        {
-            for (auto vis = originalMeasurementVisibility.constBegin(); vis != originalMeasurementVisibility.constEnd(); ++vis)
-                sceneGraph->setMeasurementVisible(vis.key(), overrideIt->visibleMeasurementIds.contains(vis.key()));
-            for (auto vis = originalAnnotationVisibility.constBegin(); vis != originalAnnotationVisibility.constEnd(); ++vis)
-                sceneGraph->setAnnotationVisible(vis.key(), overrideIt->visibleAnnotationIds.contains(vis.key()));
-        }
+            sceneGraph->applyViewOverlayVisibility({overrideIt->visibleMeasurementIds, overrideIt->visibleAnnotationIds});
+        else if (!view.overlayVisibility && originalOverlays)
+            sceneGraph->applyViewOverlayVisibility(*originalOverlays);
 
-        // Synchronous - activateGltfCamera() repositions the camera and
-        // requests a repaint immediately for the captured-views bucket (no
-        // animation clip is ever active for it), and captureCleanRayTracedImage()
-        // forces its own fresh paint while grabbing, so no extra event-loop
-        // spin is needed between the two calls. Measurement/annotation
-        // overlays render into the same framebuffer during the normal paint
-        // path, so they come along in the screenshot for free.
-        viewport->activateGltfCamera(capturedViewsSourceFileKey(), i);
         capturedImages.append({ capturedViews.at(i).name, viewport->captureCleanRayTracedImage() });
     }
 
-    // Restore the document's real visibility state, whether or not any
-    // per-view override was applied above.
-    for (auto vis = originalMeasurementVisibility.constBegin(); vis != originalMeasurementVisibility.constEnd(); ++vis)
-        sceneGraph->setMeasurementVisible(vis.key(), vis.value());
-    for (auto vis = originalAnnotationVisibility.constBegin(); vis != originalAnnotationVisibility.constEnd(); ++vis)
-        sceneGraph->setAnnotationVisible(vis.key(), vis.value());
+    if (originalOverlays)
+        sceneGraph->applyViewOverlayVisibility(*originalOverlays);
 
     // Restore whatever the user was actually looking at before generating
     // the report - don't leave them parked on the last exported view.

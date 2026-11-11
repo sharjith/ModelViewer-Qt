@@ -926,6 +926,28 @@ void SceneGraph::clearMeasurements()
     emit measurementsChanged();
 }
 
+void SceneGraph::applyViewOverlayVisibility(const ViewOverlayVisibility& visibility)
+{
+    bool measurementsChangedByView = false;
+    for (Measurement& measurement : _measurements)
+    {
+        const bool visible = visibility.measurements.contains(measurement.id);
+        measurementsChangedByView |= measurement.visible != visible;
+        measurement.visible = visible;
+    }
+    bool annotationsChangedByView = false;
+    for (Annotation& annotation : _annotations)
+    {
+        const bool visible = visibility.annotations.contains(annotation.id);
+        annotationsChangedByView |= annotation.visible != visible;
+        annotation.visible = visible;
+    }
+    if (measurementsChangedByView)
+        emit measurementsChanged();
+    if (annotationsChangedByView)
+        emit annotationsChanged();
+}
+
 void SceneGraph::setMeasurementVisible(const QUuid& id, bool visible)
 {
     const int index = measurementIndexById(id);

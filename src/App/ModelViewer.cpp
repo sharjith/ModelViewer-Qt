@@ -6463,7 +6463,7 @@ void ModelViewer::printView(bool publish)
 	if (!_viewportWidget || _viewportWidget->getMeshStore().empty())
 		return;
 
-	QVector<PrintPage::Sheet> sheets;
+	QVector<Pdf3D::StaticSheet> sheets;
 	if (publish)
 	{
 		const auto cameras = _sceneGraph
@@ -6525,7 +6525,11 @@ void ModelViewer::printView(bool publish)
 		const auto restore = qScopeGuard([&] {
 			_viewportWidget->activateCameraEntry(previous);
 			if (hadGltfCamera)
+			{
 				_viewportWidget->activateGltfCamera(cameraFile, cameraIndex);
+				if (previous.overlayVisibility)
+					_sceneGraph->applyViewOverlayVisibility(*previous.overlayVisibility);
+			}
 			QApplication::restoreOverrideCursor();
 		});
 		// Bound the total size of the frozen page images for long sets of views.
@@ -6538,6 +6542,8 @@ void ModelViewer::printView(bool publish)
 				camera.clipping = {};
 				camera.hasClipping = true;
 			}
+			if (!camera.overlayVisibility)
+				camera.overlayVisibility = previous.overlayVisibility;
 			_viewportWidget->activateCameraEntry(camera);
 			QImage image = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
 			if (image.isNull())
@@ -6546,7 +6552,7 @@ void ModelViewer::printView(bool publish)
 				image = image.scaled(edge, edge, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 			if (image.isNull())
 				break;
-			sheets.append({camera.name, image});
+			sheets.append({camera.name, image, index});
 		}
 		if (sheets.size() != selected.size())
 		{
@@ -6640,7 +6646,8 @@ void ModelViewer::printView(bool publish)
 	{
 		const QString suggestedName = defaultTitle.isEmpty() ? tr("Model") : defaultTitle;
 		const bool svg = dialog.output() == PrintDialog::Output::Svg;
-		const QString caption = svg ? tr("Save as SVG") : tr("Save as PDF");
+		const bool interactive = dialog.output() == PrintDialog::Output::Pdf3D;
+		const QString caption = interactive ? tr("Save as 3D PDF") : (svg ? tr("Save as SVG") : tr("Save as PDF"));
 		QFileDialog saveDialog(this, caption, QString(), svg ? tr("SVG files (*.svg)") : tr("PDF files (*.pdf)"));
 		saveDialog.setAcceptMode(QFileDialog::AcceptSave);
 		saveDialog.setDefaultSuffix(svg ? QStringLiteral("svg") : QStringLiteral("pdf"));
@@ -6648,6 +6655,12 @@ void ModelViewer::printView(bool publish)
 		if (saveDialog.exec() != QDialog::Accepted || saveDialog.selectedFiles().isEmpty())
 			return;
 		const QString path = saveDialog.selectedFiles().first();
+
+		if (interactive)
+		{
+			exportAs3DPdf(path, &sheets);
+			return;
+		}
 
 		QString error;
 		const auto format = svg ? PrintPage::FileFormat::Svg : PrintPage::FileFormat::Pdf;
@@ -6737,7 +6750,7 @@ void ModelViewer::printView(bool publish)
 		: tr("Sent to the printer"), 4000);
 }
 
-void ModelViewer::exportAs3DPdf(const QString& presetFileName)
+void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf3D::StaticSheet>* companionSheets)
 {
 	if (!_sceneGraph || !_sceneGraph->root() || !_viewportWidget)
 		return;
@@ -6848,6 +6861,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 		Pdf3DExportDialog::ViewItem item;
 		bool                        standard = false;   // a standard view (named only: the exporter builds it)
 		Pdf3D::CameraViewSpec       spec;               // otherwise
+		int                         savedViewIndex = -1;
 	};
 	QVector<ViewEntry> entries;
 	bool anySplit = false;     // a saved view with several clipping planes was listed once per plane
@@ -6901,7 +6915,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 
 	// Adds a view to the list. Acrobat shows ONE section per view (verified), so a view with several planes is listed once per plane
 	// ("<name> (plane 1 of 2)", ...); the user ticks the ones to export.
-	const auto addView = [&entries, &anySplit, &anyBox](const QString& group, const Pdf3D::CameraViewSpec& spec, bool boxClip) {
+	const auto addView = [&entries, &anySplit, &anyBox](const QString& group, const Pdf3D::CameraViewSpec& spec, bool boxClip, int savedViewIndex = -1) {
 		if (spec.sections.size() > 1)
 		{
 			anySplit = true;
@@ -6923,6 +6937,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 		entry.item.group = group;
 		entry.item.name = spec.name;
 		entry.spec = spec;
+		entry.savedViewIndex = boxClip ? -1 : savedViewIndex;
 		if (!spec.sections.isEmpty())
 			entry.item.note = tr("with section");
 		if (spec.renderMode != "Solid")
@@ -6951,11 +6966,13 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 			addView(tr("Cameras in the model files"), spec, box);
 		}
 	}
-	for (const GltfCameraEntry& cam : _sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras)
+	const auto savedCameras = _sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras;
+	for (int index = 0; index < savedCameras.size(); ++index)
 	{
+		const auto& cam = savedCameras.at(index);
 		bool box = false;
 		const Pdf3D::CameraViewSpec spec = specFromEntry(cam, cam.name, QMatrix4x4(), &box);
-		addView(tr("Saved camera views"), spec, box);
+		addView(tr("Saved camera views"), spec, box, index);
 	}
 
 	// Scene states: the camera plus the visibility of every exported part (a part the state does not list is hidden).
@@ -7032,7 +7049,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 	if (!_sceneGraph->root()->children.isEmpty())
 		defaultTitle = QFileInfo(_sceneGraph->root()->children.first()->name).completeBaseName();
 	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, geometry,
-		openSavedSheetByDefault(), this);
+		openSavedSheetByDefault(), companionSheets ? static_cast<int>(companionSheets->size()) : 0, this);
 	optionsDialog.setDeclaredDrawingNumber(declaredPartNumber());   // the model's own part number, when its format has one
 	{
 		// What each exported part declares about its mass and material (the viewer's meshes carry what the source file declared),
@@ -7067,6 +7084,8 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 	Pdf3D::Pdf3DOptions options;
 	optionsDialog.applyTo(options);
 	options.openingView = optionsDialog.openingViewIndex();
+	if (companionSheets)
+		options.companionSheets = *companionSheets;
 
 	if (options.title.isEmpty())
 		options.title = QFileInfo(fileName).completeBaseName();
@@ -7177,9 +7196,13 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 
 	const QVector<bool> selection = optionsDialog.viewSelection();
 	const QVector<bool> viewOverlays = optionsDialog.viewOverlaySelection();
+	int includedView = 0;
+	int openingSavedView = -1;
 	for (int i = 0; i < entries.size() && i < selection.size(); ++i)
 	{
 		const bool showOverlays = viewOverlays.value(i, true);
+		if (selection[i] && includedView++ == options.openingView)
+			openingSavedView = entries[i].savedViewIndex;
 		if (entries[i].standard)
 		{
 			if (!selection[i])
@@ -7197,7 +7220,42 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName)
 	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
 	// standard views (Front/Top/...) use the same convention as the viewport.
 	options.upAxis = _viewportWidget->isCameraUpAxisZUp() ? Pdf3D::UpAxis::Z : Pdf3D::UpAxis::Y;
-	options.poster = _viewportWidget->captureCleanRayTracedImage();
+	if (openingSavedView >= 0)
+	{
+		for (const auto& sheet : options.companionSheets)
+		{
+			if (sheet.savedViewIndex == openingSavedView)
+			{
+				options.poster = sheet.image;
+				break;
+			}
+		}
+		if (options.poster.isNull())
+		{
+			const auto previous = _viewportWidget->captureCurrentCameraEntry(QString());
+			const QString cameraFile = _viewportWidget->activeGltfCameraFile();
+			const int cameraIndex = _viewportWidget->activeGltfCameraIndex();
+			const auto restore = qScopeGuard([&] {
+				_viewportWidget->activateCameraEntry(previous);
+				if (cameraIndex >= 0)
+				{
+					_viewportWidget->activateGltfCamera(cameraFile, cameraIndex);
+					if (previous.overlayVisibility)
+						_sceneGraph->applyViewOverlayVisibility(*previous.overlayVisibility);
+				}
+			});
+			auto camera = savedCameras.at(openingSavedView);
+			if (!camera.hasClipping)
+			{
+				camera.clipping = {};
+				camera.hasClipping = true;
+			}
+			_viewportWidget->activateCameraEntry(camera);
+			options.poster = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
+		}
+	}
+	if (options.poster.isNull())
+		options.poster = _viewportWidget->captureCleanRayTracedImage();
 
 	QApplication::restoreOverrideCursor();
 	const Pdf3D::Pdf3DResult result = Pdf3D::exportWithProgress(this, u3dScene, options, fileName);
@@ -7576,6 +7634,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 					camera.hasClipping = true;
 					camera.clipping = clippingStateFromJson(cameraObj[QStringLiteral("clipping")].toObject());
 				}
+				camera.overlayVisibility = viewOverlayVisibilityFromJson(cameraObj.value(QStringLiteral("overlayVisibility")));
 
 				// needsNewNode isn't itself persisted - every camera in the
 				// captured-views bucket is synthetic by construction (no
@@ -7737,6 +7796,7 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 				cam.hasClipping = true;
 				cam.clipping = clippingStateFromJson(cameraObj[QStringLiteral("clipping")].toObject());
 			}
+			cam.overlayVisibility = viewOverlayVisibilityFromJson(cameraObj.value(QStringLiteral("overlayVisibility")));
 
 			for (const QJsonValue& uv : stateObj[QStringLiteral("visibleMeshUuids")].toArray())
 				st.visibleMeshUuids.insert(QUuid(uv.toString()));
@@ -9154,6 +9214,8 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			cameraObj.insert(QStringLiteral("capturedViewRange"), static_cast<double>(cam.capturedViewRange));
 			if (cam.hasClipping)
 				cameraObj.insert(QStringLiteral("clipping"), clippingStateToJson(cam.clipping));
+			if (cam.overlayVisibility)
+				cameraObj.insert(QStringLiteral("overlayVisibility"), viewOverlayVisibilityToJson(*cam.overlayVisibility));
 
 			QJsonArray visArr;
 			for (const QUuid& u : s.visibleMeshUuids)

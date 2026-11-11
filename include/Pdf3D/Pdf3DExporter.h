@@ -24,6 +24,13 @@ enum class AnimationPlayback
     Once            // once
 };
 
+struct StaticSheet
+{
+    QString name;
+    QImage image;
+    int savedViewIndex = -1;
+};
+
 struct Pdf3DOptions
 {
     QString title;                     // sheet title (title block, PDF document title)
@@ -48,6 +55,7 @@ struct Pdf3DOptions
     bool    viewButtons = true;        // a strip of buttons under the 3D area: previous/next view, one per view when they fit, play/pause
     bool    includePartsList = true;   // extra sheet(s) listing the exported parts (item, name, material, quantity)
     UpAxis  upAxis = UpAxis::Y;        // the viewer's world up axis; decides what Front/Top/... mean
+    QVector<StaticSheet> companionSheets; // static pages in publication order
     QImage  poster;                    // optional picture shown on the page where 3D is not available (a viewport grab)
 };
 

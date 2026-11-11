@@ -206,6 +206,7 @@ public:
     // Show/hide toggle (the Measurement dialog's results-list checkboxes) -
     // not undoable, same convention as mesh-visibility checkboxes elsewhere.
     void setMeasurementVisible(const QUuid& id, bool visible);
+    void applyViewOverlayVisibility(const ViewOverlayVisibility& visibility);
 
     // Direct mutator for an angle dimension's arc-radius override - called
     // on every mouse-move during a drag (for live preview) AND from

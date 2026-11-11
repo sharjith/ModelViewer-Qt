@@ -5,6 +5,7 @@
 #include <QVector3D>
 
 #include "ClippingState.h"
+#include "ViewOverlayVisibility.h"
 
 // ---------------------------------------------------------------------------
 // GltfCameraData
@@ -93,6 +94,9 @@ struct GltfCameraEntry
     // clipping off again. A SceneState's camera is a captured entry, so scene states carry the clipping the same way.
     bool            hasClipping = false;
     ClippingState   clipping;
+
+    // Absent on authored cameras and legacy views. An empty snapshot explicitly hides every overlay.
+    std::optional<ViewOverlayVisibility> overlayVisibility;
 };
 
 // All camera information for one loaded glTF/GLB source file.

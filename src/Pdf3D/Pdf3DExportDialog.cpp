@@ -39,7 +39,7 @@ namespace
 
 Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<ViewItem>& views, const QString& viewsInfo,
 	const QVector<OverlayItem>& overlays, const QVector<AnimationItem>& animations,
-	const GeometrySummary& geometry, bool openAfterSaving, QWidget* parent)
+	const GeometrySummary& geometry, bool openAfterSaving, int companionCount, QWidget* parent)
 	: QDialog(parent)
 	, ui(std::make_unique<Ui::Pdf3DExportDialog>())
 	, _viewCount(views.size())
@@ -65,9 +65,15 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	_openingView->setMinimumContentsLength(28);
 	openingForm->addRow(tr("Opening 3D view:"), _openingView);
 	reviewLayout->addLayout(openingForm);
-	auto* coverNote = new QLabel(tr("The cover image uses the current viewport. The opening view takes effect when the interactive model activates."), review);
+	auto* coverNote = new QLabel(tr("The cover uses the selected saved camera view when its clipping is supported. Other opening views use the current viewport for the cover."), review);
 	coverNote->setWordWrap(true);
 	reviewLayout->addWidget(coverNote);
+	if (companionCount > 0)
+	{
+		auto* note = new QLabel(tr("Includes %n static sheet(s) in the Publish Sheets order.", nullptr, companionCount), review);
+		note->setWordWrap(true);
+		reviewLayout->addWidget(note);
+	}
 	reviewLayout->addStretch();
 	ui->tabWidget->addTab(review, tr("Review"));
 	_reviewNotice = new QPushButton(tr("Review export limitations"), this);

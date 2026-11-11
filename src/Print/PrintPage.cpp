@@ -149,7 +149,7 @@ bool paint(QPainter& painter, const QSizeF& pagePt, int deviceDpi, bool useTempl
 }
 
 bool paintSheets(QPagedPaintDevice& device, int dpi, bool useTemplate, const Pdf3D::Pdf3DOptions& options,
-                 int partCount, const QVector<Sheet>& sheets, int first, int last)
+                 int partCount, const QVector<Pdf3D::StaticSheet>& sheets, int first, int last)
 {
     const int count = static_cast<int>(sheets.size());
     const int end = last > 0 ? qMin(last, count) : count;
@@ -164,7 +164,7 @@ bool paintSheets(QPagedPaintDevice& device, int dpi, bool useTemplate, const Pdf
     {
         if (page > first && !device.newPage())
             return false;
-        const Sheet& sheet = sheets.at(page - 1);
+        const Pdf3D::StaticSheet& sheet = sheets.at(page - 1);
         Pdf3D::Pdf3DOptions pageOptions = options;
         pageOptions.subtitle = sheet.name;
         if (!paint(painter, size, dpi, useTemplate, pageOptions, partCount, sheet.image, {}, nullptr, page, count))
@@ -174,7 +174,7 @@ bool paintSheets(QPagedPaintDevice& device, int dpi, bool useTemplate, const Pdf
 }
 
 bool saveSheets(const QString& path, const QPageLayout& layout, bool useTemplate, const Pdf3D::Pdf3DOptions& options,
-                int partCount, const QVector<Sheet>& sheets, QString* error)
+                int partCount, const QVector<Pdf3D::StaticSheet>& sheets, QString* error)
 {
     QSaveFile file(path);
     if (file.open(QIODevice::WriteOnly))

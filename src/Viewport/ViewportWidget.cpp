@@ -14992,6 +14992,8 @@ void ViewportWidget::activateGltfCamera(const QString& sourceFile, int cameraInd
 	applyGltfCameraEntryTransform(cam);
 	if (cam.hasClipping)
 		applyClippingState(cam.clipping);
+	if (cam.overlayVisibility && _viewer->sceneGraph())
+		_viewer->sceneGraph()->applyViewOverlayVisibility(*cam.overlayVisibility);
 
 	// If an animation clip is active for this file, re-run applyAnimationPose
 	// so that animated cameras (e.g. DiffuseTransmissionPlant) get overridden
@@ -15094,6 +15096,17 @@ GltfCameraEntry ViewportWidget::captureCurrentCameraEntry(const QString& name) c
 	entry.clipping = currentClippingState();
 	entry.hasClipping = true;
 
+	if (_viewer && _viewer->sceneGraph())
+	{
+		entry.overlayVisibility.emplace();
+		for (const Measurement& measurement : _viewer->sceneGraph()->measurements())
+			if (measurement.visible)
+				entry.overlayVisibility->measurements.insert(measurement.id);
+		for (const Annotation& annotation : _viewer->sceneGraph()->annotations())
+			if (annotation.visible)
+				entry.overlayVisibility->annotations.insert(annotation.id);
+	}
+
 	return entry;
 }
 
@@ -15117,6 +15130,8 @@ void ViewportWidget::activateCameraEntry(const GltfCameraEntry& cam)
 	applyGltfCameraEntryTransform(cam);
 	if (cam.hasClipping)
 		applyClippingState(cam.clipping);
+	if (cam.overlayVisibility && _viewer->sceneGraph())
+		_viewer->sceneGraph()->applyViewOverlayVisibility(*cam.overlayVisibility);
 
 	// Genuine one-shot jump, same as activateGltfCamera()'s non-animated
 	// branch - no animation clip will notify on this call's behalf.

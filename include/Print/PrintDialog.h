@@ -24,12 +24,12 @@ class PrintDialog : public QDialog
 {
     Q_OBJECT
 public:
-    enum class Output { Printer, Pdf, Svg };
+    enum class Output { Printer, Pdf, Svg, Pdf3D };
 
     // `declaredNumber`: the part number the model declares; it fills Drawing no. when there is one; otherwise the field is empty.
     PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::PartSummary& parts,
                 const QString& defaultTitle, const QString& declaredNumber, const QSizeF& orthographicSizeMm,
-                bool openAfterSaving, QWidget* parent = nullptr, const QVector<PrintPage::Sheet>& sheets = {});
+                bool openAfterSaving, QWidget* parent = nullptr, const QVector<Pdf3D::StaticSheet>& sheets = {});
 
     bool useTemplate() const;
     int imageDpi() const;

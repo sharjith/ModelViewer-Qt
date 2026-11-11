@@ -162,6 +162,14 @@ void drawFrame(QPainter& p, const Layout& l, const Pdf3DOptions& options, int pa
     drawSheetFrame(p, l.tpl, l.sheet, l.area3d, sheetValues(options, partCount, sheet, sheetCount));
 }
 
+void drawViewImage(QPainter& painter, const QRectF& area, const QImage& image)
+{
+    QSizeF size = image.size();
+    size.scale(area.size() - QSizeF(4, 4), Qt::KeepAspectRatio);
+    const QPointF origin = area.center() - QPointF(size.width() / 2, size.height() / 2);
+    painter.drawImage(QRectF(origin, size), image);
+}
+
 // Sheet 1: the frame plus the placeholder under the 3D annotation (the poster when there is one, otherwise a hint for readers
 // without 3D support).
 void drawModelSheet(QPainter& p, const Layout& l, const Pdf3DOptions& options, int partCount, int sheetCount)
@@ -169,12 +177,7 @@ void drawModelSheet(QPainter& p, const Layout& l, const Pdf3DOptions& options, i
     drawFrame(p, l, options, partCount, 1, sheetCount);
     QPen thin(Qt::black, 0.6);
     if (!options.poster.isNull())
-    {
-        QSizeF s = options.poster.size();
-        s.scale(l.area3d.size() - QSizeF(4, 4), Qt::KeepAspectRatio);
-        const QRectF target(QPointF(l.area3d.center().x() - s.width() / 2, l.area3d.center().y() - s.height() / 2), s);
-        p.drawImage(target, options.poster);
-    }
+        drawViewImage(p, l.area3d, options.poster);
     else
     {
         QFont f = p.font();
@@ -191,7 +194,7 @@ void drawModelSheet(QPainter& p, const Layout& l, const Pdf3DOptions& options, i
 void drawPartsSheet(QPainter& p, const Layout& l, const Pdf3DOptions& options, const QVector<PartRow>& rows, int partCount,
                     int sheetIndex, int sheetCount)
 {
-    drawFrame(p, l, options, partCount, 2 + sheetIndex, sheetCount);
+    drawFrame(p, l, options, partCount, 2 + static_cast<int>(options.companionSheets.size()) + sheetIndex, sheetCount);
 
     const qreal x0 = l.area3d.left();
     const qreal itemW = 46.0, qtyW = 60.0, matW = 260.0;
@@ -338,13 +341,35 @@ Pdf3DResult Pdf3DExporter::exportToFile(const U3dScene& scene, const Pdf3DOption
         const QVector<PartRow> rows = options.includePartsList ? buildPartRows(scene, options.subtitle) : QVector<PartRow>();
         const int perSheet = partsRowsPerSheet(layout);
         const int listSheets = rows.isEmpty() ? 0 : (static_cast<int>(rows.size()) + perSheet - 1) / perSheet;
-        const int sheetCount = 1 + listSheets;
+        const int companionCount = static_cast<int>(options.companionSheets.size());
+        const int sheetCount = 1 + companionCount + listSheets;
         drawModelSheet(painter, layout, options, partCount, sheetCount);
+        Layout companionLayout = layout;
+        companionLayout.area3d = layout.sheet.area3d;
+        for (int i = 0; i < companionCount; ++i)
+        {
+            if (wasCanceled())
+                return result;
+            const StaticSheet& sheet = options.companionSheets.at(i);
+            if (sheet.image.isNull() || !writer.newPage())
+            {
+                result.error = QCoreApplication::translate("Pdf3DExporter", "The companion sheet could not be created: %1").arg(sheet.name);
+                return result;
+            }
+            Pdf3DOptions sheetOptions = options;
+            sheetOptions.subtitle = sheet.name;
+            drawFrame(painter, companionLayout, sheetOptions, partCount, 2 + i, sheetCount);
+            drawViewImage(painter, companionLayout.area3d, sheet.image);
+        }
         for (int i = 0; i < listSheets; ++i)
         {
             if (wasCanceled())
                 return result;
-            writer.newPage();
+            if (!writer.newPage())
+            {
+                result.error = QCoreApplication::translate("Pdf3DExporter", "The parts list page could not be created.");
+                return result;
+            }
             drawPartsSheet(painter, layout, options, rows, partCount, i, sheetCount);
         }
         painter.end();

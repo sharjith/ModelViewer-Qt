@@ -5,6 +5,7 @@
 //                        in-process u3d conversion (skipped when the u3d modules are not next to the test executable)
 //   pdf3d_tests --full   additionally runs Pdf3DExporter::exportToFile (text layout and fonts) and checks the written file
 #include "ClippingState.h"
+#include "ViewOverlayVisibility.h"
 #include "OverlayToU3d.h"
 #include "PdfAppender.h"
 #include "Pdf3DExporter.h"
@@ -170,6 +171,20 @@ aiScene* makeTriangleScene()
     mat->AddProperty(&diffuse, 1, AI_MATKEY_COLOR_DIFFUSE);
     s->mMaterials[0] = mat;
     return s;
+}
+
+void testViewOverlayVisibilityJson()
+{
+    const QUuid measurement = QUuid::createUuid();
+    const QUuid annotation = QUuid::createUuid();
+    const ViewOverlayVisibility captured{{measurement}, {annotation}};
+    const auto restored = viewOverlayVisibilityFromJson(viewOverlayVisibilityToJson(captured));
+    CHECK(restored && restored->measurements == captured.measurements && restored->annotations == captured.annotations);
+
+    const auto hidden = viewOverlayVisibilityFromJson(viewOverlayVisibilityToJson({}));
+    CHECK(hidden && hidden->measurements.isEmpty() && hidden->annotations.isEmpty());
+    CHECK(!viewOverlayVisibilityFromJson(QJsonValue()));
+    CHECK(!viewOverlayVisibilityFromJson(QJsonObject{{QStringLiteral("measurements"), QJsonArray()}}));
 }
 
 void testClippingStateJson()
@@ -743,6 +758,21 @@ void testFullExport()
     const QRegularExpression twoPages(QStringLiteral("/Count\\s+2\\b"));
     const QRegularExpression onePage(QStringLiteral("/Count\\s+1\\b"));
     CHECK(twoPages.match(QString::fromLatin1(pdf)).hasMatch() && !onePage.match(QString::fromLatin1(pdf)).hasMatch());
+
+    Pdf3D::Pdf3DOptions publication = options;
+    QImage detail(80, 50, QImage::Format_RGB32);
+    detail.fill(Qt::red);
+    QImage section(50, 80, QImage::Format_RGB32);
+    section.fill(Qt::green);
+    publication.companionSheets = {{QStringLiteral("Detail"), detail}, {QStringLiteral("Section"), section}};
+    const QString publishedPath = dir.filePath(QStringLiteral("published-3d.pdf"));
+    CHECK(Pdf3D::Pdf3DExporter::exportToFile(u, publication, publishedPath).ok);
+    QFile published(publishedPath);
+    CHECK(published.open(QIODevice::ReadOnly));
+    const QByteArray publishedPdf = published.readAll();
+    CHECK(QRegularExpression(QStringLiteral("/Count\\s+4\\b")).match(QString::fromLatin1(publishedPdf)).hasMatch());
+    CHECK(publishedPdf.count("/Subtype /3D") == 1);
+    CHECK(publishedPdf.count("/Subtype /Image") >= 2);
 
     options.viewButtons = false;
     options.author = QStringLiteral("A. Author");
@@ -1803,7 +1833,7 @@ void testPublishedSheets()
     options.title = QStringLiteral("Publish sheets");
     QImage view(64, 32, QImage::Format_RGB32);
     view.fill(Qt::blue);
-    QVector<PrintPage::Sheet> sheets{{QStringLiteral("Assembly"), view},
+    QVector<Pdf3D::StaticSheet> sheets{{QStringLiteral("Assembly"), view},
                                      {QStringLiteral("Detail"), view},
                                      {QStringLiteral("Section"), view}};
     QString error;
@@ -2352,6 +2382,7 @@ int main(int argc, char** argv)
     testCameraViews();
     testFittedViews();
     testClippingStateJson();
+    testViewOverlayVisibilityJson();
     testAssemblyFolders();
     testOverlayToU3d();
     testSceneToU3d();
