@@ -1,3 +1,4 @@
+#include "ObjColourBaking.h"
 #include "AssImpMeshExporter.h"
 #include "RenderableMesh.h"
 #include "SceneMesh.h"
@@ -587,6 +588,14 @@ aiReturn AssImpMeshExporter::exportMeshes(
 
     logMessage("  -> Scene hierarchy created");
 
+    // OBJ has no vertex colours: turn them into materials (vertex colours take precedence)
+    if (ext == "obj")
+    {
+        const ObjColourBaking::Result baked = ObjColourBaking::bake(newScene.get());
+        logMessage(QString("  -> OBJ vertex colours -> materials: %1 meshes recoloured, %2 added by splitting, %3 materials created")
+            .arg(baked.meshesChanged).arg(baked.meshesAdded).arg(baked.materialsCreated));
+    }
+
     // ===== STEP 4: Export via Assimp =====
     logMessage("Step 4: Exporting to file...");
 
@@ -976,6 +985,14 @@ aiReturn AssImpMeshExporter::exportScene(
     {
         logMessage("Step 4b: Updating material texture paths to relative output paths...");
         updateSceneMaterialPaths(scene, _lastTexturePackage);
+    }
+
+    // ===== STEP 4c: OBJ has no vertex colours: turn them into materials (vertex colours take precedence) =====
+    if (ext == "obj")
+    {
+        const ObjColourBaking::Result baked = ObjColourBaking::bake(scene);
+        logMessage(QString("Step 4c: OBJ vertex colours -> materials: %1 meshes recoloured, %2 added by splitting, %3 materials created")
+            .arg(baked.meshesChanged).arg(baked.meshesAdded).arg(baked.materialsCreated));
     }
 
     // ===== STEP 5: Export =====
@@ -2464,7 +2481,9 @@ void AssImpMeshExporter::patchMtlWithPbrExtensions(
 
             output << line;
 
-            const QString name = trimmed.mid(7).trimmed();
+            // a material coloured from vertex colours (ObjColourBaking) carries a "_vc<RRGGBBAA>" suffix after the name of the original
+            QString name = trimmed.mid(7).trimmed();
+            name.remove(QRegularExpression(QStringLiteral("_vc[0-9A-Fa-f]{8}$")));
             auto it = matByName.find(name);
             current = (it != matByName.end()) ? &it.value() : nullptr;
         }
