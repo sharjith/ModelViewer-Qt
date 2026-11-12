@@ -162,14 +162,6 @@ void drawFrame(QPainter& p, const Layout& l, const Pdf3DOptions& options, int pa
     drawSheetFrame(p, l.tpl, l.sheet, l.area3d, sheetValues(options, partCount, sheet, sheetCount));
 }
 
-void drawViewImage(QPainter& painter, const QRectF& area, const QImage& image)
-{
-    QSizeF size = image.size();
-    size.scale(area.size() - QSizeF(4, 4), Qt::KeepAspectRatio);
-    const QPointF origin = area.center() - QPointF(size.width() / 2, size.height() / 2);
-    painter.drawImage(QRectF(origin, size), image);
-}
-
 // Sheet 1: the frame plus the placeholder under the 3D annotation (the poster when there is one, otherwise a hint for readers
 // without 3D support).
 void drawModelSheet(QPainter& p, const Layout& l, const Pdf3DOptions& options, int partCount, int sheetCount)

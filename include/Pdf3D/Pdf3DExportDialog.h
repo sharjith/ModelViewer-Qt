@@ -5,6 +5,9 @@
 #include "SheetTemplate.h"
 
 #include <QDialog>
+#include <QImage>
+
+#include <functional>
 #include <QMap>
 #include <QString>
 #include <QStringList>
@@ -93,6 +96,8 @@ public:
 	// The part number the model declares (NodeProperties::declaredPartNumber) fills the drawing number, and the user may change it. Does nothing
 	// for an empty string: the drawing number starts empty for each model, it is not remembered.
 	void setDeclaredDrawingNumber(const QString& number);
+	void setCoverPreviewProvider(std::function<QImage(int)> provider);
+	const QImage& coverPreview() const { return _coverPreview; }
 	void setSheetSample(int partCount, const QString& subtitle, const QString& material = QString(), const QString& mass = QString());
 
 	// For each ViewItem passed to the constructor, in order: whether it is ticked.
@@ -128,6 +133,7 @@ private:
 	void chooseLogo();                               // the Logo button
 	void editTemplate();                             // the Edit... button: the cell editor for the chosen template
 	QMap<QString, QString> currentSheetValues() const;   // what the sheet would print now (the preview and the editor show it)
+	void updateCoverPreview();
 	void updatePreview();                            // redraws the sheet preview from the chosen template and the current values
 	QString currentTemplateId() const;
 
@@ -143,6 +149,9 @@ private:
 	QStringList _templateProblems;              // files of the user folder that could not be used, and warnings
 	Pdf3D::SheetFieldEditors _customFields;
 	Pdf3D::SheetPreviewWidget* _preview = nullptr;   // below the fields, owned by the Sheet tab's layout
+	std::function<QImage(int)> _coverPreviewProvider;
+	QImage _coverPreview;
+	int _previewView = -2;
 	int _sampleParts = 12;
 	QString _sampleSubtitle;
 	QString _sampleMaterial;   // what the exported parts declare ({material} and {mass} of the sheet), see PartData.h

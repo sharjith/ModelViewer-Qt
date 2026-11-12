@@ -7137,6 +7137,45 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		// what the sheet preview shows for {parts}, {subtitle}, {material} and {mass}
 		optionsDialog.setSheetSample(summary.parts, sourceNames.join(QStringLiteral(", ")), summary.material, summary.mass);
 	}
+	const QImage currentPoster = _viewportWidget->captureCleanRayTracedImage();
+	optionsDialog.setCoverPreviewProvider([&, this](int index) -> QImage {
+		const int openingSavedView = index >= 0 && index < entries.size() ? entries.at(index).savedViewIndex : -1;
+		if (openingSavedView < 0)
+			return currentPoster;
+
+		if (companionSheets)
+		{
+			for (const auto& sheet : *companionSheets)
+			{
+				if (sheet.savedViewIndex == openingSavedView && !sheet.image.isNull())
+					return sheet.image;
+			}
+		}
+
+		QApplication::setOverrideCursor(Qt::WaitCursor);
+		const auto restoreCursor = qScopeGuard([] { QApplication::restoreOverrideCursor(); });
+		const auto previous = _viewportWidget->captureCurrentCameraEntry(QString());
+		const QString cameraFile = _viewportWidget->activeGltfCameraFile();
+		const int cameraIndex = _viewportWidget->activeGltfCameraIndex();
+		const auto restore = qScopeGuard([&] {
+			_viewportWidget->activateCameraEntry(previous);
+			if (cameraIndex >= 0)
+			{
+				_viewportWidget->activateGltfCamera(cameraFile, cameraIndex);
+				if (previous.overlayVisibility)
+					_sceneGraph->applyViewOverlayVisibility(*previous.overlayVisibility);
+			}
+		});
+		auto camera = savedCameras.at(openingSavedView);
+		if (!camera.hasClipping)
+		{
+			camera.clipping = {};
+			camera.hasClipping = true;
+		}
+		_viewportWidget->activateCameraEntry(camera);
+		const QImage poster = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
+		return poster.isNull() ? currentPoster : poster;
+	});
 	if (optionsDialog.exec() != QDialog::Accepted)
 		return;
 	Pdf3D::Pdf3DOptions options;
@@ -7257,13 +7296,9 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 
 	const QVector<bool> selection = optionsDialog.viewSelection();
 	const QVector<bool> viewOverlays = optionsDialog.viewOverlaySelection();
-	int includedView = 0;
-	int openingSavedView = -1;
 	for (int i = 0; i < entries.size() && i < selection.size(); ++i)
 	{
 		const bool showOverlays = viewOverlays.value(i, true);
-		if (selection[i] && includedView++ == options.openingView)
-			openingSavedView = entries[i].savedViewIndex;
 		if (entries[i].standard)
 		{
 			if (!selection[i])
@@ -7293,42 +7328,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 	// The scene is exported in file space; the viewer's camera mode follows the file's up axis (STEP opens Z Up), so the
 	// standard views (Front/Top/...) use the same convention as the viewport.
 	options.upAxis = _viewportWidget->isCameraUpAxisZUp() ? Pdf3D::UpAxis::Z : Pdf3D::UpAxis::Y;
-	if (openingSavedView >= 0)
-	{
-		for (const auto& sheet : options.companionSheets)
-		{
-			if (sheet.savedViewIndex == openingSavedView)
-			{
-				options.poster = sheet.image;
-				break;
-			}
-		}
-		if (options.poster.isNull())
-		{
-			const auto previous = _viewportWidget->captureCurrentCameraEntry(QString());
-			const QString cameraFile = _viewportWidget->activeGltfCameraFile();
-			const int cameraIndex = _viewportWidget->activeGltfCameraIndex();
-			const auto restore = qScopeGuard([&] {
-				_viewportWidget->activateCameraEntry(previous);
-				if (cameraIndex >= 0)
-				{
-					_viewportWidget->activateGltfCamera(cameraFile, cameraIndex);
-					if (previous.overlayVisibility)
-						_sceneGraph->applyViewOverlayVisibility(*previous.overlayVisibility);
-				}
-			});
-			auto camera = savedCameras.at(openingSavedView);
-			if (!camera.hasClipping)
-			{
-				camera.clipping = {};
-				camera.hasClipping = true;
-			}
-			_viewportWidget->activateCameraEntry(camera);
-			options.poster = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
-		}
-	}
-	if (options.poster.isNull())
-		options.poster = _viewportWidget->captureCleanRayTracedImage();
+	options.poster = optionsDialog.coverPreview();
 
 	QApplication::restoreOverrideCursor();
 	const Pdf3D::Pdf3DResult result = Pdf3D::exportWithProgress(this, u3dScene, options, fileName);

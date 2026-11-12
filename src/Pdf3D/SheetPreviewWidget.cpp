@@ -47,6 +47,13 @@ void SheetPreviewWidget::setValues(const QMap<QString, QString>& values)
     update();
 }
 
+void SheetPreviewWidget::setPoster(const QImage& poster)
+{
+    _poster = poster;
+    _dirty = true;
+    update();
+}
+
 void SheetPreviewWidget::setSelectedCell(int index)
 {
     index = (index >= 0 && index < _tpl.cells.size()) ? index : -1;
@@ -116,7 +123,7 @@ QRectF SheetPreviewWidget::toWidgetRect(const QRectF& blockRect) const
 
 void SheetPreviewWidget::render(const QSize& pixels, qreal devicePixelRatio)
 {
-    _image = renderSheetPreview(_tpl, _values, std::max(1, pixels.width()), _selected, &_layout);
+    _image = renderSheetPreview(_tpl, _values, std::max(1, pixels.width()), _selected, &_layout, _poster);
     _image.setDevicePixelRatio(devicePixelRatio);
     _imageSize = pixels;
     _dirty = false;

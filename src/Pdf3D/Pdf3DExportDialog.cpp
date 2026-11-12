@@ -65,6 +65,7 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	_openingView->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
 	_openingView->setMinimumContentsLength(28);
 	openingForm->addRow(tr("Opening 3D view:"), _openingView);
+	connect(_openingView, &QComboBox::currentIndexChanged, this, &Pdf3DExportDialog::updateCoverPreview);
 	reviewLayout->addLayout(openingForm);
 	auto* coverNote = new QLabel(tr("The cover uses the selected saved camera view when its clipping is supported. Other opening views use the current viewport for the cover."), review);
 	coverNote->setWordWrap(true);
@@ -394,6 +395,25 @@ QMap<QString, QString> Pdf3DExportDialog::currentSheetValues() const
 	return Pdf3D::sheetValues(options, _sampleParts, 1, 1);
 }
 
+void Pdf3DExportDialog::setCoverPreviewProvider(std::function<QImage(int)> provider)
+{
+	_coverPreviewProvider = std::move(provider);
+	updateCoverPreview();
+}
+
+void Pdf3DExportDialog::updateCoverPreview()
+{
+	if (!_coverPreviewProvider)
+		return;
+	const int selected = _openingView->currentIndex();
+	const int index = _openingView->count() > 1 ? _openingView->itemData(qMax(1, selected)).toInt() : -1;
+	if (index == _previewView)
+		return;
+	_previewView = index;
+	_coverPreview = _coverPreviewProvider(index);
+	_preview->setPoster(_coverPreview);
+}
+
 void Pdf3DExportDialog::updatePreview()
 {
 	const int index = ui->templateCombo->currentIndex();
@@ -543,6 +563,7 @@ void Pdf3DExportDialog::updateOkEnabled()
 		ok->setEnabled(any);
 		ok->setToolTip(any ? QString() : tr("Tick at least one view."));
 	}
+	updateCoverPreview();
 	updateReview();
 }
 

@@ -28,6 +28,7 @@ public:
 
     void setTemplate(const SheetTemplate& tpl);
     void setValues(const QMap<QString, QString>& values);
+    void setPoster(const QImage& poster);
     void setSelectedCell(int index);   // -1: none; the cell gets a blue frame
     int  selectedCell() const { return _selected; }
     void setEditable(bool editable);   // drag and arrow keys change the cell's rectangle (reported through cellGeometryChanged)
@@ -73,6 +74,7 @@ private:
     int _selected = -1;
     bool _editable = false;
     Drag _drag;
+    QImage _poster;
     QImage _image;                     // the cached picture
     SheetLayout _layout;               // the layout that picture shows (hit testing, dragging)
     bool _dirty = true;

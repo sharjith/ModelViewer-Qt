@@ -1613,6 +1613,14 @@ void testSheetRenderer()
     CHECK(renderSheetPreview(def, values, 420, 0) != image);                               // a selected cell is framed
     CHECK(renderSheetPreview(def, values, 420, 99) == image && renderSheetPreview(def, values, 420, -5) == image);   // out of range: none
     CHECK(renderSheetPreview(def, values, 840).width() == 840);
+    QImage poster(64, 40, QImage::Format_RGB32);
+    poster.fill(Qt::red);
+    const QImage cover = renderSheetPreview(def, values, 420, -1, nullptr, poster);
+    const double previewScale = cover.width() / sheetPageSizePt(def).width();
+    CHECK(cover.pixelColor((shown.sheet.area3d.center() * previewScale).toPoint()) == QColor(Qt::red));
+    CHECK(cover.pixelColor((shown.sheet.area3d.topLeft() * previewScale).toPoint() + QPoint(3, 3)) != QColor(Qt::red));
+    CHECK(cover.pixelColor((shown.sheet.titleBlock.center() * previewScale).toPoint()) ==
+          image.pixelColor((shown.sheet.titleBlock.center() * previewScale).toPoint()));
 
     // a template with a logo draws something in the logo cell that the same template without it does not
     QTemporaryDir root;

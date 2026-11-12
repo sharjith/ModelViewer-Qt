@@ -41,6 +41,8 @@ void drawSheetFrame(QPainter& p, const SheetTemplate& tpl, const ResolvedSheet& 
 
 // A picture of the whole page (white, the 3D area greyed and labelled) `widthPx` wide, for the template preview. `selectedCell`
 // (an index into tpl.cells, or -1) gets a blue frame. `layout` (may be null) receives the layout that was drawn.
-QImage renderSheetPreview(const SheetTemplate& tpl, const QMap<QString, QString>& values, int widthPx, int selectedCell = -1, SheetLayout* layout = nullptr);
+void drawViewImage(QPainter& painter, const QRectF& area, const QImage& image);
+QImage renderSheetPreview(const SheetTemplate& tpl, const QMap<QString, QString>& values, int widthPx, int selectedCell = -1, SheetLayout* layout = nullptr,
+                          const QImage& poster = {});
 
 } // namespace Pdf3D

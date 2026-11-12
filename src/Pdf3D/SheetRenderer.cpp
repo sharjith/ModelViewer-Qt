@@ -214,7 +214,16 @@ void drawSheetFrame(QPainter& p, const SheetTemplate& tpl, const ResolvedSheet& 
     p.setPen(thin);
 }
 
-QImage renderSheetPreview(const SheetTemplate& tpl, const QMap<QString, QString>& values, int widthPx, int selectedCell, SheetLayout* layoutOut)
+void drawViewImage(QPainter& painter, const QRectF& area, const QImage& image)
+{
+    QSizeF size = image.size();
+    size.scale(area.size() - QSizeF(4, 4), Qt::KeepAspectRatio);
+    const QPointF origin = area.center() - QPointF(size.width() / 2, size.height() / 2);
+    painter.drawImage(QRectF(origin, size), image);
+}
+
+QImage renderSheetPreview(const SheetTemplate& tpl, const QMap<QString, QString>& values, int widthPx, int selectedCell, SheetLayout* layoutOut,
+                          const QImage& poster)
 {
     const QSizeF pagePt = sheetPageSizePt(tpl);
     const double zoom = std::max(1, widthPx) / pagePt.width();
@@ -231,14 +240,22 @@ QImage renderSheetPreview(const SheetTemplate& tpl, const QMap<QString, QString>
         *layoutOut = layout;
 
     const QRectF area = layout.sheet.area3d;
-    p.fillRect(area, QColor(238, 241, 245));
-    p.save();
-    QFont f = p.font();
-    f.setPointSizeF(11);
-    p.setFont(f);
-    p.setPen(QColor(150, 150, 150));
-    p.drawText(area, Qt::AlignCenter, QCoreApplication::translate("Pdf3DExporter", "3D area"));
-    p.restore();
+    if (poster.isNull())
+    {
+        p.fillRect(area, QColor(238, 241, 245));
+        p.save();
+        QFont f = p.font();
+        f.setPointSizeF(11);
+        p.setFont(f);
+        p.setPen(QColor(150, 150, 150));
+        p.drawText(area, Qt::AlignCenter, QCoreApplication::translate("Pdf3DExporter", "3D area"));
+        p.restore();
+    }
+    else
+    {
+        p.setRenderHint(QPainter::SmoothPixmapTransform);
+        drawViewImage(p, area, poster);
+    }
     drawSheetFrame(p, tpl, layout.sheet, area, values);
 
     if (selectedCell >= 0 && selectedCell < layout.sheet.cells.size())
