@@ -670,7 +670,7 @@ QVector<QUuid> AnnotationController::visibleAnnotationIds() const
 }
 
 void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer,
-    OverlayGraphic* capture, const QUuid& captureId)
+    OverlayGraphic* capture, const QUuid& captureId, bool cleanFrame)
 {
     _recordedStrokes.clear();
     if (!camera || !_viewer || !_viewer->sceneGraph())
@@ -712,10 +712,10 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
         if (capture ? a.id != captureId : !isEffectivelyVisible(a))
             continue;
 
-        const bool isSelected = !capture && _selectedAnnotationIds.contains(a.id);
+        const bool isSelected = !capture && !cleanFrame && _selectedAnnotationIds.contains(a.id);
         // Selection is the stronger cue - see MeasurementController::
         // drawMeasurementOverlay()'s identical reasoning.
-        const bool isHovered = !capture && !isSelected && (a.id == _hoveredAnnotationId || a.id == _hoveredLeaderId);
+        const bool isHovered = !capture && !cleanFrame && !isSelected && (a.id == _hoveredAnnotationId || a.id == _hoveredLeaderId);
 
         QVector3D color = isSelected ? selectedColor : noteColor;
         if (isHovered)
@@ -806,7 +806,7 @@ void AnnotationController::drawAnnotationOverlay(Camera* camera, const QSize& vi
 
     // Live placement preview while the tool is armed - mirrors
     // MeasurementController's hover-anchor preview marker.
-    if (_annotationToolArmed && _annotationHoverAnchor.isValid())
+    if (!cleanFrame && _annotationToolArmed && _annotationHoverAnchor.isValid())
         addMarker(_annotationHoverAnchor.worldPosition, hoverSnapColor, 1.25f);
 
     // Never hidden behind shaded model surfaces - same reasoning as

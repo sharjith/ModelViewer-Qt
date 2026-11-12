@@ -4141,7 +4141,7 @@ QVector<QUuid> MeasurementController::visibleMeasurementIds() const
 }
 
 void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer,
-	OverlayGraphic* capture, const QUuid& captureId)
+	OverlayGraphic* capture, const QUuid& captureId, bool cleanFrame)
 {
 	// Refilled below by what this draw shows; anything not drawn this time (hidden, deleted) cannot be hit.
 	_labelHandles.clear();
@@ -4756,12 +4756,12 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		dimPlaneValid = false;
 		dimAlign = 0.0f;
 		dimOrientation = m.orientation;
-		const bool isSelected = !capture && _selectedMeasurementIds.contains(m.id);
+		const bool isSelected = !capture && !cleanFrame && _selectedMeasurementIds.contains(m.id);
 		// Selection is the stronger cue and wins if somehow both apply
 		// (shouldn't normally happen - hover-select only runs while nothing
 		// new is being placed - but a stale hover from just before a click
 		// landed is a real possibility for one frame).
-		const bool isHovered = !isSelected && (m.id == _hoveredMeasurementId);
+		const bool isHovered = !capture && !cleanFrame && !isSelected && (m.id == _hoveredMeasurementId);
 
 		QVector3D color = isSelected ? selectedColor
 			: (m.type == MeasurementType::Point ? pointColor : distanceColor);
@@ -4786,7 +4786,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 		// distinct from `color` above (used for markers/legs/normal-
 		// indicators, which don't change) so the exact grabbable part reads
 		// clearly, not the whole measurement.
-		const bool isDimensionHovered = !capture && !isSelected && (m.id == _hoveredDimensionId);
+		const bool isDimensionHovered = !capture && !cleanFrame && !isSelected && (m.id == _hoveredDimensionId);
 		const QVector3D dimensionColor = isDimensionHovered
 			? (color * 0.4f + QVector3D(1.0f, 1.0f, 1.0f) * 0.6f)
 			: color;
@@ -5483,7 +5483,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 	// pick already made, a straight preview line connecting consecutive
 	// picks (useful feedback even for a 3rd arc point that hasn't landed
 	// yet), and a prompt for what to click next.
-	if (!_pendingMeasurementAnchors.isEmpty())
+	if (!cleanFrame && !_pendingMeasurementAnchors.isEmpty())
 	{
 		// Mirrors handleMeasurementClick()'s own tool/anchor-index dispatch
 		// for which picks came from pickStraightEdgeAnchor() rather than
@@ -5548,7 +5548,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 	// update). Distinct color and a larger cross when it WILL snap, so the
 	// snap itself reads unambiguously rather than looking like just another
 	// raw surface point.
-	if (_measurementHoverAnchor.isValid())
+	if (!cleanFrame && _measurementHoverAnchor.isValid())
 	{
 		const bool snapped = _measurementHoverAnchor.snappedVertexIndex >= 0;
 		const QVector3D hp = _measurementHoverAnchor.worldPosition;
@@ -5569,7 +5569,7 @@ void MeasurementController::drawMeasurementOverlay(Camera* camera, const QSize& 
 	// every genuine edge-target tool (EdgeLength/EdgeToEdge/EdgeToVertex's
 	// first anchor/EdgeToFace's first anchor) previews the edge's own
 	// chord as a straight line instead.
-	if (_measurementEdgeHoverAnchor.isValid())
+	if (!cleanFrame && _measurementEdgeHoverAnchor.isValid())
 	{
 		MeasurementAnchorRef hoverRef;
 		hoverRef.meshUuid  = _measurementEdgeHoverAnchor.meshUuid;

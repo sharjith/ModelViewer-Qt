@@ -7860,16 +7860,21 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	}
 	render(_primaryCamera);
 	drawSimulationVolumes(_primaryCamera);
-	drawTransformGizmo(_primaryCamera);
-	renderPlaneGizmos();
-	drawVertexMarkers();
+	if (!_capturingCleanFrame)
+	{
+		drawTransformGizmo(_primaryCamera);
+		renderPlaneGizmos();
+		drawVertexMarkers();
+	}
+	// Keep overlay coordinates in logical viewport pixels. The GL viewport scales those
+	// coordinates with the model, preserving the label-to-model ratio at higher DPI.
 	if (_measurementController)
-		_measurementController->drawMeasurementOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
+		_measurementController->drawMeasurementOverlay(_primaryCamera, size(), _axisTextRenderer, nullptr, {}, _capturingCleanFrame);
 	if (_annotationController)
-		_annotationController->drawAnnotationOverlay(_primaryCamera, QSize(width(), height()), _axisTextRenderer);
-	if (_seamMarkingController)
+		_annotationController->drawAnnotationOverlay(_primaryCamera, size(), _axisTextRenderer, nullptr, {}, _capturingCleanFrame);
+	if (!_capturingCleanFrame && _seamMarkingController)
 		_seamMarkingController->drawSeamOverlay(_primaryCamera);
-	if (_fillHolesController)
+	if (!_capturingCleanFrame && _fillHolesController)
 		_fillHolesController->drawOverlay(_primaryCamera);
 	drawSimulationSlices(_primaryCamera);
 	drawSimulationStreamlines(_primaryCamera);
@@ -7877,8 +7882,11 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	drawSimulationTensorGlyphs(_primaryCamera);
 	// TextRenderer intentionally disables depth testing. Keep floating text last so its state cannot change the
 	// visibility of later 3D overlays (hover text previously made hidden stress ellipsoids show through the mesh).
-	drawPlaneGizmoDragLabel();
-	drawSurfaceAnalysisHoverLabel();
+	if (!_capturingCleanFrame)
+	{
+		drawPlaneGizmoDragLabel();
+		drawSurfaceAnalysisHoverLabel();
+	}
 }
 
 void ViewportWidget::applyExplodedViewTransforms(const QMap<int, TransformState>& transforms, bool fitView)
@@ -8004,8 +8012,11 @@ void ViewportWidget::renderComparePanes(QColor& topColor, QColor& botColor)
 	}
 	glDisable(GL_SCISSOR_TEST);
 	glViewport(0, 0, width(), height());
-	drawVertexMarkers(); // in window coordinates, shifted into the pane of their result
-	drawSurfaceAnalysisHoverLabel(); // the hover probe's value, at the cursor
+	if (!_capturingCleanFrame)
+	{
+		drawVertexMarkers(); // in window coordinates, shifted into the pane of their result
+		drawSurfaceAnalysisHoverLabel(); // the hover probe's value, at the cursor
+	}
 }
 
 void ViewportWidget::setCompareResults(const QVector<QUuid>& meshUuids, CompareArrangement arrangement)
@@ -8891,7 +8902,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 	// Suppress hover highlighting while Ctrl is held — avoids flashes during
 	// Ctrl+drag view manipulation as the pointer crosses mesh boundaries.
 	const bool ctrlHeld = QGuiApplication::queryKeyboardModifiers() & Qt::ControlModifier;
-	const bool hoverHighlightingEnabled = !ctrlHeld &&
+	const bool hoverHighlightingEnabled = !_capturingCleanFrame && !ctrlHeld &&
 		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabled);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
@@ -9000,7 +9011,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShader)
 		{
-			const QList<int> selIds = _selectionManager->getSelectedIds();
+			const QList<int> selIds = _capturingCleanFrame ? QList<int>() : _selectionManager->getSelectedIds();
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -9019,7 +9030,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 			hoveredFlag.bind(_renderCtrl.wireframeShader(), "hovered");
 			const int hoveredIdNow = _selectionManager->getHoveredId();
 			std::vector<int> wireIds;
-			if (!drawWireBatches(true, hoverHighlightingEnabled ? hoveredIdNow : -1, wireIds))
+			if (!drawWireBatches(!_capturingCleanFrame, hoverHighlightingEnabled ? hoveredIdNow : -1, wireIds))
 				for (const auto& entry : opaque)
 					wireIds.push_back(entry.second);
 			for (int id : wireIds)
@@ -9184,7 +9195,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
 		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
 		{
-			const QList<int> selIds = _selectionManager->getSelectedIds();
+			const QList<int> selIds = _capturingCleanFrame ? QList<int>() : _selectionManager->getSelectedIds();
 			for (auto& [key, id] : opaque)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
@@ -9244,7 +9255,7 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
 		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
 		{
-			const QList<int> selIds = _selectionManager->getSelectedIds();
+			const QList<int> selIds = _capturingCleanFrame ? QList<int>() : _selectionManager->getSelectedIds();
 			for (auto& [key, id] : opaque)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
@@ -9456,7 +9467,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 	RenderableMesh::recordProgramBindCall(true);
 	RenderableMesh::notifyProgramBound(prog);
 	const bool ctrlHeldT = QGuiApplication::queryKeyboardModifiers() & Qt::ControlModifier;
-	const bool hoverHighlightingEnabledT = !ctrlHeldT &&
+	const bool hoverHighlightingEnabledT = !_capturingCleanFrame && !ctrlHeldT &&
 		(_selectionManager->getHoverMode() != HoverHighlightMode::Disabled);
 	prog->setUniformValue("hoverHighlighting", hoverHighlightingEnabledT);
 	prog->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
@@ -9505,7 +9516,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 		glDisable(GL_POLYGON_OFFSET_FILL);
 		if (useWireShaderT)
 		{
-			const QList<int> selIds = _selectionManager->getSelectedIds();
+			const QList<int> selIds = _capturingCleanFrame ? QList<int>() : _selectionManager->getSelectedIds();
 			RenderableMesh::bindProgramCached(_renderCtrl.wireframeShader());
 			_renderCtrl.wireframeShader()->setUniformValue("viewMatrix",       _viewCtrl.viewMatrix());
 			_renderCtrl.wireframeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
@@ -9675,7 +9686,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
 		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
 		{
-			const QList<int> selIds = _selectionManager->getSelectedIds();
+			const QList<int> selIds = _capturingCleanFrame ? QList<int>() : _selectionManager->getSelectedIds();
 			for (auto& it : transparent)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
@@ -9729,7 +9740,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
 		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
 		{
-			const QList<int> selIds = _selectionManager->getSelectedIds();
+			const QList<int> selIds = _capturingCleanFrame ? QList<int>() : _selectionManager->getSelectedIds();
 			for (auto& it : transparent)
 			{
 				if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
@@ -10283,7 +10294,7 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	prog->setUniformValue("envMapExposure", _renderCtrl.envMapExposure());
 	prog->setUniformValue("iblExposure", _renderCtrl.iblExposure());
 	prog->setUniformValue("toneMapMode", static_cast<int>(_renderCtrl.toneMappingMode()));	
-	prog->setUniformValue("selectionHighlighting", _selectionHighlighting);
+	prog->setUniformValue("selectionHighlighting", !_capturingCleanFrame && _selectionHighlighting);
 
 	prog->setUniformValue("transmissionFramebufferSize",
 		QVector2D(_renderCtrl.transmissionTextureWidth(), _renderCtrl.transmissionTextureHeight()));
@@ -13729,7 +13740,8 @@ void ViewportWidget::render(Camera* camera)
     drawDebugOverlay(camera);
     drawPlot3DAxisOverlay(camera);
     drawPlot3DNotes();
-    drawPlot3DSectionProbe(camera);
+    if (!_capturingCleanFrame)
+        drawPlot3DSectionProbe(camera);
     drawPlot3DPointOverlays(camera);
 	// Single-view mode draws this AFTER the ray-traced overlay instead (see
 	// paintGL()'s post-overlay block) so it isn't wiped out by PT's force-
@@ -13743,12 +13755,12 @@ void ViewportWidget::render(Camera* camera)
 	// only draw it here for multi-view's per-sub-viewport pass to avoid
 	// double-drawing.
 	if (_viewCtrl.multiViewActive() && _measurementController)
-		_measurementController->drawMeasurementOverlay(camera, QSize(width(), height()), _axisTextRenderer);
+		_measurementController->drawMeasurementOverlay(camera, size(), _axisTextRenderer, nullptr, {}, _capturingCleanFrame);
 	if (_viewCtrl.multiViewActive() && _annotationController)
-		_annotationController->drawAnnotationOverlay(camera, QSize(width(), height()), _axisTextRenderer);
-	if (_viewCtrl.multiViewActive() && _seamMarkingController)
+		_annotationController->drawAnnotationOverlay(camera, size(), _axisTextRenderer, nullptr, {}, _capturingCleanFrame);
+	if (_viewCtrl.multiViewActive() && !_capturingCleanFrame && _seamMarkingController)
 		_seamMarkingController->drawSeamOverlay(camera);
-	if (_viewCtrl.multiViewActive() && _fillHolesController)
+	if (_viewCtrl.multiViewActive() && !_capturingCleanFrame && _fillHolesController)
 		_fillHolesController->drawOverlay(camera);
 	if (_viewCtrl.multiViewActive())
 	{

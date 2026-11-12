@@ -7137,11 +7137,16 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		// what the sheet preview shows for {parts}, {subtitle}, {material} and {mass}
 		optionsDialog.setSheetSample(summary.parts, sourceNames.join(QStringLiteral(", ")), summary.material, summary.mass);
 	}
-	const QImage currentPoster = _viewportWidget->captureCleanRayTracedImage();
+	QImage currentPoster;
+	const auto captureCurrentPoster = [&]() -> QImage {
+		if (currentPoster.isNull())
+			currentPoster = _viewportWidget->captureCleanRayTracedImage();
+		return currentPoster;
+	};
 	optionsDialog.setCoverPreviewProvider([&, this](int index) -> QImage {
 		const int openingSavedView = index >= 0 && index < entries.size() ? entries.at(index).savedViewIndex : -1;
 		if (openingSavedView < 0)
-			return currentPoster;
+			return captureCurrentPoster();
 
 		if (companionSheets)
 		{
@@ -7154,27 +7159,29 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 
 		QApplication::setOverrideCursor(Qt::WaitCursor);
 		const auto restoreCursor = qScopeGuard([] { QApplication::restoreOverrideCursor(); });
-		const auto previous = _viewportWidget->captureCurrentCameraEntry(QString());
-		const QString cameraFile = _viewportWidget->activeGltfCameraFile();
-		const int cameraIndex = _viewportWidget->activeGltfCameraIndex();
-		const auto restore = qScopeGuard([&] {
-			_viewportWidget->activateCameraEntry(previous);
-			if (cameraIndex >= 0)
+		const QImage poster = [&] {
+			const auto previous = _viewportWidget->captureCurrentCameraEntry(QString());
+			const QString cameraFile = _viewportWidget->activeGltfCameraFile();
+			const int cameraIndex = _viewportWidget->activeGltfCameraIndex();
+			const auto restore = qScopeGuard([&] {
+				_viewportWidget->activateCameraEntry(previous);
+				if (cameraIndex >= 0)
+				{
+					_viewportWidget->activateGltfCamera(cameraFile, cameraIndex);
+					if (previous.overlayVisibility)
+						_sceneGraph->applyViewOverlayVisibility(*previous.overlayVisibility);
+				}
+			});
+			auto camera = savedCameras.at(openingSavedView);
+			if (!camera.hasClipping)
 			{
-				_viewportWidget->activateGltfCamera(cameraFile, cameraIndex);
-				if (previous.overlayVisibility)
-					_sceneGraph->applyViewOverlayVisibility(*previous.overlayVisibility);
+				camera.clipping = {};
+				camera.hasClipping = true;
 			}
-		});
-		auto camera = savedCameras.at(openingSavedView);
-		if (!camera.hasClipping)
-		{
-			camera.clipping = {};
-			camera.hasClipping = true;
-		}
-		_viewportWidget->activateCameraEntry(camera);
-		const QImage poster = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
-		return poster.isNull() ? currentPoster : poster;
+			_viewportWidget->activateCameraEntry(camera);
+			return _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
+		}();
+		return poster.isNull() ? captureCurrentPoster() : poster;
 	});
 	if (optionsDialog.exec() != QDialog::Accepted)
 		return;

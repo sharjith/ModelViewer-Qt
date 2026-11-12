@@ -251,7 +251,7 @@ public:
 	// With `capture` set the function builds the geometry of the ONE measurement `captureId` into it and draws nothing (no OpenGL
 	// is touched, axisTextRenderer may be null); selection and hover are ignored, pending picks and hover previews are skipped.
 	void drawMeasurementOverlay(Camera* camera, const QSize& viewportSize, TextRenderer* axisTextRenderer,
-		OverlayGraphic* capture = nullptr, const QUuid& captureId = QUuid());
+		OverlayGraphic* capture = nullptr, const QUuid& captureId = QUuid(), bool cleanFrame = false);
 
 	// The geometry of measurement `id` as the overlay would draw it with `camera` (see OverlayGraphic.h and drawMeasurementOverlay()),
 	// without disturbing the live viewport's hit-testing state. False when the measurement draws nothing.

@@ -298,6 +298,16 @@ QString saveSvgSheets(const QString& parentPath, const QPageLayout& layout, bool
         return {};
     }
 
+    // A regular directory uses the platform's normal creation permissions.
+    // The private temporary parent still keeps the unfinished set private.
+    const QString stagingFolder = staged.filePath(QStringLiteral("sheets"));
+    if (!QDir().mkdir(stagingFolder))
+    {
+        if (error)
+            *error = QCoreApplication::translate("PrintDialog", "Could not create the SVG staging folder.");
+        return {};
+    }
+    const QDir stagedSheets(stagingFolder);
     const int digits = qMax(3, static_cast<int>(QString::number(count).size()));
     for (int i = 0; i < count; ++i)
     {
@@ -305,7 +315,7 @@ QString saveSvgSheets(const QString& parentPath, const QPageLayout& layout, bool
         auto pageOptions = options;
         pageOptions.subtitle = sheet.name;
         const QString name = QStringLiteral("Sheet-%1.svg").arg(i + 1, digits, 10, QLatin1Char('0'));
-        if (!savePageFile(staged.filePath(name), FileFormat::Svg, layout, useTemplate,
+        if (!savePageFile(stagedSheets.filePath(name), FileFormat::Svg, layout, useTemplate,
                           pageOptions, partCount, sheet.image, error, {}, i + 1, count))
             return {};
     }
@@ -314,13 +324,12 @@ QString saveSvgSheets(const QString& parentPath, const QPageLayout& layout, bool
     QString destination = parent.absoluteFilePath(base);
     for (int suffix = 2; QFileInfo::exists(destination) || QFileInfo(destination).isSymLink(); ++suffix)
         destination = parent.absoluteFilePath(QStringLiteral("%1 (%2)").arg(base).arg(suffix));
-    if (!parent.rename(staged.path(), destination))
+    if (!parent.rename(stagingFolder, destination))
     {
         if (error)
             *error = QCoreApplication::translate("PrintDialog", "Could not create the SVG output folder.");
         return {};
     }
-    staged.setAutoRemove(false);
     return destination;
 }
 

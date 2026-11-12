@@ -1848,6 +1848,10 @@ void testPrintCaptureSize()
     CHECK(!framed.isEmpty() && framed.width() < normal.width());
     CHECK(qAbs(framed.width() - 2 * framed.height()) <= 2);
 
+    const QSize portrait = PrintPage::rasterSize(QSizeF(432, 720), 600, true, options, 1, view);
+    CHECK(!portrait.isEmpty());
+    CHECK(qAbs(portrait.width() - 2 * portrait.height()) <= 2);
+
     const QSize bounded = PrintPage::rasterSize(QSizeF(3500, 3000), 600, false, options, 1, QSize(1, 1));
     CHECK(!bounded.isEmpty() && bounded.width() == bounded.height());
     CHECK(qint64(bounded.width()) * bounded.height() <= 12000000);
@@ -1917,6 +1921,11 @@ void testPublishedSheets()
     if (!svgFolder.isEmpty())
     {
         const QDir output(svgFolder);
+#ifdef Q_OS_UNIX
+        const QString regularFolder = dir.filePath(QStringLiteral("regular-folder"));
+        CHECK(QDir().mkdir(regularFolder));
+        CHECK(QFileInfo(svgFolder).permissions() == QFileInfo(regularFolder).permissions());
+#endif
         CHECK(output.entryList(QDir::Files) == QStringList({QStringLiteral("Sheet-001.svg"),
             QStringLiteral("Sheet-002.svg"), QStringLiteral("Sheet-003.svg")}));
         QFile second(output.filePath(QStringLiteral("Sheet-002.svg")));
