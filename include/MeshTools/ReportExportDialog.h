@@ -15,7 +15,27 @@ namespace Ui
 }
 
 class ModelViewer;
+class QListWidget;
 class QListWidgetItem;
+
+class ViewOverlayChecklist : public QWidget
+{
+    Q_OBJECT
+
+public:
+    explicit ViewOverlayChecklist(ModelViewer& viewer, QWidget* parent = nullptr);
+    void setVisibility(const std::optional<ViewOverlayVisibility>& visibility);
+    ViewOverlayVisibility visibility() const;
+    bool hasOverlays() const;
+
+signals:
+    void visibilityChanged();
+
+private:
+    QListWidget* _measurements;
+    QListWidget* _annotations;
+    ViewOverlayVisibility _currentVisibility;
+};
 
 // ---------------------------------------------------------------------------
 // ReportExportDialog
@@ -60,7 +80,7 @@ public:
     // destructors instead of leaving them implicit.
     ~ReportExportDialog();
 
-    // Returns false on cancel. Resetting clears the export-only override.
+private:
     static bool editOverlayVisibility(ModelViewer& viewer, QWidget* parent,
         const std::optional<ViewOverlayVisibility>& captured,
         std::optional<ViewOverlayVisibility>& overrideVisibility);

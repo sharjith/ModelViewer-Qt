@@ -13,7 +13,9 @@
 #include <QDir>
 #include <QFont>
 #include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
+#include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
@@ -47,6 +49,20 @@ Pdf3DExportDialog::Pdf3DExportDialog(const QString& defaultTitle, const QVector<
 	, _geometry(geometry)
 {
 	ui->setupUi(this);
+	auto* destinationRow = new QHBoxLayout;
+	auto* destinationLabel = new QLabel(tr("Save &to:"), this);
+	_destination = new QLineEdit(this);
+	_destination->setAccessibleName(tr("Save to"));
+	destinationLabel->setBuddy(_destination);
+	auto* browse = new QPushButton(tr("Browse..."), this);
+	browse->setAutoDefault(false);
+	destinationRow->addWidget(destinationLabel);
+	destinationRow->addWidget(_destination, 1);
+	destinationRow->addWidget(browse);
+	ui->verticalLayout->insertLayout(ui->verticalLayout->indexOf(ui->buttonBox), destinationRow);
+	ui->buttonBox->button(QDialogButtonBox::Ok)->setText(tr("Save 3D PDF"));
+	connect(browse, &QPushButton::clicked, this, &Pdf3DExportDialog::browseOutputPath);
+	connect(_destination, &QLineEdit::textChanged, this, &Pdf3DExportDialog::updateSaveButton);
 	ui->capturedVisibilityCheck->setVisible(hasCapturedVisibility && !overlays.isEmpty());
 	_openAfterSaving = new QCheckBox(tr("Open 3D PDF after saving"), this);
 	_openAfterSaving->setChecked(openAfterSaving);
@@ -558,13 +574,52 @@ void Pdf3DExportDialog::updateOkEnabled()
 	_openingView->setCurrentIndex(qMax(0, _openingView->findData(oldSelection)));
 	const bool any = _openingView->count() > 1;
 	_openingView->setEnabled(any);
-	if (QPushButton* ok = ui->buttonBox->button(QDialogButtonBox::Ok))
-	{
-		ok->setEnabled(any);
-		ok->setToolTip(any ? QString() : tr("Tick at least one view."));
-	}
+	updateSaveButton();
 	updateCoverPreview();
 	updateReview();
+}
+
+void Pdf3DExportDialog::setSuggestedOutputPath(const QString& path)
+{
+	const QFileInfo info(path);
+	_suggestedFolder = info.absolutePath();
+	_destination->setText(QDir::toNativeSeparators(info.absoluteFilePath()));
+	_destination->setCursorPosition(0);
+}
+
+QString Pdf3DExportDialog::enteredOutputPath() const
+{
+	const QString entered = QDir::fromNativeSeparators(_destination->text().trimmed());
+	if (entered.isEmpty() || entered.endsWith(QLatin1Char('/')))
+		return {};
+	QString path = QDir(_suggestedFolder).absoluteFilePath(entered);
+	const QFileInfo info(path);
+	if (info.isDir() || info.fileName() == QLatin1String(".") || info.fileName() == QLatin1String(".."))
+		return {};
+	if (!path.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
+		path += QStringLiteral(".pdf");
+	return QDir::cleanPath(path);
+}
+
+void Pdf3DExportDialog::browseOutputPath()
+{
+	const QString current = enteredOutputPath();
+	const QString path = QFileDialog::getSaveFileName(this, tr("Choose 3D PDF Destination"),
+		current.isEmpty() ? _suggestedFolder : current, tr("PDF files (*.pdf)"), nullptr, QFileDialog::DontConfirmOverwrite);
+	if (!path.isEmpty())
+		_destination->setText(QDir::toNativeSeparators(path));
+}
+
+void Pdf3DExportDialog::updateSaveButton()
+{
+	auto* save = ui->buttonBox->button(QDialogButtonBox::Ok);
+	const bool hasView = _openingView->count() > 1;
+	const bool hasPath = !_destination->text().trimmed().isEmpty();
+	save->setEnabled(hasView && hasPath);
+	if (!hasView)
+		save->setToolTip(tr("Select at least one view."));
+	else
+		save->setToolTip(hasPath ? QString() : tr("Enter a destination for the PDF."));
 }
 
 void Pdf3DExportDialog::updateReview()
@@ -604,6 +659,24 @@ void Pdf3DExportDialog::updateReview()
 
 void Pdf3DExportDialog::done(int result)
 {
+	if (result == QDialog::Accepted)
+	{
+		if (_openingView->count() < 2)
+			return;
+		const QString path = enteredOutputPath();
+		const QFileInfo file(path);
+		if (path.isEmpty() || !QDir(file.absolutePath()).exists() || (file.exists() && !file.isFile()))
+		{
+			QMessageBox::warning(this, windowTitle(), tr("Enter a PDF filename in an existing folder."));
+			_destination->setFocus();
+			return;
+		}
+		if ((file.exists() || file.isSymLink()) &&
+			QMessageBox::question(this, tr("Replace PDF?"), tr("Replace the existing file “%1”?").arg(file.fileName()),
+				QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+			return;
+		_outputPath = path;
+	}
 	QSettings settings;
 	settings.setValue(QStringLiteral("pdf3d/dialogGeometry2"), saveGeometry());
 	if (result == QDialog::Accepted)

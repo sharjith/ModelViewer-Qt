@@ -6046,10 +6046,10 @@ void ModelViewer::importFiles(QStringList& fileNames)
 #include <QListWidget>
 void ModelViewer::onFileExport()
 {
-	exportModelDialog(false);
+	exportModelDialog();
 }
 
-void ModelViewer::exportModelDialog(bool select3dPdfFilter)
+void ModelViewer::exportModelDialog()
 {
 	if (!_sceneGraph || !_sceneGraph->root() || !_viewportWidget)
 		return;
@@ -6079,7 +6079,7 @@ void ModelViewer::exportModelDialog(bool select3dPdfFilter)
 	// --- Filename dialog ----------------------------------------------------------
 	// The dialog opens with the format used last (3D PDF for File > Save as 3D PDF), else glTF binary, else the first format.
 	QSettings exportFilterSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-	QString selectedFilter = select3dPdfFilter ? pdf3dFilter : exportFilterSettings.value(QStringLiteral("Export/lastFilter")).toString();
+	QString selectedFilter = exportFilterSettings.value(QStringLiteral("Export/lastFilter")).toString();
 	if (!filters.contains(selectedFilter))
 	{
 		selectedFilter = filters.value(0);
@@ -6097,7 +6097,7 @@ void ModelViewer::exportModelDialog(bool select3dPdfFilter)
 		defaultName = QStringLiteral("model");
 	QString fileName = QFileDialog::getSaveFileName(
 		this, tr("Export Model"), QDir(_lastOpenedDir).filePath(defaultName),
-		filters.join(";;"), &selectedFilter);
+		filters.join(";;"), &selectedFilter, QFileDialog::DontConfirmOverwrite);
 
 	if (fileName.isEmpty())
 		return;
@@ -6108,13 +6108,19 @@ void ModelViewer::exportModelDialog(bool select3dPdfFilter)
 		fileName += "." + extToAppend;
 	// ------------------------------------------------------------------------------
 
-	// 3D PDF: its own export and options dialog, with the file chosen above.
+	// Seed the 3D PDF options with the filename from the generic model exporter.
 	if (selectedFilter == pdf3dFilter)
 	{
 		exportAs3DPdf(fileName);
 		return;
 	}
 	// ------------------------------------------------------------------------------
+
+	const QFileInfo destination(fileName);
+	if ((destination.exists() || destination.isSymLink()) &&
+		QMessageBox::question(this, tr("Replace Export?"), tr("Replace the existing file “%1”?").arg(destination.fileName()),
+			QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+		return;
 
 	// --- Scene selection: if multiple files are loaded, ask which one to export ---
 	// Shown after the filename dialog (the 3D PDF export needs no scene choice: it exports what is visible), so the user still
@@ -6463,10 +6469,13 @@ void ModelViewer::printView(bool publish)
 	if (!_viewportWidget || _viewportWidget->getMeshStore().empty())
 		return;
 
-	QVector<Pdf3D::StaticSheet> sheets;
+	std::unique_ptr<QWidget> selectionPage;
+	PrintDialog::PublishSteps publishSteps;
+	QVector<GltfCameraEntry> cameras;
+	QHash<int, ViewOverlayVisibility> overlayOverrides;
 	if (publish)
 	{
-		const auto cameras = _sceneGraph
+		cameras = _sceneGraph
 			? _sceneGraph->gltfCameraDataForFile(capturedViewsSourceFileKey()).cameras : QVector<GltfCameraEntry>();
 		if (cameras.isEmpty())
 		{
@@ -6474,13 +6483,13 @@ void ModelViewer::printView(bool publish)
 			return;
 		}
 
-		QDialog selection(this);
-		selection.setWindowTitle(tr("Publish Sheets"));
-		auto* layout = new QVBoxLayout(&selection);
-		auto* hint = new QLabel(tr("Check the saved views to publish. Drag them to set the sheet order."), &selection);
+		selectionPage = std::make_unique<QWidget>();
+		auto* selection = selectionPage.get();
+		auto* layout = new QVBoxLayout(selection);
+		auto* hint = new QLabel(tr("Check the saved views to publish. Drag them to set the sheet order."), selection);
 		hint->setWordWrap(true);
 		layout->addWidget(hint);
-		auto* views = new QListWidget(&selection);
+		auto* views = new QListWidget(selection);
 		views->setDragDropMode(QAbstractItemView::InternalMove);
 		for (int i = 0; i < cameras.size(); ++i)
 		{
@@ -6489,106 +6498,123 @@ void ModelViewer::printView(bool publish)
 			item->setData(Qt::UserRole, i);
 			item->setCheckState(Qt::Unchecked);
 		}
-		layout->addWidget(views);
-		QHash<int, ViewOverlayVisibility> overlayOverrides;
-		auto* editOverlays = new QPushButton(tr("Measurements and Annotations..."), &selection);
-		const bool hasOverlays = !_sceneGraph->measurements().isEmpty() || !_sceneGraph->annotations().isEmpty();
-		editOverlays->setEnabled(false);
-		editOverlays->setToolTip(tr("Choose which overlays to show on the highlighted sheet."));
-		layout->addWidget(editOverlays);
-		connect(views, &QListWidget::currentItemChanged, &selection, [editOverlays, hasOverlays](QListWidgetItem* item) {
-			editOverlays->setEnabled(hasOverlays && item);
-		});
-		connect(editOverlays, &QPushButton::clicked, &selection, [&] {
-			auto* item = views->currentItem();
+		auto* columns = new QHBoxLayout;
+		columns->addWidget(views, 1);
+		layout->addLayout(columns, 1);
+
+		auto* overlayPanel = new QWidget(selection);
+		auto* overlayLayout = new QVBoxLayout(overlayPanel);
+		overlayLayout->setContentsMargins(0, 0, 0, 0);
+		auto* overlayTitle = new QLabel(overlayPanel);
+		overlayTitle->setTextFormat(Qt::PlainText);
+		overlayTitle->setWordWrap(true);
+		auto* checklist = new ViewOverlayChecklist(*this, overlayPanel);
+		auto* resetOverlays = new QPushButton(overlayPanel);
+		overlayLayout->addWidget(overlayTitle);
+		overlayLayout->addWidget(checklist, 1);
+		overlayLayout->addWidget(resetOverlays, 0, Qt::AlignLeft);
+		columns->addWidget(overlayPanel, 1);
+
+		const auto showViewOverlays = [&, overlayPanel, overlayTitle, checklist, resetOverlays](QListWidgetItem* item) {
+			overlayPanel->setEnabled(item && checklist->hasOverlays());
 			if (!item)
+			{
+				overlayTitle->setText(tr("Select a view to edit its overlays."));
+				checklist->setVisibility(ViewOverlayVisibility{});
 				return;
+			}
 			const int index = item->data(Qt::UserRole).toInt();
 			const auto& camera = cameras.at(index);
-			std::optional<ViewOverlayVisibility> overrideVisibility;
 			const auto existing = overlayOverrides.constFind(index);
-			if (existing != overlayOverrides.constEnd())
-				overrideVisibility = *existing;
-			if (!ReportExportDialog::editOverlayVisibility(*this, &selection, camera.overlayVisibility, overrideVisibility))
-				return;
-			if (overrideVisibility)
-				overlayOverrides.insert(index, *overrideVisibility);
-			else
+			overlayTitle->setText(tr("Overlays for %1").arg(camera.name));
+			checklist->setVisibility(existing != overlayOverrides.constEnd()
+				? std::optional<ViewOverlayVisibility>(*existing) : camera.overlayVisibility);
+			resetOverlays->setText(camera.overlayVisibility ? tr("Use Captured Visibility") : tr("Use Current Visibility"));
+			resetOverlays->setEnabled(existing != overlayOverrides.constEnd());
+		};
+		connect(views, &QListWidget::currentItemChanged, selection, showViewOverlays);
+		connect(checklist, &ViewOverlayChecklist::visibilityChanged, selection, [&, views, checklist, resetOverlays] {
+			if (auto* item = views->currentItem())
+			{
+				const int index = item->data(Qt::UserRole).toInt();
+				overlayOverrides.insert(index, checklist->visibility());
+				item->setText(tr("%1 (custom visibility)").arg(cameras.at(index).name));
+				resetOverlays->setEnabled(true);
+			}
+		});
+		connect(resetOverlays, &QPushButton::clicked, selection, [&, views, showViewOverlays] {
+			if (auto* item = views->currentItem())
+			{
+				const int index = item->data(Qt::UserRole).toInt();
 				overlayOverrides.remove(index);
-			item->setText(overrideVisibility ? tr("%1 (custom visibility)").arg(camera.name) : camera.name);
-		});
-		auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &selection);
-		auto* preview = buttons->button(QDialogButtonBox::Ok);
-		preview->setText(tr("Preview"));
-		preview->setEnabled(false);
-		connect(views, &QListWidget::itemChanged, &selection, [views, preview] {
-			bool any = false;
-			for (int row = 0; row < views->count() && !any; ++row)
-				any = views->item(row)->checkState() == Qt::Checked;
-			preview->setEnabled(any);
-		});
-		connect(buttons, &QDialogButtonBox::accepted, &selection, &QDialog::accept);
-		connect(buttons, &QDialogButtonBox::rejected, &selection, &QDialog::reject);
-		layout->addWidget(buttons);
-		selection.resize(460, 420);
-		if (selection.exec() != QDialog::Accepted)
-			return;
-
-		QVector<int> selected;
-		for (int row = 0; row < views->count(); ++row)
-		{
-			const auto* item = views->item(row);
-			if (item->checkState() == Qt::Checked)
-				selected.append(item->data(Qt::UserRole).toInt());
-		}
-		if (selected.isEmpty())
-			return;
-
-		const auto previous = _viewportWidget->captureCurrentCameraEntry(QString());
-		const QString cameraFile = _viewportWidget->activeGltfCameraFile();
-		const int cameraIndex = _viewportWidget->activeGltfCameraIndex();
-		const bool hadGltfCamera = _viewportWidget->isGltfCameraActive();
-		QApplication::setOverrideCursor(Qt::WaitCursor);
-		const auto restore = qScopeGuard([&] {
-			_viewportWidget->activateCameraEntry(previous);
-			if (hadGltfCamera)
-			{
-				_viewportWidget->activateGltfCamera(cameraFile, cameraIndex);
-				if (previous.overlayVisibility)
-					_sceneGraph->applyViewOverlayVisibility(*previous.overlayVisibility);
+				item->setText(cameras.at(index).name);
+				showViewOverlays(item);
 			}
-			QApplication::restoreOverrideCursor();
 		});
-		// Bound the total size of the frozen page images for long sets of views.
-		const int edge = qBound(256, static_cast<int>(std::sqrt(24000000.0 / selected.size())), 2200);
-		for (const int index : selected)
-		{
-			auto camera = cameras.at(index);
-			if (!camera.hasClipping)
+		if (checklist->hasOverlays())
+			views->setCurrentRow(0);
+		else
+			overlayPanel->hide();
+		publishSteps.viewList = views;
+		publishSteps.capture = [&, views] {
+			QVector<Pdf3D::StaticSheet> sheets;
+			QVector<int> selected;
+			for (int row = 0; row < views->count(); ++row)
 			{
-				camera.clipping = {};
-				camera.hasClipping = true;
+				const auto* item = views->item(row);
+				if (item->checkState() == Qt::Checked)
+					selected.append(item->data(Qt::UserRole).toInt());
 			}
-			const auto overrideVisibility = overlayOverrides.constFind(index);
-			if (overrideVisibility != overlayOverrides.constEnd())
-				camera.overlayVisibility = *overrideVisibility;
-			else if (!camera.overlayVisibility)
-				camera.overlayVisibility = previous.overlayVisibility;
-			_viewportWidget->activateCameraEntry(camera);
-			QImage image = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
-			if (image.isNull())
-				break;
-			if (qMax(image.width(), image.height()) > edge)
-				image = image.scaled(edge, edge, Qt::KeepAspectRatio, Qt::SmoothTransformation);
-			if (image.isNull())
-				break;
-			sheets.append({camera.name, image, index});
-		}
-		if (sheets.size() != selected.size())
-		{
-			QMessageBox::warning(this, tr("Publish Sheets"), tr("One of the saved views could not be captured."));
-			return;
-		}
+			if (selected.isEmpty())
+				return sheets;
+
+			const auto previous = _viewportWidget->captureCurrentCameraEntry(QString());
+			const QString cameraFile = _viewportWidget->activeGltfCameraFile();
+			const int cameraIndex = _viewportWidget->activeGltfCameraIndex();
+			const bool hadGltfCamera = _viewportWidget->isGltfCameraActive();
+			QApplication::setOverrideCursor(Qt::WaitCursor);
+			const auto restore = qScopeGuard([&] {
+				_viewportWidget->activateCameraEntry(previous);
+				if (hadGltfCamera)
+				{
+					_viewportWidget->activateGltfCamera(cameraFile, cameraIndex);
+					if (previous.overlayVisibility)
+						_sceneGraph->applyViewOverlayVisibility(*previous.overlayVisibility);
+				}
+				QApplication::restoreOverrideCursor();
+			});
+			// Bound the total size of the frozen page images for long sets of views.
+			const int edge = qBound(256, static_cast<int>(std::sqrt(24000000.0 / selected.size())), 2200);
+			for (const int index : selected)
+			{
+				auto camera = cameras.at(index);
+				if (!camera.hasClipping)
+				{
+					camera.clipping = {};
+					camera.hasClipping = true;
+				}
+				const auto overrideVisibility = overlayOverrides.constFind(index);
+				if (overrideVisibility != overlayOverrides.constEnd())
+					camera.overlayVisibility = *overrideVisibility;
+				else if (!camera.overlayVisibility)
+					camera.overlayVisibility = previous.overlayVisibility;
+				_viewportWidget->activateCameraEntry(camera);
+				QImage image = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
+				if (image.isNull())
+					break;
+				if (qMax(image.width(), image.height()) > edge)
+					image = image.scaled(edge, edge, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+				if (image.isNull())
+					break;
+				sheets.append({camera.name, image, index});
+			}
+			if (sheets.size() != selected.size())
+			{
+				QMessageBox::warning(views->window(), tr("Publish Sheets"), tr("One of the saved views could not be captured."));
+				sheets.clear();
+			}
+			return sheets;
+		};
 	}
 
 	QString defaultTitle = _currentFile.isEmpty() ? QString() : QFileInfo(_currentFile).completeBaseName();
@@ -6633,11 +6659,9 @@ void ModelViewer::printView(bool publish)
 		if (!view.isNull())
 			orthographicSizeMm = orthographicSpan * mmPerWorldUnit;
 	}
-	if (publish)
-		view = sheets.first().image;
-	else if (view.isNull())
+	if (!publish && view.isNull())
 		view = _viewportWidget->captureCleanRayTracedImage(/*whiteBackground=*/true);
-	if (view.isNull())
+	if (!publish && view.isNull())
 	{
 		QMessageBox::warning(this, tr("Print"), tr("The page could not be prepared for printing."));
 		return;
@@ -6645,10 +6669,29 @@ void ModelViewer::printView(bool publish)
 	const int partCount = parts.parts;
 	QPrinter previewPrinter(QPrinter::HighResolution);
 	previewPrinter.setOutputFormat(QPrinter::PdfFormat);
+	if (publish)
+	{
+		const QString suggestedFolder = !_lastOpenedDir.isEmpty() && QDir(_lastOpenedDir).exists()
+			? _lastOpenedDir : QDir::homePath();
+		publishSteps.suggestedPath = QDir(suggestedFolder).absoluteFilePath(
+			(defaultTitle.isEmpty() ? tr("Model") : defaultTitle) + QStringLiteral(".pdf"));
+		publishSteps.views = selectionPage.release();
+	}
 	PrintDialog dialog(previewPrinter, view, parts, defaultTitle, declaredPartNumber(), orthographicSizeMm,
-		openSavedSheetByDefault(), this, sheets);
-	if (dialog.exec() != QDialog::Accepted)
-		return;
+		openSavedSheetByDefault(), this, std::move(publishSteps));
+	for (;;)
+	{
+		if (dialog.exec() != QDialog::Accepted)
+			return;
+		if (dialog.output() != PrintDialog::Output::Pdf3D)
+			break;
+		if (exportAs3DPdf(QString(), &dialog.sheets()))
+		{
+			dialog.rememberPublishedOutput();
+			return;
+		}
+	}
+	const auto& sheets = dialog.sheets();
 	const QPageLayout layout = previewPrinter.pageLayout();
 	const Pdf3D::Pdf3DOptions options = dialog.options(layout.orientation());
 	const QSizeF modelSizeMm = dialog.modelSizeMm();
@@ -6676,23 +6719,19 @@ void ModelViewer::printView(bool publish)
 	{
 		const QString suggestedName = defaultTitle.isEmpty() ? tr("Model") : defaultTitle;
 		const bool svg = dialog.output() == PrintDialog::Output::Svg;
-		const bool interactive = dialog.output() == PrintDialog::Output::Pdf3D;
-		const QString caption = interactive ? tr("Save as 3D PDF") : (svg ? tr("Save as SVG") : tr("Save as PDF"));
+		const QString caption = svg ? tr("Save as SVG") : tr("Save as PDF");
 		if (publish && svg)
 		{
-			const QString parentFolder = QFileDialog::getExistingDirectory(this, tr("Choose where to save the SVG sheets"));
-			if (parentFolder.isEmpty())
-				return;
-
 			QString error;
 			QApplication::setOverrideCursor(Qt::WaitCursor);
-			const QString folder = PrintPage::saveSvgSheets(parentFolder, layout, dialog.useTemplate(), options, partCount, sheets, &error);
+			const QString folder = PrintPage::saveSvgSheets(dialog.outputPath(), layout, dialog.useTemplate(), options, partCount, sheets, &error);
 			QApplication::restoreOverrideCursor();
 			if (folder.isEmpty())
 			{
 				QMessageBox::warning(this, caption, error);
 				return;
 			}
+			dialog.rememberPublishedOutput();
 			MainWindow::showStatusMessage(tr("Saved SVG sheets to %1").arg(QDir::toNativeSeparators(folder)), 6000);
 			const bool open = dialog.openAfterSaving();
 			QSettings().setValue(kOpenSavedSheetKey, open);
@@ -6700,18 +6739,16 @@ void ModelViewer::printView(bool publish)
 				QMessageBox::warning(this, caption, tr("The sheets were saved to %1, but the folder could not be opened.").arg(folder));
 			return;
 		}
-		QFileDialog saveDialog(this, caption, QString(), svg ? tr("SVG files (*.svg)") : tr("PDF files (*.pdf)"));
-		saveDialog.setAcceptMode(QFileDialog::AcceptSave);
-		saveDialog.setDefaultSuffix(svg ? QStringLiteral("svg") : QStringLiteral("pdf"));
-		saveDialog.selectFile(suggestedName);
-		if (saveDialog.exec() != QDialog::Accepted || saveDialog.selectedFiles().isEmpty())
-			return;
-		const QString path = saveDialog.selectedFiles().first();
-
-		if (interactive)
+		QString path = dialog.outputPath();
+		if (!publish)
 		{
-			exportAs3DPdf(path, &sheets);
-			return;
+			QFileDialog saveDialog(this, caption, QString(), svg ? tr("SVG files (*.svg)") : tr("PDF files (*.pdf)"));
+			saveDialog.setAcceptMode(QFileDialog::AcceptSave);
+			saveDialog.setDefaultSuffix(svg ? QStringLiteral("svg") : QStringLiteral("pdf"));
+			saveDialog.selectFile(suggestedName);
+			if (saveDialog.exec() != QDialog::Accepted || saveDialog.selectedFiles().isEmpty())
+				return;
+			path = saveDialog.selectedFiles().first();
 		}
 
 		QString error;
@@ -6727,6 +6764,8 @@ void ModelViewer::printView(bool publish)
 			QMessageBox::warning(this, caption, error);
 			return;
 		}
+		if (publish)
+			dialog.rememberPublishedOutput();
 		const QString status = svg ? tr("Saved SVG") : tr("Saved PDF");
 		MainWindow::showStatusMessage(usedViewportFallback ? tr("%1 using viewport resolution").arg(status) : status, 4000);
 		handleSavedSheet(this, path, svg ? QLatin1String("svg") : QLatin1String("pdf"), dialog.openAfterSaving());
@@ -6773,7 +6812,10 @@ void ModelViewer::printView(bool publish)
 			printerOptions, partCount, sheets, first, last);
 		QApplication::restoreOverrideCursor();
 		if (printed)
+		{
+			dialog.rememberPublishedOutput();
 			MainWindow::showStatusMessage(tr("Sent to the printer"), 4000);
+		}
 		else
 			QMessageBox::warning(this, tr("Print"), tr("The sheets could not be printed."));
 		return;
@@ -6802,10 +6844,10 @@ void ModelViewer::printView(bool publish)
 		: tr("Sent to the printer"), 4000);
 }
 
-void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf3D::StaticSheet>* companionSheets)
+bool ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf3D::StaticSheet>* companionSheets)
 {
 	if (!_sceneGraph || !_sceneGraph->root() || !_viewportWidget)
-		return;
+		return false;
 
 	// The u3d library needs its four run-time modules next to the executable; a missing one would crash it.
 	QStringList missingModules;
@@ -6814,19 +6856,8 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		QMessageBox::critical(this, tr("Save as 3D PDF"),
 			tr("The 3D PDF export modules are missing next to the application:\n%1\n\nReinstall the application or rebuild it.")
 				.arg(missingModules.join(QStringLiteral("\n"))));
-		return;
+		return false;
 	}
-
-	// The file comes first, as for every other export format. The export dialog passes the file it asked for; File > Save as 3D PDF opens
-	// that same dialog with the 3D PDF filter selected, and it calls back here with the file.
-	if (presetFileName.isEmpty())
-	{
-		exportModelDialog(true);
-		return;
-	}
-	QString fileName = presetFileName;
-	if (!fileName.endsWith(QLatin1String(".pdf"), Qt::CaseInsensitive))
-		fileName += QLatin1String(".pdf");
 
 	// The export scene is built next: the views the document can offer (scene states, exploded views, ...) are described in terms
 	// of its parts, and the options dialog lists them all so the user can pick.
@@ -6843,7 +6874,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 	{
 		QApplication::restoreOverrideCursor();
 		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Failed to build the export scene."));
-		return;
+		return false;
 	}
 
 	// buildExportScene() factors each file's import correction (auto orient / auto scale) out of the scene; put it back so the
@@ -6886,7 +6917,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		QMessageBox::warning(this, tr("Save as 3D PDF"), geometry.omitsWireGeometry
 			? tr("The visible model contains only lines or points. 3D PDF export requires triangle meshes.")
 			: tr("There is no visible geometry to export."));
-		return;
+		return false;
 	}
 
 	geometry.meshInstances = u3dScene.nodes.size();
@@ -7108,6 +7139,14 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		[](const ViewEntry& entry) { return entry.overlayVisibility.has_value(); });
 	Pdf3DExportDialog optionsDialog(defaultTitle, items, info.join(QLatin1Char(' ')), overlayItems, animationItems, geometry,
 		openSavedSheetByDefault(), companionSheets ? static_cast<int>(companionSheets->size()) : 0, hasCapturedVisibility, this);
+	QString suggestedName = QFileInfo(_currentFile).completeBaseName();
+	if (suggestedName.isEmpty())
+		suggestedName = defaultTitle.isEmpty() ? tr("Model") : defaultTitle;
+	const QString suggestedFolder = !_lastOpenedDir.isEmpty() && QDir(_lastOpenedDir).exists()
+		? _lastOpenedDir : QDir::homePath();
+	optionsDialog.setSuggestedOutputPath(presetFileName.isEmpty()
+		? QDir(suggestedFolder).absoluteFilePath(suggestedName + QStringLiteral(".pdf"))
+		: presetFileName);
 	optionsDialog.setDeclaredDrawingNumber(declaredPartNumber());   // the model's own part number, when its format has one
 	{
 		// What each exported part declares about its mass and material (the viewer's meshes carry what the source file declared),
@@ -7184,7 +7223,8 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 		return poster.isNull() ? captureCurrentPoster() : poster;
 	});
 	if (optionsDialog.exec() != QDialog::Accepted)
-		return;
+		return false;
+	const QString fileName = optionsDialog.outputPath();
 	Pdf3D::Pdf3DOptions options;
 	optionsDialog.applyTo(options);
 	options.openingView = optionsDialog.openingViewIndex();
@@ -7342,7 +7382,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 	if (result.canceled)
 	{
 		MainWindow::showStatusMessage(tr("3D PDF export canceled"), 3000);
-		return;
+		return false;
 	}
 
 	if (result.ok)
@@ -7358,6 +7398,7 @@ void ModelViewer::exportAs3DPdf(const QString& presetFileName, const QVector<Pdf
 	}
 	else
 		QMessageBox::critical(this, tr("Save as 3D PDF"), tr("Saving the 3D PDF failed:\n%1").arg(result.error));
+	return result.ok;
 }
 
 

@@ -8,11 +8,15 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDoubleSpinBox>
+#include <QDir>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QPainter>
 #include <QPageLayout>
@@ -23,6 +27,7 @@
 #include <QScrollArea>
 #include <QSettings>
 #include <QSignalBlocker>
+#include <QStackedWidget>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -32,6 +37,7 @@ namespace
 {
 
 const auto kPresetKey = QStringLiteral("Print/presets");
+const auto kPublishOutputKey = QStringLiteral("Print/lastPublishedOutput");
 
 QVariantMap readPresets()
 {
@@ -136,17 +142,20 @@ std::optional<QPageLayout> editPaperLayout(QWidget* parent, const QPageLayout& c
 
 PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::PartSummary& parts,
                          const QString& defaultTitle, const QString& declaredNumber, const QSizeF& orthographicSizeMm,
-                         bool openAfterSaving, QWidget* parent, const QVector<Pdf3D::StaticSheet>& sheets)
+                         bool openAfterSaving, QWidget* parent, PublishSteps publish)
     : QDialog(parent), _sceneMaterial(parts.material), _sceneMass(parts.mass), _orthographicSizeMm(orthographicSizeMm)
 {
-    setWindowTitle(sheets.isEmpty() ? tr("Print") : tr("Publish Sheets"));
+    const bool publishing = publish.views != nullptr;
+    setWindowTitle(publishing ? tr("Publish Sheets") : tr("Print"));
     resize(940, 560);
     QSettings settings;
 
     auto* layout = new QVBoxLayout(this);
+    auto* sheetPage = publishing ? new QWidget(this) : this;
+    auto* sheetLayout = publishing ? new QVBoxLayout(sheetPage) : layout;
     auto* intro = new QLabel(tr("Use Page Setup to change the paper, orientation, or margins. The sheet adapts to the selected paper."), this);
     intro->setWordWrap(true);
-    layout->addWidget(intro);
+    sheetLayout->addWidget(intro);
 
     auto* body = new QHBoxLayout;
     auto* settingsPanel = new QWidget(this);
@@ -156,7 +165,7 @@ PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::Par
     scroll->setWidgetResizable(true);
     scroll->setFrameShape(QFrame::NoFrame);
     body->addWidget(scroll, 1);
-    layout->addLayout(body, 1);
+    sheetLayout->addLayout(body, 1);
 
     auto* presetsRow = new QHBoxLayout;
     auto* preset = new QComboBox(this);
@@ -226,7 +235,17 @@ PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::Par
     _imageDpi->setCurrentIndex(savedDpi >= 0 ? savedDpi : 1);
     _imageDpi->setToolTip(tr("Sets the target resolution of the model image. Large sheets may use a lower resolution. "
                             "Some viewport modes use the on-screen image."));
-    form->addRow(tr("Model image quality:"), _imageDpi);
+    if (publishing)
+    {
+        auto* quality = new QLabel(tr("Captured view resolution"), this);
+        quality->setToolTip(tr("Each published sheet uses the image captured from its saved view."));
+        form->addRow(tr("Model image quality:"), quality);
+        _imageDpi->hide();
+    }
+    else
+    {
+        form->addRow(tr("Model image quality:"), _imageDpi);
+    }
 
     settingsLayout->addLayout(form);
     settingsLayout->addStretch();
@@ -240,12 +259,11 @@ PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::Par
     preview->setMinimumSize(320, 280);
     preview->setZoomMode(QPrintPreviewWidget::FitInView);
     previewLayout->addWidget(preview, 1);
-    if (!sheets.isEmpty())
+    QComboBox* page = nullptr;
+    if (publishing)
     {
-        auto* page = new QComboBox(this);
+        page = new QComboBox(sheetPage);
         page->addItem(tr("All sheets"));
-        for (int i = 0; i < sheets.size(); ++i)
-            page->addItem(tr("%1. %2").arg(i + 1).arg(sheets.at(i).name));
         previewLayout->insertWidget(1, page);
         preview->setViewMode(QPrintPreviewWidget::AllPagesView);
         connect(page, &QComboBox::currentIndexChanged, preview, [preview](int index) {
@@ -253,8 +271,6 @@ PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::Par
             if (index > 0)
                 preview->setCurrentPage(index);
         });
-        _imageDpi->setEnabled(false);
-        _imageDpi->setToolTip(tr("Published sheets use the saved views captured for this preview."));
     }
     auto* previewError = new QLabel(tr("The sheet could not be previewed at this paper size."), this);
     previewError->setWordWrap(true);
@@ -265,7 +281,8 @@ PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::Par
     const auto configurePaper = [this, &printer, viewSize = view.size()] {
         const Pdf3D::SheetTemplate& tpl = primaryTemplate();
         QPageSize pageSize(QPageSize::A4);
-        bool landscape = viewSize.width() >= viewSize.height();
+        const QSize sourceSize = _sheets.isEmpty() ? viewSize : _sheets.first().image.size();
+        bool landscape = sourceSize.width() >= sourceSize.height();
         if (useTemplate())
         {
             const QSizeF custom = tpl.customSizeMm;
@@ -437,44 +454,222 @@ PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::Par
         if (writePresets(this, savedPresets))
             loadPresetList(QString());
     });
-    QPushButton* print = buttons->addButton(tr("Print..."), QDialogButtonBox::AcceptRole);
-    print->setDefault(true);
-    const auto addSaveButton = [this, buttons](const QString& label, Output output) {
-        auto* button = buttons->addButton(label, QDialogButtonBox::ActionRole);
-        connect(button, &QPushButton::clicked, this, [this, output] {
-            _output = output;
+    QPushButton* print = nullptr;
+    QPushButton* savePdf = nullptr;
+    QPushButton* saveSvg = nullptr;
+    QPushButton* next = nullptr;
+    _openAfterSaving = new QCheckBox(tr("Open PDF or SVG after saving"), this);
+    _openAfterSaving->setChecked(openAfterSaving);
+
+    if (!publishing)
+    {
+        print = buttons->addButton(tr("Print..."), QDialogButtonBox::AcceptRole);
+        print->setDefault(true);
+        const auto addSaveButton = [this, buttons](const QString& label, Output output) {
+            auto* button = buttons->addButton(label, QDialogButtonBox::ActionRole);
+            connect(button, &QPushButton::clicked, this, [this, output] {
+                _output = output;
+                saveSettings();
+                accept();
+            });
+            return button;
+        };
+        savePdf = addSaveButton(tr("Save as PDF..."), Output::Pdf);
+        saveSvg = addSaveButton(tr("Save as SVG..."), Output::Svg);
+        connect(buttons, &QDialogButtonBox::accepted, this, [this] {
             saveSettings();
             accept();
         });
-        return button;
-    };
-    auto* savePdf = addSaveButton(tr("Save as PDF..."), Output::Pdf);
-    auto* saveSvg = addSaveButton(tr("Save as SVG..."), Output::Svg);
-    QPushButton* save3dPdf = nullptr;
-    if (!sheets.isEmpty())
-    {
-        saveSvg->setToolTip(tr("Save each sheet as a numbered SVG file in a new folder."));
-        save3dPdf = addSaveButton(tr("Save as 3D PDF..."), Output::Pdf3D);
-        save3dPdf->setToolTip(tr("Choose the 3D PDF sheet template and interactive views in the next dialog."));
+        connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        sheetLayout->addWidget(_openAfterSaving);
+        sheetLayout->addWidget(buttons);
     }
-    connect(buttons, &QDialogButtonBox::accepted, this, [this]() {
-        saveSettings();
-        accept();
-    });
-    connect(buttons, &QDialogButtonBox::rejected, this, &QDialog::reject);
-    _openAfterSaving = new QCheckBox(sheets.isEmpty() ? tr("Open PDF or SVG after saving") : tr("Open PDF or SVG folder after saving"), this);
-    _openAfterSaving->setChecked(openAfterSaving);
-    layout->addWidget(_openAfterSaving);
-    layout->addWidget(buttons);
+    else
+    {
+        delete buttons->button(QDialogButtonBox::Cancel);
+        sheetLayout->addWidget(buttons);
+        auto* step = new QLabel(this);
+        layout->addWidget(step);
+        auto* pages = new QStackedWidget(this);
+        pages->addWidget(publish.views);
+        pages->addWidget(sheetPage);
+        auto* outputPage = new QWidget(pages);
+        auto* outputLayout = new QVBoxLayout(outputPage);
+        auto* outputForm = new QFormLayout;
+        outputLayout->addLayout(outputForm);
+        auto* format = new QComboBox(outputPage);
+        format->addItem(tr("PDF"), static_cast<int>(Output::Pdf));
+        format->addItem(tr("SVG files"), static_cast<int>(Output::Svg));
+        format->addItem(tr("3D PDF"), static_cast<int>(Output::Pdf3D));
+        format->addItem(tr("Printer"), static_cast<int>(Output::Printer));
+        const int lastOutput = settings.value(kPublishOutputKey, static_cast<int>(Output::Pdf)).toInt();
+        format->setCurrentIndex(qMax(0, format->findData(lastOutput)));
+        outputForm->addRow(tr("Format:"), format);
+        auto* destinationLabel = new QLabel(outputPage);
+        auto* destinationRow = new QWidget(outputPage);
+        auto* destinationLayout = new QHBoxLayout(destinationRow);
+        destinationLayout->setContentsMargins(0, 0, 0, 0);
+        auto* destination = new QLineEdit(QDir::toNativeSeparators(publish.suggestedPath), destinationRow);
+        destinationLabel->setBuddy(destination);
+        auto* browse = new QPushButton(tr("Browse..."), destinationRow);
+        browse->setAutoDefault(false);
+        destinationLayout->addWidget(destination, 1);
+        destinationLayout->addWidget(browse);
+        outputForm->addRow(destinationLabel, destinationRow);
+        outputLayout->addWidget(_openAfterSaving);
+        auto* outputHint = new QLabel(outputPage);
+        outputHint->setWordWrap(true);
+        outputLayout->addWidget(outputHint);
+        outputLayout->addStretch();
+        pages->addWidget(outputPage);
+        layout->addWidget(pages, 1);
+
+        auto* navigation = new QDialogButtonBox(QDialogButtonBox::Cancel, this);
+        auto* back = navigation->addButton(tr("Back"), QDialogButtonBox::ActionRole);
+        next = navigation->addButton(tr("Next"), QDialogButtonBox::ActionRole);
+        next->setDefault(true);
+        connect(navigation, &QDialogButtonBox::rejected, this, &QDialog::reject);
+        layout->addWidget(navigation);
+
+        const QString baseFolder = QFileInfo(publish.suggestedPath).absolutePath();
+        auto* svgFolder = new QLineEdit(QDir::toNativeSeparators(baseFolder), destinationRow);
+        destinationLayout->insertWidget(1, svgFolder, 1);
+        destinationLabel->setText(tr("Save to:"));
+        const auto selectedOutput = [format] { return static_cast<Output>(format->currentData().toInt()); };
+        const auto updateOutput = [=] {
+            const auto choice = selectedOutput();
+            const bool pdf = choice == Output::Pdf;
+            const bool svg = choice == Output::Svg;
+            destinationLabel->setText(svg ? tr("Destination folder:") : tr("Save to:"));
+            destinationLabel->setBuddy(svg ? svgFolder : destination);
+            destinationLabel->setVisible(pdf || svg);
+            destinationRow->setVisible(pdf || svg);
+            destination->setVisible(pdf);
+            svgFolder->setVisible(svg);
+            _openAfterSaving->setVisible(pdf || svg);
+            _openAfterSaving->setText(svg ? tr("Open SVG folder after saving") : tr("Open PDF after saving"));
+            outputHint->setText(choice == Output::Pdf3D
+                ? tr("The interactive cover comes first, followed by the selected sheets. Continue to configure and preview the cover.")
+                : svg ? tr("Each sheet is saved as a numbered SVG in a new folder.")
+                      : choice == Output::Printer ? tr("Choose your printer and page range in the system print dialog.") : QString());
+            next->setText(choice == Output::Printer ? tr("Print...") : choice == Output::Pdf3D ? tr("Configure 3D PDF...") : tr("Save"));
+        };
+        connect(format, &QComboBox::currentIndexChanged, this, updateOutput);
+        connect(browse, &QPushButton::clicked, this, [=] {
+            const bool svg = selectedOutput() == Output::Svg;
+            auto* field = svg ? svgFolder : destination;
+            const QString path = svg ? QFileDialog::getExistingDirectory(this, tr("Choose SVG Destination"), field->text())
+                : QFileDialog::getSaveFileName(this, tr("Choose PDF Destination"), field->text(),
+                    tr("PDF files (*.pdf)"), nullptr, QFileDialog::DontConfirmOverwrite);
+            if (!path.isEmpty())
+                field->setText(QDir::toNativeSeparators(path));
+        });
+        auto* viewsList = publish.viewList;
+        const auto updateViewStep = [=] {
+            bool checked = false;
+            for (int row = 0; row < viewsList->count() && !checked; ++row)
+                checked = viewsList->item(row)->checkState() == Qt::Checked;
+            if (pages->currentIndex() == 0)
+                next->setEnabled(checked);
+        };
+        connect(viewsList, &QListWidget::itemChanged, this, updateViewStep);
+        connect(pages, &QStackedWidget::currentChanged, this, [=](int index) {
+            const QStringList labels{tr("1 of 3 · Choose Views"), tr("2 of 3 · Set Up Sheets"), tr("3 of 3 · Choose Output")};
+            step->setText(labels.at(index));
+            back->setEnabled(index > 0);
+            next->setText(tr("Next"));
+            if (index == 0)
+                updateViewStep();
+            else if (index == 1)
+            {
+                preview->updatePreview();
+                if (page->currentIndex() == 0)
+                    QTimer::singleShot(0, preview, [preview, page] {
+                        if (page->currentIndex() == 0)
+                            preview->setAllPagesViewMode();
+                    });
+            }
+            else
+            {
+                next->setEnabled(true);
+                updateOutput();
+            }
+        });
+        connect(back, &QPushButton::clicked, this, [pages] { pages->setCurrentIndex(pages->currentIndex() - 1); });
+        connect(next, &QPushButton::clicked, this, [=, capture = std::move(publish.capture)] {
+            if (pages->currentIndex() == 0)
+            {
+                auto captured = capture();
+                if (captured.isEmpty())
+                    return;
+                _sheets = std::move(captured);
+                {
+                    const QSignalBlocker blocker(page);
+                    page->clear();
+                    page->addItem(tr("All sheets"));
+                    for (int i = 0; i < _sheets.size(); ++i)
+                        page->addItem(tr("%1. %2").arg(i + 1).arg(_sheets.at(i).name));
+                }
+                if (!_paperOverridden && !useTemplate())
+                    configurePaper();
+                preview->setAllPagesViewMode();
+                pages->setCurrentIndex(1);
+                return;
+            }
+            if (pages->currentIndex() == 1)
+            {
+                pages->setCurrentIndex(2);
+                return;
+            }
+
+            const auto choice = selectedOutput();
+            QString path;
+            if (choice == Output::Pdf || choice == Output::Svg)
+            {
+                const bool svg = choice == Output::Svg;
+                auto* field = svg ? svgFolder : destination;
+                const QString entered = QDir::fromNativeSeparators(field->text().trimmed());
+                if (!entered.isEmpty())
+                {
+                    path = QDir(baseFolder).absoluteFilePath(entered);
+                    if (!svg && !entered.endsWith(QLatin1Char('/')) && !QFileInfo(path).isDir() &&
+                        !path.endsWith(QStringLiteral(".pdf"), Qt::CaseInsensitive))
+                        path += QStringLiteral(".pdf");
+                }
+                const QFileInfo info(path);
+                if (path.isEmpty() || (svg ? !info.isDir() : !QDir(info.absolutePath()).exists() ||
+                    (info.exists() && !info.isFile()) || entered.endsWith(QLatin1Char('/'))))
+                {
+                    QMessageBox::warning(this, windowTitle(), svg ? tr("Choose an existing destination folder.")
+                        : tr("Enter a PDF filename in an existing folder."));
+                    field->setFocus();
+                    return;
+                }
+                if (!svg && (info.exists() || info.isSymLink()) &&
+                    QMessageBox::question(this, tr("Replace PDF?"), tr("Replace the existing file “%1”?").arg(info.fileName()),
+                        QMessageBox::Yes | QMessageBox::No, QMessageBox::No) != QMessageBox::Yes)
+                    return;
+            }
+            _output = choice;
+            _outputPath = path;
+            saveSettings();
+            accept();
+        });
+        step->setText(tr("1 of 3 · Choose Views"));
+        back->setEnabled(false);
+        updateViewStep();
+    }
 
     connect(preview, &QPrintPreviewWidget::paintRequested, this,
-        [this, view, sheets, partCount = parts.parts, previewError, print, savePdf, saveSvg, save3dPdf](QPrinter* device) {
+        [this, view, publishing, partCount = parts.parts, preview, previewError, print, savePdf, saveSvg, next](QPrinter* device) {
+            if (publishing && _sheets.isEmpty())
+                return;
             const QPageLayout paper = device->pageLayout();
             const QSizeF pagePt = paper.paintRect(QPageLayout::Point).size();
             bool scaleTooLarge = false;
             const auto sheetOptions = options(paper.orientation());
             bool drawn;
-            if (sheets.isEmpty())
+            if (!publishing)
             {
                 QPainter painter(device);
                 drawn = PrintPage::paint(painter, pagePt, device->resolution(), useTemplate(),
@@ -482,26 +677,20 @@ PrintDialog::PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::Par
             }
             else
             {
-                drawn = PrintPage::paintSheets(*device, device->resolution(), useTemplate(), sheetOptions, partCount, sheets);
+                drawn = PrintPage::paintSheets(*device, device->resolution(), useTemplate(), sheetOptions, partCount, _sheets);
             }
             previewError->setText(scaleTooLarge
                 ? tr("The current view is too large at this scale. Choose a smaller scale or a larger paper size.")
                 : tr("The sheet could not be previewed at this paper size."));
             previewError->setVisible(!drawn);
-            for (auto* button : {print, savePdf, saveSvg, save3dPdf})
+            for (auto* button : {print, savePdf, saveSvg})
                 if (button)
                     button->setEnabled(drawn);
+            if (next && preview->isVisible())
+                next->setEnabled(drawn);
         });
 
     rebuildFields();
-    if (!sheets.isEmpty())
-    {
-        // AllPagesView fits once when selected. Fit again after the dialog lays out the preview.
-        QTimer::singleShot(0, preview, [preview] {
-            if (preview->viewMode() == QPrintPreviewWidget::AllPagesView)
-                preview->setAllPagesViewMode();
-        });
-    }
 }
 
 const Pdf3D::SheetTemplate& PrintDialog::primaryTemplate() const
@@ -546,6 +735,11 @@ QSizeF PrintDialog::modelSizeMm() const
 {
     const double ratio = _drawingScale->currentData().toDouble();
     return ratio > 0.0 ? _orthographicSizeMm * ratio : QSizeF();
+}
+
+void PrintDialog::rememberPublishedOutput() const
+{
+    QSettings().setValue(kPublishOutputKey, static_cast<int>(_output));
 }
 
 bool PrintDialog::openAfterSaving() const

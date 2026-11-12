@@ -18,6 +18,7 @@
 class QCheckBox;
 class QComboBox;
 class QLabel;
+class QLineEdit;
 class QPushButton;
 
 namespace Ui
@@ -95,6 +96,8 @@ public:
 	// {parts} and {subtitle} placeholders).
 	// The part number the model declares (NodeProperties::declaredPartNumber) fills the drawing number, and the user may change it. Does nothing
 	// for an empty string: the drawing number starts empty for each model, it is not remembered.
+	void setSuggestedOutputPath(const QString& path);
+	const QString& outputPath() const { return _outputPath; }
 	void setDeclaredDrawingNumber(const QString& number);
 	void setCoverPreviewProvider(std::function<QImage(int)> provider);
 	const QImage& coverPreview() const { return _coverPreview; }
@@ -124,6 +127,9 @@ protected:
 
 private:
 	void updateOkEnabled();
+	void updateSaveButton();
+	QString enteredOutputPath() const;
+	void browseOutputPath();
 	void updateReview();
 	void setAllViewsChecked(bool checked);
 	void setAllOverlaysChecked(bool checked);
@@ -144,6 +150,9 @@ private:
 	QComboBox* _openingView = nullptr;
 	QLabel* _reviewSummary = nullptr;
 	QCheckBox* _openAfterSaving = nullptr;
+	QLineEdit* _destination = nullptr;
+	QString _suggestedFolder;
+	QString _outputPath;
 	QPushButton* _reviewNotice = nullptr;
 	QVector<Pdf3D::SheetTemplate> _templates;   // parallel to the combo
 	QStringList _templateProblems;              // files of the user folder that could not be used, and warnings

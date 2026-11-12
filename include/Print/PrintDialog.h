@@ -7,10 +7,13 @@
 #include <QDialog>
 #include <QPageLayout>
 
+#include <functional>
+
 class QCheckBox;
 class QComboBox;
 class QImage;
 class QLineEdit;
+class QListWidget;
 class QPrinter;
 
 namespace Pdf3D
@@ -26,16 +29,27 @@ class PrintDialog : public QDialog
 public:
     enum class Output { Printer, Pdf, Svg, Pdf3D };
 
+    struct PublishSteps
+    {
+        QWidget* views = nullptr;
+        QListWidget* viewList = nullptr;
+        std::function<QVector<Pdf3D::StaticSheet>()> capture;
+        QString suggestedPath;
+    };
+
     // `declaredNumber`: the part number the model declares; it fills Drawing no. when there is one; otherwise the field is empty.
     PrintDialog(QPrinter& printer, const QImage& view, const Pdf3D::PartSummary& parts,
                 const QString& defaultTitle, const QString& declaredNumber, const QSizeF& orthographicSizeMm,
-                bool openAfterSaving, QWidget* parent = nullptr, const QVector<Pdf3D::StaticSheet>& sheets = {});
+                bool openAfterSaving, QWidget* parent, PublishSteps publish);
 
     bool useTemplate() const;
     int imageDpi() const;
     QSizeF modelSizeMm() const;
     bool openAfterSaving() const;
     Output output() const { return _output; }
+    void rememberPublishedOutput() const;
+    const QString& outputPath() const { return _outputPath; }
+    const QVector<Pdf3D::StaticSheet>& sheets() const { return _sheets; }
     Pdf3D::Pdf3DOptions options(QPageLayout::Orientation orientation) const;
 
 private:
@@ -50,6 +64,8 @@ private:
     QSizeF _orthographicSizeMm;
     bool _paperOverridden = false;
     Output _output = Output::Printer;
+    QString _outputPath;
+    QVector<Pdf3D::StaticSheet> _sheets;
     QCheckBox* _useTemplate = nullptr;
     QCheckBox* _openAfterSaving = nullptr;
     QComboBox* _template = nullptr;

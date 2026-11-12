@@ -201,7 +201,7 @@ public:
 	void exportModel();
 	// File > Save as 3D PDF...: the visible parts as a drawing sheet with an embedded 3D model (see Pdf3D/Pdf3DExporter.h)
 	// `presetFileName`: the file the export dialog already asked for; without it the export dialog is shown first, with the 3D PDF filter selected.
-	void exportAs3DPdf(const QString& presetFileName = QString(), const QVector<Pdf3D::StaticSheet>* companionSheets = nullptr);
+	bool exportAs3DPdf(const QString& presetFileName = QString(), const QVector<Pdf3D::StaticSheet>* companionSheets = nullptr);
 	// File > Print...: the view as shown, on a white background, on a sheet template or a plain page, to any printer (print to PDF
 	// is the printer driver's). Raster output at the chosen resolution.
 	void printView(bool publish = false);
@@ -919,7 +919,7 @@ private slots:
 	void validateCutClipboard();
 	void importFiles(QStringList& fileNames);
 	void onFileExport();
-	void exportModelDialog(bool select3dPdfFilter);   // the export file dialog; the 3D PDF filter preselected for File > Save as 3D PDF
+	void exportModelDialog();
 
 	void handleTreeWidgetVisibilityChanged();
 	void handleTreeWidgetSelectionChanged();

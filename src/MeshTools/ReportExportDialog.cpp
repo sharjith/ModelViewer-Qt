@@ -19,6 +19,7 @@
 #include <QPageSize>
 #include <QPdfWriter>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QTextDocument>
 #include <QUrl>
 #include <QVBoxLayout>
@@ -137,40 +138,93 @@ void ReportExportDialog::editViewVisibility(QListWidgetItem* item)
     item->setText(overrideVisibility ? baseName + tr(" (custom visibility)") : baseName);
 }
 
+ViewOverlayChecklist::ViewOverlayChecklist(ModelViewer& viewer, QWidget* parent)
+    : QWidget(parent)
+    , _measurements(new QListWidget(this))
+    , _annotations(new QListWidget(this))
+{
+    auto* layout = new QVBoxLayout(this);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->addWidget(new QLabel(tr("Measurements"), this));
+    layout->addWidget(_measurements, 1);
+    layout->addWidget(new QLabel(tr("Annotations"), this));
+    layout->addWidget(_annotations, 1);
+    _measurements->setAccessibleName(tr("Measurements"));
+    _annotations->setAccessibleName(tr("Annotations"));
+
+    const auto add = [](QListWidget* list, const QUuid& id, const QString& label) {
+        auto* row = new QListWidgetItem(label, list);
+        row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
+        row->setData(Qt::UserRole, id);
+        row->setCheckState(Qt::Unchecked);
+    };
+    const SceneGraph* scene = viewer.sceneGraph();
+    auto* viewport = viewer.getViewportWidget();
+    if (scene && viewport)
+    {
+        for (const Measurement& measurement : scene->measurements())
+        {
+            add(_measurements, measurement.id, viewport->measurementSummaryText(measurement));
+            if (measurement.visible)
+                _currentVisibility.measurements.insert(measurement.id);
+        }
+        for (const Annotation& annotation : scene->annotations())
+        {
+            add(_annotations, annotation.id, annotationRowLabel(annotation.text));
+            if (annotation.visible)
+                _currentVisibility.annotations.insert(annotation.id);
+        }
+    }
+    connect(_measurements, &QListWidget::itemChanged, this, &ViewOverlayChecklist::visibilityChanged);
+    connect(_annotations, &QListWidget::itemChanged, this, &ViewOverlayChecklist::visibilityChanged);
+}
+
+void ViewOverlayChecklist::setVisibility(const std::optional<ViewOverlayVisibility>& visibility)
+{
+    const auto& selected = visibility ? *visibility : _currentVisibility;
+    const auto update = [](QListWidget* list, const QSet<QUuid>& ids) {
+        const QSignalBlocker blocker(list);
+        for (int i = 0; i < list->count(); ++i)
+        {
+            auto* row = list->item(i);
+            row->setCheckState(ids.contains(row->data(Qt::UserRole).toUuid()) ? Qt::Checked : Qt::Unchecked);
+        }
+    };
+    update(_measurements, selected.measurements);
+    update(_annotations, selected.annotations);
+}
+
+ViewOverlayVisibility ViewOverlayChecklist::visibility() const
+{
+    const auto checked = [](const QListWidget* list) {
+        QSet<QUuid> ids;
+        for (int i = 0; i < list->count(); ++i)
+        {
+            const auto* row = list->item(i);
+            if (row->checkState() == Qt::Checked)
+                ids.insert(row->data(Qt::UserRole).toUuid());
+        }
+        return ids;
+    };
+    return {checked(_measurements), checked(_annotations)};
+}
+
+bool ViewOverlayChecklist::hasOverlays() const
+{
+    return _measurements->count() > 0 || _annotations->count() > 0;
+}
+
 bool ReportExportDialog::editOverlayVisibility(ModelViewer& viewer, QWidget* parent,
     const std::optional<ViewOverlayVisibility>& captured,
     std::optional<ViewOverlayVisibility>& overrideVisibility)
 {
-    const SceneGraph* sceneGraph = viewer.sceneGraph();
-    auto* viewport = viewer.getViewportWidget();
-    if (!sceneGraph || !viewport)
+    if (!viewer.sceneGraph() || !viewer.getViewportWidget())
         return false;
 
-    const auto& visibility = overrideVisibility ? overrideVisibility : captured;
     QDialog dialog(parent);
     dialog.setWindowTitle(tr("Measurement and Annotation Visibility"));
-
-    QListWidget* measurementsList = new QListWidget(&dialog);
-    QVector<QUuid> measurementIds;
-    for (const Measurement& m : sceneGraph->measurements())
-    {
-        QListWidgetItem* row = new QListWidgetItem(viewport->measurementSummaryText(m), measurementsList);
-        row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
-        const bool checked = visibility ? visibility->measurements.contains(m.id) : m.visible;
-        row->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
-        measurementIds.append(m.id);
-    }
-
-    QListWidget* annotationsList = new QListWidget(&dialog);
-    QVector<QUuid> annotationIds;
-    for (const Annotation& a : sceneGraph->annotations())
-    {
-        QListWidgetItem* row = new QListWidgetItem(annotationRowLabel(a.text), annotationsList);
-        row->setFlags(row->flags() | Qt::ItemIsUserCheckable);
-        const bool checked = visibility ? visibility->annotations.contains(a.id) : a.visible;
-        row->setCheckState(checked ? Qt::Checked : Qt::Unchecked);
-        annotationIds.append(a.id);
-    }
+    auto* checklist = new ViewOverlayChecklist(viewer, &dialog);
+    checklist->setVisibility(overrideVisibility ? overrideVisibility : captured);
 
     QPushButton* useCurrentButton = new QPushButton(captured ? tr("Use Captured Visibility")
                                                                    : tr("Use Current Visibility"), &dialog);
@@ -184,10 +238,7 @@ bool ReportExportDialog::editOverlayVisibility(ModelViewer& viewer, QWidget* par
     buttonRow->addWidget(okButton);
 
     QVBoxLayout* layout = new QVBoxLayout(&dialog);
-    layout->addWidget(new QLabel(tr("Measurements shown in this view:"), &dialog));
-    layout->addWidget(measurementsList, 1);
-    layout->addWidget(new QLabel(tr("Annotations shown in this view:"), &dialog));
-    layout->addWidget(annotationsList, 1);
+    layout->addWidget(checklist, 1);
     layout->addLayout(buttonRow);
     dialog.resize(320, 420);
 
@@ -210,18 +261,7 @@ bool ReportExportDialog::editOverlayVisibility(ModelViewer& viewer, QWidget* par
         return true;
     }
 
-    ViewOverlayVisibility selected;
-    for (int i = 0; i < measurementsList->count(); ++i)
-    {
-        if (measurementsList->item(i)->checkState() == Qt::Checked)
-            selected.measurements.insert(measurementIds.at(i));
-    }
-    for (int i = 0; i < annotationsList->count(); ++i)
-    {
-        if (annotationsList->item(i)->checkState() == Qt::Checked)
-            selected.annotations.insert(annotationIds.at(i));
-    }
-    overrideVisibility = std::move(selected);
+    overrideVisibility = checklist->visibility();
     return true;
 }
 
