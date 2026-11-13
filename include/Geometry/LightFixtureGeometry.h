@@ -21,7 +21,8 @@ public:
         SpotLens,    // emissive: the lens disc inside the hood
         SunHead,     // emissive: disc, rays and a direction arrow
         BeamCone,    // lines: apex at the origin, rim at z = 1 with radius 1 (scale z and xy separately)
-        BeamRim      // lines: the circle at z = 1 with radius 1 (the inner cone angle)
+        BeamRim,     // lines: the circle at z = 1 with radius 1 (the inner cone angle)
+        BeamFill     // glow: the cone surface as triangles (apex at the origin, rim at z = 1, radius 1), drawn additively
     };
 
     explicit LightFixtureGeometry(Part part);

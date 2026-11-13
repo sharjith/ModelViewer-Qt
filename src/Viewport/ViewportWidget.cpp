@@ -1079,7 +1079,7 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	if (_lightCube) { delete _lightCube; _lightCube = nullptr; }
 	if (_lightSphere) { delete _lightSphere; _lightSphere = nullptr; }
 	for (LightFixtureRenderable** fixture : { &_fixtureBulbGlass, &_fixtureBulbBase, &_fixtureBulbHalo, &_fixtureSpotBody, &_fixtureSpotLens,
-	                                          &_fixtureSunHead, &_fixtureBeamCone, &_fixtureBeamRim })
+	                                          &_fixtureSunHead, &_fixtureBeamCone, &_fixtureBeamRim, &_fixtureBeamFill })
 	{
 		delete *fixture;
 		*fixture = nullptr;
@@ -7168,6 +7168,7 @@ void ViewportWidget::createLights()
 		makeFixture(_fixtureSunHead, Part::SunHead);
 		makeFixture(_fixtureBeamCone, Part::BeamCone);
 		makeFixture(_fixtureBeamRim, Part::BeamRim);
+		makeFixture(_fixtureBeamFill, Part::BeamFill);
 	}
 }
 
@@ -13495,7 +13496,12 @@ void ViewportWidget::drawLights(Camera* camera)
 			// Directional lights are defined by direction rather than emitter position. The sun head sits outside the scene on the side the
 			// light comes from, so several directional lights do not collapse at the origin; its arrow points along the light.
 			const QVector3D markerPos = sceneCenter - dir * (sceneRadius * 1.3f);
-			drawPart(_fixtureSunHead, fixtureFrame(markerPos, dir, sceneUp, fixtureScale(markerPos)), 1, glowColor);
+			const QMatrix4x4 frame = fixtureFrame(markerPos, dir, sceneUp, fixtureScale(markerPos));
+			drawPart(_fixtureSunHead, frame, 1, glowColor);
+			// A glow around the head: the bulb halo sphere, a little larger so it reaches past the rays.
+			QMatrix4x4 haloFrame = frame;
+			haloFrame.scale(1.15f);
+			halos.push_back({ haloFrame, glowColor });
 		}
 		else if (lightType == LightType::Spot)
 		{
@@ -13546,6 +13552,20 @@ void ViewportWidget::drawLights(Camera* camera)
 	{
 		drawPart(_fixtureBeamCone, beam.outer, 2, beam.color);
 		drawPart(_fixtureBeamRim, beam.inner, 2, beam.color);
+	}
+
+	// The beam's glow: the outer cone as a translucent additive surface fading away from the lens, drawn after the lines.
+	if (!beams.empty())
+	{
+		const bool blendWasEnabled = glIsEnabled(GL_BLEND);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		glDepthMask(GL_FALSE);
+		for (const BeamDraw& beam : beams)
+			drawPart(_fixtureBeamFill, beam.outer, 4, beam.color / 0.55f);
+		glDepthMask(GL_TRUE);
+		if (!blendWasEnabled)
+			glDisable(GL_BLEND);
 	}
 
 	if (cullWasEnabled)

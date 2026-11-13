@@ -223,6 +223,13 @@ LightFixtureGeometry::LightFixtureGeometry(Part part)
         addCircle(1.0f, 1.0f, 48);
         break;
     }
+    case Part::BeamFill:
+    {
+        // The normal is radial and tilted back, but only the position's z matters: the shader fades the glow along the axis.
+        segment(profile, 0.0f, 0.0f, 1.0f, 1.0f, 0.7071f, -0.7071f);
+        addLathe(profile, 48);
+        break;
+    }
     }
     _primitiveMode = isLines() ? 1u : 4u;
 }

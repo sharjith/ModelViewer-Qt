@@ -2,13 +2,14 @@
 
 in VS_OUT {
     vec3 viewNormal;
+    float axial;
 } fs_in;
 
 out vec4 fragColor;
 
 uniform vec3 lightColor;   // the light's own colour, already scaled by the display brightness
 uniform vec3 baseColor;    // housing colour
-uniform int  mode;         // 0 = housing (lit), 1 = emissive (glass, lens, sun), 2 = flat line
+uniform int  mode;         // 0 = housing (lit), 1 = emissive (glass, lens, sun), 2 = flat line, 3 = halo, 4 = beam glow
 
 void main()
 {
@@ -27,6 +28,14 @@ void main()
         // Halo: additive glow, strongest where the sphere faces the viewer. Back faces have n.z < 0 and add nothing.
         float f = max(n.z, 0.0);
         fragColor = vec4(lightColor, pow(f, 1.6) * 0.42);
+        return;
+    }
+
+    if (mode == 4)
+    {
+        // Beam glow: additive, brightest at the lens and fading out towards the far rim (axial runs 0..1 along the cone).
+        float fade = 1.0 - clamp(fs_in.axial, 0.0, 1.0);
+        fragColor = vec4(lightColor, 0.04 + 0.32 * fade * fade);
         return;
     }
 
