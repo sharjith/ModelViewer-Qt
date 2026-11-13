@@ -1270,6 +1270,15 @@ void SceneGraph::removeUserLight(int index)
     emit lightDataChanged();
 }
 
+void SceneGraph::replaceUserLight(int index, const GltfLightEntry& entry)
+{
+    auto it = _lightDataByFile.find(userLightsKey());
+    if (it == _lightDataByFile.end() || index < 0 || index >= it->lights.size())
+        return;
+    it->lights[index] = entry;
+    emit lightDataChanged();
+}
+
 std::vector<GPULight> SceneGraph::buildEnabledLightList() const
 {
     std::vector<GPULight> result;

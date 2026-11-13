@@ -13390,8 +13390,9 @@ void ViewportWidget::drawLights(Camera* camera)
 	// Punctual lights are drawn only when their enabled flag is set (tree checkbox AND Show Lights).
 	// Each is a small fixture: a bulb for point lights, a theatre spot with its beam cone for spot lights, a sun head with a direction
 	// arrow for directional lights. All keep a constant size on screen, like the transform gizmo.
+	std::vector<LightOrigin> gizmoOrigins;
 	const std::vector<GPULight> gizmoLights =
-	    _animCtrl.buildGizmoLights(_viewer ? _viewer->sceneGraph() : nullptr);
+	    _animCtrl.buildGizmoLights(_viewer ? _viewer->sceneGraph() : nullptr, &gizmoOrigins);
 	if (!camera || !_fixtureBulbGlass)
 		return;
 
@@ -13462,8 +13463,18 @@ void ViewportWidget::drawLights(Camera* camera)
 		halos.push_back({ lampFrame, lampGlow });
 	}
 
-	for (const GPULight& light : gizmoLights)
+	struct RingDraw { QVector3D position; float radius; };
+	std::vector<RingDraw> selectionRings;   // an accent ring around the selected light's fixture
+	const QVector3D selectedHousingColor(0.16f, 0.42f, 0.80f);
+
+	for (std::size_t lightIndex = 0; lightIndex < gizmoLights.size(); ++lightIndex)
 	{
+		const GPULight& light = gizmoLights[lightIndex];
+		const bool selected = _selectedLightIndex >= 0 && lightIndex < gizmoOrigins.size()
+		                   && gizmoOrigins[lightIndex].index == _selectedLightIndex
+		                   && gizmoOrigins[lightIndex].file == _selectedLightFile;
+		const QVector3D& housing = selected ? selectedHousingColor : housingColor;
+
 		// Map intensity logarithmically to [0.3, 1.0] so gizmos are always visible
 		// (even at intensity=0) while brighter lights appear more luminous.
 		// log10(intensity + 1) / 3  maps  0 → 0,  100 → 0.67,  999 → 1.0
@@ -13494,16 +13505,21 @@ void ViewportWidget::drawLights(Camera* camera)
 			QMatrix4x4 haloFrame = frame;
 			haloFrame.scale(1.44f);
 			halos.push_back({ haloFrame, glowColor });
+			if (selected)
+				selectionRings.push_back({ markerPos, fixtureScale(markerPos) * 1.9f });
 		}
 		else if (lightType == LightType::Spot)
 		{
 			const QVector3D position(light.position.x, light.position.y, light.position.z);
 			const float scale = fixtureScale(position);
 			const QMatrix4x4 frame = fixtureFrame(position, dir, sceneUp, scale);
-			drawPart(_fixtureSpotBody, frame, 0, emissiveColor, housingColor);
+			drawPart(_fixtureSpotBody, frame, 0, emissiveColor, housing);
 			drawPart(_fixtureSpotLens, frame, 1, glowColor);
 
-			// The beam is drawn in world size, after the fixtures: its length is the light's range, limited to the scene.
+			// The beam is shown only while the spot is selected. It is drawn in world size, after the fixtures: its length is the
+			// light's range, limited to the scene.
+			if (selected)
+				selectionRings.push_back({ position, scale * 1.9f });
 			const float length = light.range > 0.0f ? std::min(light.range, sceneRadius * 3.0f) : sceneRadius * 1.2f;
 			const auto coneRadius = [length](float cosAngle) {
 				const float angle = std::min(std::acos(std::clamp(cosAngle, -1.0f, 1.0f)), 1.48f);
@@ -13513,15 +13529,18 @@ void ViewportWidget::drawLights(Camera* camera)
 			QMatrix4x4 inner = outer;
 			outer.scale(coneRadius(light.outerConeCos), coneRadius(light.outerConeCos), length);
 			inner.scale(coneRadius(light.innerConeCos), coneRadius(light.innerConeCos), length);
-			beams.push_back({ outer, inner, glowColor * 0.55f });
+			if (selected)
+				beams.push_back({ outer, inner, glowColor * 0.55f });
 		}
 		else
 		{
 			const QVector3D position(light.position.x, light.position.y, light.position.z);
 			const QMatrix4x4 frame = fixtureFrame(position, sceneUp, sceneUp, fixtureScale(position));
 			drawPart(_fixtureBulbGlass, frame, 1, glowColor);
-			drawPart(_fixtureBulbBase, frame, 0, emissiveColor, housingColor);
+			drawPart(_fixtureBulbBase, frame, 0, emissiveColor, housing);
 			halos.push_back({ frame, glowColor });
+			if (selected)
+				selectionRings.push_back({ position, fixtureScale(position) * 1.9f });
 		}
 	}
 
@@ -13572,6 +13591,29 @@ void ViewportWidget::drawLights(Camera* camera)
 		glDepthMask(GL_TRUE);
 		if (!blendWasEnabled)
 			glDisable(GL_BLEND);
+	}
+
+	// The selection ring: a circle facing the eye around the selected fixture, drawn over everything so it is always findable.
+	// The unit circle of the beam rim sits at z = 1, so the frame's origin is moved back by one unit of its own z axis.
+	if (!selectionRings.empty())
+	{
+		const QMatrix4x4 eyeToWorld = viewMat.inverted();
+		const QVector3D right = eyeToWorld.column(0).toVector3D().normalized();
+		const QVector3D up = eyeToWorld.column(1).toVector3D().normalized();
+		const QVector3D back = eyeToWorld.column(2).toVector3D().normalized();
+		const bool depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
+		glDisable(GL_DEPTH_TEST);
+		for (const RingDraw& ring : selectionRings)
+		{
+			QMatrix4x4 frame;
+			frame.setColumn(0, QVector4D(right * ring.radius, 0.0f));
+			frame.setColumn(1, QVector4D(up * ring.radius, 0.0f));
+			frame.setColumn(2, QVector4D(back * ring.radius, 0.0f));
+			frame.setColumn(3, QVector4D(ring.position - back * ring.radius, 1.0f));
+			drawPart(_fixtureBeamRim, frame, 2, QVector3D(0.35f, 0.75f, 1.0f));
+		}
+		if (depthWasEnabled)
+			glEnable(GL_DEPTH_TEST);
 	}
 
 	if (cullWasEnabled)
@@ -20331,6 +20373,19 @@ GltfLightEntry ViewportWidget::makeUserLight(int type, const QString& name) cons
 	return entry;
 }
 
+void ViewportWidget::selectLight(const QString& sourceFile, int index)
+{
+	if (index < 0)
+		index = -1;
+	const QString file = index < 0 ? QString() : sourceFile;
+	if (file == _selectedLightFile && index == _selectedLightIndex)
+		return;
+	_selectedLightFile = file;
+	_selectedLightIndex = index;
+	emit selectedLightChanged();
+	update();
+}
+
 void ViewportWidget::userLightsChanged()
 {
 	makeCurrent();
@@ -22604,6 +22659,14 @@ void ViewportWidget::onSceneLightDataChanged()
 {
     if (!_viewer || !_viewer->sceneGraph())
         return;
+
+    // A selected light that no longer exists (deleted, its model removed, an undo) loses the selection.
+    if (_selectedLightIndex >= 0)
+    {
+        const GltfLightData selectedData = _viewer->sceneGraph()->lightDataForFile(_selectedLightFile);
+        if (_selectedLightIndex >= selectedData.lights.size())
+            selectLight(QString(), -1);
+    }
 
     _animCtrl.rebuildParsedLightsFromSceneGraph(_viewer->sceneGraph());
 

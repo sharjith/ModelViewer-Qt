@@ -1401,6 +1401,8 @@ signals:
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.
 	void selectionChanged(const QList<int>& selectedIds);
+	// The selected light (see selectLight()) changed, or ceased to exist.
+	void selectedLightChanged();
 	// Emitted by requestTextureReadback() once the GL readback is complete.
 	void textureReadbackReady(QVector<TextureSlotInfo> slots, QString meshName);
 	void cameraUpAxisChanged(bool zUp);
@@ -1500,6 +1502,12 @@ public slots:
 	// After user lights were added or removed in the scene graph (the scene graph signal has already uploaded the list): restore the
 	// default-light fallback when no light is left, tell the ray tracers and repaint.
 	void userLightsChanged();
+
+	// The light selected in the lights tree (index -1 = none). Scene lights and imported lights can both be selected; the selected
+	// fixture gets an accent ring and, for a spot, its beam cone. Cleared when the selected light no longer exists.
+	void selectLight(const QString& sourceFile, int index);
+	const QString& selectedLightFile() const { return _selectedLightFile; }
+	int selectedLightIndex() const { return _selectedLightIndex; }
 	void useIBL(bool useIBL) { _renderCtrl.setUseIBL(useIBL); update(); }
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
@@ -2953,6 +2961,8 @@ private:
 	LightFixtureRenderable* _fixtureBeamRim = nullptr;
 	LightFixtureRenderable* _fixtureBeamFill = nullptr;
 	LightFixtureRenderable* _fixtureLampShade = nullptr;
+	QString _selectedLightFile;          // source file key of the selected light ("__user__" for scene lights)
+	int     _selectedLightIndex = -1;    // its index within that file's lights; -1 = no selection
 	// _showLights â†’ SceneRenderController (Phase 12)
 
 	// GPU-context-recreation-survival registry (see IGpuContextResource.h) -

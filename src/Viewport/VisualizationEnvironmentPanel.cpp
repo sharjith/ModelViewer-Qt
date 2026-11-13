@@ -6,6 +6,7 @@
 #include "MaterialPreviewWidget.h"
 #include "PathUtils.h"
 #include "SceneGraph.h"
+#include "SceneLightPropertiesPanel.h"
 #include "UserLightCommand.h"
 #include <QColorDialog>
 #include <QFileDialog>
@@ -198,6 +199,15 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 
 			handle->installEventFilter(this);
 			_lightTreeResizeHandle = handle;
+
+			// The numeric editor for the selected light sits under the tree; it stays hidden until a light is selected.
+			_lightProps = new SceneLightPropertiesPanel(ui->groupBoxPunctualLights);
+			if (gl)
+				gl->addWidget(_lightProps, 3, 0);
+			_lightProps->hide();
+			connect(_lightProps, &SceneLightPropertiesPanel::edited, this, &VisualizationEnvironmentPanel::onLightPropertyEdited);
+			connect(_lightProps, &SceneLightPropertiesPanel::aimAtCentreRequested, this,
+			        &VisualizationEnvironmentPanel::aimSelectedLightAtCentre);
 		}
 		// ────────────────────────────────────────────────────────────────────────
 
@@ -222,8 +232,11 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 	// first, same reasoning as the SceneGraph connection above.
 	disconnect(_viewportCameraUpAxisConnection);
 	disconnect(_viewportRenderingModeConnection);
+	disconnect(_viewportLightSelectionConnection);
 	if (_viewportWidget)
 	{
+		_viewportLightSelectionConnection = connect(_viewportWidget, &ViewportWidget::selectedLightChanged,
+		        this, &VisualizationEnvironmentPanel::onViewportLightSelectionChanged);
 		_viewportCameraUpAxisConnection = connect(_viewportWidget, &ViewportWidget::cameraUpAxisChanged,
 		        this, &VisualizationEnvironmentPanel::updateSkyBoxRotationLabels);
 		updateSkyBoxRotationLabels(_viewportWidget->isCameraUpAxisZUp());
@@ -419,7 +432,7 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->pushButtonAddSpotLight, &QPushButton::clicked, this, [this] { addUserLight(LightType::Spot); });
 	connect(ui->pushButtonAddSunLight, &QPushButton::clicked, this, [this] { addUserLight(LightType::Directional); });
 	connect(ui->pushButtonDeleteSceneLight, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::deleteSelectedUserLight);
-	connect(ui->treePunctualLights, &QTreeWidget::itemSelectionChanged, this, &VisualizationEnvironmentPanel::updateSceneLightButtons);
+	connect(ui->treePunctualLights, &QTreeWidget::itemSelectionChanged, this, &VisualizationEnvironmentPanel::onLightTreeSelectionChanged);
 
 	// ===== Skybox Controls =====
 	// cameraUpAxisChanged/renderingModeChanged are connected per-rebind, not
@@ -898,14 +911,12 @@ void VisualizationEnvironmentPanel::refreshPunctualLightsTree()
 		QTreeWidgetItem* fileItem = makeLightFileItem(sourceFile);
 		tree->addTopLevelItem(fileItem);
 
-		const bool isUserGroup = SceneGraph::isUserLightsKey(sourceFile);
 		for (int i = 0; i < ld.lights.size(); ++i)
 		{
 			QTreeWidgetItem* leaf = makeLightLeafItem(ld.lights[i], i);
 			leaf->setData(0, kSourceFileRole, sourceFile);
-			// Only the scene's own lights can be deleted, so only they can be selected.
-			if (isUserGroup)
-				leaf->setFlags(leaf->flags() | Qt::ItemIsSelectable);
+			// Every light can be selected (to see it in the viewport and its values); only scene lights can be edited or deleted.
+			leaf->setFlags(leaf->flags() | Qt::ItemIsSelectable);
 			fileItem->addChild(leaf);
 		}
 
@@ -922,10 +933,131 @@ void VisualizationEnvironmentPanel::refreshPunctualLightsTree()
 		                                           : Qt::Unchecked);
 	}
 
+	// Rebuilding cleared the tree's selection: select the viewport's selected light again (its own selection is unchanged).
+	if (_viewportWidget && _viewportWidget->selectedLightIndex() >= 0)
+	{
+		for (int i = 0; i < tree->topLevelItemCount(); ++i)
+		{
+			QTreeWidgetItem* group = tree->topLevelItem(i);
+			if (group->childCount() == 0 || group->child(0)->data(0, kSourceFileRole).toString() != _viewportWidget->selectedLightFile())
+				continue;
+			if (QTreeWidgetItem* leaf = group->child(_viewportWidget->selectedLightIndex()))
+				tree->setCurrentItem(leaf);
+			break;
+		}
+	}
+
 	tree->blockSignals(false);
 
 	// The group box stays visible: it also holds the Add buttons for the scene's own lights.
 	updateSceneLightButtons();
+	syncLightProperties();
+}
+
+void VisualizationEnvironmentPanel::onLightTreeSelectionChanged()
+{
+	if (_viewportWidget)
+	{
+		const QList<QTreeWidgetItem*> selected = ui->treePunctualLights->selectedItems();
+		const QTreeWidgetItem* item = selected.isEmpty() ? nullptr : selected.first();
+		const int index = item ? item->data(0, kLightIndexRole).toInt() : -1;
+		_viewportWidget->selectLight(item ? item->data(0, kSourceFileRole).toString() : QString(), index);
+	}
+	updateSceneLightButtons();
+	syncLightProperties();
+}
+
+void VisualizationEnvironmentPanel::onViewportLightSelectionChanged()
+{
+	if (!_viewportWidget || !ui)
+		return;
+
+	// Follow the viewport's selection in the tree without sending it back.
+	QTreeWidget* tree = ui->treePunctualLights;
+	const QSignalBlocker blocker(tree);
+	tree->clearSelection();
+	if (_viewportWidget->selectedLightIndex() >= 0)
+	{
+		for (int i = 0; i < tree->topLevelItemCount(); ++i)
+		{
+			QTreeWidgetItem* group = tree->topLevelItem(i);
+			if (group->childCount() == 0 || group->child(0)->data(0, kSourceFileRole).toString() != _viewportWidget->selectedLightFile())
+				continue;
+			if (QTreeWidgetItem* leaf = group->child(_viewportWidget->selectedLightIndex()))
+				tree->setCurrentItem(leaf);
+			break;
+		}
+	}
+	updateSceneLightButtons();
+	syncLightProperties();
+}
+
+void VisualizationEnvironmentPanel::syncLightProperties()
+{
+	if (!_lightProps)
+		return;
+	if (!_sceneGraph || !_viewportWidget || _viewportWidget->selectedLightIndex() < 0)
+	{
+		_lightProps->hide();
+		return;
+	}
+	const QString file = _viewportWidget->selectedLightFile();
+	const GltfLightData data = _sceneGraph->lightDataForFile(file);
+	const int index = _viewportWidget->selectedLightIndex();
+	if (index >= data.lights.size())
+	{
+		_lightProps->hide();
+		return;
+	}
+	_lightProps->setLight(data.lights[index], SceneGraph::isUserLightsKey(file));
+	_lightProps->show();
+}
+
+void VisualizationEnvironmentPanel::onLightPropertyEdited(const GltfLightEntry& entry, EditUserLightCommand::Field field)
+{
+	if (!_sceneGraph || !_viewportWidget || !_modelViewer)
+		return;
+	const QString file = _viewportWidget->selectedLightFile();
+	const int index = _viewportWidget->selectedLightIndex();
+	if (!SceneGraph::isUserLightsKey(file) || index < 0)
+		return;
+	const GltfLightData data = _sceneGraph->lightDataForFile(file);
+	if (index >= data.lights.size())
+		return;
+
+	QString text;
+	switch (field)
+	{
+	case EditUserLightCommand::Field::Name:      text = tr("Rename Light"); break;
+	case EditUserLightCommand::Field::Position:  text = tr("Move Light"); break;
+	case EditUserLightCommand::Field::Direction: text = tr("Aim Light"); break;
+	case EditUserLightCommand::Field::Color:     text = tr("Change Light Colour"); break;
+	case EditUserLightCommand::Field::Intensity: text = tr("Change Light Intensity"); break;
+	case EditUserLightCommand::Field::Range:     text = tr("Change Light Range"); break;
+	case EditUserLightCommand::Field::Cone:      text = tr("Change Spot Cone"); break;
+	default:                                     text = tr("Edit Light"); break;
+	}
+	_modelViewer->getUndoStack()->push(new EditUserLightCommand(
+		_modelViewer, _viewportWidget, index, field, data.lights[index], entry, text));
+}
+
+void VisualizationEnvironmentPanel::aimSelectedLightAtCentre()
+{
+	if (!_sceneGraph || !_viewportWidget || !SceneGraph::isUserLightsKey(_viewportWidget->selectedLightFile()))
+		return;
+	const int index = _viewportWidget->selectedLightIndex();
+	const GltfLightData data = _sceneGraph->lightDataForFile(SceneGraph::userLightsKey());
+	if (index < 0 || index >= data.lights.size())
+		return;
+
+	GltfLightEntry entry = data.lights[index];
+	const QVector3D centre = _viewportWidget->getBoundingSphere().getCenter();
+	QVector3D aim = centre - QVector3D(entry.gpuLight.position.x, entry.gpuLight.position.y, entry.gpuLight.position.z);
+	if (entry.gpuLight.type == static_cast<int>(LightType::Directional) || aim.lengthSquared() < 1e-12f)
+		return;   // a sun has no position to aim from
+	aim.normalize();
+	entry.gpuLight.direction = glm::vec3(aim.x(), aim.y(), aim.z());
+	onLightPropertyEdited(entry, EditUserLightCommand::Field::Direction);
 }
 
 void VisualizationEnvironmentPanel::syncDefaultLightRow()
@@ -1027,6 +1159,9 @@ void VisualizationEnvironmentPanel::deleteSelectedUserLight()
 	const GltfLightData data = _sceneGraph->lightDataForFile(SceneGraph::userLightsKey());
 	if (index >= data.lights.size())
 		return;
+
+	// The lights after the deleted one move up an index, so no light may stay selected by index.
+	_viewportWidget->selectLight(QString(), -1);
 
 	_modelViewer->getUndoStack()->push(new UserLightCommand(
 		_modelViewer, _viewportWidget, UserLightCommand::Kind::Remove,

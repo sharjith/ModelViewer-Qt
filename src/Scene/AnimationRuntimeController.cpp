@@ -638,8 +638,10 @@ void AnimationRuntimeController::clearParsedLights()
     _currentRepositionedLights.clear();
 }
 
-std::vector<GPULight> AnimationRuntimeController::buildGizmoLights(const SceneGraph* sg) const
+std::vector<GPULight> AnimationRuntimeController::buildGizmoLights(const SceneGraph* sg, std::vector<LightOrigin>* origins) const
 {
+    if (origins)
+        origins->clear();
     if (_currentRepositionedLights.empty())
         return {};
 
@@ -648,7 +650,11 @@ std::vector<GPULight> AnimationRuntimeController::buildGizmoLights(const SceneGr
         && static_cast<int>(_currentRepositionedLights.size()) == _lightFileIndexMap.size();
 
     if (!hasEnabledMap)
+    {
+        if (origins)
+            origins->assign(_currentRepositionedLights.size(), LightOrigin{ QString(), -1 });
         return _currentRepositionedLights;
+    }
 
     std::vector<GPULight> result;
     result.reserve(_currentRepositionedLights.size());
@@ -657,7 +663,11 @@ std::vector<GPULight> AnimationRuntimeController::buildGizmoLights(const SceneGr
         const LightOrigin& origin = _lightFileIndexMap[i];
         const GltfLightData& ld = sg->lightDataForFile(origin.file);
         if (origin.index < static_cast<int>(ld.lights.size()) && ld.lights[origin.index].enabled)
+        {
             result.push_back(_currentRepositionedLights[i]);
+            if (origins)
+                origins->push_back(origin);
+        }
     }
     return result;
 }

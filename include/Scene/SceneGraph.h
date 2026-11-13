@@ -155,6 +155,8 @@ public:
     // Each emits lightDataChanged() once.
     void insertUserLight(int index, const GltfLightEntry& entry);
     void removeUserLight(int index);
+    // Replace the user light at `index` (a property edit); emits lightDataChanged() once.
+    void replaceUserLight(int index, const GltfLightEntry& entry);
 
     SceneNode* findFileNode(const QString& sourceFile) const;
 

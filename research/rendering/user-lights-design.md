@@ -1,6 +1,6 @@
 # User-added lights: design note
 
-Status: decisions made 2026-11-13; slice 1 written, awaiting the owner's build and test. Branch: `feature/user-lights` (from `dev` 34796ec).
+Status: decisions made 2026-11-13; slice 1 built and owner-tested (ac6a11b); slice 2 written, not yet built. Branch: `feature/user-lights` (from `dev` 34796ec).
 
 ## Goal
 
@@ -56,3 +56,13 @@ Per slice, on `feature/user-lights`: build, add each light type, save and reload
 - Panel: Add Point, Add Spot, Add Sun and Delete buttons above the tree; the "Scene Lights" group is listed first; only its leaves are selectable; the group box is always visible; adding a light turns Show Lights on; the buttons are disabled at 16 lights (the shader limit).
 - Existing behaviour that applies to user lights too: while any punctual light exists, the default-light fallback light is not created (the default light itself still lights raster output through `lightSource`).
 - The tree also has a permanent, italic "Default Light" row at the top, modelled on the System Camera row of the cameras panel (which likewise lists a synthetic "Captured Views" group first). It cannot be selected or deleted; its check box mirrors the Default Lights check box, which stays the source of truth (`syncDefaultLightRow()`).
+
+## Slice 2 notes (written, not yet built)
+
+Decisions (owner, 2026-11-13): imported lights are selectable but read-only; the aim is edited as a direction vector plus an "Aim at Scene Centre" button; intensity is shown as the raw glTF value (candela or lux).
+
+- Selection: `ViewportWidget::selectLight(file, index)`; the lights tree selects any light; the selection is cleared when its light disappears. The selected fixture gets an accent ring (a circle facing the eye) and a tinted housing, and a spot shows its beam cone only while selected.
+- `AnimationRuntimeController::buildGizmoLights()` can now return each light's origin (file and index) so the viewport knows which fixture is selected.
+- `SceneLightPropertiesPanel` (under the tree): name, type, position, direction and Aim at Scene Centre, colour, intensity, range (0 = unlimited), inner and outer cone angles. Rows that do not apply to the type are hidden; imported lights are shown disabled.
+- `EditUserLightCommand` applies each edit through the undo stack and merges consecutive edits of the same field of the same light; `SceneGraph::replaceUserLight()`.
+- Not in this slice: picking fixtures in the viewport, the transform gizmo (slice 3).

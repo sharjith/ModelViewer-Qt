@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EditUserLightCommand.h"
 #include "GltfLightData.h"
 #include <QTreeWidgetItem>
 #include <QWidget>
@@ -17,6 +18,7 @@ class ViewportWidget;
 class ModelViewer;
 class MaterialPreviewWidget;
 class SceneGraph;
+class SceneLightPropertiesPanel;
 
 class VisualizationEnvironmentPanel : public QWidget
 {
@@ -121,6 +123,15 @@ public slots:
 	void addUserLight(LightType type);
 	void deleteSelectedUserLight();
 	void updateSceneLightButtons();
+	// The tree's selection changed: select that light in the viewport.
+	void onLightTreeSelectionChanged();
+	// The viewport's selected light changed (or vanished): follow it in the tree and the properties panel.
+	void onViewportLightSelectionChanged();
+	// Show the selected light in the properties panel, or hide the panel when none is selected.
+	void syncLightProperties();
+	// An edit from the properties panel: apply it to the selected scene light through an undo command.
+	void onLightPropertyEdited(const GltfLightEntry& entry, EditUserLightCommand::Field field);
+	void aimSelectedLightAtCentre();
 	// Make the Default Light row's check box follow the Default Lights check box (which is also set with signals blocked).
 	void syncDefaultLightRow();
 
@@ -259,6 +270,9 @@ private:
 	// then re-centres the sliders and moves the light with them. Cleared once the user moves a slider or a saved offset is restored, so
 	// a range refresh never moves a light the user placed.
 	bool _lightOffsetIsDefault = true;
+
+	SceneLightPropertiesPanel* _lightProps = nullptr;   // numeric editor for the selected light, under the lights tree
+	QMetaObject::Connection _viewportLightSelectionConnection;
 
 	float sliderTickToOffset(const LightAxisSliderMapping& mapping, int tick) const;
 	int offsetToSliderTick(const LightAxisSliderMapping& mapping, float offsetValue) const;
