@@ -66,9 +66,8 @@ private:
     // Rows, kept to show or hide per light type.
     QWidget* _positionRow = nullptr;
     QWidget* _directionRow = nullptr;
-    QWidget* _rangeRow = nullptr;
-    QWidget* _innerRow = nullptr;
-    QWidget* _outerRow = nullptr;
+    QWidget* _rangeColumn = nullptr;   // the Range cell of the colour / intensity / range line (a sun has no range)
+    QWidget* _coneRow = nullptr;       // the inner / outer cone line (spot lights only)
     QList<QToolButton*> _resetButtons;   // one per resettable value; enabled with the other inputs
 
     GltfLightEntry _entry;      // the light as last shown or edited

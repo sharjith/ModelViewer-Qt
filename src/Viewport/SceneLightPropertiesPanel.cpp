@@ -8,6 +8,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
+#include <QVBoxLayout>
 #include <QToolButton>
 
 #include <algorithm>
@@ -97,12 +98,22 @@ SceneLightPropertiesPanel::SceneLightPropertiesPanel(QWidget* parent)
     _innerCone->setSuffix(QStringLiteral(" °"));
     _outerCone->setSuffix(QStringLiteral(" °"));
 
-    // A field with a small reset button beside it; pressing it reports which value to put back to its default.
-    const auto withReset = [this](QWidget* field, EditUserLightCommand::Field which) {
-        auto* row = new QWidget(this);
+    // A cell of a compact line: a small caption above a field with a reset button beside it. Pressing the button reports which value to
+    // put back to its default.
+    const auto cell = [this](const QString& caption, QWidget* field, EditUserLightCommand::Field which) {
+        auto* column = new QWidget(this);
+        auto* stack = new QVBoxLayout(column);
+        stack->setContentsMargins(0, 0, 0, 0);
+        stack->setSpacing(1);
+        auto* captionLabel = new QLabel(caption, column);
+        QFont captionFont = captionLabel->font();
+        captionFont.setPointSizeF(std::max(captionFont.pointSizeF() - 1.0, 7.0));
+        captionLabel->setFont(captionFont);
+        stack->addWidget(captionLabel);
+        auto* row = new QWidget(column);
         auto* layout = new QHBoxLayout(row);
         layout->setContentsMargins(0, 0, 0, 0);
-        layout->setSpacing(4);
+        layout->setSpacing(2);
         layout->addWidget(field, 1);
         auto* button = new QToolButton(row);
         button->setText(QStringLiteral("↺"));
@@ -114,24 +125,34 @@ SceneLightPropertiesPanel::SceneLightPropertiesPanel(QWidget* parent)
         });
         layout->addWidget(button);
         _resetButtons.append(button);
+        stack->addWidget(row);
+        return column;
+    };
+    // Cells side by side in one full-width line, so the boxes stay small.
+    const auto line = [this](const QList<QWidget*>& cells, const QList<int>& stretches) {
+        auto* row = new QWidget(this);
+        auto* layout = new QHBoxLayout(row);
+        layout->setContentsMargins(0, 0, 0, 0);
+        layout->setSpacing(6);
+        for (int i = 0; i < cells.size(); ++i)
+            layout->addWidget(cells[i], stretches.value(i, 1));
         return row;
     };
-    QWidget* colorRow = withReset(_colorButton, EditUserLightCommand::Field::Color);
-    QWidget* intensityRow = withReset(_intensity, EditUserLightCommand::Field::Intensity);
-    _rangeRow = withReset(_range, EditUserLightCommand::Field::Range);
-    _innerRow = withReset(_innerCone, EditUserLightCommand::Field::Cone);
-    _outerRow = withReset(_outerCone, EditUserLightCommand::Field::Cone);
+    QWidget* colorCell = cell(tr("Colour"), _colorButton, EditUserLightCommand::Field::Color);
+    QWidget* intensityCell = cell(tr("Intensity"), _intensity, EditUserLightCommand::Field::Intensity);
+    _rangeColumn = cell(tr("Range"), _range, EditUserLightCommand::Field::Range);
+    QWidget* innerCell = cell(tr("Inner cone"), _innerCone, EditUserLightCommand::Field::Cone);
+    QWidget* outerCell = cell(tr("Outer cone"), _outerCone, EditUserLightCommand::Field::Cone);
+    QWidget* lightRow = line({ colorCell, intensityCell, _rangeColumn }, { 2, 3, 3 });
+    _coneRow = line({ innerCell, outerCell }, { 1, 1 });
 
     _form->addRow(tr("Name"), _nameEdit);
     _form->addRow(tr("Type"), _typeLabel);
     _form->addRow(tr("Position"), _positionRow);
     _form->addRow(tr("Direction"), _directionRow);
     _form->addRow(QString(), _aimButton);
-    _form->addRow(tr("Colour"), colorRow);
-    _form->addRow(tr("Intensity"), intensityRow);
-    _form->addRow(tr("Range"), _rangeRow);
-    _form->addRow(tr("Inner cone"), _innerRow);
-    _form->addRow(tr("Outer cone"), _outerRow);
+    _form->addRow(lightRow);
+    _form->addRow(_coneRow);
 
     retranslateUI();
 
@@ -212,9 +233,8 @@ void SceneLightPropertiesPanel::updateRowVisibility()
     _form->setRowVisible(_positionRow, !isSun);
     _form->setRowVisible(_directionRow, isSun || isSpot);
     _form->setRowVisible(_aimButton, isSun || isSpot);
-    _form->setRowVisible(_rangeRow, !isSun);
-    _form->setRowVisible(_innerRow, isSpot);
-    _form->setRowVisible(_outerRow, isSpot);
+    _rangeColumn->setVisible(!isSun);
+    _form->setRowVisible(_coneRow, isSpot);
 }
 
 void SceneLightPropertiesPanel::updateColorButton()
