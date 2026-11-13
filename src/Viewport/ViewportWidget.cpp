@@ -20294,6 +20294,51 @@ void ViewportWidget::applyEnabledLightList(const std::vector<GPULight>& enabledL
 }
 
 
+GltfLightEntry ViewportWidget::makeUserLight(int type, const QString& name) const
+{
+	const bool emptyScene = _sceneRuntime.meshStore().empty();
+	const QVector3D center = emptyScene ? QVector3D() : _viewCtrl.boundingSphere().getCenter();
+	const float radius = emptyScene ? 1.0f : std::max(_viewCtrl.boundingSphere().getRadius(), 1e-3f);
+	const QVector3D up = isCameraUpAxisZUp() ? QVector3D(0.0f, 0.0f, 1.0f) : QVector3D(0.0f, 1.0f, 0.0f);
+
+	// Camera frame from the view matrix: column 0 is the eye's right, column 2 points back towards the eye.
+	const QMatrix4x4 eyeToWorld = _viewCtrl.viewMatrix().inverted();
+	const QVector3D right = eyeToWorld.column(0).toVector3D().normalized();
+	const QVector3D back = eyeToWorld.column(2).toVector3D().normalized();
+
+	const QVector3D position = center + up * (radius * 0.9f) + right * (radius * 0.6f) + back * (radius * 0.5f);
+	QVector3D aim = center - position;
+	const float distance = std::max(aim.length(), 1e-3f);
+	aim /= distance;
+
+	GltfLightEntry entry;
+	entry.name = name;
+	entry.enabled = true;
+	GPULight& light = entry.gpuLight;
+	light = {};
+	light.type = type;
+	light.color = glm::vec3(1.0f, 1.0f, 1.0f);
+	light.position = glm::vec3(position.x(), position.y(), position.z());
+	light.direction = glm::vec3(aim.x(), aim.y(), aim.z());
+	light.range = 0.0f;   // no range limit
+	// The same calibration the default light uses (surface intensity 2 at the scene centre), so a new light brightens the scene
+	// the way the default light does.
+	light.intensity = 2.0f * (type == static_cast<int>(LightType::Directional) ? 1.0f : std::max(distance * distance, 1e-4f));
+	// A soft-edged spot: full strength inside 20 degrees, fading out to 35 degrees.
+	constexpr float kDegToRad = 3.14159265f / 180.0f;
+	light.innerConeCos = std::cos(20.0f * kDegToRad);
+	light.outerConeCos = std::cos(35.0f * kDegToRad);
+	return entry;
+}
+
+void ViewportWidget::userLightsChanged()
+{
+	makeCurrent();
+	refreshFallbackLight();
+	notifyRayTracedSceneMutated();
+	update();
+}
+
 void ViewportWidget::setRenderingMode(const RenderingMode& renderingMode)
 {
 	_renderCtrl.setRenderingMode(renderingMode);

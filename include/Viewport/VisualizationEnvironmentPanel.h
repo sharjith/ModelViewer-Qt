@@ -116,6 +116,14 @@ public slots:
 	// Called when any tree item's check state changes — rebuilds GPU light list.
 	void onPunctualLightItemChanged(QTreeWidgetItem* item, int column);
 
+	// ===== Scene (user-added) lights =====
+	// Add a light of `type` (LightType), delete the selected one, and keep the buttons' enabled state right.
+	void addUserLight(LightType type);
+	void deleteSelectedUserLight();
+	void updateSceneLightButtons();
+	// Make the Default Light row's check box follow the Default Lights check box (which is also set with signals blocked).
+	void syncDefaultLightRow();
+
 	// ===== Skybox Controls =====
 	void onSkyBoxStateChanged(bool checked);
 	void onSkyBoxHDRIChanged(bool checked);

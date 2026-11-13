@@ -6,6 +6,7 @@
 #include "MaterialPreviewWidget.h"
 #include "PathUtils.h"
 #include "SceneGraph.h"
+#include "UserLightCommand.h"
 #include <QColorDialog>
 #include <QFileDialog>
 #include <QFileInfo>
@@ -193,7 +194,7 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 
 			auto* gl = qobject_cast<QGridLayout*>(ui->groupBoxPunctualLights->layout());
 			if (gl)
-				gl->addWidget(handle, 1, 0);
+				gl->addWidget(handle, 2, 0);   // row 0 holds the Add/Delete buttons, row 1 the tree
 
 			handle->installEventFilter(this);
 			_lightTreeResizeHandle = handle;
@@ -404,6 +405,7 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 
 	// ===== Lighting Checkboxes =====
 	connect(ui->checkBoxDefaultLights, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onDefaultLightsChanged);
+	connect(ui->checkBoxDefaultLights, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::syncDefaultLightRow);
 	connect(ui->checkBoxShowLights, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onShowLightsChanged);
 	connect(ui->checkBoxIBL, &QCheckBox::toggled, this, &VisualizationEnvironmentPanel::onIBLChanged);
 
@@ -411,8 +413,13 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->treePunctualLights, &QTreeWidget::itemChanged,
 	        this, &VisualizationEnvironmentPanel::onPunctualLightItemChanged);
 
-	// Group box hidden until a model with lights is loaded
-	ui->groupBoxPunctualLights->setVisible(false);
+	// Scene lights: the user can add and delete lights of their own, so the group box is always shown.
+	ui->groupBoxPunctualLights->setVisible(true);
+	connect(ui->pushButtonAddPointLight, &QPushButton::clicked, this, [this] { addUserLight(LightType::Point); });
+	connect(ui->pushButtonAddSpotLight, &QPushButton::clicked, this, [this] { addUserLight(LightType::Spot); });
+	connect(ui->pushButtonAddSunLight, &QPushButton::clicked, this, [this] { addUserLight(LightType::Directional); });
+	connect(ui->pushButtonDeleteSceneLight, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::deleteSelectedUserLight);
+	connect(ui->treePunctualLights, &QTreeWidget::itemSelectionChanged, this, &VisualizationEnvironmentPanel::updateSceneLightButtons);
 
 	// ===== Skybox Controls =====
 	// cameraUpAxisChanged/renderingModeChanged are connected per-rebind, not
@@ -469,6 +476,9 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 {
 	if (!ui)
 		return;
+
+	// Several paths set the Default Lights check box with its signals blocked and then land here; keep the lights tree's row in step.
+	syncDefaultLightRow();
 
 	bool skyBoxEnabled = ui->checkBoxSkyBox->isChecked();
 	bool floorEnabled = ui->radioButtonGroundFloor->isChecked();
@@ -665,6 +675,7 @@ void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 	ui->checkBoxDefaultLights->blockSignals(false);
 	ui->checkBoxIBL->blockSignals(false);
 	ui->checkBoxShowLights->blockSignals(false);
+	syncDefaultLightRow();
 
 	// Manually trigger ViewportWidget calls
 	_viewportWidget->useDefaultLights(true);
@@ -767,6 +778,7 @@ void VisualizationEnvironmentPanel::applyRayTracedGroundDefaultsOnce()
 	ui->checkBoxDefaultLights->blockSignals(true);
 	ui->checkBoxDefaultLights->setChecked(false);
 	ui->checkBoxDefaultLights->blockSignals(false);
+	syncDefaultLightRow();
 	_viewportWidget->useDefaultLights(false);
 
 	updateControlDependencies();
@@ -788,6 +800,7 @@ void VisualizationEnvironmentPanel::restoreDefaultLightsForAds()
 	ui->checkBoxDefaultLights->blockSignals(true);
 	ui->checkBoxDefaultLights->setChecked(true);
 	ui->checkBoxDefaultLights->blockSignals(false);
+	syncDefaultLightRow();
 	_viewportWidget->useDefaultLights(true);
 	_viewportWidget->updateView();
 }
@@ -798,11 +811,12 @@ void VisualizationEnvironmentPanel::restoreDefaultLightsForAds()
 
 static const int kLightIndexRole    = Qt::UserRole;       // int  — light index in file (-1 = file item)
 static const int kSourceFileRole    = Qt::UserRole + 1;   // QString — absolute source file path
+static const int kDefaultLightRowIndex = -2;                  // kLightIndexRole value of the permanent "Default Light" row
 
 QTreeWidgetItem* VisualizationEnvironmentPanel::makeLightFileItem(const QString& sourceFile) const
 {
 	QTreeWidgetItem* item = new QTreeWidgetItem();
-	item->setText(0, QFileInfo(sourceFile).fileName());
+	item->setText(0, SceneGraph::isUserLightsKey(sourceFile) ? tr("Scene Lights") : QFileInfo(sourceFile).fileName());
 	item->setData(0, kSourceFileRole, sourceFile);
 	item->setData(0, kLightIndexRole, -1);
 	// Tri-state: Qt will manage checked/partial/unchecked automatically
@@ -855,7 +869,26 @@ void VisualizationEnvironmentPanel::refreshPunctualLightsTree()
 	tree->blockSignals(true);
 	tree->clear();
 
-	const QStringList files = _sceneGraph->filesWithLights();
+	// The application's default light is always listed first, like the System Camera in the cameras panel. It cannot be deleted;
+	// its check box is the Default Lights check box above, which stays the source of truth.
+	{
+		QTreeWidgetItem* defaultItem = new QTreeWidgetItem();
+		defaultItem->setText(0, tr("Default Light"));
+		defaultItem->setToolTip(0, tr("The application's default light. Its position and colour are set with the controls above."));
+		defaultItem->setData(0, kLightIndexRole, kDefaultLightRowIndex);
+		defaultItem->setData(0, kSourceFileRole, QString());
+		defaultItem->setFlags((defaultItem->flags() | Qt::ItemIsUserCheckable) & ~Qt::ItemIsSelectable);
+		defaultItem->setCheckState(0, ui->checkBoxDefaultLights->isChecked() ? Qt::Checked : Qt::Unchecked);
+		QFont f = defaultItem->font(0);
+		f.setItalic(true);
+		defaultItem->setFont(0, f);
+		tree->addTopLevelItem(defaultItem);
+	}
+
+	QStringList files = _sceneGraph->filesWithLights();
+	// The scene's own lights come next, ahead of the lights of the loaded models.
+	if (const int userIndex = files.indexOf(SceneGraph::userLightsKey()); userIndex > 0)
+		files.move(userIndex, 0);
 	for (const QString& sourceFile : files)
 	{
 		const GltfLightData ld = _sceneGraph->lightDataForFile(sourceFile);
@@ -865,10 +898,14 @@ void VisualizationEnvironmentPanel::refreshPunctualLightsTree()
 		QTreeWidgetItem* fileItem = makeLightFileItem(sourceFile);
 		tree->addTopLevelItem(fileItem);
 
+		const bool isUserGroup = SceneGraph::isUserLightsKey(sourceFile);
 		for (int i = 0; i < ld.lights.size(); ++i)
 		{
 			QTreeWidgetItem* leaf = makeLightLeafItem(ld.lights[i], i);
 			leaf->setData(0, kSourceFileRole, sourceFile);
+			// Only the scene's own lights can be deleted, so only they can be selected.
+			if (isUserGroup)
+				leaf->setFlags(leaf->flags() | Qt::ItemIsSelectable);
 			fileItem->addChild(leaf);
 		}
 
@@ -887,8 +924,113 @@ void VisualizationEnvironmentPanel::refreshPunctualLightsTree()
 
 	tree->blockSignals(false);
 
-	// Show the group box only when at least one file has lights
-	ui->groupBoxPunctualLights->setVisible(!files.isEmpty());
+	// The group box stays visible: it also holds the Add buttons for the scene's own lights.
+	updateSceneLightButtons();
+}
+
+void VisualizationEnvironmentPanel::syncDefaultLightRow()
+{
+	if (!ui)
+		return;
+	QTreeWidget* tree = ui->treePunctualLights;
+	for (int i = 0; i < tree->topLevelItemCount(); ++i)
+	{
+		QTreeWidgetItem* item = tree->topLevelItem(i);
+		if (item->data(0, kLightIndexRole).toInt() != kDefaultLightRowIndex)
+			continue;
+		const Qt::CheckState wanted = ui->checkBoxDefaultLights->isChecked() ? Qt::Checked : Qt::Unchecked;
+		if (item->checkState(0) != wanted)
+		{
+			const QSignalBlocker blocker(tree);   // the check box is already right; do not echo back
+			item->setCheckState(0, wanted);
+		}
+		return;
+	}
+}
+
+void VisualizationEnvironmentPanel::updateSceneLightButtons()
+{
+	if (!ui)
+		return;
+
+	// The raster shader holds a fixed number of lights across all models and the scene.
+	const bool canAdd = _sceneGraph && _sceneGraph->totalLightCount() < PunctualLights::MAX_LIGHTS;
+	ui->pushButtonAddPointLight->setEnabled(canAdd);
+	ui->pushButtonAddSpotLight->setEnabled(canAdd);
+	ui->pushButtonAddSunLight->setEnabled(canAdd);
+
+	bool canDelete = false;
+	const QList<QTreeWidgetItem*> selected = ui->treePunctualLights->selectedItems();
+	if (!selected.isEmpty())
+	{
+		const QTreeWidgetItem* item = selected.first();
+		canDelete = item->data(0, kLightIndexRole).toInt() >= 0
+		         && SceneGraph::isUserLightsKey(item->data(0, kSourceFileRole).toString());
+	}
+	ui->pushButtonDeleteSceneLight->setEnabled(canDelete);
+}
+
+void VisualizationEnvironmentPanel::addUserLight(LightType type)
+{
+	if (!_sceneGraph || !_viewportWidget || !_modelViewer)
+		return;
+	if (_sceneGraph->totalLightCount() >= PunctualLights::MAX_LIGHTS)
+		return;
+
+	const GltfLightData existing = _sceneGraph->lightDataForFile(SceneGraph::userLightsKey());
+	const QString base = type == LightType::Point ? tr("Point Light")
+	                   : type == LightType::Spot  ? tr("Spot Light")
+	                                              : tr("Sun Light");
+	const auto nameTaken = [&existing](const QString& name) {
+		return std::any_of(existing.lights.cbegin(), existing.lights.cend(),
+		                   [&name](const GltfLightEntry& entry) { return entry.name == name; });
+	};
+	int number = 1;
+	while (nameTaken(QStringLiteral("%1 %2").arg(base).arg(number)))
+		++number;
+
+	// A light nobody can see is confusing, so adding one turns Show Lights on.
+	if (!ui->checkBoxShowLights->isChecked())
+		ui->checkBoxShowLights->setChecked(true);
+
+	const GltfLightEntry entry = _viewportWidget->makeUserLight(static_cast<int>(type),
+	                                                            QStringLiteral("%1 %2").arg(base).arg(number));
+	_modelViewer->getUndoStack()->push(new UserLightCommand(
+		_modelViewer, _viewportWidget, UserLightCommand::Kind::Add,
+		static_cast<int>(existing.lights.size()), entry, tr("Add Light")));
+
+	// Select the new light so Delete is ready.
+	QTreeWidget* tree = ui->treePunctualLights;
+	for (int i = 0; i < tree->topLevelItemCount(); ++i)
+	{
+		QTreeWidgetItem* group = tree->topLevelItem(i);
+		if (group->childCount() > 0
+		    && SceneGraph::isUserLightsKey(group->child(0)->data(0, kSourceFileRole).toString()))
+		{
+			tree->setCurrentItem(group->child(group->childCount() - 1));
+			break;
+		}
+	}
+}
+
+void VisualizationEnvironmentPanel::deleteSelectedUserLight()
+{
+	if (!_sceneGraph || !_viewportWidget || !_modelViewer)
+		return;
+	const QList<QTreeWidgetItem*> selected = ui->treePunctualLights->selectedItems();
+	if (selected.isEmpty())
+		return;
+
+	const int index = selected.first()->data(0, kLightIndexRole).toInt();
+	if (index < 0 || !SceneGraph::isUserLightsKey(selected.first()->data(0, kSourceFileRole).toString()))
+		return;
+	const GltfLightData data = _sceneGraph->lightDataForFile(SceneGraph::userLightsKey());
+	if (index >= data.lights.size())
+		return;
+
+	_modelViewer->getUndoStack()->push(new UserLightCommand(
+		_modelViewer, _viewportWidget, UserLightCommand::Kind::Remove,
+		index, data.lights[index], tr("Delete Light")));
 }
 
 void VisualizationEnvironmentPanel::onPunctualLightItemChanged(QTreeWidgetItem* item, int column)
@@ -899,6 +1041,13 @@ void VisualizationEnvironmentPanel::onPunctualLightItemChanged(QTreeWidgetItem* 
 	const int        lightIndex = item->data(0, kLightIndexRole).toInt();
 	const QString    sourceFile = item->data(0, kSourceFileRole).toString();
 	const Qt::CheckState state  = item->checkState(0);
+
+	if (lightIndex == kDefaultLightRowIndex)
+	{
+		// The Default Light row drives the Default Lights check box, which applies the change (and may rebuild this tree).
+		ui->checkBoxDefaultLights->setChecked(state == Qt::Checked);
+		return;
+	}
 
 	// Block lightDataChanged from firing while we're inside the itemChanged
 	// handler.  setLightEnabled() would emit lightDataChanged() →

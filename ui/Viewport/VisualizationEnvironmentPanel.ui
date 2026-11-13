@@ -142,6 +142,53 @@
             </property>
             <layout class="QGridLayout" name="gridLayout_4">
              <item row="0" column="0">
+              <layout class="QHBoxLayout" name="horizontalLayoutAddLights">
+               <item>
+                <widget class="QPushButton" name="pushButtonAddPointLight">
+                 <property name="toolTip">
+                  <string>Add a point light to the scene</string>
+                 </property>
+                 <property name="text">
+                  <string>Add Point</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButtonAddSpotLight">
+                 <property name="toolTip">
+                  <string>Add a spot light to the scene</string>
+                 </property>
+                 <property name="text">
+                  <string>Add Spot</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButtonAddSunLight">
+                 <property name="toolTip">
+                  <string>Add a directional (sun) light to the scene</string>
+                 </property>
+                 <property name="text">
+                  <string>Add Sun</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QPushButton" name="pushButtonDeleteSceneLight">
+                 <property name="enabled">
+                  <bool>false</bool>
+                 </property>
+                 <property name="toolTip">
+                  <string>Delete the selected scene light</string>
+                 </property>
+                 <property name="text">
+                  <string>Delete</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </item>
+             <item row="1" column="0">
               <widget class="QTreeWidget" name="treePunctualLights">
                <property name="headerHidden">
                 <bool>true</bool>

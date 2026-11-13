@@ -3277,6 +3277,10 @@ void ModelViewer::validateLightData()
 
 	for (const QString& sourceFile : files)
 	{
+		// User-added lights belong to the scene and have no mesh of their own.
+		if (SceneGraph::isUserLightsKey(sourceFile))
+			continue;
+
 		const bool hasLiveMesh = std::any_of(meshes.cbegin(), meshes.cend(),
 			[&](SceneMesh* mesh)
 			{

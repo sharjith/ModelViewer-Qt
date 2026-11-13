@@ -70,6 +70,7 @@ class ToolsToolbar;
 #include "TabbedViewportToolbar.h"
 #include "SceneUtils.h"
 #include "PunctualLights.h"
+#include "GltfLightData.h"
 #include "KTX2Loader.h"
 #include "SelectionManager.h"
 #include "TransformGizmo.h"
@@ -1491,6 +1492,14 @@ public slots:
 	// Upload a new GPU light list (e.g. after a per-light checkbox toggle) and
 	// sync the hasPunctualLights / lightCount shader uniforms in one call.
 	void applyEnabledLightList(const std::vector<GPULight>& enabledLights);
+
+	// A new user light of `type` (LightType value), named `name`, placed in view of the camera near the scene: above and to the right of
+	// the scene centre, nearer to the eye, aimed at the centre. Intensity is calibrated to the distance (inverse-square), so the light
+	// brightens the scene centre the same way whatever the model's size.
+	GltfLightEntry makeUserLight(int type, const QString& name) const;
+	// After user lights were added or removed in the scene graph (the scene graph signal has already uploaded the list): restore the
+	// default-light fallback when no light is left, tell the ray tracers and repaint.
+	void userLightsChanged();
 	void useIBL(bool useIBL) { _renderCtrl.setUseIBL(useIBL); update(); }
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
