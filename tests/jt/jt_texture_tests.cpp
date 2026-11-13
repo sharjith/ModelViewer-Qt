@@ -73,14 +73,31 @@ void mappedImages(const QString& folder){
         check(copy&&copy->mNumTextures==1&&copy->mTextures[0]->mWidth==image->mWidth
             &&std::memcmp(copy->mTextures[0]->pcData,image->pcData,image->mWidth)==0,"Scene copy changed compressed texture bytes");
     }
-    // Authentic T102-A uses -1 here. Keep the geometry/version gate explicit:
-    // automatic source-set selection is a later appearance gate, not UV0.
-    TextureFixture::Options automatic;automatic.coordinate=-1;automatic.textureType=2;
-    TextureFixture::write(dir.filePath("automatic_102.jt"),2,automatic,"uv_geometry.jt");
-    const auto automaticFallback=Jt::Importer::read(dir.filePath("automatic_102.jt"));
-    check(automaticFallback.scene->mNumMeshes==1&&automaticFallback.scene->mNumTextures==0
-        &&std::any_of(automaticFallback.warnings.begin(),automaticFallback.warnings.end(),[](const QString& text){return text.contains("UV0-3");}),
-        "JT 10.2 automatic texture-coordinate fallback changed or became silent");
+    // A -1 Tex Coord Channel means there is no generator-channel association;
+    // with no generated components and exactly one stored set, that set is the
+    // only non-guessing mapping. T102-A also uses post-lit Modulate, which the
+    // shared material path retains as an explicitly diagnosed approximation.
+    TextureFixture::Options unassigned;unassigned.coordinate=-1;unassigned.textureType=2;unassigned.blendType=2;
+    TextureFixture::write(dir.filePath("unassigned_102.jt"),2,unassigned,"uv_geometry.jt");
+    const auto unassignedResult=Jt::Importer::read(dir.filePath("unassigned_102.jt"));
+    check(unassignedResult.scene->mNumMeshes==1&&unassignedResult.scene->mNumTextures==1,
+        "JT 10.2 sole stored UV set was not selected for Tex Coord Channel -1");
+    const auto* unassignedMaterial=unassignedResult.scene->mMaterials[unassignedResult.scene->mMeshes[0]->mMaterialIndex];
+    aiString unassignedResource;int unassignedUV=99,unlit=0;
+    check(unassignedMaterial->GetTexture(aiTextureType_DIFFUSE,0,&unassignedResource)==AI_SUCCESS
+        &&std::string(unassignedResource.C_Str())=="*0"
+        &&unassignedMaterial->Get(AI_MATKEY_UVWSRC(aiTextureType_DIFFUSE,0),unassignedUV)==AI_SUCCESS&&unassignedUV==0,
+        "JT 10.2 unassigned coordinate did not bind the sole stored UV set");
+    check(unassignedMaterial->Get("$mat.gltf.unlit",0,0,unlit)!=AI_SUCCESS||unlit==0,
+        "JT post-lit Modulate approximation incorrectly disabled lighting");
+    check(std::any_of(unassignedResult.warnings.begin(),unassignedResult.warnings.end(),[](const QString& text){return text.contains("post-lit Modulate is approximated");}),
+        "JT post-lit Modulate approximation became silent");
+
+    TextureFixture::write(dir.filePath("unassigned_without_uv.jt"),2,unassigned,"geometry.jt");
+    const auto absentUV=Jt::Importer::read(dir.filePath("unassigned_without_uv.jt"));
+    check(absentUV.scene->mNumMeshes==2&&absentUV.scene->mNumTextures==0
+        &&std::any_of(absentUV.warnings.begin(),absentUV.warnings.end(),[](const QString& text){return text.contains("no stored UV set");}),
+        "JT Tex Coord Channel -1 without a stored UV set changed or became silent");
     check(QFile::remove(dir.filePath("original_texture.png")),"Cannot remove external test image");
     TextureFixture::Options missing;missing.coordinate=0;missing.inlineImage=false;
     TextureFixture::write(dir.filePath("missing.jt"),0,missing,"uv_geometry.jt");

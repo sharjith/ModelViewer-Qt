@@ -24,12 +24,22 @@ different hashes. Unlike qualified 10.3-and-later texture fixtures, these
 authentic 10.2 attributes use base version 1 without Sabot wrappers, matching
 the qualified 10.0 envelope profile.
 
-Every image is type 2 on texture unit zero with coordinate channel `-1`.
-Automatic coordinate-channel assignment is outside the accepted explicit-set
-texture profile. This gate therefore enables the sampled 10.2 container and
-stored-geometry family while preserving geometry fallback and diagnostics for
-the unapplied images. Automatic assignment is a separate appearance gate; a
-successful untextured load must not be reported as textured fidelity.
+Every image is type 2 on texture unit zero with Tex Coord Channel `-1`, no
+generated S/T/R/Q components and `MODULATE`. The retained Siemens JT 10.0
+reference distinguishes the texture unit from Tex Coord Channel: the latter
+associates a texture with a separate coordinate-generator attribute. `-1`
+therefore does not select UV set zero automatically. For the sampled profile,
+each mesh has exactly one stored UV set and no generated component, so the
+adapter resolves that sole set without guessing. Zero stored sets remain
+untextured; multiple stored sets remain ambiguous and are rejected with a
+diagnostic.
+
+JT type 2 is post-lit. The shared Assimp material, raster, path-tracing and
+export contract can represent complete post-lit RGB/RGBA Replace as unlit, but
+cannot express a post-lighting product exactly. The sampled `MODULATE` is kept
+visible as ordinary pre-lit base-colour modulation and emits a deduplicated
+approximation warning. This is a deliberate portable viewing approximation,
+not a claim of exact post-lit specular equivalence.
 
 This is representative sampled-subset evidence, not universal JT 10.2 support.
 It does not qualify other tessellation codecs, exact geometry, every PMI record,
@@ -49,9 +59,9 @@ MSVC 19.52.37029. The registered CTest suite passed 1/1 (`jt_codec_tests`) in
 reported fourteen meshes and occurrences, 2,771,106 vertices, 1,690,666
 triangles, no fallback parts, finite bounds and UV channels on all fourteen
 meshes. Charged decoder allocations were 186,795,057 bytes. The probe retained
-geometry while diagnosing the unqualified automatic texture mapping, PMI
-Manager version 2 and one unresolved metadata pair per part. UI comparison is
-the remaining owner gate.
+geometry while diagnosing the then-unqualified texture mapping, PMI Manager
+version 2 and one unresolved metadata pair per part. The texture-appearance
+follow-up described above is prepared but has not yet been built or run.
 
 ```text
 <jt-test-build>/jt_tests
@@ -61,8 +71,32 @@ the remaining owner gate.
 For the remaining application gate, open unchanged T102-A and verify that all fourteen
 parts are present, hierarchy and transforms are usable, fitting/selection work,
 and no missing-display-content error occurs. Compare geometry against a trusted
-viewer. Record texture appearance separately: until automatic coordinate
-assignment is qualified, absent textures with a clear diagnostic are expected.
+viewer. Record texture appearance separately. Compare image placement,
+orientation and repeat behaviour against a trusted viewer in ADS and PBR, and
+confirm the post-lit approximation warning is present. Exact post-lit
+multiplication is outside this gate.
+
+## Reference provenance for the appearance follow-up
+
+The interpretation above uses the public *JT File Format Reference, Version
+10.0, Revision B* published by Siemens PLM Software, retained locally with
+SHA-256 `620828f47cf3b450c73ceaf3737f4ae5d344b39e73200c7b388ecc5ff92f376b`:
+
+<https://www.plm.automation.siemens.com/en_us/Images/JT-v10-file-format-reference-rev-B_tcm1023-233786.pdf>
+
+Sections 7.2.1.1 and 7.2.1.3 were consulted for Texture Image and Texture
+Coordinate Generator attribute semantics. No vendor SDK, translator,
+implementation source or disassembly was used. This records the method and
+does not establish redistribution or legal clearance for the private sample.
+
+## Owner texture-appearance acceptance
+
+On 13 November 2026 the owner tested unchanged T102-A after the appearance
+follow-up and reported that the textures had landed perfectly. This accepts the
+sampled file's image assignment, placement and visible appearance. It does not
+turn the diagnosed pre-lit approximation into exact post-lit multiplication,
+qualify ambiguous multi-UV `-1` mappings, or replace the pending native
+regression run for this follow-up.
 
 ## Reproducible read-only inventory
 

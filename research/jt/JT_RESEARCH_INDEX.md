@@ -6,7 +6,7 @@ Current owner priority (24 October 2026): [C2 paused at C2ag; core viewing essen
 
 Runtime detail (C5): [LOD evidence and design](JT_C5_RUNTIME_LOD_DESIGN.md) (3 November 2026, design only); [LOD materials as material variants](JT_C5_LOD_MATERIAL_VARIANTS.md) (4 November 2026, analysis and plan).
 
-Current point-version gate (13 November 2026): [JT 10.2 sampled-subset qualification](JT_102_VALIDATION.md), prepared from one authentic private assembly with stored tessellation, PMI and inline textures; clean build, CTest and native validation pass, with owner viewer checks pending. Automatic texture-coordinate assignment remains a separate appearance gate.
+Current point-version gate (13 November 2026): [JT 10.2 sampled-subset qualification](JT_102_VALIDATION.md), prepared from one authentic private assembly with stored tessellation, PMI and inline textures; clean build, CTest and native geometry validation pass, and the owner confirmed the model loads. A follow-up resolves Tex Coord Channel `-1` only for a sole stored UV set and retains the sampled post-lit `MODULATE` as a diagnosed pre-lit approximation. The owner accepted the authentic texture appearance; the follow-up's native regression run remains pending.
 
 Suggested reading order:
 

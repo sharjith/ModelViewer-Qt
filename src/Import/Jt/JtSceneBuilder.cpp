@@ -902,6 +902,15 @@ struct Builder {
             const auto& stage=*stages[0];auto decoded=textureStage(stage,allowAlpha);
             const bool rgb=decoded.format==1||decoded.format==11,rgba=decoded.format==2||decoded.format==12;
             if(decoded.index<0)return {};
+            if(stage.environment[6]==2&&(rgb||rgba)){
+                // The shared material/render/export path applies base-colour
+                // textures before lighting. It cannot exactly express JT's
+                // post-lit product without a backend-specific shader contract.
+                // Keep the sampled image visible as the closest portable
+                // approximation, and make the semantic difference explicit.
+                textureWarning("JT post-lit Modulate is approximated as pre-lit base-colour modulation");
+                return decoded;
+            }
             if(!((stage.environment[6]==3&&(rgb||rgba))||(stage.environment[6]==1&&rgb))){
                 textureWarning("JT post-lit texture not applied: only RGB/RGBA Replace or RGB Decal is a complete unlit colour replacement");return {};
             }
@@ -1410,6 +1419,24 @@ struct Builder {
             vertexAlpha=vertexAlpha || c.a<1;
         }
         auto resolved=style;
+        const auto resolveUnassignedCoordinate=[&](TextureState& stage){
+            if(!stage.colorRole()||stage.coordinate!=-1)return;
+            if(std::any_of(stage.generation.begin(),stage.generation.end(),[](int mode){return mode!=0;}))return;
+            int selected=-1;unsigned count=0;
+            for(unsigned channel=0;channel<JtElement_ShapeLOD_Vertex::MaxTextureChannels;++channel)if(mesh->HasTextureCoords(channel)){
+                selected=int(channel);++count;
+            }
+            if(count==1){stage.coordinate=selected;return;}
+            textureWarning(count==0
+                ?"JT texture not applied: Tex Coord Channel -1 has no stored UV set and no generated components"
+                :"JT texture not applied: Tex Coord Channel -1 is ambiguous across multiple stored UV sets");
+            stage.type=0;
+        };
+        if(resolved.textureUnits.empty())resolveUnassignedCoordinate(resolved.texture);
+        else {
+            for(auto& unit:resolved.textureUnits)resolveUnassignedCoordinate(unit.second);
+            resolved.refreshTexture();
+        }
         if(!mesh->HasTextureCoords(0)&&std::any_of(resolved.textureUnits.begin(),resolved.textureUnits.end(),[](const auto& unit){return unit.second.type==4;})){
             textureWarning("JT normal map not applied: stored UV0 is absent");resolved.discardNormalTextures();
         }

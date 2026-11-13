@@ -111,8 +111,12 @@ void textureRoleTests(){
         }
         auto decal=base;decal.textureType=2;decal.blendType=1;
         const auto unlit=read({decal});int flag=0;check(unlit.scene->mMaterials[unlit.scene->mMeshes[0]->mMaterialIndex]->Get("$mat.gltf.unlit",0,0,flag)==AI_SUCCESS&&flag==1,"RGB post-lit Decal was not unlit");
-        auto unsupported=decal;unsupported.blendType=2;
-        const auto rejected=read({unsupported});check(!rejected.warnings.isEmpty()&&rejected.scene->mMaterials[rejected.scene->mMeshes[0]->mMaterialIndex]->GetTextureCount(aiTextureType_DIFFUSE)==0,"Post-lit Modulate was approximated as unlit");
+        auto modulate=decal;modulate.blendType=2;
+        const auto approximated=read({modulate});const auto* approximatedMaterial=approximated.scene->mMaterials[approximated.scene->mMeshes[0]->mMaterialIndex];flag=0;
+        check(approximatedMaterial->GetTextureCount(aiTextureType_DIFFUSE)==1
+            &&(approximatedMaterial->Get("$mat.gltf.unlit",0,0,flag)!=AI_SUCCESS||flag==0)
+            &&std::any_of(approximated.warnings.begin(),approximated.warnings.end(),[](const QString& text){return text.contains("post-lit Modulate is approximated");}),
+            "Post-lit Modulate did not retain a diagnosed lit approximation");
     }
     std::cout<<"Bounded normal basis and post-lit material role checks passed\n";
 }
