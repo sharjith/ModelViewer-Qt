@@ -156,7 +156,7 @@ LightFixtureGeometry::LightFixtureGeometry(Part part)
     }
     case Part::BulbHalo:
     {
-        sphereArc(profile, 0.0f, 1.25f, -kPi * 0.5f, kPi * 0.5f, 16);
+        sphereArc(profile, 0.0f, 1.0f, -kPi * 0.5f, kPi * 0.5f, 16);
         addLathe(profile, kAroundSegments);
         break;
     }

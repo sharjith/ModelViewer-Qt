@@ -13501,9 +13501,9 @@ void ViewportWidget::drawLights(Camera* camera)
 			const QVector3D markerPos = sceneCenter - dir * (sceneRadius * 1.3f);
 			const QMatrix4x4 frame = fixtureFrame(markerPos, dir, sceneUp, fixtureScale(markerPos));
 			drawPart(_fixtureSunHead, frame, 1, glowColor);
-			// A glow around the head: the bulb halo sphere, a little larger so it reaches past the rays.
+			// A glow around the head: the bulb halo sphere (radius 1), scaled up so it reaches past the rays.
 			QMatrix4x4 haloFrame = frame;
-			haloFrame.scale(1.15f);
+			haloFrame.scale(1.44f);
 			halos.push_back({ haloFrame, glowColor });
 		}
 		else if (lightType == LightType::Spot)
