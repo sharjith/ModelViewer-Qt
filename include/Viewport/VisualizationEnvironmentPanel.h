@@ -133,6 +133,8 @@ public slots:
 	// An edit from the properties panel: apply it to the selected scene light through an undo command.
 	void onLightPropertyEdited(const GltfLightEntry& entry, EditUserLightCommand::Field field);
 	void aimSelectedLightAtCentre();
+	// Clicking the selected light again (not its check box) deselects it, and clicking empty space in the tree does too.
+	void onLightTreeItemClicked(QTreeWidgetItem* item);
 	// Make the Default Light row's check box follow the Default Lights check box (which is also set with signals blocked).
 	void syncDefaultLightRow();
 
@@ -272,6 +274,9 @@ private:
 	// a range refresh never moves a light the user placed.
 	bool _lightOffsetIsDefault = true;
 
+	QTreeWidgetItem* _pressedLightItem = nullptr;       // the tree row under the last mouse press (compared only, never dereferenced)
+	bool _pressedLightWasSelected = false;
+	Qt::CheckState _pressedLightCheck = Qt::Unchecked;
 	QLabel* _lightsAdsHint = nullptr;                   // "lights are ignored in ADS" note under the lights tree
 	SceneLightPropertiesPanel* _lightProps = nullptr;   // numeric editor for the selected light, under the lights tree
 	QMetaObject::Connection _viewportLightSelectionConnection;

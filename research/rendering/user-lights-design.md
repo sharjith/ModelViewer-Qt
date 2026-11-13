@@ -74,3 +74,7 @@ Decisions (owner, 2026-11-13): imported lights are selectable but read-only; the
 - A selected scene light shows the transform gizmo: translate arrows (not for a sun, which has no position) and rotate arcs that turn the aim (not for a point light); the scale handles are hidden (`TransformGizmo::set*HandlesVisible`). The gizmo is shown while Show Lights is on, without needing the mesh gizmo to be requested.
 - Drags are shown live and end as one undo step (`EditUserLightCommand`, Position or Direction). Imported lights stay read-only.
 - Follow-up (owner request): the light gizmo's handles highlight on hover, Escape cancels a drag (the light returns and the rest of the mouse gesture is ignored), and the gizmo follows the light while it is dragged (it stays at the start point only while aiming, because a sun's head moves as its direction turns).
+
+## Deselecting a light (owner request)
+
+A light is deselected by clicking its selected row again (not its check box), clicking empty space in the lights tree, clicking empty space in the viewport (a click that hits no mesh and no light), or pressing Escape. Selecting a light, from the tree or by picking, now also clears any mesh selection.

@@ -552,6 +552,12 @@ _floorPlane(nullptr),
 	// Connect SelectionManager signals to ViewportWidget update
 	connect(_selectionManager, &SelectionManager::hoverChanged,
 			this, [this](int) { update(); });
+	// A click on empty space in the viewport (no mesh hit) also ends the light selection.
+	connect(this, &ViewportWidget::singleSelectionDone,
+			this, [this](int id) {
+				if (id < 0 && _clickSelecting)
+					selectLight(QString(), -1);
+			});
 	// The gizmo works on one target at a time: selecting a mesh ends the light selection.
 	connect(this, &ViewportWidget::selectionChanged,
 			this, [this](const QList<int>& selectedIds) {
@@ -17736,7 +17742,9 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 			&& !_viewCtrl.windowZoomActive() && !_viewCtrl.viewRotating() && !_viewCtrl.viewPanning() && !_viewCtrl.viewZooming())
 		{
 			// Selection
+			_clickSelecting = true;
 			_selectionManager->clickSelect(clickPoint);
+			_clickSelecting = false;
 		}
 
 		// Lasso armed: start accumulating a freeform drag path instead of the
@@ -18756,6 +18764,9 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 		setPlot3DNotePlacementArmed(false);
 		return;
 	}
+	// With nothing else to cancel, Escape also ends the light selection (the other Escape handling below still runs).
+	if (key == Qt::Key_Escape && _selectedLightIndex >= 0)
+		selectLight(QString(), -1);
 	if (key == Qt::Key_Escape && _measurementController->measurementTool() != MeasurementTool::None)
 	{
 		setMeasurementTool(MeasurementTool::None);
@@ -20447,6 +20458,9 @@ void ViewportWidget::selectLight(const QString& sourceFile, int index)
 	const QString file = index < 0 ? QString() : sourceFile;
 	if (file == _selectedLightFile && index == _selectedLightIndex)
 		return;
+	// The gizmo works on one target at a time: selecting a light (from the tree or by picking) replaces any mesh selection.
+	if (index >= 0 && _selectionManager && _viewer && !_viewer->getSelectedIDs().empty())
+		_selectionManager->setSelectedIds({});
 	_selectedLightFile = file;
 	_selectedLightIndex = index;
 	emit selectedLightChanged();

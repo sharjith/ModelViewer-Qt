@@ -106,6 +106,22 @@ VisualizationEnvironmentPanel::~VisualizationEnvironmentPanel() = default;
 
 bool VisualizationEnvironmentPanel::eventFilter(QObject* watched, QEvent* event)
 {
+	// The lights tree: remember what a press landed on so the click that follows can toggle the selection off, and let a press on
+	// empty space clear it.
+	if (ui && watched == ui->treePunctualLights->viewport() && event->type() == QEvent::MouseButtonPress)
+	{
+		const auto* me = static_cast<QMouseEvent*>(event);
+		if (me->button() == Qt::LeftButton)
+		{
+			QTreeWidgetItem* item = ui->treePunctualLights->itemAt(me->position().toPoint());
+			_pressedLightItem = item;
+			_pressedLightWasSelected = item && item->isSelected();
+			_pressedLightCheck = item ? item->checkState(0) : Qt::Unchecked;
+			if (!item)
+				ui->treePunctualLights->clearSelection();
+		}
+		return false;
+	}
 	if (watched == _lightTreeResizeHandle)
 	{
 		auto* me = static_cast<QMouseEvent*>(event);
@@ -199,6 +215,7 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 				gl->addWidget(handle, 2, 0);   // row 0 holds the Add/Delete buttons, row 1 the tree
 
 			handle->installEventFilter(this);
+			ui->treePunctualLights->viewport()->installEventFilter(this);
 			_lightTreeResizeHandle = handle;
 
 			// The numeric editor for the selected light sits under the tree; it stays hidden until a light is selected.
@@ -445,6 +462,8 @@ void VisualizationEnvironmentPanel::connectSignalsAndSlots()
 	connect(ui->pushButtonAddSunLight, &QPushButton::clicked, this, [this] { addUserLight(LightType::Directional); });
 	connect(ui->pushButtonDeleteSceneLight, &QPushButton::clicked, this, &VisualizationEnvironmentPanel::deleteSelectedUserLight);
 	connect(ui->treePunctualLights, &QTreeWidget::itemSelectionChanged, this, &VisualizationEnvironmentPanel::onLightTreeSelectionChanged);
+	connect(ui->treePunctualLights, &QTreeWidget::itemClicked, this,
+	        [this](QTreeWidgetItem* item, int) { onLightTreeItemClicked(item); });
 
 	// ===== Skybox Controls =====
 	// cameraUpAxisChanged/renderingModeChanged are connected per-rebind, not
@@ -966,6 +985,15 @@ void VisualizationEnvironmentPanel::refreshPunctualLightsTree()
 	// The group box stays visible: it also holds the Add buttons for the scene's own lights.
 	updateSceneLightButtons();
 	syncLightProperties();
+}
+
+void VisualizationEnvironmentPanel::onLightTreeItemClicked(QTreeWidgetItem* item)
+{
+	// A click on the row that was already selected, not on its check box, toggles the selection off.
+	if (item && item == _pressedLightItem && _pressedLightWasSelected && item->checkState(0) == _pressedLightCheck)
+		ui->treePunctualLights->clearSelection();
+	_pressedLightItem = nullptr;
+	_pressedLightWasSelected = false;
 }
 
 void VisualizationEnvironmentPanel::onLightTreeSelectionChanged()
