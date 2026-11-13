@@ -19,7 +19,7 @@ public:
         BulbHalo,    // glow: a larger sphere drawn additively around the glass
         SpotBody,    // housing: can with a flared hood and a U-shaped yoke
         SpotLens,    // emissive: the lens disc inside the hood
-        SunHead,     // emissive: disc, rays and a direction arrow
+        SunHead,     // emissive: sphere, spikes and a direction arrow
         BeamCone,    // lines: apex at the origin, rim at z = 1 with radius 1 (scale z and xy separately)
         BeamRim,     // lines: the circle at z = 1 with radius 1 (the inner cone angle)
         BeamFill,    // glow: the cone surface as triangles (apex at the origin, rim at z = 1, radius 1), drawn additively
@@ -44,6 +44,8 @@ private:
 
     void addLathe(const Profile& profile, int segments);
     void addBox(float cx, float cy, float cz, float hx, float hy, float hz, float rotZ);
+    // A cone along the direction (dx, dy, dz) from the origin: base circle at `baseDistance`, tip at `tipDistance`.
+    void addCone(float dx, float dy, float dz, float baseDistance, float tipDistance, float baseRadius, int segments);
     void addLine(float x0, float y0, float z0, float x1, float y1, float z1);
     void addCircle(float z, float radius, int segments);
 

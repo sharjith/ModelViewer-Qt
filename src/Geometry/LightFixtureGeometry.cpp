@@ -1,5 +1,6 @@
 #include "LightFixtureGeometry.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace
@@ -105,6 +106,55 @@ void LightFixtureGeometry::addBox(float cx, float cy, float cz, float hx, float 
     }
 }
 
+void LightFixtureGeometry::addCone(float dx, float dy, float dz, float baseDistance, float tipDistance, float baseRadius, int segments)
+{
+    const float length = std::sqrt(dx * dx + dy * dy + dz * dz);
+    if (length < 1e-6f || segments < 3)
+        return;
+    dx /= length;
+    dy /= length;
+    dz /= length;
+    // Two directions perpendicular to the axis.
+    const float hx = std::abs(dz) < 0.9f ? 0.0f : 1.0f;
+    const float hz = std::abs(dz) < 0.9f ? 1.0f : 0.0f;
+    float ux = dy * hz;
+    float uy = dz * hx - dx * hz;
+    float uz = -dy * hx;
+    const float ul = std::sqrt(ux * ux + uy * uy + uz * uz);
+    ux /= ul;
+    uy /= ul;
+    uz /= ul;
+    const float vx = dy * uz - dz * uy;
+    const float vy = dz * ux - dx * uz;
+    const float vz = dx * uy - dy * ux;
+
+    const float height = tipDistance - baseDistance;
+    const float nl = std::sqrt(height * height + baseRadius * baseRadius);
+    for (int k = 0; k < segments; ++k)
+    {
+        const float a0 = 2.0f * kPi * static_cast<float>(k) / static_cast<float>(segments);
+        const float a1 = 2.0f * kPi * static_cast<float>(k + 1) / static_cast<float>(segments);
+        const float am = 0.5f * (a0 + a1);
+        const unsigned int base = static_cast<unsigned int>(_points.size() / 3);
+        const float angles[3] = { a0, a1, am };
+        for (int corner = 0; corner < 3; ++corner)
+        {
+            const float c = std::cos(angles[corner]);
+            const float s = std::sin(angles[corner]);
+            const float rx = ux * c + vx * s;
+            const float ry = uy * c + vy * s;
+            const float rz = uz * c + vz * s;
+            const float r = corner < 2 ? baseRadius : 0.0f;
+            const float d = corner < 2 ? baseDistance : tipDistance;
+            _points.insert(_points.end(), { dx * d + rx * r, dy * d + ry * r, dz * d + rz * r });
+            // Wall normal: radial component scaled by the height, axial component by the base radius.
+            _normals.insert(_normals.end(), { (rx * height + dx * baseRadius) / nl, (ry * height + dy * baseRadius) / nl,
+                                              (rz * height + dz * baseRadius) / nl });
+        }
+        _indices.insert(_indices.end(), { base, base + 1, base + 2 });
+    }
+}
+
 void LightFixtureGeometry::addLine(float x0, float y0, float z0, float x1, float y1, float z1)
 {
     const unsigned int base = static_cast<unsigned int>(_points.size() / 3);
@@ -186,18 +236,22 @@ LightFixtureGeometry::LightFixtureGeometry(Part part)
     }
     case Part::SunHead:
     {
-        // disc
-        segment(profile, 0.0f, 0.08f, 0.55f, 0.08f, 0.0f, 1.0f);
-        segment(profile, 0.55f, 0.08f, 0.55f, -0.08f, 1.0f, 0.0f);
-        segment(profile, 0.55f, -0.08f, 0.0f, -0.08f, 0.0f, -1.0f);
-        addLathe(profile, 36);
-        // rays, long and short alternating
-        for (int k = 0; k < 12; ++k)
+        // sphere core
+        sphereArc(profile, 0.0f, 0.5f, -kPi * 0.5f, kPi * 0.5f, 14);
+        addLathe(profile, 32);
+        // spikes spread evenly over the sphere (Fibonacci points), long and short alternating; none towards the arrow
+        constexpr int kSpikes = 16;
+        const float golden = kPi * (3.0f - std::sqrt(5.0f));
+        int emitted = 0;
+        for (int k = 0; k < kSpikes; ++k)
         {
-            const float a = 2.0f * kPi * static_cast<float>(k) / 12.0f;
-            const float halfLength = (k % 2 == 0) ? 0.24f : 0.13f;
-            const float centre = 0.72f + halfLength;
-            addBox(centre * std::cos(a), centre * std::sin(a), 0.0f, halfLength, 0.045f, 0.05f, a);
+            const float z = 1.0f - 2.0f * (static_cast<float>(k) + 0.5f) / static_cast<float>(kSpikes);
+            if (z > 0.8f)
+                continue;
+            const float ring = std::sqrt(std::max(0.0f, 1.0f - z * z));
+            const float a = golden * static_cast<float>(k);
+            addCone(ring * std::cos(a), ring * std::sin(a), z, 0.46f, (emitted % 2 == 0) ? 1.0f : 0.82f, 0.13f, 8);
+            ++emitted;
         }
         // arrow along the direction of the light
         Profile arrow;
