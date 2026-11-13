@@ -2945,6 +2945,7 @@ private:
 	LightFixtureRenderable* _fixtureBeamCone = nullptr;
 	LightFixtureRenderable* _fixtureBeamRim = nullptr;
 	LightFixtureRenderable* _fixtureBeamFill = nullptr;
+	LightFixtureRenderable* _fixtureLampShade = nullptr;
 	// _showLights â†’ SceneRenderController (Phase 12)
 
 	// GPU-context-recreation-survival registry (see IGpuContextResource.h) -

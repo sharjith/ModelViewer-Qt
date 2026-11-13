@@ -223,6 +223,17 @@ LightFixtureGeometry::LightFixtureGeometry(Part part)
         addCircle(1.0f, 1.0f, 48);
         break;
     }
+    case Part::LampShade:
+    {
+        // Cone shade over the bulb: a small cap at the top (-Z), flaring to a rim past the glass. Outward normal of the cone wall is
+        // (0.879, -0.478) in (r, z); the inside is the same wall with the normal reversed.
+        segment(profile, 0.0f, -1.95f, 0.25f, -1.95f, 0.0f, -1.0f);              // cap
+        segmentAuto(profile, 0.25f, -1.95f, 1.5f, 0.35f, true);                  // outside of the cone
+        segment(profile, 1.5f, 0.35f, 1.44f, 0.35f, 0.0f, 1.0f);                 // rim
+        segment(profile, 1.44f, 0.35f, 0.2f, -1.9f, -0.879f, 0.478f);            // inside of the cone
+        addLathe(profile, kAroundSegments);
+        break;
+    }
     case Part::BeamFill:
     {
         // The normal is radial and tilted back, but only the position's z matters: the shader fades the glow along the axis.

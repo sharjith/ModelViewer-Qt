@@ -1079,7 +1079,7 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	if (_lightCube) { delete _lightCube; _lightCube = nullptr; }
 	if (_lightSphere) { delete _lightSphere; _lightSphere = nullptr; }
 	for (LightFixtureRenderable** fixture : { &_fixtureBulbGlass, &_fixtureBulbBase, &_fixtureBulbHalo, &_fixtureSpotBody, &_fixtureSpotLens,
-	                                          &_fixtureSunHead, &_fixtureBeamCone, &_fixtureBeamRim, &_fixtureBeamFill })
+	                                          &_fixtureSunHead, &_fixtureBeamCone, &_fixtureBeamRim, &_fixtureBeamFill, &_fixtureLampShade })
 	{
 		delete *fixture;
 		*fixture = nullptr;
@@ -7169,6 +7169,7 @@ void ViewportWidget::createLights()
 		makeFixture(_fixtureBeamCone, Part::BeamCone);
 		makeFixture(_fixtureBeamRim, Part::BeamRim);
 		makeFixture(_fixtureBeamFill, Part::BeamFill);
+		makeFixture(_fixtureLampShade, Part::LampShade);
 	}
 }
 
@@ -13394,27 +13395,15 @@ void ViewportWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMat
 
 void ViewportWidget::drawLights(Camera* camera)
 {
-	QMatrix4x4 model;
-	model.translate(effectiveWorldLightPosition());
-	_renderCtrl.lightCubeShader()->bind();
-	QMatrix4x4 viewMat = _viewCtrl.viewMatrix();
-	_renderCtrl.lightCubeShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
-	_renderCtrl.lightCubeShader()->setProperty("viewMatrix", QVariant::fromValue(viewMat));
-	_renderCtrl.lightCubeShader()->setUniformValue("viewMatrix", viewMat);
-	_renderCtrl.lightCubeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
-	_renderCtrl.lightCubeShader()->setUniformValue("lightColor", _diffuseLight.toVector3D());	
-	_renderCtrl.lightCubeShader()->setUniformValue("intensity", 1.0f);
-	_renderCtrl.lightCubeShader()->setUniformValue("intensityScale", 1.0f);  // Tune brightness
-	_lightCube->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
-	_lightCube->setSceneRenderTransformFast(model);
-	_lightCube->render();
+	const QMatrix4x4 viewMat = _viewCtrl.viewMatrix();
 
-	// Draw punctual lights — only those whose enabled flag is set (tree checkbox AND Show Lights).
+	// The main scene light is drawn as a pendant lamp: a bulb hanging under a cone shade, so it lights the scene from above.
+	// Punctual lights are drawn only when their enabled flag is set (tree checkbox AND Show Lights).
 	// Each is a small fixture: a bulb for point lights, a theatre spot with its beam cone for spot lights, a sun head with a direction
-	// arrow for directional lights. They keep a constant size on screen, like the transform gizmo.
+	// arrow for directional lights. All keep a constant size on screen, like the transform gizmo.
 	const std::vector<GPULight> gizmoLights =
 	    _animCtrl.buildGizmoLights(_viewer ? _viewer->sceneGraph() : nullptr);
-	if (gizmoLights.empty() || !camera || !_fixtureBulbGlass)
+	if (!camera || !_fixtureBulbGlass)
 		return;
 
 	ShaderProgram* const fixtureShader = _renderCtrl.lightFixtureShader();
@@ -13469,6 +13458,19 @@ void ViewportWidget::drawLights(Camera* camera)
 	std::vector<BeamDraw> beams;
 	struct HaloDraw { QMatrix4x4 model; QVector3D color; };
 	std::vector<HaloDraw> halos;
+
+	{
+		// The main light: a bulb hung upside down (base at the top) under a shade, aimed down the scene's up axis.
+		const QVector3D lampPosition = effectiveWorldLightPosition();
+		const QVector3D lampColor = _diffuseLight.toVector3D();
+		const float lampPeak = std::max({ lampColor.x(), lampColor.y(), lampColor.z(), 1e-3f });
+		const QVector3D lampGlow = lampColor / lampPeak * 0.95f;
+		const QMatrix4x4 lampFrame = fixtureFrame(lampPosition, -sceneUp, sceneUp, fixtureScale(lampPosition));
+		drawPart(_fixtureBulbGlass, lampFrame, 1, lampGlow);
+		drawPart(_fixtureBulbBase, lampFrame, 0, lampColor, housingColor);
+		drawPart(_fixtureLampShade, lampFrame, 0, lampColor, QVector3D(0.55f, 0.57f, 0.62f));
+		halos.push_back({ lampFrame, lampGlow });
+	}
 
 	for (const GPULight& light : gizmoLights)
 	{
