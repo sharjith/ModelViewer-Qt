@@ -1,6 +1,6 @@
 # User-added lights: design note
 
-Status: decisions made 2026-11-13; slice 1 built and owner-tested (ac6a11b); slice 2 owner-tested (4e5b77c); slice 3 built, not yet tested. Branch: `feature/user-lights` (from `dev` 34796ec).
+Status: decisions made 2026-11-13; slice 1 built and owner-tested (ac6a11b); slice 2 owner-tested (4e5b77c); slices 3 and follow-ups owner-tested (last 7f7f2b2); slice 4 built, not yet tested. Branch: `feature/user-lights` (from `dev` 34796ec).
 
 ## Goal
 
@@ -86,3 +86,10 @@ Colour, intensity, range and the cone angles each have a small reset button besi
 ## Intensity units (owner suggestion)
 
 The intensity spin box shows glTF's units as a suffix: "cd" (candela) for point and spot lights, "lx" (lux) for a sun. The renderer is not photometric, so the values stay nominal; the units keep them meaningful on glTF export.
+
+## Slice 4 notes (built, not yet tested)
+
+- glTF export: the post-processor already writes every light as a node appended to the first scene's root nodes (`GltfPostProcessor::writePunctualLights`), so scene lights are root-level nodes as decided. `ModelViewer`'s export now includes the scene lights whatever file is exported (they belong to the scene), un-baked with the import correction of a reference file: the exported file, or the first loaded file when the whole scene is exported. Files with different corrections cannot all be matched by one; scene lights then line up with the reference file's geometry only.
+- Light names: `ExportSettings::lightNames` (parallel to `lights`) reaches the post-processor through `GltfPostProcessor::setLightExportNames()`, so exported lights and their nodes keep their names ("Spot Light 1") instead of `light_N`. An empty name keeps the old default. This also names imported lights with their own names.
+- Disabled lights are still exported, as before for imported lights (unchanged behaviour).
+- Path tracers: the ray-traced snapshot starts from the uploaded punctual light list (`punctualLights()->getLights()`), which holds the enabled scene lights, and every light edit calls `notifyRayTracedSceneMutated()`. So scene lights reach the CPU and GPU path tracers without further work; to be confirmed by a render.

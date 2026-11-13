@@ -18,6 +18,7 @@ QMap<QString, QString> GltfPostProcessor::_pathMapping;
 QMap<QString, int> GltfPostProcessor::_embeddedIndexMapping;
 QMap<int, int> GltfPostProcessor::_materialToSourceMeshIndex;
 QVector<GltfCameraEntry> GltfPostProcessor::_gltfCameras;
+QStringList GltfPostProcessor::_lightNames;
 
 QStringList GltfPostProcessor::_variantNames;
 QVector<MeshVariantExportEntry> GltfPostProcessor::_variantEntries;
@@ -38,6 +39,11 @@ void GltfPostProcessor::clearPointerAnimationData()
 {
     _pointerAnimData.clear();
     _pointerAnimNodeNames.clear();
+}
+
+void GltfPostProcessor::setLightExportNames(const QStringList& names)
+{
+    _lightNames = names;
 }
 
 void GltfPostProcessor::setGltfCameraData(const QVector<GltfCameraEntry>& cameras)
@@ -1157,7 +1163,8 @@ bool GltfPostProcessor::writePunctualLights(
         // --- Build light definition ---
         QJsonObject lightDef;
         lightDef["type"] = typeStr;
-        lightDef["name"] = QString("light_%1").arg(i);
+        const bool hasName = static_cast<qsizetype>(i) < _lightNames.size() && !_lightNames[static_cast<qsizetype>(i)].isEmpty();
+        lightDef["name"] = hasName ? _lightNames[static_cast<qsizetype>(i)] : QString("light_%1").arg(i);
         lightDef["intensity"] = static_cast<double>(light.intensity);
 
         // Color (only write if non-white)
@@ -1194,7 +1201,7 @@ bool GltfPostProcessor::writePunctualLights(
         // glTF lights live on nodes: position via translation, direction via rotation.
         // Default light direction in glTF is -Z (0,0,-1).
         QJsonObject lightNode;
-        lightNode["name"] = QString("light_node_%1").arg(i);
+        lightNode["name"] = hasName ? _lightNames[static_cast<qsizetype>(i)] : QString("light_node_%1").arg(i);
 
         // Translation
         QJsonArray translation;
