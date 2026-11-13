@@ -20443,12 +20443,23 @@ GltfLightEntry ViewportWidget::makeUserLight(int type, const QString& name) cons
 	light.range = 0.0f;   // no range limit
 	// The same calibration the default light uses (surface intensity 2 at the scene centre), so a new light brightens the scene
 	// the way the default light does.
-	light.intensity = 2.0f * (type == static_cast<int>(LightType::Directional) ? 1.0f : std::max(distance * distance, 1e-4f));
+	light.intensity = defaultUserLightIntensity(type, position);
 	// A soft-edged spot: full strength inside 20 degrees, fading out to 35 degrees.
 	constexpr float kDegToRad = 3.14159265f / 180.0f;
 	light.innerConeCos = std::cos(20.0f * kDegToRad);
 	light.outerConeCos = std::cos(35.0f * kDegToRad);
 	return entry;
+}
+
+float ViewportWidget::defaultUserLightIntensity(int type, const QVector3D& position) const
+{
+	if (type == static_cast<int>(LightType::Directional))
+		return 2.0f;
+	// The same calibration the default light uses (surface intensity 2 at the scene centre, inverse-square falloff).
+	const bool emptyScene = _sceneRuntime.meshStore().empty();
+	const QVector3D center = emptyScene ? QVector3D() : _viewCtrl.boundingSphere().getCenter();
+	const float distance = std::max((center - position).length(), 1e-3f);
+	return 2.0f * std::max(distance * distance, 1e-4f);
 }
 
 void ViewportWidget::selectLight(const QString& sourceFile, int index)

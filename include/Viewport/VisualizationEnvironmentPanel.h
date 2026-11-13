@@ -133,6 +133,8 @@ public slots:
 	// An edit from the properties panel: apply it to the selected scene light through an undo command.
 	void onLightPropertyEdited(const GltfLightEntry& entry, EditUserLightCommand::Field field);
 	void aimSelectedLightAtCentre();
+	// Put one property of the selected scene light (colour, intensity, range or the cone angles) back to its default.
+	void resetSelectedLightProperty(EditUserLightCommand::Field field);
 	// Clicking the selected light again (not its check box) deselects it, and clicking empty space in the tree does too.
 	void onLightTreeItemClicked(QTreeWidgetItem* item);
 	// Make the Default Light row's check box follow the Default Lights check box (which is also set with signals blocked).

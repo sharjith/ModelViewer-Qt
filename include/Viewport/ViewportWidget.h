@@ -1499,6 +1499,9 @@ public slots:
 	// the scene centre, nearer to the eye, aimed at the centre. Intensity is calibrated to the distance (inverse-square), so the light
 	// brightens the scene centre the same way whatever the model's size.
 	GltfLightEntry makeUserLight(int type, const QString& name) const;
+	// The intensity a new light of `type` at `position` gets (and the value its reset button restores): 2 at the scene centre, so
+	// it grows with the square of the distance; a sun has no distance and gets 2.
+	float defaultUserLightIntensity(int type, const QVector3D& position) const;
 	// After user lights were added or removed in the scene graph (the scene graph signal has already uploaded the list): restore the
 	// default-light fallback when no light is left, tell the ray tracers and repaint.
 	void userLightsChanged();

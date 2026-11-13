@@ -237,6 +237,8 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 			connect(_lightProps, &SceneLightPropertiesPanel::edited, this, &VisualizationEnvironmentPanel::onLightPropertyEdited);
 			connect(_lightProps, &SceneLightPropertiesPanel::aimAtCentreRequested, this,
 			        &VisualizationEnvironmentPanel::aimSelectedLightAtCentre);
+			connect(_lightProps, &SceneLightPropertiesPanel::resetRequested, this,
+			        &VisualizationEnvironmentPanel::resetSelectedLightProperty);
 		}
 		// ────────────────────────────────────────────────────────────────────────
 
@@ -1081,6 +1083,39 @@ void VisualizationEnvironmentPanel::onLightPropertyEdited(const GltfLightEntry& 
 	}
 	_modelViewer->getUndoStack()->push(new EditUserLightCommand(
 		_modelViewer, _viewportWidget, index, field, data.lights[index], entry, text));
+}
+
+void VisualizationEnvironmentPanel::resetSelectedLightProperty(EditUserLightCommand::Field field)
+{
+	if (!_sceneGraph || !_viewportWidget || !SceneGraph::isUserLightsKey(_viewportWidget->selectedLightFile()))
+		return;
+	const int index = _viewportWidget->selectedLightIndex();
+	const GltfLightData data = _sceneGraph->lightDataForFile(SceneGraph::userLightsKey());
+	if (index < 0 || index >= data.lights.size())
+		return;
+
+	GltfLightEntry entry = data.lights[index];
+	GPULight& light = entry.gpuLight;
+	constexpr float kDegToRad = 3.14159265f / 180.0f;
+	switch (field)
+	{
+	case EditUserLightCommand::Field::Color:
+		light.color = glm::vec3(1.0f, 1.0f, 1.0f);
+		break;
+	case EditUserLightCommand::Field::Intensity:
+		light.intensity = _viewportWidget->defaultUserLightIntensity(light.type, QVector3D(light.position.x, light.position.y, light.position.z));
+		break;
+	case EditUserLightCommand::Field::Range:
+		light.range = 0.0f;   // unlimited
+		break;
+	case EditUserLightCommand::Field::Cone:
+		light.innerConeCos = std::cos(20.0f * kDegToRad);
+		light.outerConeCos = std::cos(35.0f * kDegToRad);
+		break;
+	default:
+		return;
+	}
+	onLightPropertyEdited(entry, field);
 }
 
 void VisualizationEnvironmentPanel::aimSelectedLightAtCentre()

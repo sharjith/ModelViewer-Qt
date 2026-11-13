@@ -78,3 +78,7 @@ Decisions (owner, 2026-11-13): imported lights are selectable but read-only; the
 ## Deselecting a light (owner request)
 
 A light is deselected by clicking its selected row again (not its check box), clicking empty space in the lights tree, clicking empty space in the viewport (a click that hits no mesh and no light), or pressing Escape. Selecting a light, from the tree or by picking, now also clears any mesh selection.
+
+## Reset to defaults (owner request)
+
+Colour, intensity, range and the cone angles each have a small reset button beside them. Defaults: colour white; intensity 2 at the scene centre, so 2 x distance squared for a point or spot (the value the light got when added, but recomputed for its current position) and 2 for a sun; range 0 (unlimited); cone 20 and 35 degrees (the two angle boxes share one reset). Each reset is an undoable edit. Position and direction have no reset: Aim at Scene Centre covers the aim.

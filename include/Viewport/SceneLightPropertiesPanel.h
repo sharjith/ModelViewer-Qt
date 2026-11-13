@@ -10,6 +10,7 @@ class QFormLayout;
 class QLabel;
 class QLineEdit;
 class QPushButton;
+class QToolButton;
 
 // ---------------------------------------------------------------------------
 // SceneLightPropertiesPanel
@@ -39,6 +40,9 @@ signals:
     void edited(const GltfLightEntry& entry, EditUserLightCommand::Field field);
     // The user asked for the light to be aimed at the centre of the scene.
     void aimAtCentreRequested();
+    // The user pressed a reset button: Color, Intensity, Range or Cone (both angles) back to its default. The owner knows the defaults
+    // (the intensity depends on the scene), so it builds the new value.
+    void resetRequested(EditUserLightCommand::Field field);
 
 private:
     void emitEdit(EditUserLightCommand::Field field);
@@ -62,6 +66,10 @@ private:
     // Rows, kept to show or hide per light type.
     QWidget* _positionRow = nullptr;
     QWidget* _directionRow = nullptr;
+    QWidget* _rangeRow = nullptr;
+    QWidget* _innerRow = nullptr;
+    QWidget* _outerRow = nullptr;
+    QList<QToolButton*> _resetButtons;   // one per resettable value; enabled with the other inputs
 
     GltfLightEntry _entry;      // the light as last shown or edited
     bool           _editable = false;
