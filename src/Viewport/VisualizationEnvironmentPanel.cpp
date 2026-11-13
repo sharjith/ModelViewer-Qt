@@ -366,6 +366,9 @@ void VisualizationEnvironmentPanel::syncFromViewport()
 		{
 			// The light position sliders show the viewport's light offset (the viewport value itself is not touched here).
 			const QVector3D offset = _viewportWidget->getLightOffset();
+			// A document whose light is still at offset zero (never placed or restored) has the default light; any other offset
+			// was placed by the user, so range refreshes must leave it alone.
+			_lightOffsetIsDefault = offset.isNull();
 			QSignalBlocker blockX(ui->sliderLightPosX), blockY(ui->sliderLightPosY), blockZ(ui->sliderLightPosZ);
 			ui->sliderLightPosX->setValue(offsetToSliderTick(_lightPosXMapping, offset.x()));
 			ui->sliderLightPosY->setValue(offsetToSliderTick(_lightPosYMapping, offset.y()));
@@ -644,6 +647,7 @@ void VisualizationEnvironmentPanel::onDefaultLightsClicked()
 	updateLightPositionValueLabels();
 
 	// Manually update light offset
+	_lightOffsetIsDefault = true;   // Reset Lights puts the light back at the slider midpoints
 	_viewportWidget->setLightOffset(QVector3D(
 		sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
 		sliderTickToOffset(_lightPosYMapping, ui->sliderLightPosY->value()),
@@ -678,6 +682,7 @@ void VisualizationEnvironmentPanel::onLightPosXChanged(int value)
 {
 	if (!_viewportWidget || !ui)
 		return;
+	_lightOffsetIsDefault = false;
 
 	_viewportWidget->setLightOffset(QVector3D(
 		sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
@@ -691,6 +696,7 @@ void VisualizationEnvironmentPanel::onLightPosYChanged(int value)
 {
 	if (!_viewportWidget || !ui)
 		return;
+	_lightOffsetIsDefault = false;
 
 	_viewportWidget->setLightOffset(QVector3D(
 		sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
@@ -704,6 +710,7 @@ void VisualizationEnvironmentPanel::onLightPosZChanged(int value)
 {
 	if (!_viewportWidget || !ui)
 		return;
+	_lightOffsetIsDefault = false;
 
 	_viewportWidget->setLightOffset(QVector3D(
 		sliderTickToOffset(_lightPosXMapping, ui->sliderLightPosX->value()),
@@ -1770,11 +1777,34 @@ void VisualizationEnvironmentPanel::updateLightPositionRanges(float range, float
 	configureAxis(ui->sliderLightPosY, _lightPosYMapping, -range, range - offset,currentOffset.y());
 	configureAxis(ui->sliderLightPosZ, _lightPosZMapping, -range / 3.0f, range / 2.0f,currentOffset.z());
 
-	updateLightPositionValueLabels();
 	// This is a UI range refresh, not a light edit. In particular, asymmetric
 	// ranges have nonzero midpoints, and writing rounded slider ticks back
-	// here moved the light during import/visibility synchronization. Keep the
-	// exact runtime offset, even when the current slider range cannot show it.
+	// here moved a light the user had placed during import/visibility
+	// synchronization. So a placed light keeps its exact runtime offset, even
+	// when the current slider range cannot show it.
+	//
+	// The exception is the default light: it is defined as the slider
+	// midpoints (what Reset Lights sets), and the ranges depend on the model,
+	// so a new model needs the sliders re-centred and the light moved with
+	// them - otherwise the light sat at offset zero and the sliders showed
+	// that off-centre until Reset Lights was pressed.
+	if (_lightOffsetIsDefault && _viewportWidget)
+	{
+		const int mid = kLightSliderSteps / 2;
+		{
+			const QSignalBlocker blockX(ui->sliderLightPosX), blockY(ui->sliderLightPosY), blockZ(ui->sliderLightPosZ);
+			ui->sliderLightPosX->setValue(mid);
+			ui->sliderLightPosY->setValue(mid);
+			ui->sliderLightPosZ->setValue(mid);
+		}
+		_viewportWidget->setLightOffset(QVector3D(
+			sliderTickToOffset(_lightPosXMapping, mid),
+			sliderTickToOffset(_lightPosYMapping, mid),
+			sliderTickToOffset(_lightPosZMapping, mid)));
+		_viewportWidget->updateView();
+	}
+
+	updateLightPositionValueLabels();
 }
 
 float VisualizationEnvironmentPanel::sliderTickToOffset(const LightAxisSliderMapping& mapping, int tick) const
@@ -1806,6 +1836,8 @@ void VisualizationEnvironmentPanel::restoreDefaultLightOffset(const QVector3D& o
 {
 	if (!ui || !_viewportWidget)
 		return;
+
+	_lightOffsetIsDefault = false;   // a saved light position: range refreshes must not move it
 
 	// offsetToSliderTick() already clamps to [0, kLightSliderSteps] - covers
 	// the same "stale saved value after the range was re-scaled" case the

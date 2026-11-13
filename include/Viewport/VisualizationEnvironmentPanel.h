@@ -247,6 +247,10 @@ private:
 	LightAxisSliderMapping _lightPosXMapping;
 	LightAxisSliderMapping _lightPosYMapping;
 	LightAxisSliderMapping _lightPosZMapping;
+	// True while the light is at its default position (the slider midpoints, as Reset Lights sets them): a range refresh for a new model
+	// then re-centres the sliders and moves the light with them. Cleared once the user moves a slider or a saved offset is restored, so
+	// a range refresh never moves a light the user placed.
+	bool _lightOffsetIsDefault = true;
 
 	float sliderTickToOffset(const LightAxisSliderMapping& mapping, int tick) const;
 	int offsetToSliderTick(const LightAxisSliderMapping& mapping, float offsetValue) const;
