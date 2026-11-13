@@ -40,7 +40,7 @@ void textureBatchTests(){
     geometry.materialDataFlags=0x3990;geometry.materialColor={.25f,.5f,.75f};LegacyFixture::write(dir.filePath("tinted.jt"),geometry);
     using Node=TextureStackFixture::Node;
     const std::vector<Node> flat{{1,{}, {2},{20}}, {2,"geometry.jt",{}, {}}};
-    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10})
+    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})
     for(unsigned version:family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})for(bool big:{false,true}){
         const auto read=[&](std::vector<TextureFixture::Options> attrs,std::vector<Node> nodes=std::vector<Node>{}){
             if(nodes.empty())nodes=flat;TextureStackFixture::write(dir.filePath("batch.jt"),family,minor,big,version,nodes,std::move(attrs));return Jt::Importer::read(dir.filePath("batch.jt"));};

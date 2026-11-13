@@ -23,9 +23,9 @@ void textureReplaceTests(){
     geometry.materialDataFlags=0x3980;LegacyFixture::write(dir.filePath("vertex-opaque.jt"),geometry);
     QImage external(2,2,QImage::Format_RGBA8888);external.fill(QColor(51,102,153,64));
     check(external.save(dir.filePath("original_texture.png")),"Cannot author original external Replace image");
-    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10})
+    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})
     for(unsigned version:family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})for(bool big:{false,true}){
-        TextureFixture::Options base;base.big=big;base.coordinate=0;base.version=version;base.legacyType=version==1?2:9;base.baseVersion=family==10&&minor?2:1;base.wrapped=family==10&&minor;base.blendType=3;
+        TextureFixture::Options base;base.big=big;base.coordinate=0;base.version=version;base.legacyType=version==1?2:9;base.baseVersion=family==10&&Fixture::modernTextureUsesSabot(minor)?2:1;base.wrapped=family==10&&Fixture::modernTextureUsesSabot(minor);base.blendType=3;
         const auto write=[&](TextureFixture::Options o,const QString& file){if(family==9)TextureFixture::write9(dir.filePath("replace.jt"),minor,o,file);else TextureFixture::write(dir.filePath("replace.jt"),minor,o,file);};
         for(unsigned format:{1u,2u,11u,12u})for(bool blend:{false,true}){
             auto o=base;o.pixelFormat=format;const bool alpha=format==2||format==12,bgr=format>=11;o.pixels=QByteArray("");

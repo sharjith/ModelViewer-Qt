@@ -159,7 +159,7 @@ The original `JtAttribute_TextureImage.hxx/.cxx` registers the published texture
 
 The ModelViewer-original `JtAttribute_TextureImage.cxx` now consumes complete empty lower-version compatibility blocks before active v9 local-version-2/3 descriptors and reads the version-3 coordinate channel after image data. Existing image bounds/cancellation and raw metadata are retained; future layouts remain diagnosed. No upstream-derived source/hashes or file counts change. [Validation and reference provenance](../../../research/jt/JT_9X_ADVANCED_TEXTURE_VALIDATION.md) records the retained public JT9.5 reference, original tests and pending owner gate. No vendor implementation was used.
 
-## C2k texture source byte order — 22 October 2026
+## C2k texture source byte order â€” 22 October 2026
 
 The ModelViewer-original texture header/implementation retain the owning file byte order alongside unchanged raw image payloads, allowing the original scene adapter to normalize unsigned 16-bit colour components safely into the existing RGBA8 image path. No upstream-derived source/hashes or decoder file counts change. [C2k validation](../../../research/jt/JT_TEXTURE_UINT16_VALIDATION.md) records source references, prepared original tests and pending owner gate. No vendor implementation was used.
 
@@ -194,4 +194,8 @@ The upstream-derived `JtElement_ShapeLOD_Vertex.cxx/.hxx` (Open CASCADE TKJT, GP
 ## 7 November 2026 - PMI associations and model views
 
 The ModelViewer-original `JtElement_MetaData_PMIManager` reader no longer rejects an element with associations or model views. In the element each count is followed by its own data (JT 10.6, 8.3.1 to 8.3.5), so the leading counts are adjacent only when design groups, associations and user attributes are empty; the old reader read them as three consecutive counts and rejected any file whose first non-empty count was misread. Associations (five 32-bit words each) are counted and skipped; model views (camera, flags, id, name) are read and exposed through `ModelViews()`. Design groups, user attributes, 2D text entities and CAD tags are still rejected. Evidence: a Solid Edge 2026 JT 10.10 export with two named PMI model views and 50 associations, [PMI study](../../../research/jt/JT_PMI_STUDY.md). No upstream-derived file is touched. No vendor implementation was used.
+
+## 13 November 2026 - JT 10.2 sampled subset (in qualification)
+
+`JtData_Model.cxx` explicitly enables minor version 10.2 after read-only inspection of one authentic private file. The input uses the registered modern graph and stored triangle-strip LOD records, plus base-version-1 unwrapped modern texture records rather than the qualified 10.3-and-later Sabot profile. Original LE/BE container, coordinate, UV, colour and texture fixtures add minor 2 while preserving that envelope distinction. Automatic texture-coordinate assignment in the authentic file remains unsupported and diagnosed; this gate does not claim textured fidelity, unknown metadata decoding or universal 10.2 compatibility. See [JT 10.2 validation](../../../research/jt/JT_102_VALIDATION.md). No new decoder, dependency or third-party source is introduced. Clean build, registered CTest and native validation pass; owner viewer confirmation remains.
 

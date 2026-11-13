@@ -23,6 +23,9 @@ struct Bytes {
     void append(const Bytes& b){data+=b.data;}
 };
 inline QString type(const char* first){return QString::fromLatin1(first)+"-2ac8-11d1-9b6b-0080c7bb5997";}
+// Authentic 10.2 texture records retain the 10.0 base-v1/unwrapped profile.
+// The qualified texture fixtures use base-v2/Sabot beginning with 10.3.
+inline constexpr bool modernTextureUsesSabot(unsigned minorVersion){return minorVersion>=3;}
 inline void element(Bytes& graph,const QString& guid,unsigned id,const Bytes& body,unsigned base=0){graph.u32(21+quint32(body.data.size()));graph.guid(guid);graph.u8(base);graph.u32(id);graph.append(body);}
 inline void end(Bytes& stream){stream.u32(16);stream.guid("ffffffff-ffff-ffff-ffff-ffffffffffff");}
 inline void baseNode(Bytes& b,std::initializer_list<unsigned> attributes){b.u8(1);b.u32(0);b.list(attributes);}

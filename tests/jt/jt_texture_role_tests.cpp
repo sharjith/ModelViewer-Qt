@@ -38,7 +38,7 @@ void textureRoleTests(){
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;geometry.normalBinding=0;
     LegacyFixture::write(dir.filePath("geometry.jt"),geometry);
     auto missing=geometry;missing.uvBinding=0;LegacyFixture::write(dir.filePath("missing.jt"),missing);
-    for(unsigned family:{9u,10u})for(unsigned minor:(family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10}))for(bool big:{false,true}){
+    for(unsigned family:{9u,10u})for(unsigned minor:(family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10}))for(bool big:{false,true}){
         const unsigned version=family==9?(minor==0?2:3):1;
         const auto read=[&](std::vector<TextureFixture::Options> specs,bool noUV=false){
             std::vector<unsigned> ids;for(unsigned i=0;i<specs.size();++i)ids.push_back(20+i);

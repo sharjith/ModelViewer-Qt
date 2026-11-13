@@ -77,11 +77,11 @@ void textureHomogeneousTests(){
         const QString companion=missingUV?"no_uv.jt":"geometry.jt";
         if(family==9)TextureFixture::write9(path,minor,o,companion);else TextureFixture::write(path,minor,o,companion);
     };
-    for(unsigned family:{9u,10u})for(unsigned minor:(family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10}))for(bool big:{false,true}){
+    for(unsigned family:{9u,10u})for(unsigned minor:(family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10}))for(bool big:{false,true}){
         const auto versions=family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1};
         for(unsigned version:versions){
             TextureFixture::Options o;o.coordinate=0;o.big=big;o.version=version;o.legacyType=version==1?2:9;
-            if(family==10){o.baseVersion=minor?2:1;o.wrapped=minor!=0;}
+            if(family==10){o.baseVersion=Fixture::modernTextureUsesSabot(minor)?2:1;o.wrapped=Fixture::modernTextureUsesSabot(minor);}
             for(unsigned recipe=0;recipe<4;++recipe){
                 o.transform=TextureFixture::Options{}.transform;o.generation={};o.planes={};o.transform[15]=recipe==1?-2:2;
                 o.coordinate=recipe==3&&!(family==9&&version<3)?2:0; // legacy 9.x blocks 1 and 2 always select UV0

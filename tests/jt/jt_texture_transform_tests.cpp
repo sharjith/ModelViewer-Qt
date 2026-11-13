@@ -54,8 +54,8 @@ void textureTransformTests(){
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;
     LegacyFixture::write(dir.filePath("geometry.jt"),geometry);
     const auto reference=Jt::Importer::read(dir.filePath("geometry.jt"));const auto& source=*reference.scene->mMeshes[0];
-    for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true}){
-        TextureFixture::Options o;o.coordinate=0;o.big=big;o.baseVersion=minor?2:1;o.wrapped=minor!=0;
+    for(unsigned minor:{0u,2u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true}){
+        TextureFixture::Options o;o.coordinate=0;o.big=big;o.baseVersion=Fixture::modernTextureUsesSabot(minor)?2:1;o.wrapped=Fixture::modernTextureUsesSabot(minor);
         for(unsigned test=0;test<6;++test){
             o.transform=matrix(test);TextureFixture::write(dir.filePath("mapped.jt"),minor,o);
             const auto result=Jt::Importer::read(dir.filePath("mapped.jt"));

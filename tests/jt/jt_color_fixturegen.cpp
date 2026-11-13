@@ -159,7 +159,7 @@ int main(int argc,char** argv){
             const auto name=mode==2?"vertex_quantized_rgb.jt":mode==3?"vertex_quantized_hsv.jt":"vertex_quantized_rgba_opaque.jt";
             const auto path=output.filePath(name);write(path,fixture(source,mode==4?4:3,false,mode));verifyPacked(path);
         }
-        for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u}) {
+        for(unsigned minor:{0u,2u,3u,5u,7u,8u,9u,10u}) {
             auto data=fixture(source,3,false,2);
             const auto header=(QByteArray("Version 10.")+QByteArray::number(minor)+" JT original cross-version colour fixture").leftJustified(75,' ')+QByteArray(" \n\r\n ",5);
             data.replace(0,80,header);const auto path=output.filePath(QString("vertex_quantized_rgb_10_%1.jt").arg(minor));write(path,data);verifyPacked(path);

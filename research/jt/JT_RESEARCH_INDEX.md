@@ -6,6 +6,8 @@ Current owner priority (24 October 2026): [C2 paused at C2ag; core viewing essen
 
 Runtime detail (C5): [LOD evidence and design](JT_C5_RUNTIME_LOD_DESIGN.md) (3 November 2026, design only); [LOD materials as material variants](JT_C5_LOD_MATERIAL_VARIANTS.md) (4 November 2026, analysis and plan).
 
+Current point-version gate (13 November 2026): [JT 10.2 sampled-subset qualification](JT_102_VALIDATION.md), prepared from one authentic private assembly with stored tessellation, PMI and inline textures; clean build, CTest and native validation pass, with owner viewer checks pending. Automatic texture-coordinate assignment remains a separate appearance gate.
+
 Suggested reading order:
 
 1. [Feasibility and legal scope](JT_IMPORT_FEASIBILITY.md), [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [pass-specific provenance](JT_PROVENANCE.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).

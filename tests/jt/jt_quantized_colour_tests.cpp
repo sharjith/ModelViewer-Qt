@@ -39,7 +39,7 @@ void verify(const Fixture::Bytes& b,unsigned components,unsigned minor){
 }
 }
 void quantizedColourTests(){
- for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool hsv:{false,true})for(unsigned components:{3u,4u}){
+ for(unsigned minor:{0u,2u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool hsv:{false,true})for(unsigned components:{3u,4u}){
   auto b=stream(big,components,hsv);verify(b,components,minor);
   for(qsizetype n=0;n<b.data.size();++n){auto shortData=b;shortData.data.truncate(n);reject([&]{Reader r(shortData,minor);JtDecode_VertexColors::Read(r,components,6);});}
   for(unsigned damage=1;damage<=7;++damage){if(damage==7&&components==4)continue;reject([&]{Reader r(stream(big,components,hsv,damage),minor);JtDecode_VertexColors::Read(r,components,6);});}
@@ -74,5 +74,5 @@ void quantizedColourTests(){
  for(unsigned minor:{0u,5u}){Reader r(stream(false,3,false),minor,9);reject([&]{JtDecode_VertexColors::Read(r,3,6);});}
  {auto b=stream(false,4,false);Reader r(b);bool cancelled=false;JtData_Limits::Scope scope([]{throw Jt::Cancelled();});try{JtDecode_VertexColors::Read(r,4,6);}catch(const Jt::Cancelled&){cancelled=true;}check(cancelled,"Colour decoding ignored cancellation");}
  {auto b=stream(false,4,false);Reader r(b);JtData_Limits::Scope scope({},32);reject([&]{JtDecode_VertexColors::Read(r,4,6);});}
- std::cout<<"Modern quantized RGB/HSV 10.0/10.3/10.5/10.7/10.8/10.9/10.10 LE/BE packing, ranges, bounds and cancellation passed\n";
+ std::cout<<"Modern quantized RGB/HSV 10.0/10.2/10.3/10.5/10.7/10.8/10.9/10.10 LE/BE packing, ranges, bounds and cancellation passed\n";
 }

@@ -29,7 +29,7 @@ void textureMipTests(){
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;
     LegacyFixture::write(temp.filePath("geometry.jt"),geometry);
     auto solid=[](int pixels,unsigned char r,unsigned char g,unsigned char b){QByteArray data;for(int i=0;i<pixels;++i){data.append(char(r));data.append(char(g));data.append(char(b));}return data;};
-    for(unsigned family:{9u,10u})for(unsigned minor:(family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10}))
+    for(unsigned family:{9u,10u})for(unsigned minor:(family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10}))
       for(bool big:{false,true})for(int alignment:{1,4,8})for(unsigned local:(family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})){
         TextureFixture::Options options;options.big=big;options.coordinate=0;options.width=options.height=4;
         auto padded=[&](int width,int height,unsigned char r,unsigned char g,unsigned char b){
@@ -37,7 +37,7 @@ void textureMipTests(){
         options.alignment=alignment;options.pixels=padded(4,4,255,0,0);options.total=options.mipBytes=int(options.pixels.size());
         options.extraMips={padded(2,2,0,255,0),padded(1,1,255,255,0)};
         options.blendType=alignment==8?3:2;
-        options.version=local;options.legacyType=local==1?2:9;options.minFilter=3;options.baseVersion=family==10&&minor!=0?2:1;options.wrapped=family==10&&minor!=0;
+        options.version=local;options.legacyType=local==1?2:9;options.minFilter=3;options.baseVersion=family==10&&Fixture::modernTextureUsesSabot(minor)?2:1;options.wrapped=family==10&&Fixture::modernTextureUsesSabot(minor);
         const auto path=temp.filePath("mips.jt");
         auto write=[&](TextureFixture::Options value){if(family==9)TextureFixture::write9(path,minor,value);else TextureFixture::write(path,minor,value);};
         write(options);auto result=Jt::Importer::read(path);verify(*result.scene);

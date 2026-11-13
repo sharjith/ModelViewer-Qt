@@ -66,11 +66,11 @@ void texturePixelTests(){
     QTemporaryDir dir;check(dir.isValid(),"Cannot create pixel test directory");
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;geometry.materialDataFlags=0x3990;
     LegacyFixture::write(dir.filePath("blend.jt"),geometry);geometry.materialDataFlags=0x3980;LegacyFixture::write(dir.filePath("opaque.jt"),geometry);
-    for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool alpha:{false,true})
+    for(unsigned minor:{0u,2u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool alpha:{false,true})
         for(unsigned pixelType:{1u,2u,3u,5u,6u,7u,8u,9u})
         for(unsigned format:{1u,2u,3u,4u,7u,8u,9u,10u,11u,12u})
         for(int alignment:minor==0?std::vector<int>{1,2,4,8}:std::vector<int>{8}){
-            TextureFixture::Options o;o.coordinate=0;o.big=big;o.baseVersion=minor?2:1;o.wrapped=minor!=0;o.pixelFormat=format;o.alignment=alignment;o.pixelType=pixelType;
+            TextureFixture::Options o;o.coordinate=0;o.big=big;o.baseVersion=Fixture::modernTextureUsesSabot(minor)?2:1;o.wrapped=Fixture::modernTextureUsesSabot(minor);o.pixelFormat=format;o.alignment=alignment;o.pixelType=pixelType;
             QImage expected;author(o,expected,alpha);TextureFixture::write(dir.filePath("pixels.jt"),minor,o,alpha?"blend.jt":"opaque.jt");
             const auto result=Jt::Importer::read(dir.filePath("pixels.jt"));check(result.scene->mNumMeshes==1,"Pixel format lost geometry");
             const auto* material=result.scene->mMaterials[result.scene->mMeshes[0]->mMaterialIndex];aiString path;

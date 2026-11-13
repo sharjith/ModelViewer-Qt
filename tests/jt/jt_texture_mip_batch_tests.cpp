@@ -41,7 +41,7 @@ void textureMipBatchTests(){
     LegacyFixture::write(dir.filePath("geometry.jt"),geometry);
     const auto baseline=Jt::Importer::read(dir.filePath("geometry.jt"));
     using Node=TextureStackFixture::Node;
-    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10})
+    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})
     for(unsigned version:family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})for(bool big:{false,true}){
         auto read=[&](std::vector<TextureFixture::Options> attrs){
             std::vector<unsigned> ids;for(unsigned i=0;i<attrs.size();++i)ids.push_back(20+i);

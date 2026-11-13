@@ -55,10 +55,11 @@ Handle(JtNode_Partition) read(const QString& path,const Bytes& graph,unsigned mi
 void writeMaterialOrder(const QString& path,bool big,unsigned minor,bool reverse=false,bool firstFinal=false) {
     Bytes graph(big);Fixture::element(graph,Fixture::type("10dd103e"),1,Fixture::partition(big,{}, {2},reverse?std::initializer_list<unsigned>{21,20}:std::initializer_list<unsigned>{20,21}));
     Fixture::element(graph,Fixture::type("10dd103e"),2,Fixture::partition(big,"geometry.jt",{}));
+    const unsigned baseVersion=minor>=3?2:1;
     for(unsigned i=0;i<2;++i) {
-        Bytes m(big);m.u8(2);m.u8(8);m.u32(0);m.u32(i==0&&firstFinal?1u<<6:0);m.u8(1);m.u16(0x3980);
+        Bytes m(big);m.u8(baseVersion);m.u8(8);m.u32(0);m.u32(i==0&&firstFinal?1u<<6:0);m.u8(1);m.u16(0x3980);
         for(unsigned field=0;field<4;++field)for(unsigned c=0;c<4;++c)m.f32(c==3?1.f:field==1?float(c==i):0.f);
-        m.f32(15);m.f32(0);m.f32(1);m.u32(quint32(-1));attribute(graph,Fixture::type("10dd1030"),20+i,m,false);
+        m.f32(15);m.f32(0);m.f32(1);if(baseVersion==2)m.u32(quint32(-1));attribute(graph,Fixture::type("10dd1030"),20+i,m,false);
     }
     Fixture::end(graph);Fixture::end(graph);graph.u16(1);graph.u32(0);Fixture::container(path,graph,minor);
 }
@@ -141,7 +142,7 @@ void modernAttributeTests() {
     // Published list-order accumulation is shared by enabled modern revisions.
     // These generated graphs test semantics, not native tessellation qualification.
     {LegacyFixture::Options o;o.minorVersion=2;o.materialInhibit=0x1ff;LegacyFixture::write(tmp.filePath("geometry.jt"),o);}
-    for(bool big:{false,true})for(unsigned minor:{0,3,5,7,8,9,10})for(bool reverse:{false,true})for(bool firstFinal:{false,true}) {
+    for(bool big:{false,true})for(unsigned minor:{0,2,3,5,7,8,9,10})for(bool reverse:{false,true})for(bool firstFinal:{false,true}) {
         writeMaterialOrder(path,big,minor,reverse,firstFinal);auto result=Jt::Importer::read(path);aiColor4D c;
         const auto mesh=result.scene->mMeshes[0];const bool red=reverse||firstFinal;
         check(result.scene->mMaterials[mesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,c)==AI_SUCCESS&&c.r==float(red)&&c.g==float(!red),"Same-node material order/final semantics differ across modern versions");
@@ -161,7 +162,7 @@ void modernAttributeFixtureFiles(const QString& folder) {
 void materialOrderFixtureFiles(const QString& folder) {
     check(QDir().mkpath(folder),"Cannot create material-order fixture folder");
     LegacyFixture::Options o;o.minorVersion=2;o.materialInhibit=0x1ff;LegacyFixture::write(QDir(folder).filePath("geometry.jt"),o);
-    for(unsigned minor:{0,3,5,7,8,9,10})for(bool reverse:{false,true}) {
+    for(unsigned minor:{0,2,3,5,7,8,9,10})for(bool reverse:{false,true}) {
         const auto name=QString("order_10_%1_%2.jt").arg(minor).arg(reverse?"green_red":"red_green");
         writeMaterialOrder(QDir(folder).filePath(name),false,minor,reverse);
     }

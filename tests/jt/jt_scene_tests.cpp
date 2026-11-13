@@ -734,15 +734,15 @@ void vertexAlphaFixtureFiles(const QString& folder){
 void containerTests(const QString& samples) {
     QTemporaryDir temp;check(temp.isValid(),"Cannot create container directory");
     const auto path=temp.filePath("assembly.jt");
-    for(const char* version:{"6.4","7.0","8.3","9.1","9.2","9.3","9.4","9.6","10.1","10.2","10.4","10.6","10.11","11.0"}) {
+    for(const char* version:{"6.4","7.0","8.3","9.1","9.2","9.3","9.4","9.6","10.1","10.4","10.6","10.11","11.0"}) {
         Fixture::write(path,"",false,false);
         QFile file(path);check(file.open(QIODevice::ReadOnly),"Cannot read version fixture");auto bytes=file.readAll();file.close();
         const auto header=(QByteArray("Version ")+version+" JT original unsupported-version fixture").leftJustified(75,' ')+QByteArray(" \n\r\n ",5);
         bytes.replace(0,80,header);check(file.open(QIODevice::WriteOnly) && file.write(bytes)==bytes.size(),"Cannot write version fixture");file.close();
-        const auto message=std::string("Unsupported JT version ")+version+"; native reader supports qualified JT 8.0-8.2, JT 9.0, JT 9.5, JT 10.0, JT 10.3, JT 10.5, JT 10.7, JT 10.8, JT 10.9 and JT 10.10 subsets";
+        const auto message=std::string("Unsupported JT version ")+version+"; native reader supports qualified JT 8.0-8.2, JT 9.0, JT 9.5, JT 10.0, JT 10.2, JT 10.3, JT 10.5, JT 10.7, JT 10.8, JT 10.9 and JT 10.10 subsets";
         rejected([&]{Jt::Importer::read(path);},message.c_str());
     }
-    for(bool big:{false,true}) for(unsigned minor:{0,3,5,7,8,9,10}) {
+    for(bool big:{false,true}) for(unsigned minor:{0,2,3,5,7,8,9,10}) {
         Fixture::write(path,"missing.jt",big,true,false,false,minor);
         Handle(JtData_Model) model=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(path.utf16())));
         const auto root=model->Init();check(model->MinorVersion()==int(minor) && !root.IsNull() && root->Children().Count()==2,"Synthetic versioned container graph failed");
@@ -794,7 +794,7 @@ void containerTests(const QString& samples) {
     if(!samples.isEmpty()) {
         check(QFile::copy(QDir(samples).filePath("Bolt.jt"),temp.filePath("parts/leaf.jt")),"Cannot copy local validation part");
         Fixture::write(bridge,"leaf.jt",false,false);
-        for(bool big:{false,true}) for(unsigned minor:{0,3,5,7,8,9,10}) {
+        for(bool big:{false,true}) for(unsigned minor:{0,2,3,5,7,8,9,10}) {
             Fixture::write(path,"parts/bridge.jt",big,true,false,false,minor);
             auto result=Jt::Importer::read(path);
             check(result.scene->mNumMeshes==2 && references(*result.scene->mRootNode)==2,"External assembly resources/occurrences mismatch");

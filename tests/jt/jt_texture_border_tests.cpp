@@ -40,10 +40,10 @@ void explicitBorderTests(){
         check(result.scene->mMaterials[mesh.mMaterialIndex]->GetTexture(aiTextureType_DIFFUSE,0,&path)==AI_SUCCESS,"Sampled ring image association missing");
         const auto* image=result.scene->GetEmbeddedTexture(path.C_Str());check(image,"Sampled ring image missing");
         return QImage::fromData(reinterpret_cast<const uchar*>(image->pcData),int(image->mWidth)).convertToFormat(QImage::Format_RGBA8888);};
-    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10})
+    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})
     for(unsigned version:family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})for(bool big:{false,true}){
         TextureFixture::Options base;base.big=big;base.coordinate=0;base.version=version;base.legacyType=version==1?2:9;
-        base.baseVersion=family==10&&minor?2:1;base.wrapped=family==10&&minor;base.borderMode=2;base.imageBorder=1;base.alignment=8;
+        base.baseVersion=family==10&&Fixture::modernTextureUsesSabot(minor)?2:1;base.wrapped=family==10&&Fixture::modernTextureUsesSabot(minor);base.borderMode=2;base.imageBorder=1;base.alignment=8;
         const auto write=[&](TextureFixture::Options o,bool blend){if(family==9)TextureFixture::write9(dir.filePath("ring.jt"),minor,o,blend?"blend.jt":"opaque.jt");else TextureFixture::write(dir.filePath("ring.jt"),minor,o,blend?"blend.jt":"opaque.jt");};
         for(unsigned axes:{1u,2u,3u})for(bool blend:{false,true})for(unsigned type:{2u,3u,5u})for(int filter:{1,2}){
             auto o=base;const bool s=axes&1,t=axes&2;o.wrapS=s?5:3;o.wrapT=t?5:2;o.minFilter=filter;o.pixelType=type;pixels(o,true);write(o,blend);
@@ -81,10 +81,10 @@ void textureBorderTests(){
     QTemporaryDir dir;check(dir.isValid(),"Cannot create border test directory");
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;geometry.materialDataFlags=0x3990;
     LegacyFixture::write(dir.filePath("geometry.jt"),geometry);const auto baseline=Jt::Importer::read(dir.filePath("geometry.jt"));
-    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10})
+    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})
     for(unsigned version:family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})for(bool big:{false,true}){
         const auto write=[&](TextureFixture::Options o){if(family==9)TextureFixture::write9(dir.filePath("border.jt"),minor,o);else TextureFixture::write(dir.filePath("border.jt"),minor,o);};
-        TextureFixture::Options base;base.big=big;base.coordinate=0;base.version=version;base.legacyType=version==1?2:9;base.baseVersion=family==10&&minor?2:1;base.wrapped=family==10&&minor;base.alignment=8;
+        TextureFixture::Options base;base.big=big;base.coordinate=0;base.version=version;base.legacyType=version==1?2:9;base.baseVersion=family==10&&Fixture::modernTextureUsesSabot(minor)?2:1;base.wrapped=family==10&&Fixture::modernTextureUsesSabot(minor);base.alignment=8;
         for(int mode:{0,1,2})for(int wrap:{2,3,4})for(unsigned type:{2u,3u,5u}){
             auto o=base;o.borderMode=mode;o.imageBorder=mode==2?1:0;o.wrapS=o.wrapT=wrap;o.pixelType=type;pixels(o);write(o);
             const auto result=Jt::Importer::read(dir.filePath("border.jt"));

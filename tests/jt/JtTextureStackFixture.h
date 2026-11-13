@@ -17,10 +17,10 @@ inline void write(const QString& path,unsigned family,unsigned minor,bool big,un
         element(graph,type("10dd103e"),node.id,b);
     }
     for(size_t i=0;i<attributes.size();++i){auto o=attributes[i];o.big=big;o.version=version;
-        o.baseVersion=family==10&&minor?2:1;
+        o.baseVersion=family==10&&modernTextureUsesSabot(minor)?2:1;
         if(family==9){if(o.textureType!=9)o.legacyType=o.textureType;else o.legacyType=version==1?2:9;}
         const auto body=family==9?TextureFixture::body9(o):TextureFixture::body(o);
-        if(family==10&&minor){Bytes wrapped(big);wrapped.guid(type("10dd1073"));wrapped.u8(3);wrapped.u32(20+unsigned(i));wrapped.append(body);element(graph,"96603dd3-5a0f-40f5-97cb-1e9647cbd37e",1000+unsigned(i),wrapped,9);}
+        if(family==10&&modernTextureUsesSabot(minor)){Bytes wrapped(big);wrapped.guid(type("10dd1073"));wrapped.u8(3);wrapped.u32(20+unsigned(i));wrapped.append(body);element(graph,"96603dd3-5a0f-40f5-97cb-1e9647cbd37e",1000+unsigned(i),wrapped,9);}
         else element(graph,type("10dd1073"),20+unsigned(i),body,3);
     }
     end(graph);end(graph);graph.u16(1);graph.u32(0);

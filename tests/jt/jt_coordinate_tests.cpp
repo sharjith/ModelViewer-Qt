@@ -29,7 +29,7 @@ Fixture::Bytes stream(bool big,unsigned width,unsigned damage=0){
 JtDecode_VertexData::Decoded::Mover decode(const Fixture::Bytes& b,unsigned major,unsigned minor){Reader r(b,major,minor);auto decoder=JtDecode_VertexData::LoadCompressedCoords(r);check(decoder.operator bool(),"Cannot load coordinate packet");JtDecode_VertexData::Decoded result(decoder->Decode());check(r.pos==size_t(b.data.size()),"Coordinate packet envelope mismatch");return result.Move();}
 }
 void coordinateTests(){
- for(unsigned major:{9u,10u})for(unsigned minor:major==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10})for(bool big:{false,true}){
+ for(unsigned major:{9u,10u})for(unsigned minor:major==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})for(bool big:{false,true}){
   for(unsigned width:{1u,3u,8u,24u,31u,32u}){
    const auto b=stream(big,width);JtDecode_VertexData::Decoded d(decode(b,major,minor));
    const auto max=uint32_t((uint64_t(1)<<width)-1);

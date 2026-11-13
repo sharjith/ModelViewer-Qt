@@ -62,7 +62,7 @@ void seams(){
 }
 }
 void uvTests(){
- for(unsigned major:{9u,10u})for(unsigned minor:major==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,3,5,7,8,9,10})for(bool big:{false,true})for(bool quantized:{false,true}){
+ for(unsigned major:{9u,10u})for(unsigned minor:major==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})for(bool big:{false,true})for(bool quantized:{false,true}){
   for(unsigned sets=0;sets<=4;++sets){Fixture::Bytes bindingBytes(big);uint64_t flags=0;for(unsigned c=0;c<sets;++c)flags|=uint64_t(0x200)<<(4*c);bindingBytes.u64(flags);Reader r(bindingBytes,major,minor);JtElement_ShapeLOD_Vertex::VertexBinding2 binding;check(binding.Read(r)&&binding.TextureChannelCount()==sets,"Multi-UV binding/endian count changed");}
   for(uint64_t flags:{uint64_t(0x2222200),uint64_t(0x400),uint64_t(0x800)}){Fixture::Bytes b(big);b.u64(flags);Reader r(b,major,minor);JtElement_ShapeLOD_Vertex::VertexBinding2 binding;check(binding.Read(r),"UV negative binding read failed");reject([&]{binding.TextureChannelCount();});}
   for(unsigned mask=0;mask<16;++mask){Fixture::Bytes b(big);uint64_t flags=0;unsigned count=0;

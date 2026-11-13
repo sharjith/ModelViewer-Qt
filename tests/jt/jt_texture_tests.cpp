@@ -49,8 +49,8 @@ void mappedImages(const QString& folder){
     expected.setPixelColor(0,0,Qt::blue);expected.setPixelColor(1,0,Qt::white);
     expected.setPixelColor(0,1,Qt::red);expected.setPixelColor(1,1,Qt::green);
     check(expected.save(dir.filePath("original_texture.png")),"Cannot write original test image");
-    for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool inlined:{false,true}){
-        TextureFixture::Options o;o.coordinate=0;o.big=big;o.inlineImage=inlined;o.baseVersion=minor?2:1;o.wrapped=minor!=0;
+    for(unsigned minor:{0u,2u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool inlined:{false,true}){
+        TextureFixture::Options o;o.coordinate=0;o.big=big;o.inlineImage=inlined;o.baseVersion=Fixture::modernTextureUsesSabot(minor)?2:1;o.wrapped=Fixture::modernTextureUsesSabot(minor);
         const auto path=dir.filePath("mapped.jt");TextureFixture::write(path,minor,o,"uv_geometry.jt");
         const auto result=Jt::Importer::read(path);const auto& scene=*result.scene;
         check(scene.mNumTextures==1&&scene.mTextures[0]->mHeight==0,"Embedded PNG missing or duplicated");
@@ -73,6 +73,14 @@ void mappedImages(const QString& folder){
         check(copy&&copy->mNumTextures==1&&copy->mTextures[0]->mWidth==image->mWidth
             &&std::memcmp(copy->mTextures[0]->pcData,image->pcData,image->mWidth)==0,"Scene copy changed compressed texture bytes");
     }
+    // Authentic T102-A uses -1 here. Keep the geometry/version gate explicit:
+    // automatic source-set selection is a later appearance gate, not UV0.
+    TextureFixture::Options automatic;automatic.coordinate=-1;automatic.textureType=2;
+    TextureFixture::write(dir.filePath("automatic_102.jt"),2,automatic,"uv_geometry.jt");
+    const auto automaticFallback=Jt::Importer::read(dir.filePath("automatic_102.jt"));
+    check(automaticFallback.scene->mNumMeshes==1&&automaticFallback.scene->mNumTextures==0
+        &&std::any_of(automaticFallback.warnings.begin(),automaticFallback.warnings.end(),[](const QString& text){return text.contains("UV0-3");}),
+        "JT 10.2 automatic texture-coordinate fallback changed or became silent");
     check(QFile::remove(dir.filePath("original_texture.png")),"Cannot remove external test image");
     TextureFixture::Options missing;missing.coordinate=0;missing.inlineImage=false;
     TextureFixture::write(dir.filePath("missing.jt"),0,missing,"uv_geometry.jt");
@@ -96,7 +104,7 @@ void assimpUVConvention(){
 void textureTests(){
     QTemporaryDir temp;check(temp.isValid(),"Cannot create texture test directory");
     AlphaCubeFixture::write(temp.filePath("geometry.jt"),2,false,0.5f,0x3980);
-    for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool inlineImage:{false,true}){
+    for(unsigned minor:{0u,2u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool inlineImage:{false,true}){
         TextureFixture::Options o;o.big=big;o.inlineImage=inlineImage;
         for(unsigned base:{1u,2u}){o.baseVersion=base;auto bytes=TextureFixture::body(o);decode(bytes,minor,inlineImage);
             for(qsizetype n=0;n<bytes.data.size();++n){auto truncated=bytes;truncated.data.truncate(n);reject([&]{decode(truncated,minor,inlineImage);});}}
@@ -116,8 +124,8 @@ void textureTests(){
 void textureFixtureFiles(const QString& folder){
     check(QDir().mkpath(folder),"Cannot create texture fixture directory");QDir dir(folder);
     AlphaCubeFixture::write(dir.filePath("geometry.jt"),2,false,0.5f,0x3980);
-    for(unsigned minor:{0u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool inlineImage:{false,true}){
-        TextureFixture::Options o;o.big=big;o.inlineImage=inlineImage;o.baseVersion=minor?2:1;o.wrapped=minor!=0;
+    for(unsigned minor:{0u,2u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool inlineImage:{false,true}){
+        TextureFixture::Options o;o.big=big;o.inlineImage=inlineImage;o.baseVersion=Fixture::modernTextureUsesSabot(minor)?2:1;o.wrapped=Fixture::modernTextureUsesSabot(minor);
         const auto name=QString("texture_10_%1_%2_%3.jt").arg(minor).arg(big?"be":"le").arg(inlineImage?"inline":"external");
         TextureFixture::write(dir.filePath(name),minor,o);checkScene(dir.filePath(name));
     }

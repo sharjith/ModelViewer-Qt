@@ -346,7 +346,7 @@ glTF / GLB (also with Draco mesh compression and KTX2 textures), OBJ, FBX, COLLA
 
 ### JT Import
 
-The native JT (`.jt`) importer supports **JT 8.0-8.2, 9.0, 9.5, 10.0, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10**, subject to the representation and encoding limits below. Support for a version does not imply support for every record or codec that version permits.
+The native JT (`.jt`) importer supports **JT 8.0-8.2, 9.0, 9.5, 10.0, 10.2, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10**, subject to the representation and encoding limits below. Support for a version does not imply support for every record or codec that version permits.
 
 - Imports stored tessellation, assembly hierarchy, instance transforms, names, normals and supported appearance attributes. One supported level of detail is selected for display.
 - The shared 8.x path handles lossless and qualified quantized tessellation, including quantized positions, stored normals, UV coordinates and packed constant RGB(A) colours. Single-context CDP1 Huffman passed original packet/model fixtures and [C1a viewer checks](research/jt/JT_HUFFMAN_VALIDATION.md). Multi-context Huffman, nonconstant quantized colours, HSV quantizers and additional attribute bindings remain unsupported in this path.
