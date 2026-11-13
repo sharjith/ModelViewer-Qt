@@ -158,7 +158,7 @@ void SceneLightPropertiesPanel::retranslateUI()
 {
     _aimButton->setText(tr("Aim at Scene Centre"));
     _aimButton->setToolTip(tr("Point the light at the centre of the scene"));
-    _intensity->setToolTip(tr("Intensity as stored in glTF (candela for point and spot lights, lux for a sun)"));
+    _intensity->setToolTip(tr("Intensity as stored in glTF: candela (cd) for point and spot lights, lux (lx) for a sun.\nThe renderer treats the value as nominal."));
     _range->setSpecialValueText(tr("Unlimited"));
     _range->setToolTip(tr("Distance at which the light fades out completely; 0 means unlimited"));
     _titleLabel->setText(_editable ? tr("Scene Light") : tr("Imported Light (read-only)"));
@@ -184,6 +184,9 @@ void SceneLightPropertiesPanel::setLight(const GltfLightEntry& entry, bool edita
     showValue(_dir[0], light.direction.x);
     showValue(_dir[1], light.direction.y);
     showValue(_dir[2], light.direction.z);
+    // glTF's units: candela for point and spot lights, lux for a sun. The renderer treats them as nominal (it is not a photometric
+    // pipeline), but they keep the value meaningful when the light is exported.
+    _intensity->setSuffix(type == static_cast<int>(LightType::Directional) ? QStringLiteral(" lx") : QStringLiteral(" cd"));
     showValue(_intensity, light.intensity);
     showValue(_range, light.range);
     showValue(_innerCone, std::acos(std::clamp(light.innerConeCos, -1.0f, 1.0f)) * kRadToDeg);

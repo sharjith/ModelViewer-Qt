@@ -82,3 +82,7 @@ A light is deselected by clicking its selected row again (not its check box), cl
 ## Reset to defaults (owner request)
 
 Colour, intensity, range and the cone angles each have a small reset button beside them. Defaults: colour white; intensity 2 at the scene centre, so 2 x distance squared for a point or spot (the value the light got when added, but recomputed for its current position) and 2 for a sun; range 0 (unlimited); cone 20 and 35 degrees (the two angle boxes share one reset). Each reset is an undoable edit. Position and direction have no reset: Aim at Scene Centre covers the aim.
+
+## Intensity units (owner suggestion)
+
+The intensity spin box shows glTF's units as a suffix: "cd" (candela) for point and spot lights, "lx" (lux) for a sun. The renderer is not photometric, so the values stay nominal; the units keep them meaningful on glTF export.
