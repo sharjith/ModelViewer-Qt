@@ -226,8 +226,6 @@ _floorPlane(nullptr),
 	_skyBox(nullptr),
 	_axisCone(nullptr),
 	_transformGizmo(nullptr),
-	_lightCube(nullptr),
-	_lightSphere(nullptr),
 	_assimpModelLoader(nullptr)
 {
     setFocusPolicy(Qt::StrongFocus);
@@ -1076,8 +1074,6 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	if (_axisCone) { delete _axisCone; _axisCone = nullptr; }
 	if (_viewCube) { delete _viewCube; _viewCube = nullptr; }
 	if (_skyBox) { delete _skyBox; _skyBox = nullptr; }
-	if (_lightCube) { delete _lightCube; _lightCube = nullptr; }
-	if (_lightSphere) { delete _lightSphere; _lightSphere = nullptr; }
 	for (LightFixtureRenderable** fixture : { &_fixtureBulbGlass, &_fixtureBulbBase, &_fixtureBulbHalo, &_fixtureSpotBody, &_fixtureSpotLens,
 	                                          &_fixtureSunHead, &_fixtureBeamCone, &_fixtureBeamRim, &_fixtureBeamFill, &_fixtureLampShade })
 	{
@@ -3573,8 +3569,8 @@ void ViewportWidget::updateBoundingBox()
 
 void ViewportWidget::updateFloorPlane()
 {
-	// loadRenderSettings() (called from initializeGL(), before _lightCube -
-	// touched by updateFloorGeometry() below - is constructed) emits
+	// loadRenderSettings() (called from initializeGL(), before the GL objects
+	// that the floor and light code below use are constructed) emits
 	// displayModeChanged partway through initializeGL(), and
 	// VisualizationEnvironmentPanel::onDisplayModeChanged() reacts to it by
 	// calling setGroundMode() -> here. Harmless for every normal (post-init)
@@ -7148,13 +7144,8 @@ void ViewportWidget::updateClipBoxGizmos()
 
 void ViewportWidget::createLights()
 {
-	if (_lightCube == nullptr)
+	if (_fixtureBulbGlass == nullptr)
 	{
-		_lightCube = new CubeRenderable(_renderCtrl.lightCubeShader(), 10);
-		_lightSphere = new SphereRenderable(_renderCtrl.lightCubeShader(), 1, 16, 16);
-		registerDecorationGpuResource(_lightCube, [this] { return _renderCtrl.lightCubeShader(); });
-		registerDecorationGpuResource(_lightSphere, [this] { return _renderCtrl.lightCubeShader(); });
-
 		using Part = LightFixtureGeometry::Part;
 		const auto makeFixture = [this](LightFixtureRenderable*& slot, Part part) {
 			slot = new LightFixtureRenderable(_renderCtrl.lightFixtureShader(), part);
@@ -7486,8 +7477,6 @@ float ViewportWidget::updateFloorGeometry()
 		else
 			_floorSize = std::max(_viewCtrl.boundingBox().getXSize(), _viewCtrl.boundingBox().getZSize()) / 1.25f;
 	}
-
-	_lightCube->setSize(halfObjectSize * 0.1f);
 
 	return halfObjectSize;
 }

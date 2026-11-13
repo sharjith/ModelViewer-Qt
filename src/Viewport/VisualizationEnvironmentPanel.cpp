@@ -1578,7 +1578,7 @@ void VisualizationEnvironmentPanel::onDisplayModeChanged(int mode)
 	if (!_viewportWidget || !ui)
 		return;
 	// ViewportWidget::loadRenderSettings() (called from initializeGL(), well
-	// before GL-dependent state like _lightCube exists) emits
+	// before GL-dependent state like the light fixtures exists) emits
 	// displayModeChanged partway through init - this function reacts by
 	// touching viewport render state (setGroundMode() -> floor geometry,
 	// setSkyBoxTextureHDRI(), etc.) that isn't ready yet at that point.

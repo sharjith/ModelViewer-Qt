@@ -2933,8 +2933,6 @@ private:
 	// Iso-surfaces or streamlines of a result that is shown: the section cap would hide them, so it is not drawn.
 	bool simulationOverlaysHideCaps() const;
 
-	CubeRenderable* _lightCube;
-	SphereRenderable* _lightSphere;
 	// Fixture gizmos of the imported punctual lights (see drawLights()): one renderable per part.
 	LightFixtureRenderable* _fixtureBulbGlass = nullptr;
 	LightFixtureRenderable* _fixtureBulbBase = nullptr;

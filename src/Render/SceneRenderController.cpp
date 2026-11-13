@@ -533,7 +533,6 @@ void SceneRenderController::initShaders(const QString& path)
     load(_textShader,               "_textShader",               path + "shaders/text.vert",                 path + "shaders/text.frag");
     load(_bgShader,                 "_bgShader",                 path + "shaders/background.vert",           path + "shaders/background.frag");
     load(_bgSplitShader,            "_bgSplitShader",            path + "shaders/splitScreen.vert",          path + "shaders/splitScreen.frag");
-    load(_lightCubeShader,          "_lightCubeShader",          path + "shaders/light_cube.vert",           path + "shaders/light_cube.frag");
     load(_lightFixtureShader,       "_lightFixtureShader",       path + "shaders/light_fixture.vert",        path + "shaders/light_fixture.frag");
     load(_viewCubeShader,           "_viewCubeShader",           path + "shaders/viewcube.vert",             path + "shaders/viewcube.frag");
     load(_viewCubeLabelShader,      "_viewCubeLabelShader",      path + "shaders/viewcube_label.vert",       path + "shaders/viewcube_label.frag");
