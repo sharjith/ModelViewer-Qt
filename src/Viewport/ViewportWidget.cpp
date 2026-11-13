@@ -13458,6 +13458,7 @@ void ViewportWidget::drawLights(Camera* camera)
 	std::vector<BeamDraw> beams;
 	struct HaloDraw { QMatrix4x4 model; QVector3D color; };
 	std::vector<HaloDraw> halos;
+	std::vector<HaloDraw> shades;   // translucent housings (the main lamp's shade); the colour is the light colour
 
 	{
 		// The main light: a bulb hung upside down (base at the top) under a shade, aimed down the scene's up axis.
@@ -13468,7 +13469,7 @@ void ViewportWidget::drawLights(Camera* camera)
 		const QMatrix4x4 lampFrame = fixtureFrame(lampPosition, -sceneUp, sceneUp, fixtureScale(lampPosition));
 		drawPart(_fixtureBulbGlass, lampFrame, 1, lampGlow);
 		drawPart(_fixtureBulbBase, lampFrame, 0, lampColor, housingColor);
-		drawPart(_fixtureLampShade, lampFrame, 0, lampColor, QVector3D(0.55f, 0.57f, 0.62f));
+		shades.push_back({ lampFrame, lampColor });
 		halos.push_back({ lampFrame, lampGlow });
 	}
 
@@ -13533,6 +13534,20 @@ void ViewportWidget::drawLights(Camera* camera)
 			drawPart(_fixtureBulbBase, frame, 0, emissiveColor, housingColor);
 			halos.push_back({ frame, glowColor });
 		}
+	}
+
+	// Translucent shades: ordinary alpha blending over the opaque parts, without writing depth, before the additive glow.
+	if (!shades.empty())
+	{
+		const bool blendWasEnabled = glIsEnabled(GL_BLEND);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+		glDepthMask(GL_FALSE);
+		for (const HaloDraw& shade : shades)
+			drawPart(_fixtureLampShade, shade.model, 5, shade.color, QVector3D(0.62f, 0.64f, 0.70f));
+		glDepthMask(GL_TRUE);
+		if (!blendWasEnabled)
+			glDisable(GL_BLEND);
 	}
 
 	// Halos last: additive, blended over everything drawn so far, without writing depth.

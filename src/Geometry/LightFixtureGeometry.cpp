@@ -225,13 +225,13 @@ LightFixtureGeometry::LightFixtureGeometry(Part part)
     }
     case Part::LampShade:
     {
-        // Cone shade over the bulb: a small cap at the top (-Z), flaring to a rim past the glass. Outward normal of the cone wall is
-        // (0.879, -0.478) in (r, z); the inside is the same wall with the normal reversed.
-        segment(profile, 0.0f, -1.95f, 0.25f, -1.95f, 0.0f, -1.0f);              // cap
-        segmentAuto(profile, 0.25f, -1.95f, 1.5f, 0.35f, true);                  // outside of the cone
-        segment(profile, 1.5f, 0.35f, 1.44f, 0.35f, 0.0f, 1.0f);                 // rim
-        segment(profile, 1.44f, 0.35f, 0.2f, -1.9f, -0.879f, 0.478f);            // inside of the cone
-        addLathe(profile, kAroundSegments);
+        // A flat, wide cone shade sitting where the glass ends and the holder begins: it starts as a collar around the neck (z = -0.98,
+        // just above the base) and flares to a rim at z = -0.35, above the glass. The viewport draws it translucent so the holder shows
+        // through. Outward normal of the wall is (0.355, -0.935) in (r, z); the inside is the same wall with the normal reversed.
+        segmentAuto(profile, 0.34f, -0.98f, 2.0f, -0.35f, true);                 // top of the cone
+        segment(profile, 2.0f, -0.35f, 1.95f, -0.35f, 0.0f, 1.0f);               // rim
+        segment(profile, 1.95f, -0.35f, 0.31f, -0.95f, -0.355f, 0.935f);         // underside of the cone
+        addLathe(profile, 56);
         break;
     }
     case Part::BeamFill:

@@ -23,7 +23,7 @@ public:
         BeamCone,    // lines: apex at the origin, rim at z = 1 with radius 1 (scale z and xy separately)
         BeamRim,     // lines: the circle at z = 1 with radius 1 (the inner cone angle)
         BeamFill,    // glow: the cone surface as triangles (apex at the origin, rim at z = 1, radius 1), drawn additively
-        LampShade    // housing: open cone shade over the bulb, opening towards +Z (the main light hangs the bulb upside down)
+        LampShade    // housing, drawn translucent: flat cone between the glass and the holder (the main light hangs the bulb upside down)
     };
 
     explicit LightFixtureGeometry(Part part);

@@ -9,7 +9,7 @@ out vec4 fragColor;
 
 uniform vec3 lightColor;   // the light's own colour, already scaled by the display brightness
 uniform vec3 baseColor;    // housing colour
-uniform int  mode;         // 0 = housing (lit), 1 = emissive (glass, lens, sun), 2 = flat line, 3 = halo, 4 = beam glow
+uniform int  mode;         // 0 = housing (lit), 1 = emissive (glass, lens, sun), 2 = flat line, 3 = halo, 4 = beam glow, 5 = translucent housing
 
 void main()
 {
@@ -55,5 +55,6 @@ void main()
     vec3 shaded = baseColor * (0.28 + 0.72 * facing) + vec3(rim);
     // Housings pick up a trace of the light colour so the fixture reads as part of that light.
     shaded += lightColor * 0.05;
-    fragColor = vec4(shaded, 1.0);
+    // Mode 5 is the same housing shading, translucent (the lamp shade, so the holder shows through it).
+    fragColor = vec4(shaded, mode == 5 ? 0.55 : 1.0);
 }
