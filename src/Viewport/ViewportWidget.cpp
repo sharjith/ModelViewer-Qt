@@ -11911,8 +11911,12 @@ void ViewportWidget::syncTransformGizmoToSelection()
 		_transformGizmo->setScaleHandlesVisible(false);
 		_transformGizmo->setTranslateHandlesVisible(type != static_cast<int>(LightType::Directional));
 		_transformGizmo->setRotateHandlesVisible(type != static_cast<int>(LightType::Point));
-		// While aiming a sun its head moves, so the pivot stays where the drag began.
-		_transformGizmo->setPivot(_lightDrag.active ? _lightDrag.pivot : lightFixturePosition(lightEntry.gpuLight));
+		// The gizmo follows the light while it is dragged. Only while aiming does it stay where the drag began, because a sun's
+		// head moves as its direction turns and the rotation is measured around that fixed point.
+		const bool aiming = _lightDrag.active && (_lightDrag.handle == TransformGizmo::Handle::RotateXY
+		                                       || _lightDrag.handle == TransformGizmo::Handle::RotateYZ
+		                                       || _lightDrag.handle == TransformGizmo::Handle::RotateZX);
+		_transformGizmo->setPivot(aiming ? _lightDrag.pivot : lightFixturePosition(lightEntry.gpuLight));
 		_transformGizmo->setVisible(true);
 		return;
 	}
@@ -17795,6 +17799,11 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 		update();
 		return;
 	}
+	if ((e->button() & Qt::LeftButton) && _lightDragCancelled)
+	{
+		_lightDragCancelled = false;   // the press that started the cancelled drag ends here, with no other effect
+		return;
+	}
 	if ((e->button() & Qt::LeftButton) && _lightDrag.active)
 	{
 		finishLightGizmoDrag(true);
@@ -18176,6 +18185,8 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 	}
 
+	if (_lightDragCancelled && (e->buttons() & Qt::LeftButton))
+		return;   // the drag was cancelled with Escape; ignore the rest of the gesture
 	if (_lightDrag.active && (e->buttons() & Qt::LeftButton))
 	{
 		updateLightGizmoDrag(e->pos());
@@ -18496,7 +18507,7 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 	if (e->buttons() == Qt::NoButton)
 	{
 		if (!(e->modifiers() & Qt::ControlModifier) &&
-			_viewCtrl.transformGizmoRequested() && _transformGizmo &&
+			(_viewCtrl.transformGizmoRequested() || lightGizmoActive()) && _transformGizmo &&
 			_transformGizmo->updateHover(e->pos(), _primaryCamera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(),
 				QRect(0, 0, width(), height()), kTransformGizmoMinWorldScale))
 		{
@@ -18730,6 +18741,15 @@ void ViewportWidget::keyPressEvent(QKeyEvent* event)
 	QWidget::keyPressEvent(event);
 
 	const auto key = event->key();
+
+	// Escape cancels a light drag in progress: the light goes back to where it was. The rest of that mouse gesture is ignored.
+	if (key == Qt::Key_Escape && _lightDrag.active)
+	{
+		finishLightGizmoDrag(false);
+		_lightDragCancelled = true;
+		update();
+		return;
+	}
 
 	if (key == Qt::Key_Escape && _plot3DNotePlaceArmed)
 	{

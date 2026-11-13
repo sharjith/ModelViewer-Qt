@@ -2978,6 +2978,7 @@ private:
 		GltfLightEntry           currentEntry;
 	};
 	LightGizmoDrag _lightDrag;
+	bool _lightDragCancelled = false;   // Escape cancelled the drag; the mouse is still down, and the rest of its gesture is ignored
 
 	// The selected light, when it is a scene light that exists; false otherwise.
 	bool selectedSceneLight(GltfLightEntry& entry) const;
