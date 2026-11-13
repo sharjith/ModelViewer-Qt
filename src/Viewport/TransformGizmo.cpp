@@ -197,10 +197,14 @@ void TransformGizmo::render(ShaderProgram* axisShader, ConeRenderable* axisCone,
 	GLboolean depthWasEnabled = glIsEnabled(GL_DEPTH_TEST);
 	glDisable(GL_DEPTH_TEST);
 
-	drawAxes(axisShader, axisCone, viewMatrix, projectionMatrix, worldScale);
-	drawScaleHandle(axisShader, viewMatrix, projectionMatrix, worldScale);
-	drawArcs(axisShader, viewMatrix, projectionMatrix, worldScale);
-	drawAxisScaleHandles(axisShader, viewMatrix, projectionMatrix, worldScale);
+	if (_translateHandlesVisible)
+		drawAxes(axisShader, axisCone, viewMatrix, projectionMatrix, worldScale);
+	if (_scaleHandlesVisible)
+		drawScaleHandle(axisShader, viewMatrix, projectionMatrix, worldScale);
+	if (_rotateHandlesVisible)
+		drawArcs(axisShader, viewMatrix, projectionMatrix, worldScale);
+	if (_scaleHandlesVisible)
+		drawAxisScaleHandles(axisShader, viewMatrix, projectionMatrix, worldScale);
 
 	if (depthWasEnabled)
 		glEnable(GL_DEPTH_TEST);
@@ -233,6 +237,8 @@ TransformGizmo::Handle TransformGizmo::hitTest(const QPoint& pixel, const Camera
 
 	for (const AxisCandidate& axis : axisCandidates)
 	{
+		if (!_translateHandlesVisible)
+			break;
 		const QVector3D endScreen3 = projectToScreen(axis.endpoint, viewMatrix, projectionMatrix, viewport);
 		const QVector2D endScreen(endScreen3.x(), endScreen3.y());
 		const QVector2D arrowBase = pivotScreen + ((endScreen - pivotScreen) * kArrowBaseScale);
@@ -259,6 +265,8 @@ TransformGizmo::Handle TransformGizmo::hitTest(const QPoint& pixel, const Camera
 
 	for (const AxisScaleCandidate& axisScale : axisScaleCandidates)
 	{
+		if (!_scaleHandlesVisible)
+			break;
 		const QVector3D centerWorld = _pivot + (axisScale.axisDir * (kAxisScaleHandleDistance * worldScale));
 		const QVector3D centerScreen3 = projectToScreen(centerWorld, viewMatrix, projectionMatrix, viewport);
 		const QVector2D centerScreen(centerScreen3.x(), centerScreen3.y());
@@ -283,6 +291,8 @@ TransformGizmo::Handle TransformGizmo::hitTest(const QPoint& pixel, const Camera
 
 	for (const ArcCandidate& arc : arcCandidates)
 	{
+		if (!_rotateHandlesVisible)
+			break;
 		QVector2D previousPoint;
 		bool hasPreviousPoint = false;
 		for (int i = 0; i <= kArcSegments; ++i)
@@ -342,6 +352,8 @@ TransformGizmo::Handle TransformGizmo::hitTest(const QPoint& pixel, const Camera
 
 	for (const auto& segment : scaleSegmentIndices)
 	{
+		if (!_scaleHandlesVisible)
+			break;
 		const QVector3D a3 = projectToScreen(scalePointsWorld[segment[0]], viewMatrix, projectionMatrix, viewport);
 		const QVector3D b3 = projectToScreen(scalePointsWorld[segment[1]], viewMatrix, projectionMatrix, viewport);
 		const QVector2D a(a3.x(), a3.y());

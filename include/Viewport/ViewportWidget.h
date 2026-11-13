@@ -2963,6 +2963,33 @@ private:
 	LightFixtureRenderable* _fixtureLampShade = nullptr;
 	QString _selectedLightFile;          // source file key of the selected light ("__user__" for scene lights)
 	int     _selectedLightIndex = -1;    // its index within that file's lights; -1 = no selection
+
+	// Dragging a handle of the transform gizmo on the selected scene light (move along an axis, or turn the aim about an axis).
+	struct LightGizmoDrag
+	{
+		bool                     active = false;
+		TransformGizmo::Handle   handle = TransformGizmo::Handle::None;
+		QPoint                   startPixel;
+		QVector3D                axis;          // translation axis, or the rotation plane's normal
+		QVector3D                pivot;         // gizmo pivot when the drag began
+		float                    dragScale = 1.0f;   // world length of the axis used to turn mouse motion into distance
+		QVector3D                startVector;   // rotation: start direction in the plane, from the pivot
+		GltfLightEntry           startEntry;
+		GltfLightEntry           currentEntry;
+	};
+	LightGizmoDrag _lightDrag;
+
+	// The selected light, when it is a scene light that exists; false otherwise.
+	bool selectedSceneLight(GltfLightEntry& entry) const;
+	// Where a light's fixture (and its gizmo) sits in the scene: the emitter for point and spot lights, the sun head for a sun.
+	QVector3D lightFixturePosition(const GPULight& light) const;
+	// True while the transform gizmo is showing for the selected scene light.
+	bool lightGizmoActive() const;
+	// A left press at `pixel`: grab a handle of the selected light's gizmo, or select the light fixture under the cursor.
+	bool handleLightPress(const QPoint& pixel);
+	bool beginLightGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel);
+	void updateLightGizmoDrag(const QPoint& pixel);
+	void finishLightGizmoDrag(bool commit);
 	// _showLights â†’ SceneRenderController (Phase 12)
 
 	// GPU-context-recreation-survival registry (see IGpuContextResource.h) -

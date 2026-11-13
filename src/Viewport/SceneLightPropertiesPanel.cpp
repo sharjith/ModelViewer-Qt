@@ -25,6 +25,10 @@ QDoubleSpinBox* makeSpin(QWidget* parent, double min, double max, int decimals, 
     box->setSingleStep(step);
     box->setKeyboardTracking(false);   // report an edit when it is finished (Enter, focus out, arrows), not per keystroke
     box->setAlignment(Qt::AlignRight);
+    // A spin box asks for the width of its widest possible text (its range limits), which made the panel far wider than the dock. An
+    // explicit minimum overrides that; the box still grows with the layout.
+    box->setMinimumWidth(48);
+    box->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     return box;
 }
 
@@ -65,6 +69,8 @@ SceneLightPropertiesPanel::SceneLightPropertiesPanel(QWidget* parent)
     _form->addRow(_titleLabel);
 
     _nameEdit = new QLineEdit(this);
+    _nameEdit->setMinimumWidth(48);
+    _nameEdit->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
     _typeLabel = new QLabel(this);
     _positionRow = makeTriple(this, _pos, -1.0e7, 1.0e7, 4, 0.1);
     _directionRow = new QWidget(this);

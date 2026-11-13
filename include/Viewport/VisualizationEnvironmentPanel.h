@@ -9,6 +9,7 @@
 #include <memory>
 
 class QFrame;
+class QLabel;
 
 namespace Ui {
 	class VisualizationEnvironmentPanel;
@@ -271,6 +272,7 @@ private:
 	// a range refresh never moves a light the user placed.
 	bool _lightOffsetIsDefault = true;
 
+	QLabel* _lightsAdsHint = nullptr;                   // "lights are ignored in ADS" note under the lights tree
 	SceneLightPropertiesPanel* _lightProps = nullptr;   // numeric editor for the selected light, under the lights tree
 	QMetaObject::Connection _viewportLightSelectionConnection;
 

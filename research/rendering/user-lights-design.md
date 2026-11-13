@@ -1,6 +1,6 @@
 # User-added lights: design note
 
-Status: decisions made 2026-11-13; slice 1 built and owner-tested (ac6a11b); slice 2 written, not yet built. Branch: `feature/user-lights` (from `dev` 34796ec).
+Status: decisions made 2026-11-13; slice 1 built and owner-tested (ac6a11b); slice 2 owner-tested (4e5b77c); slice 3 built, not yet tested. Branch: `feature/user-lights` (from `dev` 34796ec).
 
 ## Goal
 
@@ -66,3 +66,11 @@ Decisions (owner, 2026-11-13): imported lights are selectable but read-only; the
 - `SceneLightPropertiesPanel` (under the tree): name, type, position, direction and Aim at Scene Centre, colour, intensity, range (0 = unlimited), inner and outer cone angles. Rows that do not apply to the type are hidden; imported lights are shown disabled.
 - `EditUserLightCommand` applies each edit through the undo stack and merges consecutive edits of the same field of the same light; `SceneGraph::replaceUserLight()`.
 - Not in this slice: picking fixtures in the viewport, the transform gizmo (slice 3).
+
+## Slice 3 notes (built, not yet tested)
+
+- The panel's spin boxes got an explicit minimum width (the panel was wider than the dock); an italic hint under the lights tree is shown only in ADS mode, which ignores punctual lights (the ADS path shades with the default light alone).
+- Clicking a light fixture in the viewport (within 26 pixels of its centre) selects it; the selection replaces any mesh selection, and selecting a mesh ends the light selection.
+- A selected scene light shows the transform gizmo: translate arrows (not for a sun, which has no position) and rotate arcs that turn the aim (not for a point light); the scale handles are hidden (`TransformGizmo::set*HandlesVisible`). The gizmo is shown while Show Lights is on, without needing the mesh gizmo to be requested.
+- Drags are shown live and end as one undo step (`EditUserLightCommand`, Position or Direction). Imported lights stay read-only.
+- Not done: hover highlight of the light gizmo's handles; cancelling a drag with Escape.

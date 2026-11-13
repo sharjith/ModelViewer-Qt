@@ -14,6 +14,7 @@
 #include <QFrame>
 #include <QGridLayout>
 #include <QImage>
+#include <QLabel>
 #include <QDir>
 #include <QDebug>
 #include <QMouseEvent>
@@ -201,9 +202,20 @@ void VisualizationEnvironmentPanel::initialize(ModelViewer* modelViewer, Viewpor
 			_lightTreeResizeHandle = handle;
 
 			// The numeric editor for the selected light sits under the tree; it stays hidden until a light is selected.
+			// A note shown only in ADS mode, whose shading uses the default light alone (see updateControlDependencies()).
+			_lightsAdsHint = new QLabel(tr("Scene and imported lights apply in PBR and ray-traced modes. ADS uses the default light only."),
+			                            ui->groupBoxPunctualLights);
+			_lightsAdsHint->setWordWrap(true);
+			_lightsAdsHint->setVisible(false);
+			QFont hintFont = _lightsAdsHint->font();
+			hintFont.setItalic(true);
+			_lightsAdsHint->setFont(hintFont);
+			if (gl)
+				gl->addWidget(_lightsAdsHint, 3, 0);
+
 			_lightProps = new SceneLightPropertiesPanel(ui->groupBoxPunctualLights);
 			if (gl)
-				gl->addWidget(_lightProps, 3, 0);
+				gl->addWidget(_lightProps, 4, 0);
 			_lightProps->hide();
 			connect(_lightProps, &SceneLightPropertiesPanel::edited, this, &VisualizationEnvironmentPanel::onLightPropertyEdited);
 			connect(_lightProps, &SceneLightPropertiesPanel::aimAtCentreRequested, this,
@@ -504,6 +516,8 @@ void VisualizationEnvironmentPanel::updateControlDependencies()
 	bool skyBoxHDRIEnabled = skyBoxEnabled && ui->checkBoxSkyBoxHDRI->isChecked();
 	bool floorTextureEnabled = floorEnabled && ui->checkBoxFloorTexture->isChecked();
 	bool adsMode = _viewportWidget && _viewportWidget->getRenderingMode() == RenderingMode::ADS_BLINN_PHONG;
+	if (_lightsAdsHint)
+		_lightsAdsHint->setVisible(adsMode);
 	// NOT RenderingMode::RAY_TRACED - ModelViewer::onRenderingModeSelected()'s
 	// "RayTraced" branch deliberately keeps getRenderingMode() at
 	// PHYSICALLY_BASED_RENDERING (so the live PBR raster feed keeps showing

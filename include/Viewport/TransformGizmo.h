@@ -53,6 +53,11 @@ public:
 	bool isVisible() const { return _visible; }
 
 	void setPivot(const QVector3D& pivot) { _pivot = pivot; }
+	// Which handle families are drawn and can be grabbed (all by default). A light has no scale, a point light no aim to rotate, and
+	// a sun no position to move.
+	void setTranslateHandlesVisible(bool visible) { _translateHandlesVisible = visible; }
+	void setScaleHandlesVisible(bool visible) { _scaleHandlesVisible = visible; }
+	void setRotateHandlesVisible(bool visible) { _rotateHandlesVisible = visible; }
 	QVector3D pivot() const { return _pivot; }
 	Handle hoveredHandle() const { return _hoveredHandle; }
 	Handle activeHandle() const { return _activeHandle; }
@@ -89,6 +94,9 @@ private:
 	                          const QMatrix4x4& projectionMatrix, float worldScale);
 
 	bool _visible = false;
+	bool _translateHandlesVisible = true;
+	bool _scaleHandlesVisible = true;
+	bool _rotateHandlesVisible = true;
 	bool _initialized = false;
 	QVector3D _pivot = QVector3D(0.0f, 0.0f, 0.0f);
 	Handle _hoveredHandle = Handle::None;

@@ -13,6 +13,7 @@
 #include "AssemblyRelationGraph.h"
 #include "ExplodedViewManager.h"
 #include "SceneGraph.h"
+#include "EditUserLightCommand.h"
 #include "ConeRenderable.h"
 #include "OverlayLineWeights.h"
 #include "CubeRenderable.h"
@@ -551,6 +552,12 @@ _floorPlane(nullptr),
 	// Connect SelectionManager signals to ViewportWidget update
 	connect(_selectionManager, &SelectionManager::hoverChanged,
 			this, [this](int) { update(); });
+	// The gizmo works on one target at a time: selecting a mesh ends the light selection.
+	connect(this, &ViewportWidget::selectionChanged,
+			this, [this](const QList<int>& selectedIds) {
+				if (!selectedIds.isEmpty())
+					selectLight(QString(), -1);
+			});
 	connect(_selectionManager, &SelectionManager::selectionChanged,
 			this, [this](const QList<int>& selectedIds) {
 				if (selectedIds.isEmpty()) {
@@ -11764,7 +11771,7 @@ void ViewportWidget::drawAxis(Camera* camera, const QMatrix4x4* overrideViewMatr
 
 void ViewportWidget::drawTransformGizmo(Camera* camera)
 {
-	if (!_transformGizmo || !_viewCtrl.transformGizmoRequested())
+	if (!_transformGizmo || (!_viewCtrl.transformGizmoRequested() && !lightGizmoActive()))
 		return;
 
 	syncTransformGizmoToSelection();
@@ -11894,6 +11901,24 @@ void ViewportWidget::syncTransformGizmoToSelection()
 {
 	if (!_transformGizmo)
 		return;
+
+	// A selected scene light takes the gizmo: moves it (not a sun, which has no position) and aims it (not a point light, which
+	// has no aim); a light has no scale. A mesh selection gets the full gizmo back.
+	GltfLightEntry lightEntry;
+	if (lightGizmoActive() && selectedSceneLight(lightEntry))
+	{
+		const int type = lightEntry.gpuLight.type;
+		_transformGizmo->setScaleHandlesVisible(false);
+		_transformGizmo->setTranslateHandlesVisible(type != static_cast<int>(LightType::Directional));
+		_transformGizmo->setRotateHandlesVisible(type != static_cast<int>(LightType::Point));
+		// While aiming a sun its head moves, so the pivot stays where the drag began.
+		_transformGizmo->setPivot(_lightDrag.active ? _lightDrag.pivot : lightFixturePosition(lightEntry.gpuLight));
+		_transformGizmo->setVisible(true);
+		return;
+	}
+	_transformGizmo->setScaleHandlesVisible(true);
+	_transformGizmo->setTranslateHandlesVisible(true);
+	_transformGizmo->setRotateHandlesVisible(true);
 
 	if (!_viewCtrl.transformGizmoRequested() || !_viewer)
 	{
@@ -17632,6 +17657,15 @@ void ViewportWidget::mousePressEvent(QMouseEvent* e)
 			setSelectedAnnotationIds({});
 		}
 
+		// Lights: a handle of the selected scene light's gizmo, or a light fixture under the cursor. Both are small and sit on top of
+		// the scene, so they win over mesh selection.
+		if (!(e->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier)) && !_compareActive && !_lassoToolArmed
+			&& handleLightPress(clickPoint))
+		{
+			update();
+			return;
+		}
+
 		if (!(e->modifiers() & Qt::ControlModifier) &&
 			_viewCtrl.transformGizmoRequested() && _transformGizmo &&
 			_transformGizmo->activateHandleAt(clickPoint, _primaryCamera, _viewCtrl.viewMatrix(), _viewCtrl.projectionMatrix(),
@@ -17758,6 +17792,12 @@ void ViewportWidget::mouseReleaseEvent(QMouseEvent* e)
 		_plot3DNoteDrag = -1;
 		if (_plot3DNoteDragMoved && index < _plot3DNotes.size())
 			emit plot3DNoteMoved(_plot3DNotes[index].plot, _plot3DNotes[index].index, _plot3DNotes[index].position);
+		update();
+		return;
+	}
+	if ((e->button() & Qt::LeftButton) && _lightDrag.active)
+	{
+		finishLightGizmoDrag(true);
 		update();
 		return;
 	}
@@ -18136,6 +18176,13 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		}
 	}
 
+	if (_lightDrag.active && (e->buttons() & Qt::LeftButton))
+	{
+		updateLightGizmoDrag(e->pos());
+		_viewCtrl.setLastMousePos(currentPos);
+		_viewCtrl.setLastMouseTime(currentTime);
+		return;
+	}
 	if (_viewCtrl.transformGizmoTranslating() && (e->buttons() & Qt::LeftButton))
 	{
 		notifyRayTracedSceneMutated();
@@ -20392,6 +20439,231 @@ void ViewportWidget::userLightsChanged()
 	refreshFallbackLight();
 	notifyRayTracedSceneMutated();
 	update();
+}
+
+bool ViewportWidget::selectedSceneLight(GltfLightEntry& entry) const
+{
+	if (_selectedLightIndex < 0 || !SceneGraph::isUserLightsKey(_selectedLightFile) || !_viewer || !_viewer->sceneGraph())
+		return false;
+	const GltfLightData data = _viewer->sceneGraph()->lightDataForFile(_selectedLightFile);
+	if (_selectedLightIndex >= data.lights.size())
+		return false;
+	entry = data.lights[_selectedLightIndex];
+	return true;
+}
+
+QVector3D ViewportWidget::lightFixturePosition(const GPULight& light) const
+{
+	if (light.type == static_cast<int>(LightType::Directional))
+	{
+		// Same placement as the sun head in drawLights(): outside the scene, on the side the light comes from.
+		QVector3D dir(light.direction.x, light.direction.y, light.direction.z);
+		if (dir.lengthSquared() < 1e-6f)
+			dir = QVector3D(0.0f, 0.0f, -1.0f);
+		dir.normalize();
+		const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
+		return _viewCtrl.boundingSphere().getCenter() - dir * (sceneRadius * 1.3f);
+	}
+	return QVector3D(light.position.x, light.position.y, light.position.z);
+}
+
+bool ViewportWidget::lightGizmoActive() const
+{
+	GltfLightEntry entry;
+	return _transformGizmo && _renderCtrl.showLights() && !_viewCtrl.multiViewActive() && selectedSceneLight(entry);
+}
+
+bool ViewportWidget::handleLightPress(const QPoint& pixel)
+{
+	if (!_transformGizmo || !_viewer || !_viewer->sceneGraph() || !_renderCtrl.showLights() || _viewCtrl.multiViewActive())
+		return false;
+
+	const QMatrix4x4 viewMatrix = _viewCtrl.viewMatrix();
+	const QMatrix4x4 projectionMatrix = _viewCtrl.projectionMatrix();
+	const QRect viewport(0, 0, width(), height());
+
+	// A handle of the selected scene light's gizmo wins over everything else.
+	if (lightGizmoActive())
+	{
+		syncTransformGizmoToSelection();
+		if (_transformGizmo->activateHandleAt(pixel, _primaryCamera, viewMatrix, projectionMatrix, viewport, kTransformGizmoMinWorldScale))
+		{
+			if (beginLightGizmoDrag(_transformGizmo->activeHandle(), pixel))
+				return true;
+			_transformGizmo->clearInteraction();
+		}
+	}
+
+	// Otherwise pick the light fixture nearest to the cursor, if one is within reach.
+	constexpr float kLightPickPixels = 26.0f;
+	std::vector<LightOrigin> origins;
+	const std::vector<GPULight> lights = _animCtrl.buildGizmoLights(_viewer->sceneGraph(), &origins);
+	float bestDistance = kLightPickPixels;
+	int bestIndex = -1;
+	for (std::size_t i = 0; i < lights.size() && i < origins.size(); ++i)
+	{
+		if (origins[i].index < 0)
+			continue;
+		const QVector3D screen = lightFixturePosition(lights[i]).project(viewMatrix, projectionMatrix, viewport);
+		if (screen.z() < 0.0f || screen.z() > 1.0f)
+			continue;   // behind the eye or beyond the far plane
+		const float distance = QVector2D(screen.x() - pixel.x(), (height() - screen.y()) - pixel.y()).length();
+		if (distance < bestDistance)
+		{
+			bestDistance = distance;
+			bestIndex = static_cast<int>(i);
+		}
+	}
+	if (bestIndex < 0)
+		return false;
+
+	// The gizmo works on one target at a time: a light replaces any mesh selection.
+	if (_selectionManager)
+		_selectionManager->setSelectedIds({});
+	selectLight(origins[bestIndex].file, origins[bestIndex].index);
+	return true;
+}
+
+bool ViewportWidget::beginLightGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel)
+{
+	GltfLightEntry entry;
+	if (!selectedSceneLight(entry))
+		return false;
+
+	QVector3D axis;
+	bool rotating = false;
+	switch (handle)
+	{
+	case TransformGizmo::Handle::TranslateX: axis = QVector3D(1.0f, 0.0f, 0.0f); break;
+	case TransformGizmo::Handle::TranslateY: axis = QVector3D(0.0f, 1.0f, 0.0f); break;
+	case TransformGizmo::Handle::TranslateZ: axis = QVector3D(0.0f, 0.0f, 1.0f); break;
+	case TransformGizmo::Handle::RotateXY:   axis = QVector3D(0.0f, 0.0f, 1.0f); rotating = true; break;
+	case TransformGizmo::Handle::RotateYZ:   axis = QVector3D(1.0f, 0.0f, 0.0f); rotating = true; break;
+	case TransformGizmo::Handle::RotateZX:   axis = QVector3D(0.0f, 1.0f, 0.0f); rotating = true; break;
+	default:
+		return false;
+	}
+
+	LightGizmoDrag drag;
+	drag.handle = handle;
+	drag.startPixel = pixel;
+	drag.axis = axis;
+	drag.pivot = lightFixturePosition(entry.gpuLight);
+	drag.dragScale = std::max(_viewCtrl.boundingSphere().getRadius() * 0.9f, 0.01f);
+	drag.startEntry = entry;
+	drag.currentEntry = entry;
+
+	if (rotating)
+	{
+		// The aim turns by the angle the cursor sweeps around the pivot, measured in the plane of the handle's arc.
+		const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
+		const Camera* camera = getCameraForPoint(pixel);
+		if (!camera)
+			return false;
+		QVector3D rayOrigin, rayDir, hitPoint;
+		if (!ViewportInteractionController::convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir)
+			|| !ViewportInteractionController::intersectRayPlane(rayOrigin, rayDir, drag.pivot, axis, hitPoint))
+			return false;
+		drag.startVector = hitPoint - drag.pivot;
+		if (drag.startVector.lengthSquared() <= 1.0e-8f)
+			return false;
+		drag.startVector.normalize();
+	}
+
+	drag.active = true;
+	_lightDrag = drag;
+	return true;
+}
+
+void ViewportWidget::updateLightGizmoDrag(const QPoint& pixel)
+{
+	if (!_lightDrag.active || !_viewer || !_viewer->sceneGraph())
+		return;
+
+	const QRect viewport = PickingHelper::viewportRectForPoint(pixel, width(), height(), _viewCtrl.multiViewActive());
+	const Camera* camera = getCameraForPoint(pixel);
+	if (!camera)
+		return;
+
+	GltfLightEntry entry = _lightDrag.startEntry;
+	const bool rotating = _lightDrag.handle == TransformGizmo::Handle::RotateXY
+	                   || _lightDrag.handle == TransformGizmo::Handle::RotateYZ
+	                   || _lightDrag.handle == TransformGizmo::Handle::RotateZX;
+
+	if (!rotating)
+	{
+		// The same mapping the mesh gizmo uses: mouse motion along the axis' on-screen direction, scaled to world distance.
+		const QMatrix4x4 viewMatrix = camera->getViewMatrix();
+		const QMatrix4x4 projectionMatrix = camera->getProjectionMatrix();
+		const QVector3D pivotScreen3 = _lightDrag.pivot.project(viewMatrix, projectionMatrix, viewport);
+		const QVector3D axisEndScreen3 = (_lightDrag.pivot + _lightDrag.axis * _lightDrag.dragScale).project(viewMatrix, projectionMatrix, viewport);
+		const QVector2D axisScreen = QVector2D(axisEndScreen3.x(), axisEndScreen3.y()) - QVector2D(pivotScreen3.x(), pivotScreen3.y());
+		const float axisScreenLength = axisScreen.length();
+		if (axisScreenLength <= 1.0e-4f)
+			return;
+		const QVector2D mouseDelta(pixel.x() - _lightDrag.startPixel.x(), _lightDrag.startPixel.y() - pixel.y());
+		const float projectedPixels = QVector2D::dotProduct(mouseDelta, axisScreen / axisScreenLength);
+		const float worldDistance = (projectedPixels / axisScreenLength) * _lightDrag.dragScale;
+		const QVector3D moved = QVector3D(entry.gpuLight.position.x, entry.gpuLight.position.y, entry.gpuLight.position.z)
+		                      + _lightDrag.axis * worldDistance;
+		entry.gpuLight.position = glm::vec3(moved.x(), moved.y(), moved.z());
+	}
+	else
+	{
+		QVector3D rayOrigin, rayDir, hitPoint;
+		if (!ViewportInteractionController::convertPixelToRay(pixel, viewport, height(), camera->getViewMatrix(), camera->getProjectionMatrix(), rayOrigin, rayDir)
+			|| !ViewportInteractionController::intersectRayPlane(rayOrigin, rayDir, _lightDrag.pivot, _lightDrag.axis, hitPoint))
+			return;
+		QVector3D current = hitPoint - _lightDrag.pivot;
+		if (current.lengthSquared() <= 1.0e-8f)
+			return;
+		current.normalize();
+		const QVector3D crossVec = QVector3D::crossProduct(_lightDrag.startVector, current);
+		const float angleDegrees = qRadiansToDegrees(std::atan2(QVector3D::dotProduct(_lightDrag.axis, crossVec),
+		                                                         QVector3D::dotProduct(_lightDrag.startVector, current)));
+		const QVector3D startDir(entry.gpuLight.direction.x, entry.gpuLight.direction.y, entry.gpuLight.direction.z);
+		const QVector3D turned = QQuaternion::fromAxisAndAngle(_lightDrag.axis, angleDegrees).rotatedVector(startDir).normalized();
+		entry.gpuLight.direction = glm::vec3(turned.x(), turned.y(), turned.z());
+	}
+
+	_lightDrag.currentEntry = entry;
+	// Shown live without an undo step each mouse move; one command is pushed when the drag ends.
+	_viewer->sceneGraph()->replaceUserLight(_selectedLightIndex, entry);
+	userLightsChanged();
+}
+
+void ViewportWidget::finishLightGizmoDrag(bool commit)
+{
+	if (!_lightDrag.active)
+		return;
+	const LightGizmoDrag drag = _lightDrag;
+	_lightDrag = LightGizmoDrag();
+	if (_transformGizmo)
+		_transformGizmo->clearInteraction();
+	if (!_viewer || !_viewer->sceneGraph())
+		return;
+
+	const GPULight& a = drag.startEntry.gpuLight;
+	const GPULight& b = drag.currentEntry.gpuLight;
+	const bool rotating = drag.handle == TransformGizmo::Handle::RotateXY
+	                   || drag.handle == TransformGizmo::Handle::RotateYZ
+	                   || drag.handle == TransformGizmo::Handle::RotateZX;
+	const bool changed = rotating
+		? (QVector3D(a.direction.x, a.direction.y, a.direction.z) - QVector3D(b.direction.x, b.direction.y, b.direction.z)).lengthSquared() > 1.0e-10f
+		: (QVector3D(a.position.x, a.position.y, a.position.z) - QVector3D(b.position.x, b.position.y, b.position.z)).lengthSquared() > 1.0e-10f;
+
+	if (!commit || !changed)
+	{
+		// Cancelled or not moved: put the light back exactly as it was.
+		_viewer->sceneGraph()->replaceUserLight(_selectedLightIndex, drag.startEntry);
+		userLightsChanged();
+		return;
+	}
+
+	_viewer->getUndoStack()->push(new EditUserLightCommand(
+		_viewer, this, _selectedLightIndex,
+		rotating ? EditUserLightCommand::Field::Direction : EditUserLightCommand::Field::Position,
+		drag.startEntry, drag.currentEntry, rotating ? tr("Aim Light") : tr("Move Light")));
 }
 
 void ViewportWidget::setRenderingMode(const RenderingMode& renderingMode)
