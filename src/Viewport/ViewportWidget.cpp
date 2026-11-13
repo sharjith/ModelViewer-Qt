@@ -44,6 +44,7 @@
 #include "PlaneRenderable.h"
 #include "Point.h"
 #include "SphereRenderable.h"
+#include "LightFixtureRenderable.h"
 #include "ViewCubeMesh.h"
 #include "stb_image.h"
 #include "HdrImageLoader.h"
@@ -1077,6 +1078,12 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	if (_skyBox) { delete _skyBox; _skyBox = nullptr; }
 	if (_lightCube) { delete _lightCube; _lightCube = nullptr; }
 	if (_lightSphere) { delete _lightSphere; _lightSphere = nullptr; }
+	for (LightFixtureRenderable** fixture : { &_fixtureBulbGlass, &_fixtureBulbBase, &_fixtureBulbHalo, &_fixtureSpotBody, &_fixtureSpotLens,
+	                                          &_fixtureSunHead, &_fixtureBeamCone, &_fixtureBeamRim })
+	{
+		delete *fixture;
+		*fixture = nullptr;
+	}
 }
 
 void ViewportWidget::invalidateTextureCacheGpuResources()
@@ -7147,6 +7154,20 @@ void ViewportWidget::createLights()
 		_lightSphere = new SphereRenderable(_renderCtrl.lightCubeShader(), 1, 16, 16);
 		registerDecorationGpuResource(_lightCube, [this] { return _renderCtrl.lightCubeShader(); });
 		registerDecorationGpuResource(_lightSphere, [this] { return _renderCtrl.lightCubeShader(); });
+
+		using Part = LightFixtureGeometry::Part;
+		const auto makeFixture = [this](LightFixtureRenderable*& slot, Part part) {
+			slot = new LightFixtureRenderable(_renderCtrl.lightFixtureShader(), part);
+			registerDecorationGpuResource(slot, [this] { return _renderCtrl.lightFixtureShader(); });
+		};
+		makeFixture(_fixtureBulbGlass, Part::BulbGlass);
+		makeFixture(_fixtureBulbBase, Part::BulbBase);
+		makeFixture(_fixtureBulbHalo, Part::BulbHalo);
+		makeFixture(_fixtureSpotBody, Part::SpotBody);
+		makeFixture(_fixtureSpotLens, Part::SpotLens);
+		makeFixture(_fixtureSunHead, Part::SunHead);
+		makeFixture(_fixtureBeamCone, Part::BeamCone);
+		makeFixture(_fixtureBeamRim, Part::BeamRim);
 	}
 }
 
@@ -13370,7 +13391,7 @@ void ViewportWidget::drawViewCubeLabels(const QMatrix4x4& viewMatrix, const QMat
 		glEnable(GL_CULL_FACE);
 }
 
-void ViewportWidget::drawLights()
+void ViewportWidget::drawLights(Camera* camera)
 {
 	QMatrix4x4 model;
 	model.translate(effectiveWorldLightPosition());
@@ -13388,75 +13409,147 @@ void ViewportWidget::drawLights()
 	_lightCube->render();
 
 	// Draw punctual lights — only those whose enabled flag is set (tree checkbox AND Show Lights).
+	// Each is a small fixture: a bulb for point lights, a theatre spot with its beam cone for spot lights, a sun head with a direction
+	// arrow for directional lights. They keep a constant size on screen, like the transform gizmo.
+	const std::vector<GPULight> gizmoLights =
+	    _animCtrl.buildGizmoLights(_viewer ? _viewer->sceneGraph() : nullptr);
+	if (gizmoLights.empty() || !camera || !_fixtureBulbGlass)
+		return;
+
+	ShaderProgram* const fixtureShader = _renderCtrl.lightFixtureShader();
+	const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
+	const QVector3D sceneCenter = _viewCtrl.boundingSphere().getCenter();
+	const QVector3D sceneUp = isCameraUpAxisZUp() ? QVector3D(0.0f, 0.0f, 1.0f) : QVector3D(0.0f, 1.0f, 0.0f);
+	const bool orthographic = camera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC;
+	const QVector3D eye = camera->getRenderPosition();
+
+	// World size of one fixture unit at `position`: 3% of the distance to the eye (of the view range when orthographic) keeps it constant
+	// on screen. A fixture is about two units long.
+	const auto fixtureScale = [&](const QVector3D& position) {
+		const float size = orthographic ? camera->getViewRange() * 0.03f : (eye - position).length() * 0.03f;
+		return std::max(size, 1e-4f);
+	};
+	// The fixture frame: +Z along `aim`, +Y towards `up` as far as it can, origin at `position`; columns are scaled by `scale`.
+	const auto fixtureFrame = [](const QVector3D& position, const QVector3D& aim, const QVector3D& up, float scale) {
+		const QVector3D z = aim.normalized();
+		QVector3D x = QVector3D::crossProduct(up, z);
+		if (x.lengthSquared() < 1e-6f)
+			x = QVector3D::crossProduct(std::abs(z.x()) < 0.9f ? QVector3D(1.0f, 0.0f, 0.0f) : QVector3D(0.0f, 1.0f, 0.0f), z);
+		x.normalize();
+		const QVector3D y = QVector3D::crossProduct(z, x);
+		QMatrix4x4 frame;
+		frame.setColumn(0, QVector4D(x * scale, 0.0f));
+		frame.setColumn(1, QVector4D(y * scale, 0.0f));
+		frame.setColumn(2, QVector4D(z * scale, 0.0f));
+		frame.setColumn(3, QVector4D(position, 1.0f));
+		return frame;
+	};
+
+	fixtureShader->bind();
+	fixtureShader->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
+	fixtureShader->setProperty("viewMatrix", QVariant::fromValue(viewMat));
+	fixtureShader->setUniformValue("viewMatrix", viewMat);
+	fixtureShader->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
+	const bool cullWasEnabled = glIsEnabled(GL_CULL_FACE);
+	glDisable(GL_CULL_FACE);   // the parts are closed or two-sided; the shader flips the normal of back faces
+
+	const QVector3D housingColor(0.22f, 0.23f, 0.26f);
+	const auto drawPart = [&](LightFixtureRenderable* part, const QMatrix4x4& model, int mode,
+	                          const QVector3D& color, const QVector3D& base = QVector3D()) {
+		fixtureShader->setUniformValue("lightColor", color);
+		fixtureShader->setUniformValue("baseColor", base);
+		fixtureShader->setUniformValue("mode", mode);
+		part->setAffectsSceneRevision(false);   // decoration: must not tick the scene revision
+		part->setSceneRenderTransformFast(model);
+		part->render();
+	};
+
+	struct BeamDraw { QMatrix4x4 outer; QMatrix4x4 inner; QVector3D color; };
+	std::vector<BeamDraw> beams;
+	struct HaloDraw { QMatrix4x4 model; QVector3D color; };
+	std::vector<HaloDraw> halos;
+
+	for (const GPULight& light : gizmoLights)
 	{
-		const std::vector<GPULight> gizmoLights =
-		    _animCtrl.buildGizmoLights(_viewer ? _viewer->sceneGraph() : nullptr);
-		if (!gizmoLights.empty())
+		// Map intensity logarithmically to [0.3, 1.0] so gizmos are always visible
+		// (even at intensity=0) while brighter lights appear more luminous.
+		// log10(intensity + 1) / 3  maps  0 → 0,  100 → 0.67,  999 → 1.0
+		const float logVal            = std::log10(light.intensity + 1.0f) / 3.0f;
+		const float displayBrightness = 0.3f + 0.7f * std::min(logVal, 1.0f);
+		const QVector3D emissiveColor(light.color.x * displayBrightness,
+		                              light.color.y * displayBrightness,
+		                              light.color.z * displayBrightness);
+
+		// Glowing parts show the light's hue at full saturation and brightness, whatever its intensity, so a lit fixture never looks dull.
+		const float peak = std::max({ light.color.x, light.color.y, light.color.z, 1e-3f });
+		const QVector3D glowColor = QVector3D(light.color.x, light.color.y, light.color.z) / peak * (0.75f + 0.25f * displayBrightness);
+
+		const LightType lightType = static_cast<LightType>(light.type);
+		QVector3D dir(light.direction.x, light.direction.y, light.direction.z);
+		if (dir.lengthSquared() < 1e-6f)
+			dir = QVector3D(0.0f, 0.0f, -1.0f);
+		dir.normalize();
+
+		if (lightType == LightType::Directional)
 		{
-		const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 0.001f);
-		const float pointSpotScale = sceneRadius * 0.05f;
-		const float directionalScale = pointSpotScale * 0.75f;
-		const QVector3D sceneCenter = _viewCtrl.boundingSphere().getCenter();
-
-		for (const GPULight& light : gizmoLights)
+			// Directional lights are defined by direction rather than emitter position. The sun head sits outside the scene on the side the
+			// light comes from, so several directional lights do not collapse at the origin; its arrow points along the light.
+			const QVector3D markerPos = sceneCenter - dir * (sceneRadius * 1.3f);
+			drawPart(_fixtureSunHead, fixtureFrame(markerPos, dir, sceneUp, fixtureScale(markerPos)), 1, glowColor);
+		}
+		else if (lightType == LightType::Spot)
 		{
-			// Map intensity logarithmically to [0.3, 1.0] so gizmos are always visible
-			// (even at intensity=0) while brighter lights appear more luminous.
-			// log10(intensity + 1) / 3  maps  0 → 0,  100 → 0.67,  999 → 1.0
-			const float logVal            = std::log10(light.intensity + 1.0f) / 3.0f;
-			const float displayBrightness = 0.3f + 0.7f * std::min(logVal, 1.0f);
+			const QVector3D position(light.position.x, light.position.y, light.position.z);
+			const float scale = fixtureScale(position);
+			const QMatrix4x4 frame = fixtureFrame(position, dir, sceneUp, scale);
+			drawPart(_fixtureSpotBody, frame, 0, emissiveColor, housingColor);
+			drawPart(_fixtureSpotLens, frame, 1, glowColor);
 
-			// Emission colour: the light's own colour modulated by display brightness.
-			const QVector3D emissiveColor(light.color.x * displayBrightness,
-			                              light.color.y * displayBrightness,
-			                              light.color.z * displayBrightness);
-
-			QMatrix4x4 lightModel;
-			const LightType lightType = static_cast<LightType>(light.type);
-
-			if (lightType == LightType::Directional)
-			{
-				// Directional lights are defined by direction rather than emitter position.
-				// Show them as a small cube offset from the scene center along the incoming direction
-				// so multiple directional lights don't collapse visually at the origin.
-				QVector3D dir(light.direction.x, light.direction.y, light.direction.z);
-				if (dir.lengthSquared() < 1e-6f)
-					dir = QVector3D(0.0f, 0.0f, -1.0f);
-				dir.normalize();
-				const QVector3D markerPos = sceneCenter - dir * (sceneRadius + directionalScale * 6.0f);
-				lightModel.translate(markerPos);
-				lightModel.scale(directionalScale);
-			}
-			else
-			{
-				lightModel.translate(light.position.x, light.position.y, light.position.z);
-				lightModel.scale(pointSpotScale);
-			}
-
-			_renderCtrl.lightCubeShader()->bind();
-			_renderCtrl.lightCubeShader()->setProperty("globalModelMatrix", QVariant::fromValue(QMatrix4x4()));
-			_renderCtrl.lightCubeShader()->setProperty("viewMatrix", QVariant::fromValue(viewMat));
-			_renderCtrl.lightCubeShader()->setUniformValue("viewMatrix", viewMat);
-			_renderCtrl.lightCubeShader()->setUniformValue("projectionMatrix", _viewCtrl.projectionMatrix());
-			_renderCtrl.lightCubeShader()->setUniformValue("lightColor", emissiveColor);
-			_renderCtrl.lightCubeShader()->setUniformValue("intensity", 1.0f);
-			_renderCtrl.lightCubeShader()->setUniformValue("intensityScale", 1.0f);
-
-			if (lightType == LightType::Directional)
-			{
-				_lightCube->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
-				_lightCube->setSceneRenderTransformFast(lightModel);
-				_lightCube->render();
-			}
-			else
-			{
-				_lightSphere->setAffectsSceneRevision(false); // decoration: must not tick the scene revision
-				_lightSphere->setSceneRenderTransformFast(lightModel);
-				_lightSphere->render();
-			}
+			// The beam is drawn in world size, after the fixtures: its length is the light's range, limited to the scene.
+			const float length = light.range > 0.0f ? std::min(light.range, sceneRadius * 3.0f) : sceneRadius * 1.2f;
+			const auto coneRadius = [length](float cosAngle) {
+				const float angle = std::min(std::acos(std::clamp(cosAngle, -1.0f, 1.0f)), 1.48f);
+				return length * std::tan(angle);
+			};
+			QMatrix4x4 outer = fixtureFrame(position, dir, sceneUp, 1.0f);
+			QMatrix4x4 inner = outer;
+			outer.scale(coneRadius(light.outerConeCos), coneRadius(light.outerConeCos), length);
+			inner.scale(coneRadius(light.innerConeCos), coneRadius(light.innerConeCos), length);
+			beams.push_back({ outer, inner, glowColor * 0.55f });
+		}
+		else
+		{
+			const QVector3D position(light.position.x, light.position.y, light.position.z);
+			const QMatrix4x4 frame = fixtureFrame(position, sceneUp, sceneUp, fixtureScale(position));
+			drawPart(_fixtureBulbGlass, frame, 1, glowColor);
+			drawPart(_fixtureBulbBase, frame, 0, emissiveColor, housingColor);
+			halos.push_back({ frame, glowColor });
 		}
 	}
+
+	// Halos last: additive, blended over everything drawn so far, without writing depth.
+	if (!halos.empty())
+	{
+		const bool blendWasEnabled = glIsEnabled(GL_BLEND);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE);
+		glDepthMask(GL_FALSE);
+		for (const HaloDraw& halo : halos)
+			drawPart(_fixtureBulbHalo, halo.model, 3, halo.color);
+		glDepthMask(GL_TRUE);
+		if (!blendWasEnabled)
+			glDisable(GL_BLEND);
 	}
+
+	glLineWidth(1.0f);
+	for (const BeamDraw& beam : beams)
+	{
+		drawPart(_fixtureBeamCone, beam.outer, 2, beam.color);
+		drawPart(_fixtureBeamRim, beam.inner, 2, beam.color);
+	}
+
+	if (cullWasEnabled)
+		glEnable(GL_CULL_FACE);
 }
 
 void ViewportWidget::bindIBLTextures()
@@ -13770,7 +13863,7 @@ void ViewportWidget::render(Camera* camera)
 		drawSimulationGlyphs(camera);
 		drawSimulationTensorGlyphs(camera);
 	}
-	if (_renderCtrl.showLights()) drawLights();
+	if (_renderCtrl.showLights()) drawLights(camera);
 	if (profileRendering)
 	{
 		endFrameGpuTimer();

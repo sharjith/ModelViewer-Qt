@@ -95,6 +95,7 @@ class AssImpModelLoader;
 class ConeRenderable;
 class CubeRenderable;
 class SphereRenderable;
+class LightFixtureRenderable;
 class ViewCubeMesh;
 class AssImpModelLoader;
 struct SceneNode;
@@ -2027,7 +2028,7 @@ private:
 	void updateSurfaceAnalysisHoverReadout(const QPoint& pixel);
 	void drawSurfaceAnalysisHoverLabel();
 	void drawVertexMarkers();
-	void drawLights();
+	void drawLights(Camera* camera);
 
 	void bindIBLTextures();
 
@@ -2934,6 +2935,15 @@ private:
 
 	CubeRenderable* _lightCube;
 	SphereRenderable* _lightSphere;
+	// Fixture gizmos of the imported punctual lights (see drawLights()): one renderable per part.
+	LightFixtureRenderable* _fixtureBulbGlass = nullptr;
+	LightFixtureRenderable* _fixtureBulbBase = nullptr;
+	LightFixtureRenderable* _fixtureBulbHalo = nullptr;
+	LightFixtureRenderable* _fixtureSpotBody = nullptr;
+	LightFixtureRenderable* _fixtureSpotLens = nullptr;
+	LightFixtureRenderable* _fixtureSunHead = nullptr;
+	LightFixtureRenderable* _fixtureBeamCone = nullptr;
+	LightFixtureRenderable* _fixtureBeamRim = nullptr;
 	// _showLights â†’ SceneRenderController (Phase 12)
 
 	// GPU-context-recreation-survival registry (see IGpuContextResource.h) -

@@ -161,6 +161,7 @@ public:
     ShaderProgram* sheenPrefilterShader()   const { return _sheenPrefilterShader.get(); }
     ShaderProgram* brdfShader()             const { return _brdfShader.get(); }
     ShaderProgram* lightCubeShader()        const { return _lightCubeShader.get(); }
+    ShaderProgram* lightFixtureShader()     const { return _lightFixtureShader.get(); }
     ShaderProgram* viewCubeShader()         const { return _viewCubeShader.get(); }
     ShaderProgram* viewCubeLabelShader()    const { return _viewCubeLabelShader.get(); }
     ShaderProgram* clippingPlaneShader()    const { return _clippingPlaneShader.get(); }
@@ -686,6 +687,7 @@ private:
     std::unique_ptr<ShaderProgram> _sheenPrefilterShader;
     std::unique_ptr<ShaderProgram> _brdfShader;
     std::unique_ptr<ShaderProgram> _lightCubeShader;
+    std::unique_ptr<ShaderProgram> _lightFixtureShader;
     std::unique_ptr<ShaderProgram> _viewCubeShader;
     std::unique_ptr<ShaderProgram> _viewCubeLabelShader;
     std::unique_ptr<ShaderProgram> _clippingPlaneShader;
