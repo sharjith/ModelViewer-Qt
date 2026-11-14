@@ -121,7 +121,7 @@ void materialMaskTests(){
 }
 void assemblyTests(){
  QTemporaryDir dir;check(dir.isValid(),"Cannot create JT 9.5 fixture directory");const auto path=dir.filePath("assembly.jt");
- for(unsigned minor:{0u,5u})for(bool big:{false,true})for(unsigned version:{1,2}){
+ for(unsigned minor:{0u,4u,5u})for(bool big:{false,true})for(unsigned version:{1,2}){
   LegacyFixture::Options part;part.big=big;part.minorVersion=2;LegacyFixture::write(dir.filePath("part.jt"),part);write(path,assembly(big,1,version,false,minor));
   if(minor==0&&version==2){rejects([&]{Jt::Importer::read(path);});continue;}
   auto result=Jt::Importer::read(path);
@@ -133,7 +133,7 @@ void assemblyTests(){
  }
 }
 }
-void jt95Tests(){codecTests();topologyMaskTests();emptyTopologyTests();assemblyTests();materialMaskTests();std::cout<<"JT 9.0/9.5 LE/BE Mk.2 arithmetic/bitlength, material versions, malformed packets and cross-version assemblies passed\n";}
+void jt95Tests(){codecTests();topologyMaskTests();emptyTopologyTests();assemblyTests();materialMaskTests();std::cout<<"JT 9.0/9.4/9.5 LE/BE Mk.2 arithmetic/bitlength, material versions, malformed packets and cross-version assemblies passed\n";}
 void jtMaterialMaskFixtureFiles(const QString& folder){check(QDir().mkpath(folder),"Cannot create material mask UI directory");LegacyFixture::Options part;part.minorVersion=2;part.materialInhibit=0x3f;LegacyFixture::write(QDir(folder).filePath("part.jt"),part);for(bool big:{false,true})write(QDir(folder).filePath(big?"material_masks_be.jt":"material_masks_le.jt"),assembly(big,1,2,true));}
 void jt95FixtureFiles(const QString& folder){check(QDir().mkpath(folder),"Cannot create JT 9.5 fixture directory");LegacyFixture::Options part;part.minorVersion=2;LegacyFixture::write(QDir(folder).filePath("part.jt"),part);for(bool big:{false,true})write(QDir(folder).filePath(big?"assembly_be.jt":"assembly_le.jt"),assembly(big));}
 

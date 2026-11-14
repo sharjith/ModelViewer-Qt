@@ -233,8 +233,8 @@
     </message>
     <message>
         <location filename="../src/App/AboutDialog.cpp" line="202"/>
-        <source>Supported JT versions: 8.0-8.2, 9.0, 9.5, 10.0, 10.2, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10.</source>
-        <translation>Unterstützte JT-Versionen: 8.0-8.2, 9.0, 9.5, 10.0, 10.2, 10.3, 10.5, 10.7, 10.8, 10.9 und 10.10.</translation>
+        <source>Supported JT versions: 8.0-8.2, 9.0, 9.4, 9.5, 10.0, 10.2, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10.</source>
+        <translation>Unterstützte JT-Versionen: 8.0-8.2, 9.0, 9.4, 9.5, 10.0, 10.2, 10.3, 10.5, 10.7, 10.8, 10.9 und 10.10.</translation>
     </message>
     <message>
         <source>Supported JT versions: 8.0-8.2, 9.0, 9.5, 10.0, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10.</source>

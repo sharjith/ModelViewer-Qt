@@ -16,6 +16,7 @@
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
 // JT 9.0/9.5 qualification and shared attribute/codec bounds updated: 2026-10-20.
+// JT 9.4 sampled material-version-2 qualification: 2026-11-14.
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling;
 // see src/ThirdParty/occt-jt/MODIFICATIONS.md and PROVENANCE.json for provenance.
 
@@ -71,7 +72,10 @@ Standard_Boolean JtAttribute_Material::Read (JtData_Reader& theReader)
   && !theReader.ReadVersion(myVersion))
     return Standard_False;
 
-  if (theReader.Model()->MajorVersion() == 9 && myVersion != 1 && !(theReader.Model()->MinorVersion() == 5 && myVersion == 2)) throw std::runtime_error("Unsupported JT 9.x material attribute version");
+  const Standard_Integer aMinorVersion = theReader.Model()->MinorVersion();
+  if (theReader.Model()->MajorVersion() == 9 && myVersion != 1
+      && !((aMinorVersion == 4 || aMinorVersion == 5) && myVersion == 2))
+    throw std::runtime_error("Unsupported JT 9.x material attribute version");
   if (theReader.Model()->MajorVersion() >= 10 && myVersion != 1) throw std::runtime_error("Unsupported JT material attribute version");
 
   if (!theReader.ReadU16 (myDataFlags)

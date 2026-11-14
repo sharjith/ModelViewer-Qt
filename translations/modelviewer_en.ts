@@ -126,7 +126,7 @@
     </message>
     <message>
         <location filename="../src/App/AboutDialog.cpp" line="202"/>
-        <source>Supported JT versions: 8.0-8.2, 9.0, 9.5, 10.0, 10.2, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10.</source>
+        <source>Supported JT versions: 8.0-8.2, 9.0, 9.4, 9.5, 10.0, 10.2, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10.</source>
         <translation type="unfinished"></translation>
     </message>
 </context>
