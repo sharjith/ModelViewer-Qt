@@ -1,6 +1,29 @@
 # C3 polyline and point shape decoder (first implementation)
 
-Status: written and first run 5 November 2026 on `feature/JT-importer`. Compiled; `jt_probe` loads all eleven samples (face counts below). Not yet confirmed visually by the owner; nothing here is a conformance claim.
+Status: JT10 implementation written and first run 5 November 2026 on `feature/JT-importer`. JT9.5 extension passed its native CTest/authentic-probe gate and owner-confirmed installed-viewer load gate on 14 November 2026 on `dev`; detailed wire appearance/selection remains unclaimed. Nothing here is a conformance claim.
+
+## JT9.5 extension (14 November 2026)
+
+Two owner-supplied mixed solid/polyline controls exposed the previously recorded JT9 family gap. Neutral controls P95-W1 and P95-W2 are JT9.5 LE files with SHA-256 `f6d86873cc6f82835edf66d011391b2fea43969fef6966c5b62aa4dc6f4a1c9d` and `2017c73416fb69788119a81605977505dc7b0f6ae020c4f70014e2e2495a8f09`. Read-only container and element inspection found twelve polyline nodes and twelve polyline LOD segment entries in each control, alongside 346 and 338 triangle-strip nodes respectively. The scene's selected display alternatives resolve these to six displayed two-vertex, one-segment polylines in each model. No point-set LOD occurs, so the JT9 point path remains reference-qualified rather than authentic-sample-qualified.
+
+The node local version is 2: the existing vertex-shape node data is followed by the local version, F32 area factor and a trailing U64 vertex binding. The LOD uses the JT9 TopoMesh family: face-group count/list are present only for polylines, the face-group/primitive/vertex lists use the Null predictor, and an explicit unique-coordinate count precedes the records-per-coordinate packet. The I32 following that packet is retained as the unique-vertex-list-map hash. These differences match the retained JT9.5 public structure and the pinned reference-only JCadLib source already recorded in [the display primitive audit](JT_DISPLAY_PRIMITIVES_AUDIT.md#reference-provenance-and-reproduction).
+
+Implementation is deliberately family-gated. JT9 node version 2 consumes and validates the appended binding; JT10 node version 1 is unchanged. The common TopoMesh reader selects the JT9 count/list/predictor/unique-count layout only for major version 9. Unsupported texture, flag and auxiliary vertex attributes remain explicit failures. The optional authentic regression accepts local paths through `MV_JT_C3_9X_SAMPLES` (platform-list-separated) and expects six displayed line segments, no points and retained triangle geometry per control. The files and derived inventories remain local under `out/` or outside the repository.
+
+The exact build/test and probe commands used for the native gate were:
+
+```text
+cmake --build out/jt102-build --target jt_tests jt_probe --parallel 2
+ctest --test-dir out/jt102-build --output-on-failure
+set "MV_JT_C3_9X_SAMPLES=<local-samples>/P95-W1.jt;<local-samples>/P95-W2.jt"
+out/jt102-build/jt_tests.exe
+out/jt102-build/jt_probe.exe <local-samples>/P95-W1.jt --validate
+out/jt102-build/jt_probe.exe <local-samples>/P95-W2.jt --validate
+```
+
+On Windows these commands require the repository's normal Visual Studio environment and runtime PATH. Output/logs belong under `out/`.
+
+Native result, 14 November 2026: the focused `jt_tests` and `jt_probe` targets compiled and linked. The registered `jt_codec_tests` passed 1/1 in 129.34 seconds with both authentic controls enabled through `MV_JT_C3_9X_SAMPLES`. P95-W1 validated 48 meshes, 161,272 vertices, 185,108 triangles, 6 lines, 0 points, 202 nodes and 48 occurrences. P95-W2 validated 48 meshes, 122,404 vertices, 142,848 triangles, 6 lines, 0 points, 202 nodes and 48 occurrences. Both reported zero fallback parts. Probe logs are retained locally as `out/jt-research/c3-jt95-owner/P95-W1.probe.log` and `P95-W2.probe.log`. The probe validator was generalized to validate one-, two- and three-index primitive faces and require normals only for triangle meshes; this is diagnostic-tool coverage, not a renderer change. The owner subsequently confirmed that both models open in the installed viewer. This accepts the GUI load gate that originally failed at the unsupported polyline node version; detailed wire appearance and selection were not reported and remain unclaimed.
 
 ## Samples
 
@@ -23,7 +46,7 @@ python -I -B tools/jt/inspect_wireframe_elements.py out/jt-research/c3-nx-sample
 
 `JtElement_ShapeLOD_Vertex::readTopoMeshCompressedRepData` decodes the above for JT10 and fills `Vertices()` (one per vertex record), `Indices()` (2 per segment, or 1 per point), optional `FaceGroups()` (one per segment, only when there is more than one group) and `Primitive()`. New classes: `JtElement_ShapeLOD_PolylineSet`, `JtElement_ShapeLOD_PointSet`, `JtNode_Shape_PolylineSet`, `JtNode_Shape_PointSet`. `JtSceneBuilder::storedMesh` builds line and point `aiMesh` objects (no normals; palette-group merging and part merging already skip non-triangle meshes, C3 stage B).
 
-Not decoded and rejected with an explicit message: texture, flag and auxiliary vertex attributes; JT 8.x and 9.x polyline/point LODs (9.x still counted as skipped content).
+Not decoded and rejected with an explicit message: texture, flag and auxiliary vertex attributes; JT 8.x polyline/point LODs. JT9.5 polylines use the separately qualified family path above.
 
 ## First run (5 November 2026)
 

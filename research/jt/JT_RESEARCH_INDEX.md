@@ -12,6 +12,8 @@ Current production compatibility gate (14 November 2026): [modern lossless colou
 
 Current JT 9.5 production gate (14 November 2026): [production texture profile](JT_95_PRODUCTION_TEXTURE_PROFILE.md), prepared from three authentic private variants with aligned legacy texture flags and a structurally distinct per-component lossless colour/UV envelope. The isolated Release build, full viewer build, registered codec CTest and all three native probes pass; the owner confirmed all three models open and look correct in ADS and PBR.
 
+Current transitional-version gate (14 November 2026): [JT 9.4 sampled-subset qualification](JT_94_VALIDATION.md), prepared from one authentic private assembly whose triangle display records and local versions match the bounded 9.x reader. JT 9.1-9.3 remain rejected; native and owner UI results are recorded in the linked gate.
+
 Suggested reading order:
 
 1. [Feasibility and legal scope](JT_IMPORT_FEASIBILITY.md), [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [pass-specific provenance](JT_PROVENANCE.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
@@ -88,10 +90,10 @@ Owner-accepted shared raster regression correction: [BLEND depth compatibility](
 
 42. Owner-accepted bounded gate: [C2ag normal mip filtering](JT_NORMAL_MIP_VALIDATION.md); authored/generated vector levels, 36 original roots / 16 grouped documents; grouped visual and four application exports accepted on 24 October 2026; native/backend execution unreported.
 
-43. Current C3 research: [line/wire and point coverage audit](JT_DISPLAY_PRIMITIVES_AUDIT.md); missing registrations/triangle assumptions confirmed, family differences and authentic payload evidence request recorded; no C3 decoder/build acceptance yet.
+43. C3 foundation: [line/wire and point coverage audit](JT_DISPLAY_PRIMITIVES_AUDIT.md); missing registrations/triangle assumptions, family differences and evidence requirements recorded. JT10 implementation and the pending JT9.5 extension are tracked in the decoder record below.
 
 - [Production binary UV compatibility](JT_PRODUCTION_UV_TRANSPORT.md) - 25 October 2026: owner confirmed complete assembly opening after hash-qualified UV correction on 25 October 2026; native regression-suite results remain unreported.
 
 - [Production allocation-budget trial](JT_PRODUCTION_MEMORY_BUDGET.md) - 26 October 2026: 16 GiB guard identified as the first limit; 64 GiB passed decoding before a distinct post-read crash.
 - [Large-assembly post-decode crash diagnostics](JT_PRODUCTION_IMPORT_CRASH.md) - 26 October 2026: prepared exception containment, reduced handoff copies and an opt-in flushed stage/memory trace; owner build and production validation pending.
-- [C3 polyline and point set decoder](JT_C3_POLYLINE_POINT_DECODER.md) - 5 November 2026: NX JT10.10 polyline and point set LODs decoded and shown (lines, points, colours); owner confirmed all samples against another viewer; JT 9.x/8.x layouts need samples; regression test `tests/jt/jt_c3_sample_tests.cpp` (local samples).
+- [C3 polyline and point set decoder](JT_C3_POLYLINE_POINT_DECODER.md) - 5/14 November 2026: NX JT10.10 polyline and point set LODs decoded and shown (lines, points, colours); owner confirmed those samples against another viewer. Two authentic JT9.5 mixed triangle/polyline controls qualify the separate JT9 node/TopoMesh layout; focused build, complete registered CTest and both validated probes pass, and the owner confirmed both models open in the installed viewer. Detailed JT9 wire appearance/selection remains unclaimed; JT9 point sets and JT8 remain open. Regression test `tests/jt/jt_c3_sample_tests.cpp` uses local samples only.

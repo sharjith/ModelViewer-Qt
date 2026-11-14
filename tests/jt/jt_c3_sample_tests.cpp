@@ -1,5 +1,5 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-// Regression checks of the NX polyline / point set decoder (C3 items 1-2) against the owner's authentic JT10.10 LE samples.
+// Regression checks of the polyline / point set decoder (C3 items 1-2) against the owner's authentic JT10.10 and JT9.5 LE samples.
 // The samples are local only (never in Git): set MV_JT_C3_SAMPLES to their folder, or keep them in
 // out/jt-research/c3-nx-samples. A missing folder or file skips that check with a message; nothing is fabricated.
 // The expected counts are the ones recorded in research/jt/JT_C3_POLYLINE_POINT_DECODER.md (they equal the declared Wireframe Rep
@@ -9,6 +9,7 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QString>
+#include <QStringList>
 #include <assimp/mesh.h>
 #include <assimp/scene.h>
 #include <iostream>
@@ -75,7 +76,6 @@ void c3SampleTests()
     if (!QDir(folder).exists())
     {
         std::cout << "c3 samples: skipped (no sample folder; set MV_JT_C3_SAMPLES)\n";
-        return;
     }
     int ran = 0;
     for (const Expected& sample : kSamples)
@@ -100,4 +100,26 @@ void c3SampleTests()
         ++ran;
     }
     std::cout << "c3 samples: " << ran << " of " << (sizeof(kSamples) / sizeof(kSamples[0])) << " files checked\n";
+
+    // Optional authentic JT9.5 mixed solid/polyline controls. Supply the two
+    // absolute paths separated by the platform list separator; the models and
+    // their private names remain outside Git. Each qualified control contains
+    // six displayed one-segment polylines in addition to triangle geometry.
+    const QStringList legacyPaths = qEnvironmentVariable("MV_JT_C3_9X_SAMPLES")
+        .split(QDir::listSeparator(), Qt::SkipEmptyParts);
+    int legacyRan = 0;
+    for (const QString& path : legacyPaths)
+    {
+        if (!QFileInfo::exists(path))
+            throw std::runtime_error("MV_JT_C3_9X_SAMPLES names a missing file");
+        const auto result = Jt::Importer::read(path);
+        check(result.scene && result.scene->mRootNode, "JT9.5 C3 control: no scene");
+        int lines = 0, points = 0, triangles = 0;
+        walk(result.scene->mRootNode, *result.scene, lines, points, triangles);
+        check(lines == 6, "JT9.5 C3 control: unexpected line-segment count " + std::to_string(lines));
+        check(points == 0, "JT9.5 C3 control: unexpected point geometry");
+        check(triangles > 0, "JT9.5 C3 control: triangle geometry was dropped");
+        ++legacyRan;
+    }
+    std::cout << "c3 JT9.5 samples: " << legacyRan << " files checked\n";
 }

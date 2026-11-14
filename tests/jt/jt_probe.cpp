@@ -144,25 +144,36 @@ int main(int argc,char** argv) {
         std::cout<<"read seconds="<<readTimer.elapsed()/1000.0<<'\n';
         for(const auto& note:result.notes)if(note.startsWith("JT read timing")||note.startsWith("JT build timing"))std::cout<<note.toStdString()<<'\n';
         std::cout<<"charged allocation bytes="<<charged<<'\n';
-        unsigned vertices=0,triangles=0;
-        for(unsigned i=0;i<result.scene->mNumMeshes;++i) {vertices+=result.scene->mMeshes[i]->mNumVertices;triangles+=result.scene->mMeshes[i]->mNumFaces;}
-        std::cout<<"meshes="<<result.scene->mNumMeshes<<" vertices="<<vertices<<" triangles="<<triangles<<" fallbackParts="<<result.fallbackParts<<'\n';
+        unsigned vertices=0,triangles=0,lines=0,points=0;
+        for(unsigned i=0;i<result.scene->mNumMeshes;++i) {
+            const auto& mesh=*result.scene->mMeshes[i];vertices+=mesh.mNumVertices;
+            if(mesh.mPrimitiveTypes==aiPrimitiveType_TRIANGLE)triangles+=mesh.mNumFaces;
+            else if(mesh.mPrimitiveTypes==aiPrimitiveType_LINE)lines+=mesh.mNumFaces;
+            else if(mesh.mPrimitiveTypes==aiPrimitiveType_POINT)points+=mesh.mNumFaces;
+        }
+        std::cout<<"meshes="<<result.scene->mNumMeshes<<" vertices="<<vertices<<" triangles="<<triangles
+                 <<" lines="<<lines<<" points="<<points<<" fallbackParts="<<result.fallbackParts<<'\n';
         if(parser.isSet(validate)) {
             double lo[3]={INFINITY,INFINITY,INFINITY},hi[3]={-INFINITY,-INFINITY,-INFINITY};
             unsigned uvMeshes=0,colourMeshes=0;
             for(unsigned i=0;i<result.scene->mNumMeshes;++i) {
                 const auto& mesh=*result.scene->mMeshes[i];
                 uvMeshes+=mesh.HasTextureCoords(0);colourMeshes+=mesh.HasVertexColors(0);
-                if(!mesh.HasNormals() || mesh.mMaterialIndex>=result.scene->mNumMaterials) throw std::runtime_error("Invalid mesh normals/material");
+                if(mesh.mMaterialIndex>=result.scene->mNumMaterials) throw std::runtime_error("Invalid mesh material");
+                if(mesh.mPrimitiveTypes==aiPrimitiveType_TRIANGLE && !mesh.HasNormals()) throw std::runtime_error("Triangle mesh has no normals");
                 for(unsigned v=0;v<mesh.mNumVertices;++v) {
                     for(unsigned channel=0;channel<AI_MAX_NUMBER_OF_TEXTURECOORDS;++channel)if(mesh.HasTextureCoords(channel))for(unsigned k=0;k<3;++k)if(!std::isfinite(mesh.mTextureCoords[channel][v][k]))throw std::runtime_error("Nonfinite UV");
                     if(mesh.HasVertexColors(0))for(unsigned k=0;k<4;++k)if(!std::isfinite(mesh.mColors[0][v][k]) || mesh.mColors[0][v][k]<0 || mesh.mColors[0][v][k]>1)throw std::runtime_error("Invalid colour component");
-                    if(!std::isfinite(mesh.mNormals[v].Length()) || std::abs(mesh.mNormals[v].Length()-1)>1e-4) throw std::runtime_error("Invalid normalized normal");
+                    if(mesh.HasNormals() && (!std::isfinite(mesh.mNormals[v].Length()) || std::abs(mesh.mNormals[v].Length()-1)>1e-4)) throw std::runtime_error("Invalid normalized normal");
                     for(unsigned k=0;k<3;++k) {const double x=mesh.mVertices[v][k];if(!std::isfinite(x))throw std::runtime_error("Nonfinite vertex");lo[k]=std::min(lo[k],x);hi[k]=std::max(hi[k],x);}
                 }
+                const unsigned expectedIndices=mesh.mPrimitiveTypes==aiPrimitiveType_TRIANGLE?3:
+                                               mesh.mPrimitiveTypes==aiPrimitiveType_LINE?2:
+                                               mesh.mPrimitiveTypes==aiPrimitiveType_POINT?1:0;
+                if(!expectedIndices)throw std::runtime_error("Mixed or unsupported mesh primitive type");
                 for(unsigned f=0;f<mesh.mNumFaces;++f) {
-                    if(mesh.mFaces[f].mNumIndices!=3)throw std::runtime_error("Non-triangle face");
-                    for(unsigned k=0;k<3;++k)if(mesh.mFaces[f].mIndices[k]>=mesh.mNumVertices)throw std::runtime_error("Invalid face index");
+                    if(mesh.mFaces[f].mNumIndices!=expectedIndices)throw std::runtime_error("Face index count does not match primitive type");
+                    for(unsigned k=0;k<expectedIndices;++k)if(mesh.mFaces[f].mIndices[k]>=mesh.mNumVertices)throw std::runtime_error("Invalid face index");
                 }
             }
             unsigned occurrences=0,nodes=0;

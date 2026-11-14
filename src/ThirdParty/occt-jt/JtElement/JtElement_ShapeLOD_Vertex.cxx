@@ -322,11 +322,6 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readVertexShapeLODData (
       return readTopologicallyCompressedData (theReader);
     else if (theKind != PrimitiveKind::Triangles)
     {
-      if (theReader.Model()->MajorVersion() < 10)
-      {
-        JtData_SkippedContent::record("polyline or point set LOD in a JT 9.x file (not decoded)");
-        return Standard_True;
-      }
       return readTopoMeshCompressedRepData (theReader, theKind);
     }
     else
@@ -646,23 +641,30 @@ void JtElement_ShapeLOD_Vertex::assembleVertexRecords(
 
 //=======================================================================
 //function : readTopoMeshCompressedRepData
-//purpose  : Polyline / point set LOD geometry (JT 10, TopoMesh Compressed Rep Data, version 1)
+//purpose  : Polyline / point set LOD geometry (JT 9/10, TopoMesh Compressed Rep Data, version 1)
 //=======================================================================
-// Layout, from the NX-written C3 samples (JT 10.10) and the public structure description; unproven for other writers:
+// JT 10 layout, from the NX-written C3 samples and the public structure description:
 //   I32 face group count, I32 primitive count, I32 vertex list length,
 //   CDP2 face group boundaries (count + 1 values, indices into the primitive list),
 //   CDP2 primitive boundaries (count + 1 values, indices into the vertex list), CDP2 vertex list,
 //   I32 hash, vertex binding (8 bytes), 4 quantization bytes, I32 vertex record count,
 //   CDP2 records-per-coordinate list, I32 (observed = unique coordinate count), compressed coordinates, [normals, colours].
+// JT 9 differs in three qualified places: point sets omit the face-group count/list, the three topology lists use the Null
+// predictor, and the unique-coordinate count precedes the records-per-coordinate packet. Its following I32 is the map hash.
 Standard_Boolean JtElement_ShapeLOD_Vertex::readTopoMeshCompressedRepData (JtData_Reader& reader, PrimitiveKind kind)
 {
   const bool lines = (kind == PrimitiveKind::Lines);
+  const bool legacy9 = reader.Model()->MajorVersion() == 9;
   const char* const what = lines ? "polyline" : "point set";
   const auto fail = [&](const std::string& message) { throw std::runtime_error(std::string("JT ") + what + " LOD: " + message); };
 
   Jt_I32 groupCount = 0, primitiveCount = 0, listCount = 0;
-  if (!reader.ReadI32 (groupCount) || !reader.ReadI32 (primitiveCount) || !reader.ReadI32 (listCount))
+  if (((!legacy9 || lines) && !reader.ReadI32 (groupCount))
+   || !reader.ReadI32 (primitiveCount)
+   || !reader.ReadI32 (listCount))
     return Standard_False;
+  if (legacy9 && !lines)
+    groupCount = 0;
   if (groupCount < 0 || groupCount > 16000000 || primitiveCount < 0 || primitiveCount > 16000000 || listCount < 0 || listCount > 16000000)
     fail("invalid primitive or vertex list size");
 
@@ -673,9 +675,11 @@ Standard_Boolean JtElement_ShapeLOD_Vertex::readTopoMeshCompressedRepData (JtDat
     const Jt_I32 count = packet.GetOutValCount();
     if (count != expected)
       fail(std::string(name) + " holds " + std::to_string(count) + " values, expected " + std::to_string(expected));
-    return packet.DecodeI32 (JtDecode_Unpack_Lag1);   // JT predictors apply from the fifth value on
+    return packet.DecodeI32 (legacy9 ? JtDecode_Unpack_Null : JtDecode_Unpack_Lag1);
   };
-  Jt_VecI32 groupBounds (readList (groupCount + 1, "face group list"));
+  Jt_VecI32 groupBounds;
+  if (!legacy9 || lines)
+    groupBounds = readList (groupCount + 1, "face group list");
   Jt_VecI32 primitiveBounds (readList (primitiveCount + 1, "primitive list"));
   Jt_VecI32 vertexList (readList (listCount, "vertex list"));
 
@@ -694,11 +698,17 @@ VertexBinding2 binding;
     return Standard_True;
   }
 
+  if (legacy9 && (!reader.ReadI32 (uniqueCount) || uniqueCount < 1 || uniqueCount > recordCount))
+    fail("invalid unique coordinate list");
+
   JtDecode_Int32CDP lengthPacket;
   Jt_I32 trailer;
   if (!lengthPacket.Load2 (reader))
     fail("cannot read the records-per-coordinate list");
-  uniqueCount = lengthPacket.GetOutValCount();
+  if (!legacy9)
+    uniqueCount = lengthPacket.GetOutValCount();
+  else if (lengthPacket.GetOutValCount() != uniqueCount)
+    fail("records-per-coordinate count disagrees with the unique coordinate count");
   if (uniqueCount < 1 || uniqueCount > recordCount)
     fail("invalid unique coordinate list");
   Jt_VecI32 lengths (lengthPacket.DecodeI32 (JtDecode_Unpack_Null));
@@ -727,7 +737,7 @@ VertexBinding2 binding;
       fail("normal count disagrees with the vertex records");
   }
   if (const unsigned colourComponents = unsigned (binding.NbColorComponents()))
-    colours = JtDecode_VertexColors::Read (reader, colourComponents, recordCount, false);
+    colours = JtDecode_VertexColors::Read (reader, colourComponents, recordCount, legacy9);
   if (binding.TextureChannelCount() != 0 || binding.IsFlagBinding() || binding.IsAuxFieldBinding())
     fail("texture, flag and auxiliary vertex attributes are not supported");
 
@@ -770,7 +780,8 @@ VertexBinding2 binding;
   };
   checkBounds (primitiveBounds, listCount, "primitive list");
 
-  checkBounds (groupBounds, primitiveCount, "face group list");
+  if (!legacy9 || lines)
+    checkBounds (groupBounds, primitiveCount, "face group list");
   if (!lines)
   {
     // Every vertex list entry is one point.

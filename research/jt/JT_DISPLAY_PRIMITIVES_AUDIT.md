@@ -1,6 +1,6 @@
 # C3 line/wire and point coverage audit
 
-24 October 2026, `feature/JT-importer`, following the owner-directed priority change `aa772b6`. **Read-only audit; no C3 implementation, build gate or acceptance yet.** C2 remains paused at C2ag. No C++ build, native test, vendor exporter or application run was performed in this pass.
+24 October 2026, `feature/JT-importer`, following the owner-directed priority change `aa772b6`. Original read-only audit; subsequently implemented for qualified JT10 samples and extended on 14 November 2026 for two authentic JT9.5 polyline controls. See [the decoder record](JT_C3_POLYLINE_POINT_DECODER.md) for current status. C2 remains paused at C2ag.
 
 ## Confirmed application gap
 

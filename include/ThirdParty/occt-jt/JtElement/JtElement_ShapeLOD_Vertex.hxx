@@ -144,7 +144,7 @@ protected:
     Standard_Boolean theIsTriStripSet = Standard_False,
     PrimitiveKind    theKind = PrimitiveKind::Triangles);
 
-  //! TopoMesh Compressed Rep Data of a polyline or point set LOD (JT 10): primitive and vertex lists plus compressed vertex records.
+  //! TopoMesh Compressed Rep Data of a polyline or point set LOD (JT 9/10): primitive and vertex lists plus compressed vertex records.
   Standard_Boolean readTopoMeshCompressedRepData (JtData_Reader& theReader, PrimitiveKind theKind);
 
   Standard_Boolean readVertexBasedShapeCompressedRepData (JtData_Reader& theReader);

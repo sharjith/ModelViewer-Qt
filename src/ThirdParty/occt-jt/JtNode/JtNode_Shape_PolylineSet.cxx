@@ -1,8 +1,10 @@
 // Original ModelViewer-Qt file (C3, 2026-11-05), following the structure of the neighbouring OCCT-derived element and node classes.
-// Layout derived from NX-written JT 10.10 samples; see research/jt/JT_C3_POLYLINE_POINT_DECODER.md.
+// Layout derived from authentic JT 9.5 and NX-written JT 10.10 samples; see
+// research/jt/JT_C3_POLYLINE_POINT_DECODER.md.
 
 #include <JtNode_Shape_PolylineSet.hxx>
 #include <JtData_Reader.hxx>
+#include <JtElement_ShapeLOD_Vertex.hxx>
 
 IMPLEMENT_STANDARD_HANDLE (JtNode_Shape_PolylineSet, JtNode_Shape_Vertex)
 IMPLEMENT_STANDARD_RTTIEXT(JtNode_Shape_PolylineSet, JtNode_Shape_Vertex)
@@ -20,7 +22,18 @@ Standard_Boolean JtNode_Shape_PolylineSet::Read (JtData_Reader& theReader)
    || !theReader.ReadVersion (aVersion)
    || !theReader.ReadF32 (anAreaFactor))
     return Standard_False;
-  if (aVersion != 1)
+  if (aVersion == 2 && theReader.Model()->MajorVersion() == 9)
+  {
+    // JT 9.x version 2 appends the vertex binding after the area factor.
+    JtElement_ShapeLOD_Vertex::VertexBinding2 aBinding;
+    if (!aBinding.Read (theReader))
+      return Standard_False;
+    if (aBinding.NbVertexCoordComponents() == 0)
+      throw std::runtime_error("JT polyline set shape node has no vertex coordinates");
+    (void )aBinding.NbColorComponents();
+    (void )aBinding.TextureChannelCount();
+  }
+  else if (aVersion != 1)
     throw std::runtime_error("Unsupported JT polyline set shape node version");
   myAreaFactor = anAreaFactor;
   return Standard_True;
