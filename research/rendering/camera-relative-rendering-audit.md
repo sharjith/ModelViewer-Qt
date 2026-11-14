@@ -55,8 +55,8 @@ Observations from reading the code; none measured at run time.
 - Zoom precision floor: 2e-5 x the largest coordinate with eye-relative rendering on (was 1e-4).
 - The temporary switch `MODELVIEWER_EYE_RELATIVE` was removed after the owner's test (no regressions, 2026-11-14). The fallback to the
   old path for views that do not match the stored one is structural and stays.
-- New log line `[Precision]`, once per scene (on the first zoom refresh): largest mesh-local vertex coordinate against largest
-  model translation, which is the missing measurement from the findings above.
+- The temporary `[Precision]` and `[Zoom]` log lines used to validate this were removed afterwards (see the validation section in
+  zoom-and-depth-range.md); they remain in commits 9755542 and df11d43 if a regression needs them back.
 - Not done: shading stability (stage 2), CPU consumers (stage 3), re-centring absolute-vertex formats (stage 4).
 
 ## Options

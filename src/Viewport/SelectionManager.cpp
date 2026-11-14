@@ -1249,8 +1249,10 @@ void SelectionManager::convertClickToRay(const QPoint& pixel, const QRect& viewp
 // Helper Methods - Color Picking
 // ============================================================================
 
-int SelectionManager::processSelection(const QPoint& pixel, bool onlyPointsAndLines)
+int SelectionManager::processSelection(const QPoint& pixel, bool onlyPointsAndLines, float* outRawDepth)
 {
+    if (outRawDepth)
+        *outRawDepth = 1.0f;
     if (!_viewportWidget)
         return -1;
 
@@ -1477,6 +1479,15 @@ int SelectionManager::processSelection(const QPoint& pixel, bool onlyPointsAndLi
 
     std::vector<float> res(static_cast<size_t>(readWidth) * static_cast<size_t>(readHeight) * 4u);
     f->glReadPixels(readX, readY, readWidth, readHeight, GL_RGBA, GL_FLOAT, res.data());
+    if (outRawDepth)
+    {
+        std::vector<float> depthWindow(static_cast<size_t>(readWidth) * static_cast<size_t>(readHeight), 1.0f);
+        f->glReadPixels(readX, readY, readWidth, readHeight, GL_DEPTH_COMPONENT, GL_FLOAT, depthWindow.data());
+        float nearest = 1.0f;
+        for (float d : depthWindow)
+            nearest = std::min(nearest, d);
+        *outRawDepth = nearest;
+    }
     const qint64 readMs = passClock.elapsed() - drawLoopMs;
     if (drawLoopMs + readMs >= 150)
         Logger::instance().info(

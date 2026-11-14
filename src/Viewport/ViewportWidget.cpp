@@ -10214,6 +10214,28 @@ void ViewportWidget::updateZoomInLimit()
 float ViewportWidget::surfaceEyeDepthAt(const QPoint& point)
 {
 	makeCurrent();
+
+	// The selection pick pass: a depth pass into its own single-sample framebuffer, limited to the meshes that can cover the pixel.
+	// Used when the displayed frame carries no readable depth: interactive ray tracing does not draw the raster pass, and the
+	// window framebuffer is multisampled when MSAA is on, where a depth read is not allowed.
+	const auto depthFromPickPass = [&]() -> float
+	{
+		if (!_selectionManager)
+			return -1.0f;
+		float pickDepth = 1.0f;
+		_selectionManager->processSelection(point, false, &pickDepth);
+		if (!(pickDepth < 1.0f))
+			return -1.0f;
+		const QMatrix4x4 projection = _primaryCamera->getProjectionMatrix();
+		const float denom = (pickDepth * 2.0f - 1.0f) + projection(2, 2);
+		if (std::abs(denom) < 1.0e-12f)
+			return -1.0f;
+		const float depth = projection(2, 3) / denom;
+		return (std::isfinite(depth) && depth > 0.0f) ? depth : -1.0f;
+	};
+	const bool rasterDepthMissing = _rtInteractionCtrl && _rtInteractionCtrl->armed() && _rayTracedInteractiveActive && _rtPresenter.hasFrame();
+	if (rasterDepthMissing)
+		return depthFromPickPass();
 	const qreal dpr = devicePixelRatioF();
 	const int fbWidth = std::max(1, static_cast<int>(width() * dpr));
 	const int fbHeight = std::max(1, static_cast<int>(height() * dpr));
@@ -10240,8 +10262,9 @@ float ViewportWidget::surfaceEyeDepthAt(const QPoint& point)
 				rawDepth = std::min(rawDepth, d);
 		}
 	}
+	while (glGetError() != GL_NO_ERROR) {}   // a refused read (multisampled framebuffer) must not leave an error behind
 	if (!(rawDepth < 1.0f))
-		return -1.0f;
+		return depthFromPickPass();          // nothing readable here: ask the pick pass (it also answers "really no surface")
 
 	const QMatrix4x4 projection = _primaryCamera->getProjectionMatrix();
 	const float denom = (rawDepth * 2.0f - 1.0f) + projection(2, 2);
@@ -10249,36 +10272,6 @@ float ViewportWidget::surfaceEyeDepthAt(const QPoint& point)
 		return -1.0f;
 	const float depth = projection(2, 3) / denom;
 	return (std::isfinite(depth) && depth > 0.0f) ? depth : -1.0f;
-}
-
-void ViewportWidget::logPrecisionSummary()
-{
-	const std::size_t meshCount = _sceneRuntime.meshStore().size();
-	if (meshCount == _precisionSummaryMeshCount || meshCount == 0)
-		return;
-	_precisionSummaryMeshCount = meshCount;
-
-	float maxLocal = 0.0f;        // largest mesh-local vertex coordinate (sampled)
-	float maxTranslation = 0.0f;  // largest model-matrix translation
-	std::size_t withTranslation = 0;
-	for (std::size_t i = 0; i < meshCount; ++i)
-	{
-		const SceneMesh* mesh = _sceneRuntime.meshAt(static_cast<int>(i));
-		if (!mesh)
-			continue;
-		const QMatrix4x4 m = mesh->combinedRenderTransform();
-		const float t = std::max({ std::abs(m(0, 3)), std::abs(m(1, 3)), std::abs(m(2, 3)) });
-		maxTranslation = std::max(maxTranslation, t);
-		if (t > 0.0f)
-			++withTranslation;
-		const std::vector<float>& pts = mesh->cpuPoints();
-		const std::size_t stride = std::max<std::size_t>(3, (pts.size() / 3 / 400) * 3);   // about 400 samples per mesh
-		for (std::size_t k = 0; k + 2 < pts.size(); k += stride)
-			maxLocal = std::max({ maxLocal, std::abs(pts[k]), std::abs(pts[k + 1]), std::abs(pts[k + 2]) });
-	}
-	Logger::instance().info(QStringLiteral("[Precision] %1 meshes: largest mesh-local vertex coordinate %2, largest model translation %3 (%4 meshes carry a translation), scene radius %5")
-		.arg(meshCount).arg(maxLocal, 0, 'g', 6).arg(maxTranslation, 0, 'g', 6).arg(withTranslation)
-		.arg(_viewCtrl.boundingSphere().getRadius(), 0, 'g', 6), QStringLiteral("Navigation"));
 }
 
 float ViewportWidget::minimumViewRange()
@@ -10312,7 +10305,7 @@ bool ViewportWidget::zoomTowardSurface(const QPoint& cursor, float factor, bool 
 {
 	// Allowance per refresh: a camera move by any other means (pan, rotate, a view change) lets the camera come this much
 	// closer (0.1 = to a tenth of the distance it had then). Precision floor: the closest approach, as a fraction of the
-	// largest coordinate in play, at which single-precision vertices still give a stable picture (about 1.5 pixels of jitter).
+	// largest coordinate in play, at which the stored single-precision coordinates still give a stable picture.
 	constexpr float kAllowanceFraction = 0.1f;
 	// The geometry is eye-relative, so it no longer jitters with the camera; what remains is the fixed rounding of the stored
 	// coordinates (a floor set from the owner's tests).
@@ -10339,23 +10332,40 @@ bool ViewportWidget::zoomTowardSurface(const QPoint& cursor, float factor, bool 
 	const QVector3D forward = -QVector3D(view(2, 0), view(2, 1), view(2, 2)).normalized();
 
 	// Eye depth of the surface under the cursor; over empty space, the depth of the orbit target.
-	float surfaceDepth = surfaceEyeDepthAt(cursor);
-	if (!(surfaceDepth > 0.0f))
-		surfaceDepth = orbitDistance;
+	// The same surface point stays under a steady cursor while only this feature moves the camera, so reuse its depth (scaled by
+	// each step) instead of reading it again; read afresh after any other camera move or when the cursor has moved.
+	const bool cameraUnchanged = _zoomAllowance.valid
+		&& _zoomAllowance.position.x() == target.x() && _zoomAllowance.position.y() == target.y() && _zoomAllowance.position.z() == target.z()
+		&& _zoomAllowance.viewDir == _primaryCamera->getViewDir() && _zoomAllowance.upDir == _primaryCamera->getUpVector()
+		&& _zoomAllowance.viewRange == viewRange;
+	float surfaceDepth = 0.0f;
+	bool depthFromBuffer = false;
+	if (cameraUnchanged && _zoomAllowance.depthChecked && (cursor - _zoomAllowance.depthCursor).manhattanLength() <= 6)
+	{
+		// Reused from the previous step: a surface depth, or "no surface here" (then the orbit target stands in, as before).
+		depthFromBuffer = _zoomAllowance.depthKnown;
+		surfaceDepth = depthFromBuffer ? _zoomAllowance.depthValue : orbitDistance;
+	}
+	else
+	{
+		surfaceDepth = surfaceEyeDepthAt(cursor);
+		depthFromBuffer = surfaceDepth > 0.0f;
+		if (!depthFromBuffer)
+			surfaceDepth = orbitDistance;
+	}
 
 	// Has the camera moved by anything other than this feature's own steps since the last one?
 	const QVector3D viewDir = _primaryCamera->getViewDir();
 	const QVector3D upDir = _primaryCamera->getUpVector();
-	const bool moved = !_zoomAllowance.valid
-		|| _zoomAllowance.position.x() != target.x() || _zoomAllowance.position.y() != target.y() || _zoomAllowance.position.z() != target.z()
-		|| _zoomAllowance.viewDir != viewDir || _zoomAllowance.upDir != upDir
-		|| _zoomAllowance.viewRange != viewRange;
+	const bool positionChanged = _zoomAllowance.position.x() != target.x() || _zoomAllowance.position.y() != target.y()
+		|| _zoomAllowance.position.z() != target.z();
+	const bool directionChanged = _zoomAllowance.viewDir != viewDir || _zoomAllowance.upDir != upDir;
+	const bool rangeChanged = _zoomAllowance.viewRange != viewRange;
+	const bool moved = !_zoomAllowance.valid || positionChanged || directionChanged || rangeChanged;
 	if (moved)
 	{
-		logPrecisionSummary();
 		_zoomAllowance.valid = true;
 		_zoomAllowance.standoff = kAllowanceFraction * surfaceDepth;
-		_zoomAllowance.stallLogged = false;
 	}
 
 	// Hard floor: precision at the coordinates involved, and a sliver of the scene size.
@@ -10364,20 +10374,6 @@ bool ViewportWidget::zoomTowardSurface(const QPoint& cursor, float factor, bool 
 	const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 1.0e-6f);
 	const float hardFloor = std::max(kPrecisionFloor * magnitude, 1.0e-6f * sceneRadius);
 	const float standoff = std::max(_zoomAllowance.standoff, hardFloor);
-
-	// Diagnostics for "zoom hits a limit" reports: one line each time the allowance is refreshed, and one when the remaining
-	// distance to the stand-off is under 15% of it (the steps are then too small to see, which reads as a stall).
-	const char* const limitName = hardFloor > _zoomAllowance.standoff ? "PRECISION FLOOR" : "allowance stand-off";
-	if (moved)
-		Logger::instance().info(QStringLiteral("[Zoom] refresh: eye depth %1, allowance stand-off %2, precision floor %3 (binding: %4), largest coordinate %5, scene radius %6")
-			.arg(surfaceDepth, 0, 'g', 4).arg(_zoomAllowance.standoff, 0, 'g', 4).arg(hardFloor, 0, 'g', 4)
-			.arg(QLatin1String(limitName)).arg(magnitude, 0, 'g', 6).arg(sceneRadius, 0, 'g', 6), QStringLiteral("Navigation"));
-	if (zoomIn && surfaceDepth <= standoff * 1.15f && !_zoomAllowance.stallLogged)
-	{
-		_zoomAllowance.stallLogged = true;
-		Logger::instance().info(QStringLiteral("[Zoom] stalled at eye depth %1 by the %2 (stand-off used %3)")
-			.arg(surfaceDepth, 0, 'g', 4).arg(QLatin1String(limitName)).arg(standoff, 0, 'g', 4), QStringLiteral("Navigation"));
-	}
 
 	float newDepth = surfaceDepth;
 	if (zoomIn)
@@ -10408,6 +10404,10 @@ bool ViewportWidget::zoomTowardSurface(const QPoint& cursor, float factor, bool 
 		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 	}
 
+	_zoomAllowance.depthChecked = true;
+	_zoomAllowance.depthKnown = depthFromBuffer;
+	_zoomAllowance.depthCursor = cursor;
+	_zoomAllowance.depthValue = surfaceDepth * ratio;   // the same surface point, seen from the new eye position
 	_zoomAllowance.position = _primaryCamera->getPosition();
 	_zoomAllowance.viewDir = _primaryCamera->getViewDir();
 	_zoomAllowance.upDir = _primaryCamera->getUpVector();

@@ -1908,20 +1908,23 @@ private:
 	// and a stand-off distance, set when the camera last moved by other means, is as close as it gets. See research/rendering/.
 	// Returns false when the mode does not apply (the caller then uses the legacy view-range zoom).
 	bool  zoomTowardSurface(const QPoint& cursor, float factor, bool zoomIn);
-	void  logPrecisionSummary();        // once per scene: how large the mesh-local vertices and the model translations are
-	std::size_t _precisionSummaryMeshCount = static_cast<std::size_t>(-1);
 	float minimumViewRange();           // closest view range the legacy-path zooms (wheel, drag, keys, inertia) allow
 	bool  surfaceZoomApplies();   // perspective orbit camera, single view, and the legacy switch is off
 	float surfaceEyeDepthAt(const QPoint& point);   // eye-space depth of the drawn surface at the pixel; <= 0 when none
 	struct ZoomAllowance
 	{
 		bool      valid = false;
-		bool      stallLogged = false;
 		float     standoff = 0.0f;       // closest approach (eye depth to the surface) until the camera next moves otherwise
 		QVector3D position;                // camera pose right after this feature's own last step
 		QVector3D viewDir;
 		QVector3D upDir;
 		float     viewRange = 0.0f;
+		// The surface depth under the cursor after the last step: while the camera has not moved otherwise and the cursor stays put,
+		// the same surface point stays under it, so its depth just scales with each step and nothing needs to be read again.
+		bool      depthChecked = false;   // the cached answer below is for this cursor and pose
+		bool      depthKnown = false;     // true: depthValue is a surface depth; false: nothing under the cursor
+		QPoint    depthCursor;
+		float     depthValue = 0.0f;
 	} _zoomAllowance;
 	bool isMeshAnimationVisible(const SceneMesh* mesh) const;
 	bool isMeshDisplayed(const QUuid& meshUuid) const;

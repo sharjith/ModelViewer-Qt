@@ -90,7 +90,9 @@ public:
     void syncMeshSelectionVisualState();
     // GPU colour pick of the mesh under the pixel (-1: none). onlyPointsAndLines limits the pass to point and line meshes, the
     // cheap supplement the raycast-only hover mode needs because the CPU ray test only hits triangles.
-    int processSelection(const QPoint& pixel, bool onlyPointsAndLines = false);
+    // outRawDepth (optional): the nearest window-depth (0..1, 1 = nothing) the pick pass drew in the 2x2 pixel window it reads, so a
+    // caller can get the surface depth under a pixel when the displayed frame carries no raster depth (interactive ray tracing).
+    int processSelection(const QPoint& pixel, bool onlyPointsAndLines = false, float* outRawDepth = nullptr);
 
     // Pick a precise surface anchor at the given pixel: the closest
     // ray-triangle hit across all visible meshes, with vertex-snapping

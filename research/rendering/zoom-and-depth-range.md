@@ -153,3 +153,23 @@ For each, in both projections, zoom from the full view to the closest the viewer
 - whether the zoom stops cleanly or jumps.
 
 Record results in this folder, with the model identified by neutral IDs only.
+
+## Validation from the owner's logs (2026-11-14)
+
+Method: the temporary `[Zoom] refresh` / `[Zoom] stalled` / `[Precision]` lines (commits 9755542 and df11d43; removed afterwards)
+were read from the application logs in `%APPDATA%\Sharjith N\ModelViewer\logs`. Large test model: scene radius 511; small test
+model: scene radius 2.8. Observations only; the owner's judgement of how it feels is the acceptance test.
+
+- Before the pick-pass depth (session 14:46): 25 of 25 refreshes took their depth from the orbit target, none from a surface,
+  because interactive ray tracing leaves no raster depth.
+- With the pick pass (session 15:37, ray-traced mode): 16 of 17 refreshes used the pick pass (the other had no surface under the
+  cursor), one stall by the allowance stand-off, eye depth reached 0.0009, no pick slow enough to log (the existing
+  `[SelectDiagnostics]` threshold is 150 ms).
+- With the pick pass as a fallback for raster modes too (session 15:50): 10 of 10 refreshes used the pick pass, eye depth reached
+  0.0004, no GL errors, no slow picks. The log does not record the rendering mode, so this does not by itself separate ADS/PBR from
+  ray tracing; the owner reported the raster modes as "much better" after the change. The reading that the window's depth read is
+  refused on a multisampled framebuffer is an inference from the zoom behaviour, not confirmed with a GL error check.
+- Large model before eye-relative rendering: stalled on the precision floor at eye depth 0.0135 (floor 0.0118 at a largest
+  coordinate of 118). After: refreshes down to eye depth 0.0004 on the small model; the allowance stand-off, not the floor, was
+  the binding limit on every logged refresh.
+- No timer or idle trigger exists in the zoom code; a refresh after a 38-minute idle gap was triggered by a changed camera position.
