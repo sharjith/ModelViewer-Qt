@@ -1997,6 +1997,11 @@ void ViewportWidget::paintGL()
 				    && _rtInteractionCtrl->armed() && (_rayTracedInteractiveActive || !_rayTracedIdleTimer->isActive())
 				    && _rtPresenter.hasFrame())
 					drawLights(_primaryCamera);
+				// The selected light's gizmo goes on top of the fixtures and the ray-traced frame.
+				if (!_compareActive && !_viewCtrl.multiViewActive() && lightGizmoActive()
+				    && _rtInteractionCtrl->armed() && (_rayTracedInteractiveActive || !_rayTracedIdleTimer->isActive())
+				    && _rtPresenter.hasFrame())
+					drawTransformGizmo(_primaryCamera);
 
 				drawViewCube(axisViewOverride);
 
@@ -7914,7 +7919,12 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	drawSimulationVolumes(_primaryCamera);
 	if (!_capturingCleanFrame)
 	{
-		drawTransformGizmo(_primaryCamera);
+		// A selected light's gizmo is drawn by paintGL() after the ray-traced frame instead (the frame would cover it).
+		const bool lightGizmoAfterRayTrace = lightGizmoActive() && !_compareActive
+			&& _rtInteractionCtrl->armed() && (_rayTracedInteractiveActive || !_rayTracedIdleTimer->isActive())
+			&& _rtPresenter.hasFrame();
+		if (!lightGizmoAfterRayTrace)
+			drawTransformGizmo(_primaryCamera);
 		renderPlaneGizmos();
 		drawVertexMarkers();
 	}
