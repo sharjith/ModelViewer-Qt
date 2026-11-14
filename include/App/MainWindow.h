@@ -194,6 +194,11 @@ private:
     ModelViewer* activeMdiChild() const;
     QMdiSubWindow* findMdiChild(const QString& fileName) const;
 	bool canExit();
+	// Asks about every document with unsaved changes (one message box for a single document, one review dialog for several) and
+	// saves what the user chose. True: the close may go ahead (nothing is closed or discarded here). False: cancelled, a save was
+	// cancelled or failed, or a document is still busy. promptShown: a question was shown (the exit confirmation is then skipped).
+	bool reviewUnsavedDocuments(bool exiting, bool& promptShown);
+	void activateDocumentForClose(ModelViewer* viewer);
 
 	// Wraps a newly constructed ModelViewer in a QMdiSubWindow and adds it
 	// to _mdiArea. Used by both createMdiChild() and on_actionNew_triggered().

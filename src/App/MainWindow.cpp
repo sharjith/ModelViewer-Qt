@@ -29,6 +29,7 @@
 #include "Logger.h"
 #include "ui_MainWindow.h"
 #include "ModelViewer.h"
+#include "UnsavedChangesDialog.h"
 #include "ThemeManager.h"
 #include "LanguageManager.h"
 #include "StartupSplash.h"
@@ -2678,11 +2679,18 @@ void MainWindow::closeSubWindow()
 
 void MainWindow::closeAllSubWindows()
 {
+	// One review for all documents; a Cancel (or a failed save) stops the whole Close All.
+	bool promptShown = false;
+	if (!reviewUnsavedDocuments(false, promptShown))
+		return;
 	// Snapshot first - closing each viewer mutates _viewers via the
 	// destroyed-signal handler in createDocumentSubWindow().
 	const QList<ModelViewer*> viewers = _viewers;
 	for (ModelViewer* viewer : viewers)
+	{
+		viewer->setCloseApproved(true);   // already asked: closeEvent() must not ask again
 		viewer->close();
+	}
 }
 
 bool MainWindow::loadFile(const QString& fileName)
@@ -3059,44 +3067,128 @@ QMdiSubWindow* MainWindow::findMdiChild(const QString& fileName) const
 	return nullptr;
 }
 
-bool MainWindow::canExit()
+void MainWindow::activateDocumentForClose(ModelViewer* viewer)
 {
-	// Query each open document FIRST, before the generic "are you sure?"
-	// confirmation below - this used to run in the opposite order, which
-	// meant every close (including Windows' bulk "Close all windows" from a
-	// grouped taskbar icon, and OS logoff/shutdown) always blocked on an
-	// extra, purely redundant dialog before ever reaching the checks that
-	// actually protect data. Windows applies a much shorter non-responsive
-	// timeout to a bulk/grouped close than to a single window's X button,
-	// and it silently force-terminates the process once that timeout
-	// elapses - the previous ordering left the app sitting on the
-	// redundant confirmation for however many documents were open (up to
-	// two sequential dialogs each - unsaved materials, then unsaved
-	// changes), making a force-terminated exit-with-data-loss-and-no-
-	// prompt-ever-shown far more likely the more documents were open.
-	// Checking documents first means the common case (nothing unsaved)
-	// responds to the close request immediately, with no dialog at all.
-	for (ModelViewer* child : std::as_const(_viewers))
-	{
-		// Create a close event and let the child handle it
-		// This will trigger ModelViewer::closeEvent which shows the save dialog
-		QCloseEvent closeEvent;
-		child->closeEvent(&closeEvent);
+	// The question and any Save As / overwrite prompt of this document are parented to it: show it first.
+	if (auto* sub = qobject_cast<QMdiSubWindow*>(viewer->parentWidget()))
+		_mdiArea->setActiveSubWindow(sub);
+	activateDocument(viewer);
+}
 
-		// If the child rejected the close (user clicked Cancel), return false
-		if (!closeEvent.isAccepted())
+bool MainWindow::reviewUnsavedDocuments(bool exiting, bool& promptShown)
+{
+	promptShown = false;
+	const QList<ModelViewer*> viewers = _viewers;
+
+	// A running analysis computation keeps its document open (cancel is requested; close again once it has unwound).
+	for (ModelViewer* viewer : viewers)
+	{
+		if (viewer->cancelAnalysisIfBusy())
 		{
-			return false;  // Exit cancelled - don't close application
+			activateDocumentForClose(viewer);
+			showStatusMessage(tr("A computation is still running in \"%1\". It is being cancelled: close again when it has finished.")
+				.arg(viewer->documentBaseTitle()), 10000);
+			return false;
 		}
 	}
 
-	// Check user preference for exit confirmation - only reached once every
-	// document has already been confirmed clean (or its changes handled),
-	// so this is now a genuinely low-stakes "are you sure?" rather than a
-	// gate in front of the data-safety checks.
+	// Documents with something to save, in tab order (_viewers is in creation order).
+	QList<ModelViewer*> unsaved;
+	for (ModelViewer* viewer : viewers)
+	{
+		const bool modified = viewer->refreshModifiedForClose();
+		if (modified || viewer->unsavedMaterialCount() > 0)
+			unsaved.append(viewer);
+	}
+	if (unsaved.isEmpty())
+		return true;
+
+	// One document: the plain question, naming it.
+	if (unsaved.size() == 1)
+	{
+		promptShown = true;
+		activateDocumentForClose(unsaved.first());
+		return unsaved.first()->confirmClose();
+	}
+
+	QList<UnsavedDocumentInfo> infos;
+	for (ModelViewer* viewer : std::as_const(unsaved))
+		infos.append(viewer->unsavedDocumentInfo());
+	promptShown = true;
+	UnsavedChangesDialog dialog(infos, exiting, this);
+	dialog.exec();
+	if (dialog.result() == UnsavedChangesDialog::Result::Cancel)
+		return false;
+	if (dialog.result() == UnsavedChangesDialog::Result::DontSave)
+		return true;
+
+	// Save the ticked documents one by one. Nothing is closed or discarded until all of them are saved: a cancelled save or a
+	// failure leaves every document open (the ones already saved stay saved).
+	const QList<int> rows = dialog.checkedRows();
+	bool skipped = false;
+	int done = 0;
+	for (int row : rows)
+	{
+		ModelViewer* viewer = unsaved.at(row);
+		++done;
+		activateDocumentForClose(viewer);
+		showStatusMessage(tr("Saving %1 of %2: %3").arg(done).arg(rows.size()).arg(viewer->documentBaseTitle()), 0);
+		for (;;)
+		{
+			bool ok = true;
+			if (viewer->unsavedMaterialCount() > 0)
+				ok = viewer->saveMaterialsQuietly();   // a failure was reported by that call
+			if (ok && viewer->refreshModifiedForClose())
+				ok = viewer->save();
+			if (ok)
+				break;
+			if (!viewer->lastSaveFailed())
+				return false;   // cancelled by the user (Save As, overwrite or options prompt), or the materials could not be saved
+
+			QMessageBox box(QMessageBox::Warning, tr("Save changes"),
+				tr("Could not save \"%1\".").arg(viewer->documentBaseTitle()), QMessageBox::NoButton, this);
+			box.setInformativeText(tr("If you skip it, the other documents are still saved, but the application stays open."));
+			QPushButton* retry = box.addButton(tr("Retry"), QMessageBox::AcceptRole);
+			QPushButton* skip = box.addButton(tr("Skip this document"), QMessageBox::ActionRole);
+			box.addButton(QMessageBox::Cancel);
+			box.setDefaultButton(retry);
+			box.exec();
+			if (box.clickedButton() == retry)
+				continue;
+			if (box.clickedButton() == skip)
+			{
+				skipped = true;
+				break;
+			}
+			return false;
+		}
+	}
+	if (skipped)
+		showStatusMessage(tr("Some documents were not saved, so they stay open."), 10000);
+	else
+		showStatusMessage(QString(), 1);
+	return !skipped;
+}
+
+bool MainWindow::canExit()
+{
+	// Query the documents FIRST, before the generic "are you sure?"
+	// confirmation below. Windows applies a much shorter non-responsive
+	// timeout to a bulk/grouped close than to a single window's X button,
+	// and it silently force-terminates the process once that timeout
+	// elapses - so the data-safety questions must come first, and the common
+	// case (nothing unsaved) must respond immediately with no dialog at all.
+	// All documents are reviewed together (one question for one document, one
+	// review dialog for several) instead of one question per document.
+	bool promptShown = false;
+	if (!reviewUnsavedDocuments(true, promptShown))
+		return false;  // Exit cancelled - don't close application
+
+	// A review question has just been answered with Save or Don't Save: that was the explicit exit decision, no second question.
+	// Otherwise the optional "are you sure?" - a genuinely low-stakes question, as every document is clean.
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 	bool confirmOnExit = settings.value("checkConfirmExit", true).toBool();
-	if (confirmOnExit)
+	if (confirmOnExit && !promptShown)
 	{
 		QMessageBox::StandardButton reply = QMessageBox::question(
 			this,
@@ -3110,7 +3202,9 @@ bool MainWindow::canExit()
 		}
 	}
 
-	// All children accepted the close event - safe to exit
+	// The exit is final: only now do the documents drop their unsaved materials from the shared library.
+	for (ModelViewer* child : std::as_const(_viewers))
+		child->finalizeClose();
 	return true;
 }
 

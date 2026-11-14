@@ -24,6 +24,7 @@
 #include "MaterialVariantsPanel.h"
 #include "TextureDebugPanel.h"
 #include "ResultSnapshot.h"
+#include "UnsavedChangesDialog.h"
 #include "PlaybackClock.h"
 #include "SimulationResultDisplay.h"
 #include "Plot3DPathlines.h"
@@ -230,6 +231,26 @@ public:
 	bool saveAs();
 
 	void closeEvent(QCloseEvent* event);
+
+	// Closing (see research/ui/UNSAVED_CHANGES_ON_CLOSE_DESIGN.md). The application-level review dialog (MainWindow) asks the questions for
+	// several documents at once and uses these.
+	// Starts the cancel of a running analysis computation; true when one was running (the document must not be closed now).
+	bool cancelAnalysisIfBusy();
+	// Re-checks the live view state, then tells whether the document has unsaved changes.
+	bool refreshModifiedForClose();
+	int unsavedMaterialCount() const;
+	UnsavedDocumentInfo unsavedDocumentInfo() const;
+	// The single-document question (unsaved materials, then unsaved changes), naming the document. False: the user cancelled, or a save
+	// was cancelled or failed - the document must stay open. Never removes anything.
+	bool confirmClose();
+	// Saves the unsaved materials into the user library. quiet: no information box on success (one status message instead).
+	bool saveMaterialsQuietly();
+	// Removes this document's unsaved materials from the shared library. Call only when the document is really going away.
+	void finalizeClose();
+	// The document's close has been decided by the application-level review: closeEvent() must not ask again.
+	void setCloseApproved(bool approved) { _closeApproved = approved; }
+	// The last save() failed to write (as opposed to being cancelled by the user).
+	bool lastSaveFailed() const { return _lastSaveFailed; }
 
 	void setDocumentSaved(bool saved = true);
 	bool isDocumentSaved() const { return _documentSaved; }
@@ -1030,7 +1051,7 @@ private:
 	void validateAnimationData(); // removes animation data for files with no remaining meshes
 	void validateCameraData();    // removes camera data for files with no remaining meshes
 	void validateLightData();     // removes punctual-light data for files with no remaining meshes
-	bool saveMaterialsBeforeClose();  // Save all unsaved materials to library before closing
+	bool saveMaterialsBeforeClose(bool quiet = false);  // Save all unsaved materials to library before closing (quiet: no success box)
 	void cleanupUnsavedMaterialsFromLibrary();
 	QSet<QUuid> scanStackForReferencedUuids();
 	QSet<QUuid> collectVisibleUuidsFromDisplayList() const;
@@ -1284,6 +1305,8 @@ private:
 	QDateTime _trackedModified;
 	qint64 _trackedSize = -1;
 	bool _diskNotice = false;   // the current difference has been reported once
+	bool _closeApproved = false;
+	bool _lastSaveFailed = false;
 	bool writeDocument(QString fileName, bool force);   // save() and saveAs(): force writes even when there is nothing new to save (Save As)
 	bool _documentLoading = false;   // an MVF is loading: no view-state checks until its baseline is taken
 	// Cleanup optimization

@@ -3652,6 +3652,38 @@ Unsupported file format: </source>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation></translation>
     </message>
+    <message>
+        <source>A computation is still running in &quot;%1&quot;. It is being cancelled: close again when it has finished.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Saving %1 of %2: %3</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Save changes</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Could not save &quot;%1&quot;.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>If you skip it, the other documents are still saved, but the application stays open.</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Retry</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Skip this document</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Some documents were not saved, so they stay open.</source>
+        <translation></translation>
+    </message>
 </context>
 <context>
     <name>MassPropertiesDialog</name>
@@ -8321,6 +8353,17 @@ The surface is shown with the colours it had when it was saved.</source>
         <location filename="../src/Plot3D/UI/ModelViewerPlot3DAnimation.cpp" line="252"/>
         <source>t = %1</source>
         <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation></translation>
+    </message>
+    <message numerus="yes">
+        <source>Saved %n material(s) to the library.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -23759,6 +23802,111 @@ It is always available under Help &gt; What&apos;s New.</source>
         <location filename="../src/Import/XCAFVRMLProcessor.cxx" line="89"/>
         <source>Traversing assembly and building scene...</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>UnsavedChangesDialog</name>
+    <message>
+        <source>Save changes</source>
+        <translation></translation>
+    </message>
+    <message numerus="yes">
+        <source>Save changes to these %n documents before exiting?</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Save changes to these %n documents before closing?</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Document</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Documents with unsaved changes</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Modified</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Never saved - asks for a file name</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Not yet saved as .mvf - asks for a file name</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Changed on disk - asks before overwriting</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>File deleted from disk - will be written again</source>
+        <translation></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n unsaved material(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>+ %n unsaved material(s)</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Some files were changed on disk. Saving asks before overwriting them.</source>
+        <translation></translation>
+    </message>
+    <message numerus="yes">
+        <source>%n document(s) will be saved.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n document(s) will be closed without saving.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Save &amp;All</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>Do&amp;n&apos;t Save</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>&amp;Save Selected</source>
+        <translation></translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation></translation>
     </message>
 </context>
 </TS>

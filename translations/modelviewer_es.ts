@@ -4280,6 +4280,38 @@ Formato de archivo no compatible: </translation>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation>El archivo &apos;%1&apos; ya no existe. ¿Desea eliminarlo de los archivos recientes?</translation>
     </message>
+    <message>
+        <source>A computation is still running in &quot;%1&quot;. It is being cancelled: close again when it has finished.</source>
+        <translation>En «%1» aún se está ejecutando un cálculo. Se está cancelando: vuelva a cerrar cuando haya terminado.</translation>
+    </message>
+    <message>
+        <source>Saving %1 of %2: %3</source>
+        <translation>Guardando %1 de %2: %3</translation>
+    </message>
+    <message>
+        <source>Save changes</source>
+        <translation>Guardar cambios</translation>
+    </message>
+    <message>
+        <source>Could not save &quot;%1&quot;.</source>
+        <translation>No se pudo guardar «%1».</translation>
+    </message>
+    <message>
+        <source>If you skip it, the other documents are still saved, but the application stays open.</source>
+        <translation>Si lo omite, los demás documentos se guardarán igualmente, pero la aplicación seguirá abierta.</translation>
+    </message>
+    <message>
+        <source>Retry</source>
+        <translation>Reintentar</translation>
+    </message>
+    <message>
+        <source>Skip this document</source>
+        <translation>Omitir este documento</translation>
+    </message>
+    <message>
+        <source>Some documents were not saved, so they stay open.</source>
+        <translation>Algunos documentos no se guardaron, por lo que siguen abiertos.</translation>
+    </message>
 </context>
 <context>
     <name>MassPropertiesDialog</name>
@@ -10323,6 +10355,17 @@ La superficie se muestra con los colores que tenía al guardarla.</translation>
         <location filename="../src/Plot3D/UI/ModelViewerPlot3DAnimation.cpp" line="252"/>
         <source>t = %1</source>
         <translation>t = %1</translation>
+    </message>
+    <message>
+        <source>Save changes to &quot;%1&quot; before closing?</source>
+        <translation>¿Guardar los cambios de «%1» antes de cerrar?</translation>
+    </message>
+    <message numerus="yes">
+        <source>Saved %n material(s) to the library.</source>
+        <translation>
+            <numerusform>Se guardó %n material en la biblioteca.</numerusform>
+            <numerusform>Se guardaron %n materiales en la biblioteca.</numerusform>
+        </translation>
     </message>
 </context>
 <context>
@@ -27221,6 +27264,111 @@ Siempre están disponibles en Ayuda &gt; Novedades.</translation>
         <location filename="../src/Import/XCAFVRMLProcessor.cxx" line="89"/>
         <source>Traversing assembly and building scene...</source>
         <translation>Recorriendo el ensamblaje y construyendo la escena...</translation>
+    </message>
+</context>
+<context>
+    <name>UnsavedChangesDialog</name>
+    <message>
+        <source>Save changes</source>
+        <translation>Guardar cambios</translation>
+    </message>
+    <message numerus="yes">
+        <source>Save changes to these %n documents before exiting?</source>
+        <translation>
+            <numerusform>¿Guardar los cambios de estos %n documentos antes de salir?</numerusform>
+            <numerusform>¿Guardar los cambios de estos %n documentos antes de salir?</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>Save changes to these %n documents before closing?</source>
+        <translation>
+            <numerusform>¿Guardar los cambios de estos %n documentos antes de cerrar?</numerusform>
+            <numerusform>¿Guardar los cambios de estos %n documentos antes de cerrar?</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Document</source>
+        <translation>Documento</translation>
+    </message>
+    <message>
+        <source>Location</source>
+        <translation>Ubicación</translation>
+    </message>
+    <message>
+        <source>Status</source>
+        <translation>Estado</translation>
+    </message>
+    <message>
+        <source>Documents with unsaved changes</source>
+        <translation>Documentos con cambios sin guardar</translation>
+    </message>
+    <message>
+        <source>Modified</source>
+        <translation>Modificado</translation>
+    </message>
+    <message>
+        <source>Never saved - asks for a file name</source>
+        <translation>Nunca guardado: pedirá un nombre de archivo</translation>
+    </message>
+    <message>
+        <source>Not yet saved as .mvf - asks for a file name</source>
+        <translation>Aún no guardado como .mvf: pedirá un nombre de archivo</translation>
+    </message>
+    <message>
+        <source>Changed on disk - asks before overwriting</source>
+        <translation>Modificado en el disco: preguntará antes de sobrescribir</translation>
+    </message>
+    <message>
+        <source>File deleted from disk - will be written again</source>
+        <translation>Archivo eliminado del disco: se escribirá de nuevo</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n unsaved material(s)</source>
+        <translation>
+            <numerusform>%n material sin guardar</numerusform>
+            <numerusform>%n materiales sin guardar</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>+ %n unsaved material(s)</source>
+        <translation>
+            <numerusform>+ %n material sin guardar</numerusform>
+            <numerusform>+ %n materiales sin guardar</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Some files were changed on disk. Saving asks before overwriting them.</source>
+        <translation>Algunos archivos se modificaron en el disco. Se preguntará antes de sobrescribirlos.</translation>
+    </message>
+    <message numerus="yes">
+        <source>%n document(s) will be saved.</source>
+        <translation>
+            <numerusform>Se guardará %n documento.</numerusform>
+            <numerusform>Se guardarán %n documentos.</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n document(s) will be closed without saving.</source>
+        <translation>
+            <numerusform>Se cerrará %n documento sin guardar.</numerusform>
+            <numerusform>Se cerrarán %n documentos sin guardar.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>Save &amp;All</source>
+        <translation>Guardar &amp;todo</translation>
+    </message>
+    <message>
+        <source>Do&amp;n&apos;t Save</source>
+        <translation>&amp;No guardar</translation>
+    </message>
+    <message>
+        <source>&amp;Save Selected</source>
+        <translation>Guardar &amp;seleccionados</translation>
+    </message>
+    <message>
+        <source>%1, %2</source>
+        <translation>%1, %2</translation>
     </message>
 </context>
 </TS>

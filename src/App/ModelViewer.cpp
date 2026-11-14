@@ -1858,7 +1858,7 @@ void ModelViewer::cleanupOrphanedMeshes()
 	_cachedReferencedUuids = currentlyReferenced;
 }
 
-bool ModelViewer::saveMaterialsBeforeClose()
+bool ModelViewer::saveMaterialsBeforeClose(bool quiet)
 {
 	// Get the material panel
 	MaterialPropertiesPanel* materialPanel = predefinedMaterialsPanel;
@@ -1945,8 +1945,13 @@ bool ModelViewer::saveMaterialsBeforeClose()
 	}
 	else if (savedCount > 0)
 	{
-		QString msg = QString(tr("Successfully saved %1 material(s) to library.")).arg(savedCount);
-		QMessageBox::information(this, tr("Materials Saved"), msg);
+		if (quiet)
+			MainWindow::showStatusMessage(tr("Saved %n material(s) to the library.", nullptr, savedCount), 5000);
+		else
+		{
+			QString msg = QString(tr("Successfully saved %1 material(s) to library.")).arg(savedCount);
+			QMessageBox::information(this, tr("Materials Saved"), msg);
+		}
 		return true;  // All saved successfully
 	}
 
@@ -2338,7 +2343,7 @@ void ModelViewer::mouseMoveEvent(QMouseEvent* event)
 }
 
 
-void ModelViewer::closeEvent(QCloseEvent* event)
+bool ModelViewer::cancelAnalysisIfBusy()
 {
 	// The analysis dialogs run a responsive nested event loop while their
 	// background worker is active. Do not let closing this parent destroy a
@@ -2348,17 +2353,64 @@ void ModelViewer::closeEvent(QCloseEvent* event)
 		dialog && dialog->isComputationInFlight())
 	{
 		dialog->requestComputationCancel();
-		event->ignore();
-		return;
+		return true;
 	}
 	if (auto* dialog = findChild<MassPropertiesDialog*>(QString(), Qt::FindDirectChildrenOnly);
 		dialog && dialog->isComputationInFlight())
 	{
 		dialog->requestComputationCancel();
-		event->ignore();
-		return;
+		return true;
 	}
+	return false;
+}
 
+bool ModelViewer::refreshModifiedForClose()
+{
+	// Check the live view state even if the timer has not ticked since the last edit.
+	checkViewerStateDirty(true);
+	return _documentModified;
+}
+
+int ModelViewer::unsavedMaterialCount() const
+{
+	return predefinedMaterialsPanel ? static_cast<int>(predefinedMaterialsPanel->getUnsavedMaterialKeys().size()) : 0;
+}
+
+UnsavedDocumentInfo ModelViewer::unsavedDocumentInfo() const
+{
+	UnsavedDocumentInfo info;
+	info.name = documentBaseTitle();
+	info.path = _currentFile;
+	info.modified = _documentModified;
+	info.unsavedMaterials = unsavedMaterialCount();
+	if (_currentFile.isEmpty())
+		info.kind = UnsavedDocumentInfo::Kind::Untitled;
+	else if (QFileInfo(_currentFile).suffix().compare(QLatin1String("mvf"), Qt::CaseInsensitive) != 0)
+		info.kind = UnsavedDocumentInfo::Kind::ImportedNotMvf;   // an imported file: Save asks for a .mvf name
+	else
+		info.kind = UnsavedDocumentInfo::Kind::Mvf;
+	switch (diskState())
+	{
+	case DiskState::Changed: info.disk = UnsavedDocumentInfo::Disk::Changed; break;
+	case DiskState::Missing: info.disk = UnsavedDocumentInfo::Disk::Missing; break;
+	default: info.disk = UnsavedDocumentInfo::Disk::Unchanged; break;
+	}
+	return info;
+}
+
+bool ModelViewer::saveMaterialsQuietly()
+{
+	return saveMaterialsBeforeClose(true);
+}
+
+void ModelViewer::finalizeClose()
+{
+	// Unsaved materials are MDI-scoped and should not appear in other MDIs
+	cleanupUnsavedMaterialsFromLibrary();
+}
+
+bool ModelViewer::confirmClose()
+{
 	// Check for unsaved materials first
 	MaterialPropertiesPanel* materialPanel = predefinedMaterialsPanel;
 	QSet<QString> unsavedKeys = materialPanel ? materialPanel->getUnsavedMaterialKeys() : QSet<QString>();
@@ -2375,11 +2427,8 @@ void ModelViewer::closeEvent(QCloseEvent* event)
 			QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel);
 
 		if (reply == QMessageBox::Cancel)
-		{
-			event->ignore();
-			return;
-		}
-		else if (reply == QMessageBox::Yes)
+			return false;
+		if (reply == QMessageBox::Yes)
 		{
 			// Save all unsaved materials to library
 			if (!saveMaterialsBeforeClose())
@@ -2392,42 +2441,45 @@ void ModelViewer::closeEvent(QCloseEvent* event)
 					QMessageBox::No);
 
 				if (closeAnyway != QMessageBox::Yes)
-				{
-					event->ignore();
-					return;
-				}
+					return false;
 			}
 		}
 		// If No, just proceed with closing (materials will be discarded)
 	}
 
-	// Check the live view state even if the timer has not ticked since the last edit.
-	checkViewerStateDirty(true);
-	if (_documentModified)
+	if (refreshModifiedForClose())
 	{
 		auto ret = QMessageBox::question(this, tr("Unsaved Changes"),
-			tr("The document has unsaved changes. Do you want to save before closing?"),
+			tr("Save changes to \"%1\" before closing?").arg(documentBaseTitle()),
 			QMessageBox::Yes | QMessageBox::No | QMessageBox::Cancel,
 			QMessageBox::Yes);
 		if (ret == QMessageBox::Yes)
 		{
 			if (!save())
-			{
-				event->ignore();
-				return;
-			}
+				return false;
 		}
 		else if (ret == QMessageBox::Cancel)
-		{
-			event->ignore();
-			return;
-		}
+			return false;
+	}
+	return true;
+}
+
+void ModelViewer::closeEvent(QCloseEvent* event)
+{
+	if (cancelAnalysisIfBusy())
+	{
+		event->ignore();
+		return;
 	}
 
-	// Clean up unsaved materials from shared library
-	// Unsaved materials are MDI-scoped and should not appear in other MDIs
-	cleanupUnsavedMaterialsFromLibrary();
+	// An application-level review (Exit, Close All) has already asked about this document.
+	if (!_closeApproved && !confirmClose())
+	{
+		event->ignore();
+		return;
+	}
 
+	finalizeClose();
 	event->accept();
 }
 
@@ -2605,6 +2657,7 @@ void ModelViewer::checkFileOnDisk()
 
 bool ModelViewer::save()
 {
+	_lastSaveFailed = false;
 	// If current file's extension is not .mvf, call saveAs
 	// this way, user cannot accidentally overwrite non-mvf files
 	QString ext = QFileInfo(_currentFile).suffix();
@@ -2623,6 +2676,7 @@ bool ModelViewer::save()
 
 bool ModelViewer::writeDocument(QString fileName, bool force)
 {
+	_lastSaveFailed = false;
 	// Nothing to write: neither the content nor any saved state (the camera included) differs from the file, and the file is still there.
 	// Save is available for every document with content, so a repeated click must not rewrite the file for nothing.
 	if (!force && !_documentModified && !hasUnsavedViewState() && QFileInfo::exists(fileName))
@@ -2669,6 +2723,7 @@ bool ModelViewer::writeDocument(QString fileName, bool force)
 	}
 	else
 	{
+		_lastSaveFailed = true;
 		QMessageBox::critical(this, tr("Error"), tr("Failed to save file: %1").arg(fileName));
 		return false;
 	}
@@ -2676,6 +2731,7 @@ bool ModelViewer::writeDocument(QString fileName, bool force)
 
 bool ModelViewer::saveAs()
 {
+	_lastSaveFailed = false;
 	// Set the filter for .mvf files
 	QString filter = tr("Model Viewer Files (*.mvf)");
 	QString fileName = QFileDialog::getSaveFileName(this, tr("Save Model"), currentFile(), filter);
