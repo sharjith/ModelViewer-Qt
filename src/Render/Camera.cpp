@@ -87,6 +87,19 @@ float Camera::getSceneRadius() const
 	return _sceneRadius;
 }
 
+bool Camera::setDepthRange(float nearDepth, float farDepth)
+{
+	// A range is active when far > near (an orthographic near plane may be negative); anything else clears it.
+	if (!(farDepth > nearDepth) || !std::isfinite(nearDepth) || !std::isfinite(farDepth))
+		nearDepth = farDepth = 0.0f;
+	if (nearDepth == _depthNearOverride && farDepth == _depthFarOverride)
+		return false;
+	_depthNearOverride = nearDepth;
+	_depthFarOverride = farDepth;
+	updateProjectionMatrix();
+	return true;
+}
+
 float Camera::getViewRange() const
 {
 	return _viewRange;
@@ -205,6 +218,13 @@ void Camera::updateProjectionMatrix(void)
 			nearPlane = depthCenter - depthExtent;
 			farPlane  = depthCenter + depthExtent;
 		}
+		// The visible scene's own depth range: orthographic depth is linear, so a span ~100x smaller than the
+		// default gives ~100x finer depth steps. Replaces the generous default only when the viewport computed one.
+		if (_depthFarOverride > _depthNearOverride)
+		{
+			nearPlane = _depthNearOverride;
+			farPlane  = _depthFarOverride;
+		}
 
 		if (w <= h)
 		{
@@ -252,6 +272,10 @@ void Camera::updateProjectionMatrix(void)
 		// is never clipped when zoomed deep into a small sub-mesh (where viewRange
 		// is tiny but the rest of the scene is still far away).
 		float farPlane = std::max(_viewRange * 1000.0f, _sceneRadius * 200.0f);
+		// Depth precision is set by the near plane (far hardly matters), so move it out to just in front of the
+		// nearest visible geometry. Never closer than the default, so nothing is clipped that was visible before.
+		if (_depthNearOverride > nearPlane && _depthNearOverride < farPlane)
+			nearPlane = _depthNearOverride;
 
 		float fovY = _FOV;
 		float fovYRad = fovY * PI / 180.0f;
@@ -323,16 +347,40 @@ void Camera::rotateZ(float iAngle)
 	updateViewMatrix();
 }
 
+void Camera::shiftPosition(const QVector3D& delta)
+{
+	// The stored position is single precision. A pan or zoom step much smaller than its resolution at the model's
+	// coordinates would round away to nothing, so deep in a large model the view gradually stopped responding.
+	// Keep an exact copy and let the small steps add up; the float position follows it.
+	const bool inSync = _exactPositionValid
+		&& static_cast<float>(_exactPosition[0]) == _position.x()
+		&& static_cast<float>(_exactPosition[1]) == _position.y()
+		&& static_cast<float>(_exactPosition[2]) == _position.z();
+	if (!inSync)
+	{
+		_exactPosition[0] = _position.x();
+		_exactPosition[1] = _position.y();
+		_exactPosition[2] = _position.z();
+	}
+	_exactPosition[0] += delta.x();
+	_exactPosition[1] += delta.y();
+	_exactPosition[2] += delta.z();
+	_exactPositionValid = true;
+	_position = QVector3D(static_cast<float>(_exactPosition[0]),
+	                      static_cast<float>(_exactPosition[1]),
+	                      static_cast<float>(_exactPosition[2]));
+}
+
 void Camera::move(float iDX, float iDY, float iDZ)
 {
 	QVector3D Dir(iDX, iDY, iDZ);
-	_position = _position + Dir;
+	shiftPosition(Dir);
 	updateViewMatrix();
 }
 
 void Camera::moveForward(float iDist)
 {
-	_position = _position + (_viewDir * iDist);
+	shiftPosition((_viewDir * iDist));
 	updateViewMatrix();
 }
 
@@ -342,25 +390,25 @@ void Camera::moveForwardPlanar(float iDist)
 	if (planarForward.lengthSquared() <= 1.0e-8f)
 		return;
 
-	_position = _position + planarForward.normalized() * iDist;
+	shiftPosition(planarForward.normalized() * iDist);
 	updateViewMatrix();
 }
 
 void Camera::moveUpward(float iDist)
 {
-	_position = _position + (_upVector * iDist);
+	shiftPosition((_upVector * iDist));
 	updateViewMatrix();
 }
 
 void Camera::moveWorldUp(float iDist)
 {
-	_position = _position + _worldUpVector * iDist;
+	shiftPosition(_worldUpVector * iDist);
 	updateViewMatrix();
 }
 
 void Camera::moveAcross(float iDist)
 {
-	_position = _position + (_rightVector * iDist);
+	shiftPosition((_rightVector * iDist));
 	updateViewMatrix();
 }
 
@@ -376,7 +424,7 @@ void Camera::moveAcrossPlanar(float iDist)
 	if (planarRight.lengthSquared() <= 1.0e-8f)
 		return;
 
-	_position = _position + planarRight.normalized() * iDist;
+	shiftPosition(planarRight.normalized() * iDist);
 	updateViewMatrix();
 }
 

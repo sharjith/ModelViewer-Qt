@@ -7887,6 +7887,19 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 	const bool offscreen = !_sheetCaptureSize.isEmpty();
 	const QSize rasterSize = offscreen ? _sheetCaptureSize : size();
 	glViewport(0, 0, rasterSize.width(), rasterSize.height());
+
+	// Fit the depth range now, before the shadow, SSS and transmission passes: the SSS and transmission passes store depth that
+	// the main pass reads back through the projection matrix, so all of them must share this frame's projection.
+	_primaryCamera->setSceneRadius(_viewCtrl.boundingSphere().getRadius());
+	_viewCtrl.syncMatricesFromCamera(*_primaryCamera);
+	extractFrustumPlanes();
+	if (fitCameraDepthRange(_primaryCamera))
+	{
+		_viewCtrl.syncMatricesFromCamera(*_primaryCamera);
+		extractFrustumPlanes();
+	}
+	_depthRangeFittedFor = _primaryCamera;
+
 	// showShadows (setCommonUniforms()) already skips SAMPLING the shadow map
 	// during this same lowResEnabled+oversized window, but that alone leaves
 	// the full-resolution shadow depth pass itself still running for nothing
@@ -9947,6 +9960,139 @@ void ViewportWidget::collectVisibleMeshIdsForPass(int nodeIndex,
 		collectVisibleMeshIdsForPass(childIndex, activeClipPlaneIndex, wantTransparent, out, otherOut);
 }
 
+bool ViewportWidget::fitCameraDepthRange(Camera* camera)
+{
+	if (!camera)
+		return false;
+
+	const QMatrix4x4 view = _viewCtrl.viewMatrix();
+	const QVector4D zRow = view.row(2);          // eye-space z of a world point: zRow . (p, 1); depth = -z
+	const QVector4D* planes = _viewCtrl.frustumPlanes();   // 0..3 are the side planes, 4 near, 5 far
+
+	float dMin = std::numeric_limits<float>::max();
+	float dMax = -std::numeric_limits<float>::max();
+
+	// A box's depth interval along the view direction, kept only when the box touches the view's side planes.
+	const auto addBox = [&](const BoundingBox& bb)
+	{
+		for (int i = 0; i < 4; ++i)
+		{
+			const QVector4D& p = planes[i];
+			const float sx = p.x() >= 0.0f ? static_cast<float>(bb.xMax()) : static_cast<float>(bb.xMin());
+			const float sy = p.y() >= 0.0f ? static_cast<float>(bb.yMax()) : static_cast<float>(bb.yMin());
+			const float sz = p.z() >= 0.0f ? static_cast<float>(bb.zMax()) : static_cast<float>(bb.zMin());
+			if (p.x() * sx + p.y() * sy + p.z() * sz + p.w() < 0.0f)
+				return;
+		}
+		const float cx = static_cast<float>(bb.xMin() + bb.xMax()) * 0.5f;
+		const float cy = static_cast<float>(bb.yMin() + bb.yMax()) * 0.5f;
+		const float cz = static_cast<float>(bb.zMin() + bb.zMax()) * 0.5f;
+		const float hx = static_cast<float>(bb.xMax() - bb.xMin()) * 0.5f;
+		const float hy = static_cast<float>(bb.yMax() - bb.yMin()) * 0.5f;
+		const float hz = static_cast<float>(bb.zMax() - bb.zMin()) * 0.5f;
+		const float zc = zRow.x() * cx + zRow.y() * cy + zRow.z() * cz + zRow.w();
+		const float ze = std::abs(zRow.x()) * hx + std::abs(zRow.y()) * hy + std::abs(zRow.z()) * hz;
+		dMin = std::min(dMin, -(zc + ze));
+		dMax = std::max(dMax, -(zc - ze));
+	};
+
+	const std::vector<int>& ids = _sceneRuntime.currentVisibleObjectIds();
+	for (int id : ids)
+	{
+		if (id < 0 || id >= static_cast<int>(_sceneRuntime.meshStore().size()))
+			continue;
+		const SceneMesh* mesh = _sceneRuntime.meshAt(id);
+		if (!mesh || !isMeshAnimationVisible(mesh))
+			continue;
+		// Skinned and morphing meshes keep bind-pose bounds, which say nothing about where they are drawn: keep the default range.
+		if (mesh->hasSkinning() || mesh->hasMorphTargets())
+			return camera->clearDepthRange();
+		addBox(mesh->getBoundingBox());
+	}
+
+	if (dMin > dMax)
+		return camera->clearDepthRange();   // nothing in view: the default range
+
+	const bool orthographic = camera->getProjectionType() == Camera::ProjectionType::ORTHOGRAPHIC;
+	const float viewRange = std::max(camera->getViewRange(), 1.0e-6f);
+
+	// The ground (floor, grid, infinite plane) is not a mesh: add the part of its plane inside the view's side planes.
+	const GroundMode ground = _renderCtrl.groundMode();
+	if (ground != GroundMode::None)
+	{
+		const bool zUp = _viewCtrl.cameraUpAxisZUp();
+		const int upAxis = zUp ? 2 : 1;
+		const int axisA = 0;
+		const int axisB = zUp ? 1 : 2;
+		const float half = std::max(CoordinateSystemHelper::groundPlaneExtent(_floorSize, _floorSizeFactor, ground), 1.0e-4f);
+
+		// The ground square, then clipped against the four side planes (Sutherland-Hodgman).
+		std::vector<QVector3D> poly(4);
+		const float a0 = _floorCenter[axisA];
+		const float b0 = _floorCenter[axisB];
+		const float us[4] = { -1.0f, 1.0f, 1.0f, -1.0f };
+		const float vs[4] = { -1.0f, -1.0f, 1.0f, 1.0f };
+		for (int i = 0; i < 4; ++i)
+		{
+			QVector3D p;
+			p[axisA] = a0 + us[i] * half;
+			p[axisB] = b0 + vs[i] * half;
+			p[upAxis] = _floorPlaneZ;
+			poly[i] = p;
+		}
+		for (int pi = 0; pi < 4 && !poly.empty(); ++pi)
+		{
+			const QVector4D& pl = planes[pi];
+			const auto dist = [&](const QVector3D& p) { return pl.x() * p.x() + pl.y() * p.y() + pl.z() * p.z() + pl.w(); };
+			std::vector<QVector3D> next;
+			for (std::size_t i = 0; i < poly.size(); ++i)
+			{
+				const QVector3D& cur = poly[i];
+				const QVector3D& nxt = poly[(i + 1) % poly.size()];
+				const float dc = dist(cur);
+				const float dn = dist(nxt);
+				if (dc >= 0.0f)
+					next.push_back(cur);
+				if ((dc >= 0.0f) != (dn >= 0.0f))
+					next.push_back(cur + (nxt - cur) * (dc / (dc - dn)));
+			}
+			poly.swap(next);
+		}
+		if (!poly.empty())
+		{
+			float gMin = std::numeric_limits<float>::max();
+			float gMax = -std::numeric_limits<float>::max();
+			for (const QVector3D& p : poly)
+			{
+				const float d = -(zRow.x() * p.x() + zRow.y() * p.y() + zRow.z() * p.z() + zRow.w());
+				gMin = std::min(gMin, d);
+				gMax = std::max(gMax, d);
+			}
+			if (orthographic)
+			{
+				// Edge-on, the ground reaches to the end of its extent; keep it within a few view widths of the model so one grazing
+				// view cannot bring the whole range back.
+				gMin = std::max(gMin, dMin - 10.0f * viewRange);
+				gMax = std::min(gMax, dMax + 10.0f * viewRange);
+			}
+			dMin = std::min(dMin, gMin);
+			dMax = std::max(dMax, gMax);
+		}
+	}
+
+	// Room for things that are not meshes (clip-plane gizmos, labels, light fixtures next to the model): two view widths each
+	// side orthographically; perspectively 20% of the distance to the nearest geometry, since only the near plane is used.
+	if (!orthographic)
+	{
+		if (dMin <= 0.0f)
+			return camera->clearDepthRange();   // geometry reaches the eye: the default near plane
+		const float nearDepth = dMin * 0.8f;
+		return camera->setDepthRange(nearDepth, std::max(dMax, nearDepth) + viewRange);
+	}
+	const float margin = 2.0f * viewRange;
+	return camera->setDepthRange(dMin - margin, dMax + margin);
+}
+
 void ViewportWidget::extractFrustumPlanes()
 {
 	_viewCtrl.updateFrustumPlanes();
@@ -10063,6 +10209,208 @@ void ViewportWidget::updateZoomInLimit()
 	else
 		_viewCtrl.setZoomInLimit(_viewCtrl.zoomInLimit()
 			+ (rawFloor - _viewCtrl.zoomInLimit()) * 0.12f);                           // rise: gradual
+}
+
+float ViewportWidget::surfaceEyeDepthAt(const QPoint& point)
+{
+	makeCurrent();
+	const qreal dpr = devicePixelRatioF();
+	const int fbWidth = std::max(1, static_cast<int>(width() * dpr));
+	const int fbHeight = std::max(1, static_cast<int>(height() * dpr));
+	const int cx = std::clamp(static_cast<int>(point.x() * dpr), 0, fbWidth - 1);
+	const int cy = std::clamp(static_cast<int>((height() - point.y() - 1) * dpr), 0, fbHeight - 1);
+
+	float rawDepth = 1.0f;
+	glReadPixels(cx, cy, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &rawDepth);
+	if (rawDepth >= 1.0f)
+	{
+		// Nothing exactly under the cursor: the nearest surface in a small neighbourhood.
+		const int halfGrid = 4;
+		const int x0 = std::max(0, cx - halfGrid);
+		const int y0 = std::max(0, cy - halfGrid);
+		const int x1 = std::min(fbWidth - 1, cx + halfGrid);
+		const int y1 = std::min(fbHeight - 1, cy + halfGrid);
+		const int sw = x1 - x0 + 1;
+		const int sh = y1 - y0 + 1;
+		if (sw > 0 && sh > 0)
+		{
+			std::vector<float> depthBuf(static_cast<std::size_t>(sw) * sh, 1.0f);
+			glReadPixels(x0, y0, sw, sh, GL_DEPTH_COMPONENT, GL_FLOAT, depthBuf.data());
+			for (float d : depthBuf)
+				rawDepth = std::min(rawDepth, d);
+		}
+	}
+	if (!(rawDepth < 1.0f))
+		return -1.0f;
+
+	const QMatrix4x4 projection = _primaryCamera->getProjectionMatrix();
+	const float denom = (rawDepth * 2.0f - 1.0f) + projection(2, 2);
+	if (std::abs(denom) < 1.0e-12f)
+		return -1.0f;
+	const float depth = projection(2, 3) / denom;
+	return (std::isfinite(depth) && depth > 0.0f) ? depth : -1.0f;
+}
+
+void ViewportWidget::logPrecisionSummary()
+{
+	const std::size_t meshCount = _sceneRuntime.meshStore().size();
+	if (meshCount == _precisionSummaryMeshCount || meshCount == 0)
+		return;
+	_precisionSummaryMeshCount = meshCount;
+
+	float maxLocal = 0.0f;        // largest mesh-local vertex coordinate (sampled)
+	float maxTranslation = 0.0f;  // largest model-matrix translation
+	std::size_t withTranslation = 0;
+	for (std::size_t i = 0; i < meshCount; ++i)
+	{
+		const SceneMesh* mesh = _sceneRuntime.meshAt(static_cast<int>(i));
+		if (!mesh)
+			continue;
+		const QMatrix4x4 m = mesh->combinedRenderTransform();
+		const float t = std::max({ std::abs(m(0, 3)), std::abs(m(1, 3)), std::abs(m(2, 3)) });
+		maxTranslation = std::max(maxTranslation, t);
+		if (t > 0.0f)
+			++withTranslation;
+		const std::vector<float>& pts = mesh->cpuPoints();
+		const std::size_t stride = std::max<std::size_t>(3, (pts.size() / 3 / 400) * 3);   // about 400 samples per mesh
+		for (std::size_t k = 0; k + 2 < pts.size(); k += stride)
+			maxLocal = std::max({ maxLocal, std::abs(pts[k]), std::abs(pts[k + 1]), std::abs(pts[k + 2]) });
+	}
+	Logger::instance().info(QStringLiteral("[Precision] %1 meshes: largest mesh-local vertex coordinate %2, largest model translation %3 (%4 meshes carry a translation), scene radius %5")
+		.arg(meshCount).arg(maxLocal, 0, 'g', 6).arg(maxTranslation, 0, 'g', 6).arg(withTranslation)
+		.arg(_viewCtrl.boundingSphere().getRadius(), 0, 'g', 6), QStringLiteral("Navigation"));
+}
+
+float ViewportWidget::minimumViewRange()
+{
+	// Perspective outside the surface-distance zoom (multi-view, compare mode): half the radius of the smallest mesh fully in
+	// view, so the eye stays outside whatever mesh is in view.
+	if (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
+	{
+		updateZoomInLimit();
+		return std::max(_viewCtrl.zoomInLimit() * 0.5f, 0.0001f);
+	}
+
+	// Orthographic has no eye distance to keep, so the only real limit is numeric: the view range must stay above what the
+	// single-precision coordinates around the view centre can resolve (a pixel can be no finer than that). The same fraction of
+	// the largest coordinate that the perspective zoom uses as its precision floor, plus a sliver of the scene size.
+	const QVector3D target = _primaryCamera ? _primaryCamera->getPosition() : QVector3D();
+	const float magnitude = std::max({ std::abs(target.x()), std::abs(target.y()), std::abs(target.z()) });
+	const float fraction = 1.0e-4f;
+	const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 1.0e-6f);
+	return std::max({ fraction * magnitude, 1.0e-6f * sceneRadius, 1.0e-9f });
+}
+
+bool ViewportWidget::surfaceZoomApplies()
+{
+	return _primaryCamera && _primaryCamera->getMode() == Camera::CameraMode::Orbit
+		&& _primaryCamera->getProjectionType() == Camera::ProjectionType::PERSPECTIVE
+		&& !_viewCtrl.multiViewActive() && !_compareActive && width() > 0 && height() > 0;
+}
+
+bool ViewportWidget::zoomTowardSurface(const QPoint& cursor, float factor, bool zoomIn)
+{
+	// Allowance per refresh: a camera move by any other means (pan, rotate, a view change) lets the camera come this much
+	// closer (0.1 = to a tenth of the distance it had then). Precision floor: the closest approach, as a fraction of the
+	// largest coordinate in play, at which single-precision vertices still give a stable picture (about 1.5 pixels of jitter).
+	constexpr float kAllowanceFraction = 0.1f;
+	constexpr float kPrecisionFloor = 1.0e-4f;
+
+	if (!surfaceZoomApplies() || factor <= 1.0f)
+		return false;
+
+	const QMatrix4x4 projection = _primaryCamera->getProjectionMatrix();
+	const QMatrix4x4 view = _primaryCamera->getViewMatrix();
+	if (std::abs(projection(0, 0)) < 1.0e-9f || std::abs(projection(1, 1)) < 1.0e-9f)
+		return false;
+
+	const QVector3D target = _primaryCamera->getPosition();
+	const QVector3D eye = _primaryCamera->getRenderPosition();
+	const float orbitDistance = (target - eye).length();           // distance along the view axis to the orbit target
+	const float viewRange = _viewCtrl.viewRange();
+	if (!(orbitDistance > 0.0f) || !(viewRange > 0.0f))
+		return false;
+
+	// Camera axes from the view matrix itself (rows: right, up, minus the view direction).
+	const QVector3D right = QVector3D(view(0, 0), view(0, 1), view(0, 2)).normalized();
+	const QVector3D up = QVector3D(view(1, 0), view(1, 1), view(1, 2)).normalized();
+	const QVector3D forward = -QVector3D(view(2, 0), view(2, 1), view(2, 2)).normalized();
+
+	// Eye depth of the surface under the cursor; over empty space, the depth of the orbit target.
+	float surfaceDepth = surfaceEyeDepthAt(cursor);
+	if (!(surfaceDepth > 0.0f))
+		surfaceDepth = orbitDistance;
+
+	// Has the camera moved by anything other than this feature's own steps since the last one?
+	const QVector3D viewDir = _primaryCamera->getViewDir();
+	const QVector3D upDir = _primaryCamera->getUpVector();
+	const bool moved = !_zoomAllowance.valid
+		|| _zoomAllowance.position.x() != target.x() || _zoomAllowance.position.y() != target.y() || _zoomAllowance.position.z() != target.z()
+		|| _zoomAllowance.viewDir != viewDir || _zoomAllowance.upDir != upDir
+		|| _zoomAllowance.viewRange != viewRange;
+	if (moved)
+	{
+		logPrecisionSummary();
+		_zoomAllowance.valid = true;
+		_zoomAllowance.standoff = kAllowanceFraction * surfaceDepth;
+		_zoomAllowance.stallLogged = false;
+	}
+
+	// Hard floor: precision at the coordinates involved, and a sliver of the scene size.
+	const float magnitude = std::max({ std::abs(eye.x()), std::abs(eye.y()), std::abs(eye.z()),
+		std::abs(target.x()), std::abs(target.y()), std::abs(target.z()) });
+	const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 1.0e-6f);
+	const float hardFloor = std::max(kPrecisionFloor * magnitude, 1.0e-6f * sceneRadius);
+	const float standoff = std::max(_zoomAllowance.standoff, hardFloor);
+
+	// Diagnostics for "zoom hits a limit" reports: one line each time the allowance is refreshed, and one when the remaining
+	// distance to the stand-off is under 15% of it (the steps are then too small to see, which reads as a stall).
+	const char* const limitName = hardFloor > _zoomAllowance.standoff ? "PRECISION FLOOR" : "allowance stand-off";
+	if (moved)
+		Logger::instance().info(QStringLiteral("[Zoom] refresh: eye depth %1, allowance stand-off %2, precision floor %3 (binding: %4), largest coordinate %5, scene radius %6")
+			.arg(surfaceDepth, 0, 'g', 4).arg(_zoomAllowance.standoff, 0, 'g', 4).arg(hardFloor, 0, 'g', 4)
+			.arg(QLatin1String(limitName)).arg(magnitude, 0, 'g', 6).arg(sceneRadius, 0, 'g', 6), QStringLiteral("Navigation"));
+	if (zoomIn && surfaceDepth <= standoff * 1.15f && !_zoomAllowance.stallLogged)
+	{
+		_zoomAllowance.stallLogged = true;
+		Logger::instance().info(QStringLiteral("[Zoom] stalled at eye depth %1 by the %2 (stand-off used %3)")
+			.arg(surfaceDepth, 0, 'g', 4).arg(QLatin1String(limitName)).arg(standoff, 0, 'g', 4), QStringLiteral("Navigation"));
+	}
+
+	float newDepth = surfaceDepth;
+	if (zoomIn)
+		newDepth = (surfaceDepth > standoff) ? standoff + (surfaceDepth - standoff) / factor : surfaceDepth;   // stalls at the stand-off
+	else
+		newDepth = surfaceDepth * factor;
+
+	float ratio = newDepth / surfaceDepth;
+	const float maxRange = sceneRadius * 100.0f;
+	if (viewRange * ratio > maxRange)
+		ratio = maxRange / viewRange;
+	if (ratio < 1.0f && viewRange * ratio < 1.0e-6f * sceneRadius)
+		ratio = 1.0f;
+
+	if (ratio != 1.0f)
+	{
+		// Scale the whole camera about the surface point P under the cursor: P stays at the same pixel. Only differences
+		// between nearby points are used, so large world coordinates do not cost precision.
+		const float ndcX = 2.0f * static_cast<float>(cursor.x()) / static_cast<float>(width()) - 1.0f;
+		const float ndcY = 1.0f - 2.0f * static_cast<float>(cursor.y()) / static_cast<float>(height());
+		const QVector3D ray = forward + right * (ndcX / projection(0, 0)) + up * (ndcY / projection(1, 1));
+		const QVector3D surfaceMinusTarget = ray * surfaceDepth - forward * orbitDistance;
+		const QVector3D shift = surfaceMinusTarget * (1.0f - ratio);
+
+		_viewCtrl.setViewRange(viewRange * ratio);
+		_viewCtrl.syncCurrentViewRange();
+		_primaryCamera->move(shift.x(), shift.y(), shift.z());
+		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
+	}
+
+	_zoomAllowance.position = _primaryCamera->getPosition();
+	_zoomAllowance.viewDir = _primaryCamera->getViewDir();
+	_zoomAllowance.upDir = _primaryCamera->getUpVector();
+	_zoomAllowance.viewRange = _viewCtrl.viewRange();
+	return true;
 }
 
 bool ViewportWidget::isMeshAnimationVisible(const SceneMesh* mesh) const
@@ -13764,6 +14112,18 @@ void ViewportWidget::render(Camera* camera)
 
 	// Extract frustum planes and clipping context once per frame for AABB culling
 	extractFrustumPlanes();
+	// Depth range fitted to what is visible: finer depth steps, so deep zoom does not tear. The side planes of the frustum
+	// (which do not depend on near/far) pick the meshes; when the range changes the matrices and planes are rebuilt.
+	// renderSingleView() already did this for the primary camera before its prepasses.
+	if (_depthRangeFittedFor != camera)
+	{
+		if (fitCameraDepthRange(camera))
+		{
+			_viewCtrl.syncMatricesFromCamera(*camera);
+			extractFrustumPlanes();
+		}
+	}
+	_depthRangeFittedFor = nullptr;
 	rebuildClippingContext();
 	_sceneRuntime.refreshRuntimeVisibilityCacheForCurrentView(
 		(_viewer && _viewer->sceneGraph()) ? _viewer->sceneGraph()->root() : nullptr,
@@ -18477,11 +18837,15 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 		const float pixelDelta = std::abs(frameDelta.x()) >= std::abs(frameDelta.y())
 		    ? static_cast<float>(frameDelta.x())
 		    : static_cast<float>(-frameDelta.y());
+		const bool surfaceDragZoom = surfaceZoomApplies();
 		if (std::abs(pixelDelta) > 0.5f)
 		{
 			// 0.005 coefficient: 10 px/frame ≈ 5% step at default sensitivity
 			const float dragZoomFactor = std::max(1.0f + std::abs(pixelDelta) * 0.005f * _mouseSensitivity, 1.0001f);
-			if (pixelDelta > 0) {
+			// Perspective orbit: the same surface-distance zoom as the wheel, about the cursor.
+			if (zoomTowardSurface(downPoint, dragZoomFactor, pixelDelta > 0))
+				_viewCtrl.setLastZoomDirection(pixelDelta > 0 ? 1 : -1);
+			else if (pixelDelta > 0) {
 				_viewCtrl.setViewRange(_viewCtrl.viewRange() / dragZoomFactor);
 				_viewCtrl.setLastZoomDirection(1);
 			} else {
@@ -18489,31 +18853,31 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 				_viewCtrl.setLastZoomDirection(-1);
 			}
 		}
-		
+
 		// Perspective: floor is the focused sub-mesh radius × 0.5 so the orbit
 		// distance stays outside whatever mesh is currently fully in view.
 		// As the user zooms in, large meshes leave the frustum and the floor
 		// shrinks automatically to match the focused geometry.
 		// Ortho: the near/far floor in Camera handles tearing without any
 		// zoom restriction, so only a minimal absolute floor is applied.
-		updateZoomInLimit();
-		const float focusRadius = _viewCtrl.zoomInLimit();
-		const float minVR = (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
-		    ? std::max(focusRadius * 0.5f, 0.0001f)
-		    : std::max(focusRadius / 100.0f, 0.00001f);
-		if (_viewCtrl.viewRange() < minVR)
-			_viewCtrl.setViewRange(minVR);
-		if (_viewCtrl.viewRange() > _viewCtrl.boundingSphere().getRadius() * 100.0f)
-			_viewCtrl.setViewRange(_viewCtrl.boundingSphere().getRadius() * 100.0f);
-		_viewCtrl.syncCurrentViewRange();
+		QVector3D OP(0.0f, 0.0f, 0.0f);
+		if (!surfaceDragZoom)
+		{
+			const float minVR = minimumViewRange();
+			if (_viewCtrl.viewRange() < minVR)
+				_viewCtrl.setViewRange(minVR);
+			if (_viewCtrl.viewRange() > _viewCtrl.boundingSphere().getRadius() * 100.0f)
+				_viewCtrl.setViewRange(_viewCtrl.boundingSphere().getRadius() * 100.0f);
+			_viewCtrl.syncCurrentViewRange();
 
-		// Translate to focus on mouse center
-		QPoint cen = PickingHelper::clientRectForPoint(downPoint, width(), height(), _viewCtrl.multiViewActive()).center();
-		float sign = (pixelDelta > 0) ? 1.0f : -1.0f;
-		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, _viewCtrl.middleButtonPoint());
-		OP *= sign * 0.05f * _mouseSensitivity;
-		_primaryCamera->move(OP.x(), OP.y(), OP.z());
-		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
+			// Translate to focus on mouse center
+			QPoint cen = PickingHelper::clientRectForPoint(downPoint, width(), height(), _viewCtrl.multiViewActive()).center();
+			float sign = (pixelDelta > 0) ? 1.0f : -1.0f;
+			OP = get3dTranslationVectorFromMousePoints(cen, _viewCtrl.middleButtonPoint());
+			OP *= sign * 0.05f * _mouseSensitivity;
+			_primaryCamera->move(OP.x(), OP.y(), OP.z());
+			_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
+		}
 		_viewCtrl.setLastZoomPanVector(OP); // Store for inertia
 
 		if (dt > 0) {
@@ -18697,33 +19061,34 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 	const float rawFactor = std::abs(zoomStep) + 0.05f;
 	const float zoomFactor = std::max(1.0f + (rawFactor - 1.0f) * _wheelSensitivity, 1.001f);
 	const float oldViewRange = _viewCtrl.viewRange();
+	QVector3D OP(0.0f, 0.0f, 0.0f);
 
-	if (zoomStep < 0)
-		_viewCtrl.setViewRange(_viewCtrl.viewRange() * zoomFactor);
-	else
-		_viewCtrl.setViewRange(_viewCtrl.viewRange() / zoomFactor);
-
+	// Perspective orbit: zoom by distance to the surface under the cursor (stand-off, no mesh-radius floor).
+	if (!zoomTowardSurface(e->position().toPoint(), zoomFactor, !(zoomStep < 0)))
 	{
-		updateZoomInLimit();
-		const float focusRadius = _viewCtrl.zoomInLimit();
-		const float minVR = (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
-		    ? std::max(focusRadius * 0.5f, 0.0001f)
-		    : std::max(focusRadius / 100.0f, 0.00001f);
-		if (_viewCtrl.viewRange() < minVR)
-			_viewCtrl.setViewRange(minVR);
-		if (_viewCtrl.viewRange() > _viewCtrl.boundingSphere().getRadius() * 100.0f)
-			_viewCtrl.setViewRange(_viewCtrl.boundingSphere().getRadius() * 100.0f);
+		if (zoomStep < 0)
+			_viewCtrl.setViewRange(_viewCtrl.viewRange() * zoomFactor);
+		else
+			_viewCtrl.setViewRange(_viewCtrl.viewRange() / zoomFactor);
+
+		{
+			const float minVR = minimumViewRange();
+			if (_viewCtrl.viewRange() < minVR)
+				_viewCtrl.setViewRange(minVR);
+			if (_viewCtrl.viewRange() > _viewCtrl.boundingSphere().getRadius() * 100.0f)
+				_viewCtrl.setViewRange(_viewCtrl.boundingSphere().getRadius() * 100.0f);
+		}
+
+		_viewCtrl.syncCurrentViewRange();
+
+		// Translate to focus on mouse center
+		QPoint cen = PickingHelper::clientRectForPoint(e->position().toPoint(), width(), height(), _viewCtrl.multiViewActive()).center();
+		OP = get3dTranslationVectorFromMousePoints(cen, e->position().toPoint());
+		const float rangeScale = (oldViewRange > 0.0f) ? (_viewCtrl.viewRange() / oldViewRange) : 1.0f;
+		OP *= (1.0f - rangeScale);
+		_primaryCamera->move(OP.x(), OP.y(), OP.z());
+		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 	}
-
-	_viewCtrl.syncCurrentViewRange();
-
-	// Translate to focus on mouse center
-	QPoint cen = PickingHelper::clientRectForPoint(e->position().toPoint(), width(), height(), _viewCtrl.multiViewActive()).center();
-	QVector3D OP = get3dTranslationVectorFromMousePoints(cen, e->position().toPoint());
-	const float rangeScale = (oldViewRange > 0.0f) ? (_viewCtrl.viewRange() / oldViewRange) : 1.0f;
-	OP *= (1.0f - rangeScale);
-	_primaryCamera->move(OP.x(), OP.y(), OP.z());
-	_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
 
 	// Add inertia for wheel zoom
 	if (_smoothNavigation)
@@ -19098,11 +19463,7 @@ void ViewportWidget::performKeyboardNav()
 				else
 					_viewCtrl.setViewRange(_viewCtrl.viewRange() * 1.05f);
 				{
-					updateZoomInLimit();
-		const float focusRadius = _viewCtrl.zoomInLimit();
-					const float minVR = (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
-					    ? std::max(focusRadius * 0.5f, 0.0001f)
-					    : std::max(focusRadius / 100.0f, 0.00001f);
+					const float minVR = minimumViewRange();
 					if (_viewCtrl.viewRange() < minVR) _viewCtrl.setViewRange(minVR);
 					if (_viewCtrl.viewRange() > _viewCtrl.boundingSphere().getRadius() * 100.0f)
 						_viewCtrl.setViewRange(_viewCtrl.boundingSphere().getRadius() * 100.0f);
@@ -19355,16 +19716,21 @@ void ViewportWidget::onInertiaTimer()
 	// --- Zoom inertia ---
 		if (std::abs(_viewCtrl.inertiaZoomVelocity()) > 0.001f) {
 		float zoomFactor = 1.005f;
-		if (_viewCtrl.inertiaZoomVelocity() > 0)
-			_viewCtrl.setViewRange(_viewCtrl.viewRange() / zoomFactor);
-		else
-			_viewCtrl.setViewRange(_viewCtrl.viewRange() * zoomFactor);
+		// Same surface-distance zoom as the wheel (perspective orbit); the legacy path handles everything else.
+		const bool surfaceZoomActive = zoomTowardSurface(mapFromGlobal(QCursor::pos()), zoomFactor, _viewCtrl.inertiaZoomVelocity() > 0);
+		if (!surfaceZoomActive)
+		{
+			if (_viewCtrl.inertiaZoomVelocity() > 0)
+				_viewCtrl.setViewRange(_viewCtrl.viewRange() / zoomFactor);
+			else
+				_viewCtrl.setViewRange(_viewCtrl.viewRange() * zoomFactor);
 
-		QPoint cen = PickingHelper::viewportRectForPoint(mapFromGlobal(QCursor::pos()), width(), height(), _viewCtrl.multiViewActive()).center();
-		QVector3D OP = get3dTranslationVectorFromMousePoints(cen, cen);
-		OP *= -_viewCtrl.inertiaZoomPanVelocity() * 0.05f;
-		_primaryCamera->move(OP.x(), OP.y(), OP.z());
-		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
+			QPoint cen = PickingHelper::viewportRectForPoint(mapFromGlobal(QCursor::pos()), width(), height(), _viewCtrl.multiViewActive()).center();
+			QVector3D OP = get3dTranslationVectorFromMousePoints(cen, cen);
+			OP *= -_viewCtrl.inertiaZoomPanVelocity() * 0.05f;
+			_primaryCamera->move(OP.x(), OP.y(), OP.z());
+			_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
+		}
 
 		// Decay inertia
 		_viewCtrl.scaleInertiaZoomVelocity(_viewCtrl.inertiaDamping() * 0.1f);
@@ -19377,14 +19743,13 @@ void ViewportWidget::onInertiaTimer()
 
 		resizeGL(width(), height());
 
-		updateZoomInLimit();
-		const float focusRadius = _viewCtrl.zoomInLimit();
-		const float minRange = (_viewCtrl.projection() == ViewProjection::PERSPECTIVE)
-		    ? std::max(focusRadius * 0.5f, 0.0001f)
-		    : std::max(focusRadius / 100.0f, 0.00001f);
-		const float maxRange = _viewCtrl.boundingSphere().getRadius() * 100.0f;
-		if (_viewCtrl.viewRange() < minRange) _viewCtrl.setViewRange(minRange);
-		if (_viewCtrl.viewRange() > maxRange) _viewCtrl.setViewRange(maxRange);
+		if (!surfaceZoomActive)
+		{
+			const float minRange = minimumViewRange();
+			const float maxRange = _viewCtrl.boundingSphere().getRadius() * 100.0f;
+			if (_viewCtrl.viewRange() < minRange) _viewCtrl.setViewRange(minRange);
+			if (_viewCtrl.viewRange() > maxRange) _viewCtrl.setViewRange(maxRange);
+		}
 		_viewCtrl.syncCurrentViewRange();
 
 		active = true;
@@ -19613,6 +19978,28 @@ QVector3D ViewportWidget::get3dTranslationVectorFromMousePoints(const QPoint& st
 		};
 
 		const float depthZ = sampleSceneDepth(clampedStart);
+
+		// Perspective: the pan distance per pixel is set by the eye depth of the surface under the cursor. Work it out
+		// from that depth directly. Unprojecting both points and subtracting them loses the answer once the step per
+		// pixel is smaller than float precision at the model's coordinates (deep zoom into a small part of a large
+		// model: the pan almost stops).
+		if (camera->getProjectionType() == Camera::ProjectionType::PERSPECTIVE)
+		{
+			const float ndcZ = depthZ * 2.0f - 1.0f;
+			const float denom = ndcZ + projection(2, 2);
+			const float eyeDepth = (std::abs(denom) > 1.0e-12f) ? projection(2, 3) / denom : -1.0f;
+			if (std::isfinite(eyeDepth) && eyeDepth > 0.0f && std::abs(projection(0, 0)) > 1.0e-9f && std::abs(projection(1, 1)) > 1.0e-9f)
+			{
+				const float unitsPerPixelX = 2.0f * eyeDepth / (projection(0, 0) * static_cast<float>(std::max(viewport.width(), 1)));
+				const float unitsPerPixelY = 2.0f * eyeDepth / (projection(1, 1) * static_cast<float>(std::max(viewport.height(), 1)));
+				const float dxPixels = static_cast<float>(clampedEnd.x() - clampedStart.x());
+				const float dyPixels = static_cast<float>(clampedEnd.y() - clampedStart.y());
+				const QVector3D right = camera->getRightVector().normalized();
+				const QVector3D up = camera->getUpVector().normalized();
+				return right * (dxPixels * unitsPerPixelX) - up * (dyPixels * unitsPerPixelY);
+			}
+		}
+
 		QVector3D worldStart(clampedStart.x(), height() - clampedStart.y(), depthZ);
 		QVector3D worldEnd(clampedEnd.x(), height() - clampedEnd.y(), depthZ);
 

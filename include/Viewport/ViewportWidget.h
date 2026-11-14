@@ -1896,9 +1896,33 @@ private:
 
 	// Visibility culling
 	void extractFrustumPlanes();
+	// Fits the camera's depth range to the geometry that can be seen (see Camera::setDepthRange). Needs the frustum
+	// planes of the current view; returns true when the camera's projection changed.
+	bool fitCameraDepthRange(Camera* camera);
+	Camera* _depthRangeFittedFor = nullptr;   // the camera whose depth range renderSingleView() fitted for the render() that follows
 	void rebuildClippingContext();
 	float computeFullyVisibleMinMeshRadius() const;
 	void  updateZoomInLimit();
+
+	// Surface-distance zoom (perspective orbit camera): each step moves a fraction of the way to the surface under the cursor,
+	// and a stand-off distance, set when the camera last moved by other means, is as close as it gets. See research/rendering/.
+	// Returns false when the mode does not apply (the caller then uses the legacy view-range zoom).
+	bool  zoomTowardSurface(const QPoint& cursor, float factor, bool zoomIn);
+	void  logPrecisionSummary();        // once per scene: how large the mesh-local vertices and the model translations are
+	std::size_t _precisionSummaryMeshCount = static_cast<std::size_t>(-1);
+	float minimumViewRange();           // closest view range the legacy-path zooms (wheel, drag, keys, inertia) allow
+	bool  surfaceZoomApplies();   // perspective orbit camera, single view, and the legacy switch is off
+	float surfaceEyeDepthAt(const QPoint& point);   // eye-space depth of the drawn surface at the pixel; <= 0 when none
+	struct ZoomAllowance
+	{
+		bool      valid = false;
+		bool      stallLogged = false;
+		float     standoff = 0.0f;       // closest approach (eye depth to the surface) until the camera next moves otherwise
+		QVector3D position;                // camera pose right after this feature's own last step
+		QVector3D viewDir;
+		QVector3D upDir;
+		float     viewRange = 0.0f;
+	} _zoomAllowance;
 	bool isMeshAnimationVisible(const SceneMesh* mesh) const;
 	bool isMeshDisplayed(const QUuid& meshUuid) const;
 	bool isMeshVisible(const SceneMesh* mesh, int activeClipPlaneIndex, bool includeVolumeReplacement = false) const;

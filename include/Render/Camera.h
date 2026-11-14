@@ -103,6 +103,16 @@ public:
 	void setSceneRadius(float radius);
 	float getSceneRadius() const;
 
+	// Depth range fitted to the visible scene (distances from the eye along the view direction).
+	// Perspective: nearDepth can only move the near plane away from the eye (the default formula stays the lower
+	// bound), and farDepth is ignored; precision depends on the near plane, so the default far plane stays.
+	// Orthographic: both replace the default near/far planes (near may be negative). far <= near clears the override.
+	// Returns true when the stored range changed (the projection is rebuilt in that case).
+	bool setDepthRange(float nearDepth, float farDepth);
+	bool clearDepthRange() { return setDepthRange(0.0f, 0.0f); }
+	float depthRangeNear() const { return _depthNearOverride; }
+	float depthRangeFar() const { return _depthFarOverride; }
+
 	void setProjectionType(ProjectionType proj);
 	ProjectionType getProjectionType() const;
 
@@ -185,6 +195,9 @@ private:
 	QVector3D _upVector;
 	QVector3D _worldUpVector;
 	QVector3D _position;
+	double _exactPosition[3] = { 0.0, 0.0, 0.0 };   // see shiftPosition()
+	bool _exactPositionValid = false;
+	void shiftPosition(const QVector3D& delta);
 
 	float _width;
 	float _height;
@@ -193,6 +206,8 @@ private:
 	                     // floor the perspective far plane so it always covers
 	                     // the full scene regardless of zoom depth
 	float _FOV;
+	float _depthNearOverride = 0.0f;   // see setDepthRange()
+	float _depthFarOverride = 0.0f;
 	float _rotatedX, _rotatedY, _rotatedZ, _zoomValue;
 	ViewProjection _viewProj;
 	ProjectionType _projectionType;
