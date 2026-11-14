@@ -71,6 +71,18 @@ void jt9TextureTests(){
     TextureFixture::Options o;o.shared=1;auto data=TextureFixture::body9(o);
     {JtData_Limits::Scope budget({},1);reject([&]{decode(data,5,true);});}
     {bool stopped=false;JtData_Limits::Scope cancel([]{throw Jt::Cancelled();});try{decode(data,5,true);}catch(const Jt::Cancelled&){stopped=true;}check(stopped,"V9 texture ignored cancellation");}
+    // Authentic JT 9.5 producers also use aligned 32-bit slots for the two
+    // nominally U8 image flags. Keep the documented U8 profile primary and
+    // qualify this alternate envelope independently in both byte orders.
+    for(bool big:{false,true}){
+        TextureFixture::Options wide;wide.big=big;wide.wideLegacyFlags=true;wide.shared=1;wide.inhibit=1u<<8;
+        const auto bytes=TextureFixture::body9(wide);decode(bytes,5,true);
+        TextureFixture::write9(dir.filePath("wide_flags.jt"),5,wide);const auto result=Jt::Importer::read(dir.filePath("wide_flags.jt"));
+        check(result.scene->mNumMeshes==1&&result.scene->mNumTextures==1,"Aligned v9 texture flags lost image/geometry");
+        for(qsizetype n=0;n<bytes.data.size();++n){auto shortData=bytes;shortData.data.truncate(n);reject([&]{decode(shortData,5,true);});}
+        auto invalid=wide;invalid.storage=2;reject([&]{decode(TextureFixture::body9(invalid),5,true);});
+        invalid=wide;invalid.shared=2;reject([&]{decode(TextureFixture::body9(invalid),5,true);});
+    }
     // Advanced v9 blocks reuse image/mapping machinery, but have different type
     // meanings and a trailing coordinate channel in local version 3.
     for(unsigned minor:{0u,5u})for(unsigned version:{2u,3u})for(bool big:{false,true})for(bool inlined:{false,true}){

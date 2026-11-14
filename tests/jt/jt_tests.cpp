@@ -16,8 +16,10 @@
 #include <assimp/Importer.hpp>
 #include <assimp/Exporter.hpp>
 #include <assimp/material.h>
+#include <array>
 #include <cmath>
 #include <iostream>
+#include <utility>
 #include <vector>
 
 void materialOrderFixtureFiles(const QString& folder);
@@ -260,7 +262,39 @@ void colorStreamTests() {
             fails([&]{Reader r(bad,big);JtDecode_VertexColors::Read(r,components,6);});
         }
     }
-    std::cout<<"Lossless RGB/RGBA colour packets, prediction, endianness and truncation passed\n";
+    for(bool big:{false,true})for(unsigned components:{3u,4u})for(bool predicted:{false,true}) {
+        // Original literal controls. The complete lookup2 hashes were
+        // calculated independently of the reader, matching the UV transport
+        // gate's raw/hash versus Lag1/hash selection rule.
+        const float expected[4][6]={{0,.25f,.5f,.75f,1,.5f},{1,.75f,.5f,.25f,0,.5f},
+            {0,1,0,1,.25f,.75f},{1,.5f,.25f,.75f,1,0}};
+        Fixture::Bytes stream(big);stream.u32(6);stream.u8(components);stream.u8(0);
+        for(unsigned c=0;c<components;++c) {
+            stream.u32(6);stream.u8(0);stream.u32(6*32);
+            uint32_t previous=0;
+            for(unsigned i=0;i<6;++i) {
+                uint32_t word;std::memcpy(&word,&expected[c][i],4);
+                stream.u32(predicted&&i>=4?word-previous:word);previous=word;
+            }
+        }
+        stream.u32(components==3?0x1b5f623du:0xcac178dfu);
+        std::vector<uint8_t> bytes(stream.data.begin(),stream.data.end());Reader reader(bytes,big);
+        JtDecode_VertexData::Decoded decoded(JtDecode_VertexColors::Read(reader,components,6));
+        require(reader.pos==bytes.size(),"Hashed lossless colour envelope changed");
+        for(unsigned c=0;c<components;++c)for(unsigned i=0;i<6;++i)
+            require(decoded[int(i)][int(c)]==expected[c][i],"Hashed raw/Lag1 colour profile changed");
+    }
+    for(bool big:{false,true})for(const auto invalid:std::array<std::pair<uint32_t,uint32_t>,3>{{
+        {0x7fc00000u,0xbdfb6432u},{0xbf800000u,0xd9ccc8e5u},{0x40000000u,0xacb5ea7bu}}}) {
+        Fixture::Bytes stream(big);stream.u32(6);stream.u8(3);stream.u8(0);
+        for(unsigned c=0;c<3;++c) {
+            stream.u32(6);stream.u8(0);stream.u32(6*32);
+            for(unsigned i=0;i<6;++i)stream.u32(c==0&&i==0?invalid.first:0);
+        }
+        stream.u32(invalid.second);std::vector<uint8_t> bytes(stream.data.begin(),stream.data.end());
+        fails([&]{Reader reader(bytes,big);JtDecode_VertexColors::Read(reader,3,6);});
+    }
+    std::cout<<"Lossless RGB/RGBA colour packets, hash-selected raw/Lag1 transport, endianness and truncation passed\n";
 }
 unsigned occurrences(const aiNode* n) {unsigned count=n->mNumMeshes;for(unsigned i=0;i<n->mNumChildren;++i)count+=occurrences(n->mChildren[i]);return count;}
 void samples(const QString& dir) {

@@ -33,9 +33,11 @@ inline uint32_t HashWords(const Jt_VecI32& words,uint32_t seed) {
     if(i+1<words.Count())b+=uint32_t(words[i+1]);
     mix();return c;
 }
-inline Jt_VecI32::Mover Codes(JtData_Reader& reader,unsigned count,JtDecode_Unpack& predictor) {
+inline Jt_VecI32::Mover Codes(JtData_Reader& reader,unsigned count,JtDecode_Unpack& predictor,
+                              const Jt_I32* prefetchedCount=nullptr) {
     JtDecode_Int32CDP packet;
-    if(!packet.Load2(reader)||packet.GetOutValCount()!=int(count))
+    const bool loaded=prefetchedCount?packet.Load2AfterCount(reader,*prefetchedCount):packet.Load2(reader);
+    if(!loaded||packet.GetOutValCount()!=int(count))
         throw std::runtime_error("Invalid JT texture-coordinate packet count");
     Jt_VecI32 values(packet.DecodeU32(predictor));
     if(values.Count()!=int(count))throw std::runtime_error("Invalid decoded JT texture-coordinate count");
@@ -82,12 +84,64 @@ inline JtDecode_VertexData::Decoded::Mover Read(JtData_Reader& reader,unsigned c
         }
         return result.Move();
     }
+    if(!bits&&transitional) {
+        bool profileKnown=false,perComponentSeparators=false,hasPrefetchedCount=false;
+        Jt_I32 prefetchedCount=0;
+        bool strictFields=true,overlapFields=true;
+        for(unsigned c=0;c<components;++c) {
+            const Jt_I32* prefetched=hasPrefetchedCount?&prefetchedCount:nullptr;
+            Jt_VecI32 exponents(Codes(reader,count,JtDecode_Unpack_Null,prefetched));
+            hasPrefetchedCount=false;
+            Jt_VecI32 mantissae(Codes(reader,count,JtDecode_Unpack_Null));
+            for(unsigned i=0;i<count;++i) {
+                if((i&1023)==0)JtData_Limits::poll();
+                const uint32_t exponent=uint32_t(exponents[int(i)]);
+                const uint32_t mantissa=uint32_t(mantissae[int(i)]);
+                if(exponent>0x1ffu){strictFields=false;overlapFields=false;}
+                const uint32_t exponentWord=exponent<<23;
+                if(mantissa>0x7fffffu)strictFields=false;
+                // A qualified 9.5 producer repeats already-set exponent bits
+                // in the nominal mantissa word. Permit only that redundant
+                // overlap, and only in its structurally distinct envelope.
+                if((mantissa&~0x7fffffu&~exponentWord)!=0)overlapFields=false;
+                const uint32_t word=exponentWord|mantissa;float value;
+                std::memcpy(&value,&word,sizeof(value));
+                if(!std::isfinite(value)){strictFields=false;overlapFields=false;}
+                result[int(i)][int(c)]=value;
+            }
+            if(!profileKnown&&c+1<components) {
+                Jt_U32 marker;
+                if(!reader.ReadU32(marker))throw std::runtime_error("Truncated JT texture-coordinate hash/profile marker");
+                if(marker==count) {
+                    profileKnown=true;prefetchedCount=Jt_I32(marker);hasPrefetchedCount=true;
+                } else {
+                    if(!reader.ReadI32(prefetchedCount)||prefetchedCount!=Jt_I32(count))
+                        throw std::runtime_error("Invalid JT 9.x per-component texture-coordinate separator profile");
+                    profileKnown=true;perComponentSeparators=true;hasPrefetchedCount=true;
+                }
+            } else if(perComponentSeparators) {
+                Jt_U32 separator;
+                if(!reader.ReadU32(separator))throw std::runtime_error("Truncated JT 9.x per-component texture-coordinate separator");
+                if(c+1<components) {
+                    if(!reader.ReadI32(prefetchedCount)||prefetchedCount!=Jt_I32(count))
+                        throw std::runtime_error("Invalid JT 9.x per-component texture-coordinate separator profile");
+                    hasPrefetchedCount=true;
+                }
+            }
+        }
+        if(perComponentSeparators) {
+            if(!overlapFields)throw std::runtime_error("Invalid JT texture-coordinate exponent/mantissa");
+            return result.Move();
+        }
+        Jt_U32 hash;
+        if(!reader.ReadU32(hash))throw std::runtime_error("Truncated JT texture-coordinate hash");
+        if(!strictFields)throw std::runtime_error("Invalid JT texture-coordinate exponent/mantissa");
+        return result.Move();
+    }
     for(unsigned c=0;c<components;++c) {
         // Quantized vectors use Lag1; 9.x exponent/mantissa vectors are raw
         // integer fields. Modern binary IEEE words were handled above.
-        Jt_VecI32 values(Codes(reader,count,!bits&&transitional?JtDecode_Unpack_Null:JtDecode_Unpack_Lag1));
-        Jt_VecI32 mantissae;
-        if(!bits&&transitional)mantissae=Codes(reader,count,JtDecode_Unpack_Null);
+        Jt_VecI32 values(Codes(reader,count,JtDecode_Unpack_Lag1));
         for(unsigned i=0;i<count;++i) {
             if((i&1023)==0)JtData_Limits::poll();
             uint32_t code=uint32_t(values[int(i)]);float value;
@@ -96,11 +150,6 @@ inline JtDecode_VertexData::Decoded::Mover Read(JtData_Reader& reader,unsigned c
                 if(code>maxCode)throw std::runtime_error("JT texture-coordinate code exceeds quantizer width");
                 value=v.width?float(double(v.lo)+double(code)*(double(v.hi)-v.lo)/maxCode):v.lo;
             } else {
-                if(transitional) {
-                    const uint32_t mantissa=uint32_t(mantissae[int(i)]);
-                    if(code>0x1ff||mantissa>0x7fffff)throw std::runtime_error("Invalid JT texture-coordinate exponent/mantissa");
-                    code=(code<<23)|mantissa;
-                }
                 std::memcpy(&value,&code,sizeof(value));
             }
             // UVs may tile or be negative: do not clamp to the unit square.

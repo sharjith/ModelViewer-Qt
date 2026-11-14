@@ -1185,6 +1185,23 @@
     ],
     "validation": "research/jt/JT_PRODUCTION_UV_TRANSPORT.md"
   },
+  "jt95_production_texture_profile_follow_up": {
+    "date": "2026-11-14",
+    "scope": "Original bounded compatibility for aligned JT 9.x texture flags and a structurally proven per-component lossless colour/UV separator envelope; published layouts remain primary and redundant mantissa bits are limited to already-set exponent bits",
+    "references": [
+      "Retained Siemens JT9.5 Rev-A texture definitions and Figures 229-230",
+      "JCadLib commit 27a12d1970e7684ef369d0a815aee0b7a194b02b (MIT), independent raw exponent/mantissa comparison only",
+      "Bob Jenkins lookup2.c, hash2 byte-length behavior"
+    ],
+    "files": [
+      "src/ThirdParty/occt-jt/JtAttribute/JtAttribute_TextureImage.cxx",
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP.hxx",
+      "src/ThirdParty/occt-jt/JtDecode/JtDecode_Int32CDP.cxx",
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexColors.hxx",
+      "include/ThirdParty/occt-jt/JtDecode/JtDecode_VertexUV.hxx"
+    ],
+    "validation": "research/jt/JT_95_PRODUCTION_TEXTURE_PROFILE.md"
+  },
   "production_memory_budget_follow_up": {
     "date": "2026-10-26",
     "scope": "Owner-requested production trial: 16 GiB cumulative budget, 512 MiB single-allocation cap and distinct diagnostics with request/counter/budget/cap bytes; no native or production test pass yet",

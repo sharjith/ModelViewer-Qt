@@ -19,19 +19,24 @@ struct Reader:JtData_Reader {
  Standard_Size GetPosition()const override{return pos;}
 };
 void packet(Fixture::Bytes& b,const std::vector<uint32_t>& v,bool lag){b.u32(unsigned(v.size()));b.u8(0);b.u32(unsigned(v.size()*32));for(size_t i=0;i<v.size();++i)b.u32(lag&&i>=4?v[i]-v[i-1]:v[i]);}
-Fixture::Bytes stream(bool big,unsigned major,bool quantized,unsigned damage=0,unsigned components=2){
+Fixture::Bytes stream(bool big,unsigned major,bool quantized,unsigned damage=0,unsigned components=2,
+                      bool separated=false,bool redundantExponentBits=false){
  Fixture::Bytes b(big);b.u32(6);b.u8(damage==1?3:components);b.u8(damage==2?25:quantized?3:0);
  if(quantized)for(unsigned c=0;c<components;++c){b.f32(damage==11?std::numeric_limits<float>::infinity():damage==3?2.f:-2.f);b.f32(damage==3?-2.f:5.f);b.u8(damage==4?25:damage==5?0:3);}
  for(unsigned c=0;c<components;++c){std::vector<uint32_t> values,mantissae;
   for(unsigned i=0;i<6;++i){float v=float(c?5-int(i):int(i)-2);uint32_t w;std::memcpy(&w,&v,4);
    if(damage==7&&i==0)w=0x7fc00000;
-   values.push_back(quantized?(damage==6?8:c?7-i:i):major==9?w>>23:w);mantissae.push_back(w&0x7fffff);}
+   values.push_back(quantized?(damage==6?8:c?7-i:i):major==9?w>>23:w);
+   uint32_t mantissa=w&0x7fffff;
+   if(redundantExponentBits&&major==9&&!quantized)mantissa|=w&~0x7fffffu;
+   mantissae.push_back(mantissa);}
   if(damage==8&&major==9&&!quantized)values[0]=0x200;
   if(damage==9&&major==9&&!quantized)mantissae[0]=0x800000;
   if(damage==10)values.resize(5);
   packet(b,values,quantized||major>=10);if(!quantized&&major==9)packet(b,mantissae,false);
+  if(separated&&major==9&&!quantized)b.u32(0x13572468u+c);
  }
- b.u32(0);return b;
+ if(!(separated&&major==9&&!quantized))b.u32(0);return b;
 }
 struct Shape:JtElement_ShapeLOD_Vertex {using JtElement_ShapeLOD_Vertex::assembleVertexRecords;};
 void seams(){
@@ -87,6 +92,16 @@ void uvTests(){
   {JtData_Limits::Scope scope({},16);reject([&]{Reader r(b,major,minor);JtDecode_VertexUV::Read(r,2,6);});}
  }
  for(bool big:{false,true}){
+  for(bool redundant:{false,true}) {
+   const auto alternate=stream(big,9,false,0,2,true,redundant);
+   Reader reader(alternate,9,5);JtDecode_VertexData::Decoded values(JtDecode_VertexUV::Read(reader,2,6));
+   check(reader.pos==size_t(alternate.data.size()),"JT 9.5 separated UV envelope shifted");
+   for(int i=0;i<6;++i)check(values[i][0]==float(i-2)&&values[i][1]==float(5-i),
+       "JT 9.5 separated UV values changed");
+   for(qsizetype n=0;n<alternate.data.size();++n){auto shortData=alternate;shortData.data.truncate(n);
+    reject([&]{Reader r(shortData,9,5);JtDecode_VertexUV::Read(r,2,6);});}
+  }
+  reject([&]{Reader r(stream(big,9,false,9,2,true),9,5);JtDecode_VertexUV::Read(r,2,6);});
   // Original literal controls for the hash-verified unpredicted IEEE profile.
   // Golden lookup2 component-array hashes were calculated independently of
   // the C++ reader. Preserve the existing Lag1 form with the same values/hash.

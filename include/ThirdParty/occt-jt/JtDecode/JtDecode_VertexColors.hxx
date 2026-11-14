@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstring>
 #include <algorithm>
+#include <string>
 
 // JT 10.0 sections 13.1.6, 13.1.11 and 13.2.1: lossless IEEE-754
 // component arrays and modern packed RGB/HSV quantizers.
@@ -13,9 +14,65 @@
 // Transitional component-array colour transport added: 2026-10-21.
 namespace JtDecode_VertexColors {
 struct Range {float lo=0,hi=0;unsigned width=0;};
-inline Jt_VecI32::Mover Codes(JtData_Reader& reader,unsigned count,JtDecode_Unpack& predictor) {
+// JT 10 Annex C lookup2 word hash. Authentic modern exporters use the
+// complete chained component-array hash to distinguish raw IEEE words from
+// the previously qualified Lag1 transport, as already observed for UV arrays.
+inline uint32_t HashWords(const Jt_VecI32& words,uint32_t seed) {
+    uint32_t a=0x9e3779b9u,b=a,c=seed;
+    const auto mix=[&] {
+        constexpr unsigned rounds[][3]={{13,8,13},{12,16,5},{3,10,15}};
+        for(const auto& shifts:rounds) {
+            a=(a-b-c)^(c>>shifts[0]);
+            b=(b-c-a)^(a<<shifts[1]);
+            c=(c-a-b)^(b>>shifts[2]);
+        }
+    };
+    int i=0;
+    while(words.Count()-i>=3) {
+        if((i&1023)==0)JtData_Limits::poll();
+        a+=uint32_t(words[i]);b+=uint32_t(words[i+1]);c+=uint32_t(words[i+2]);
+        mix();i+=3;
+    }
+    c+=uint32_t(words.Count());
+    if(i<words.Count())a+=uint32_t(words[i]);
+    if(i+1<words.Count())b+=uint32_t(words[i+1]);
+    mix();return c;
+}
+// JT 9.x section 9.5 delegates to Jenkins hash2(). Its length contribution
+// is the byte length even though the input count is expressed in 32-bit words.
+inline uint32_t LegacyHashWords(const Jt_VecI32& words,uint32_t seed) {
+    uint32_t a=0x9e3779b9u,b=a,c=seed;
+    const auto mix=[&] {
+        constexpr unsigned rounds[][3]={{13,8,13},{12,16,5},{3,10,15}};
+        for(const auto& shifts:rounds) {
+            a=(a-b-c)^(c>>shifts[0]);
+            b=(b-c-a)^(a<<shifts[1]);
+            c=(c-a-b)^(b>>shifts[2]);
+        }
+    };
+    int i=0;
+    while(words.Count()-i>=3) {
+        if((i&1023)==0)JtData_Limits::poll();
+        a+=uint32_t(words[i]);b+=uint32_t(words[i+1]);c+=uint32_t(words[i+2]);
+        mix();i+=3;
+    }
+    c+=uint32_t(words.Count())<<2;
+    if(i<words.Count())a+=uint32_t(words[i]);
+    if(i+1<words.Count())b+=uint32_t(words[i+1]);
+    mix();return c;
+}
+inline Jt_VecI32::Mover Codes(JtData_Reader& reader,unsigned count,JtDecode_Unpack& predictor,
+                              const char* field=nullptr,unsigned component=0,
+                              const Jt_I32* prefetchedCount=nullptr) {
     JtDecode_Int32CDP packet;
-    if(!packet.Load2(reader)||packet.GetOutValCount()!=int(count))throw std::runtime_error("Invalid JT colour component packet");
+    const auto packetOffset=reader.GetPosition();
+    const std::string context=field?std::string(" for ")+field+" component "+std::to_string(component):std::string();
+    const bool loaded=prefetchedCount?packet.Load2AfterCount(reader,*prefetchedCount):packet.Load2(reader);
+    if(!loaded)throw std::runtime_error("Invalid JT colour component packet header"+context
+        +" at offset "+std::to_string(packetOffset));
+    if(packet.GetOutValCount()!=int(count))
+        throw std::runtime_error("JT colour component packet count mismatch"+context+": expected "
+            +std::to_string(count)+", got "+std::to_string(packet.GetOutValCount()));
     Jt_VecI32 values(packet.DecodeU32(predictor));
     if(values.Count()!=int(count))throw std::runtime_error("Invalid decoded JT colour count");
     return values.Move();
@@ -95,24 +152,99 @@ inline JtDecode_VertexData::Decoded::Mover Read(JtData_Reader& reader,unsigned c
             }
         }
         if(space==1)ConvertHSV(result,count);
+    } else if(!transitional) {
+        Jt_VecI32 binaryWords[4];
+        for(unsigned c=0;c<components;++c)
+            binaryWords[c]=Codes(reader,count,JtDecode_Unpack_Null);
+        Jt_U32 hash;if(!reader.ReadU32(hash))throw std::runtime_error("Truncated JT vertex colour hash");
+        uint32_t rawHash=0;
+        for(unsigned c=0;c<components;++c)rawHash=HashWords(binaryWords[c],rawHash);
+        // A matching complete source hash selects raw IEEE words. Otherwise
+        // retain the established Lag1 path. The explicit false option used by
+        // qualified polyline/point records continues to force raw words.
+        if(losslessLag1&&rawHash!=hash)
+            for(unsigned c=0;c<components;++c)JtDecode_Unpack_Lag1(binaryWords[c]);
+        for(unsigned c=0;c<components;++c)for(unsigned i=0;i<count;++i) {
+            if((i&1023)==0)JtData_Limits::poll();
+            const uint32_t word=uint32_t(binaryWords[c][int(i)]);float value;
+            std::memcpy(&value,&word,sizeof(value));
+            if(!std::isfinite(value)||value<0||value>1)throw std::runtime_error("JT vertex colour component is outside [0,1]");
+            result[int(i)][int(c)]=value;
+        }
+        return result.Move();
     } else {
+        JtData_Limits::allocation(size_t(count)*components*sizeof(float));
+        JtDecode_VertexData::Decoded lagResult{int(count),int(components)};
+        uint32_t rawHash=0,lagHash=0;bool rawValid=true,rawOverlapValid=true,lagValid=true;
+        bool profileKnown=false,perComponentSeparators=false,hasPrefetchedCount=false;
+        Jt_I32 prefetchedCount=0;
         for(unsigned c=0;c<components;++c) {
-            Jt_VecI32 values(Codes(reader,count,transitional||!losslessLag1?JtDecode_Unpack_Null:JtDecode_Unpack_Lag1));
-            Jt_VecI32 mantissae;
-            if(transitional)mantissae=Codes(reader,count,JtDecode_Unpack_Null);
+            const Jt_I32* prefetched=hasPrefetchedCount?&prefetchedCount:nullptr;
+            Jt_VecI32 exponents(Codes(reader,count,JtDecode_Unpack_Null,"exponent",c,prefetched));
+            hasPrefetchedCount=false;
+            Jt_VecI32 mantissae(Codes(reader,count,JtDecode_Unpack_Null,"mantissa",c));
+            Jt_VecI32 rawWords{int(count)};
+            bool rawComponentValid=true,rawOverlapComponentValid=true,lagComponentValid=true;
             for(unsigned i=0;i<count;++i) {
                 if((i&1023)==0)JtData_Limits::poll();
-                uint32_t word=uint32_t(values[int(i)]);
-                if(transitional) {
-                    const auto mantissa=uint32_t(mantissae[int(i)]);
-                    if(word>0x1ff||mantissa>0x7fffff)throw std::runtime_error("Invalid JT colour exponent/mantissa fields");
-                    word=(word<<23)|mantissa;
-                }
+                uint32_t word=uint32_t(exponents[int(i)]);
+                const auto mantissa=uint32_t(mantissae[int(i)]);
+                if(word>0x1ff){rawComponentValid=false;rawOverlapComponentValid=false;}
+                const uint32_t exponentWord=word<<23;
+                if(mantissa>0x7fffff)rawComponentValid=false;
+                if((mantissa&~0x7fffffu&~exponentWord)!=0)rawOverlapComponentValid=false;
+                word=exponentWord|mantissa;rawWords[int(i)]=int32_t(word);
                 float value;std::memcpy(&value,&word,sizeof(value));
-                if(!std::isfinite(value)||value<0||value>1)throw std::runtime_error("JT vertex colour component is outside [0,1]");
+                if(!std::isfinite(value)||value<0||value>1){rawComponentValid=false;rawOverlapComponentValid=false;}
                 result[int(i)][int(c)]=value;
             }
+            rawValid=rawValid&&rawComponentValid;
+            rawOverlapValid=rawOverlapValid&&rawOverlapComponentValid;
+            rawHash=LegacyHashWords(rawWords,rawHash);
+            JtDecode_Unpack_Lag1(exponents);JtDecode_Unpack_Lag1(mantissae);
+            Jt_VecI32 lagWords{int(count)};
+            for(unsigned i=0;i<count;++i) {
+                if((i&1023)==0)JtData_Limits::poll();
+                uint32_t word=uint32_t(exponents[int(i)]);
+                const auto mantissa=uint32_t(mantissae[int(i)]);
+                if(word>0x1ff||mantissa>0x7fffff)lagComponentValid=false;
+                word=(word<<23)|mantissa;lagWords[int(i)]=int32_t(word);
+                float value;std::memcpy(&value,&word,sizeof(value));
+                if(!std::isfinite(value)||value<0||value>1)lagComponentValid=false;
+                lagResult[int(i)][int(c)]=value;
+            }
+            lagValid=lagValid&&lagComponentValid;
+            lagHash=LegacyHashWords(lagWords,lagHash);
+            if(!profileKnown) {
+                Jt_U32 marker;if(!reader.ReadU32(marker))throw std::runtime_error("Truncated JT vertex colour hash/profile marker");
+                if(c+1<components&&marker==count) {
+                    profileKnown=true;prefetchedCount=Jt_I32(marker);hasPrefetchedCount=true;
+                } else {
+                    if(c+1>=components||!reader.ReadI32(prefetchedCount)||prefetchedCount!=Jt_I32(count))
+                        throw std::runtime_error("Invalid JT 9.x per-component colour separator profile");
+                    profileKnown=true;perComponentSeparators=true;hasPrefetchedCount=true;
+                }
+            } else if(perComponentSeparators) {
+                Jt_U32 separator;if(!reader.ReadU32(separator))throw std::runtime_error("Truncated JT 9.x per-component colour separator");
+                if(c+1<components) {
+                    if(!reader.ReadI32(prefetchedCount)||prefetchedCount!=Jt_I32(count))
+                        throw std::runtime_error("Invalid JT 9.x per-component colour separator profile");
+                    hasPrefetchedCount=true;
+                }
+            }
         }
+        if(perComponentSeparators) {
+            if(rawOverlapValid)return result.Move();
+            if(lagValid)return lagResult.Move();
+            throw std::runtime_error("Invalid JT 9.x per-component colour fields");
+        }
+        Jt_U32 hash;if(!reader.ReadU32(hash))throw std::runtime_error("Truncated JT vertex colour hash");
+        // The 9.5 reference specifies raw exponent/mantissa arrays. Retain
+        // that form by default, but accept the observed Lag1 form only when
+        // its complete reconstructed-colour hash selects it unambiguously.
+        if(lagValid&&lagHash==hash&&rawHash!=hash)return lagResult.Move();
+        if(rawValid)return result.Move();
+        throw std::runtime_error("Invalid JT colour exponent/mantissa fields");
     }
     Jt_U32 hash;if(!reader.ReadU32(hash))throw std::runtime_error("Truncated JT vertex colour hash");
     return result.Move();

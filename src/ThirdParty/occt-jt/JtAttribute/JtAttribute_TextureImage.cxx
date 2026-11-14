@@ -7,7 +7,52 @@
 #include <JtData_Limits.hxx>
 #include <cmath>
 #include <algorithm>
+#include <cstdint>
 #include <stdexcept>
+
+namespace {
+// The published 9.5 layout uses U8 flags. Some authentic 9.5 producers write
+// those flags in aligned 32-bit slots. Select that profile only when the U8
+// interpretation is already impossible and the complete alternate record is
+// valid, so documented and malformed inputs do not silently change meaning.
+bool readLegacyStorageAndCount(JtData_Reader& reader,Jt_U8& storage,Jt_I32& count)
+{
+  if(!reader.ReadU8(storage)||!reader.ReadI32(count))return false;
+  if(storage<=1&&count>=0&&count<=64)return true;
+  const uint32_t shifted=uint32_t(count);Jt_U8 tail[3];
+  uint32_t decodedStorage=storage,decodedCount=0;
+  if(reader.Model()->IsFileLE()){
+    if(storage>1||(shifted&0x00ffffffu)!=0)return true;
+    decodedCount=shifted>>24;
+    if(!reader.ReadU8(tail[0])||!reader.ReadU8(tail[1])||!reader.ReadU8(tail[2]))return false;
+    decodedCount|=uint32_t(tail[0])<<8|uint32_t(tail[1])<<16|uint32_t(tail[2])<<24;
+  }else{
+    if(storage!=0||(shifted&0xffff0000u)!=0)return true;
+    decodedStorage=(shifted>>8)&0xffu;decodedCount=(shifted&0xffu)<<24;
+    if(!reader.ReadU8(tail[0])||!reader.ReadU8(tail[1])||!reader.ReadU8(tail[2]))return false;
+    decodedCount|=uint32_t(tail[0])<<16|uint32_t(tail[1])<<8|uint32_t(tail[2]);
+  }
+  if(decodedStorage<=1&&decodedCount<=64){storage=Jt_U8(decodedStorage);count=Jt_I32(decodedCount);}
+  return true;
+}
+
+bool readLegacySharedAndMips(JtData_Reader& reader,Jt_U32& shared,Jt_I16& mipCount)
+{
+  Jt_U8 first;if(!reader.ReadU8(first)||!reader.ReadI16(mipCount))return false;
+  shared=first;
+  if(shared<=1&&mipCount>=1&&mipCount<=16)return true;
+  Jt_U8 tail[3];
+  if(mipCount!=0||!reader.ReadU8(tail[0])||!reader.ReadU8(tail[1])||!reader.ReadU8(tail[2]))return false;
+  if(reader.Model()->IsFileLE()){
+    if(first>1||tail[0]!=0)return true;
+    mipCount=Jt_I16(uint16_t(tail[1])|(uint16_t(tail[2])<<8));
+  }else{
+    if(first!=0||tail[0]>1)return true;
+    shared=tail[0];mipCount=Jt_I16((uint16_t(tail[1])<<8)|uint16_t(tail[2]));
+  }
+  return true;
+}
+}
 
 IMPLEMENT_STANDARD_HANDLE(JtAttribute_TextureImage, JtAttribute_Base)
 IMPLEMENT_STANDARD_RTTIEXT(JtAttribute_TextureImage, JtAttribute_Base)
@@ -47,7 +92,9 @@ Standard_Boolean JtAttribute_TextureImage::Read(JtData_Reader& reader)
     // AFTER the images (figure 50), unlike the modern prefix field.
     myCoordinateChannel=0;
     if(!myLegacy9&&!reader.ReadI32(myCoordinateChannel))return Standard_False;
-    if(!reader.ReadU32(empty)||!reader.ReadU8(storage)||!reader.ReadI32(count))return Standard_False;
+    if(!reader.ReadU32(empty))return Standard_False;
+    if(myLegacy9){if(!readLegacyStorageAndCount(reader,storage,count))return Standard_False;}
+    else if(!reader.ReadU8(storage)||!reader.ReadI32(count))return Standard_False;
     if(myChannel<-1||myCoordinateChannel<-1)throw std::runtime_error("Invalid JT texture coordinate/channel");
     if(myLegacy9&&block<3&&(myChannel<(block==1?0:-1)||myChannel>31))throw std::runtime_error("Invalid JT 9.x texture channel");
     if(storage>1||count<0||count>64)throw std::runtime_error("Invalid JT texture image storage/count");
@@ -62,9 +109,9 @@ Standard_Boolean JtAttribute_TextureImage::Read(JtData_Reader& reader)
         ||!reader.ReadI16(image.dimensionality)||!reader.ReadI16(image.alignment)
         ||!reader.ReadI16(image.width)||!reader.ReadI16(image.height)||!reader.ReadI16(image.depth)
         ||!reader.ReadI16(image.border))return Standard_False;
-      if(myLegacy9){Jt_U8 shared;if(!reader.ReadU8(shared))return Standard_False;image.shared=shared;}
+      if(myLegacy9){if(!readLegacySharedAndMips(reader,image.shared,mipCount))return Standard_False;}
       else if(!reader.ReadU32(image.shared))return Standard_False;
-      if(!reader.ReadI16(mipCount)||!reader.ReadI32(image.totalBytes))return Standard_False;
+      if((!myLegacy9&&!reader.ReadI16(mipCount))||!reader.ReadI32(image.totalBytes))return Standard_False;
       if(image.format>13||image.dataType>9||image.dimensionality<1||image.dimensionality>3
         ||(image.alignment!=1&&image.alignment!=2&&image.alignment!=4&&image.alignment!=8)
         ||image.width<1||image.height<1||image.depth<1||image.border<0||image.border>1

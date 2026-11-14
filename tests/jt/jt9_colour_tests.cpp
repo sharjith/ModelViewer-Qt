@@ -17,14 +17,16 @@ struct Reader:JtData_Reader {
  Standard_Size GetPosition()const override{return pos;}
 };
 void packet(Fixture::Bytes& b,const std::vector<uint32_t>& values,bool lag){b.u32(unsigned(values.size()));if(values.empty())return;b.u8(0);b.u32(unsigned(values.size()*32));for(size_t i=0;i<values.size();++i)b.u32(lag&&i>=4?values[i]-values[i-1]:values[i]);}
-Fixture::Bytes stream(bool big,unsigned components,unsigned mode,unsigned damage=0){
+Fixture::Bytes stream(bool big,unsigned components,unsigned mode,unsigned damage=0,bool predicted=false,
+                      bool separated=false,bool redundantExponentBits=false){
  Fixture::Bytes b(big);b.u32(6);b.u8(components);b.u8(mode?8:0);
  if(mode==0){
   for(unsigned c=0;c<components;++c){std::vector<uint32_t> exp,mant;for(unsigned i=0;i<6;++i){
    float value=float((i+c)%6)/5;uint32_t word;std::memcpy(&word,&value,4);
    if(damage==6&&i==0)word=0x40000000u;if(damage==7&&i==0)word=0xbf800000u;if(damage==8&&i==0)word=0x7fc00000u;
-   exp.push_back(damage==1&&i==0?512:word>>23);mant.push_back(damage==2&&i==0?0x800000u:word&0x7fffffu);
-  }packet(b,exp,false);packet(b,mant,false);}
+   exp.push_back(damage==1&&i==0?512:word>>23);uint32_t mantissa=damage==2&&i==0?0x800000u:word&0x7fffffu;
+   if(redundantExponentBits)mantissa|=word&~0x7fffffu;mant.push_back(mantissa);
+  }packet(b,exp,predicted);packet(b,mant,predicted);if(separated)b.u32(0x24681357u+c);}
  }else{
   const bool hsv=mode==2;b.u8(hsv?1:0);
   for(unsigned c=0;c<4;++c){if(!hsv){b.f32(c==3&&components==3?1.f:0.f);b.f32(1.f);}b.u8(c==3&&components==3?0:hsv&&c==0?2:8);}
@@ -36,7 +38,7 @@ Fixture::Bytes stream(bool big,unsigned components,unsigned mode,unsigned damage
    }packet(b,values,true);
   }
  }
- b.u32(0);return b;
+ if(mode||!separated)b.u32(mode?0:components==3?0x59eb7241u:0x7b74fb05u);return b;
 }
 }
 void jt9ColourTests(){
@@ -56,6 +58,23 @@ void jt9ColourTests(){
    if(components==3)reject([&]{Reader r(stream(big,components,mode,5),minor);JtDecode_VertexColors::Read(r,components,6);});
   }
   reject([&]{Reader r(b,minor);JtDecode_VertexColors::Read(r,components,5);});
+ }
+ for(bool big:{false,true})for(unsigned components:{3u,4u}){
+  auto b=stream(big,components,0,0,true);Reader r(b,5);JtDecode_VertexData::Decoded d(JtDecode_VertexColors::Read(r,components,6));
+  check(r.pos==size_t(b.data.size()),"Hash-selected JT 9.5 Lag1 colour envelope shifted");
+  for(unsigned i=0;i<6;++i)for(unsigned c=0;c<components;++c)
+   check(std::abs(d[int(i)][int(c)]-float((i+c)%6)/5)<1e-6f,"Hash-selected JT 9.5 Lag1 colours changed");
+  for(bool redundant:{false,true}) {
+   const auto alternate=stream(big,components,0,0,false,true,redundant);Reader alternateReader(alternate,5);
+   JtDecode_VertexData::Decoded alternateValues(JtDecode_VertexColors::Read(alternateReader,components,6));
+   check(alternateReader.pos==size_t(alternate.data.size()),"JT 9.5 separated colour envelope shifted");
+   for(unsigned i=0;i<6;++i)for(unsigned c=0;c<components;++c)
+    check(std::abs(alternateValues[int(i)][int(c)]-float((i+c)%6)/5)<1e-6f,
+        "JT 9.5 separated colours changed");
+   for(qsizetype n=0;n<alternate.data.size();++n){auto shortData=alternate;shortData.data.truncate(n);
+    reject([&]{Reader shortReader(shortData,5);JtDecode_VertexColors::Read(shortReader,components,6);});}
+  }
+  reject([&]{Reader invalid(stream(big,components,0,2,false,true),5);JtDecode_VertexColors::Read(invalid,components,6);});
  }
  {Reader r(stream(false,4,0),5);bool cancelled=false;JtData_Limits::Scope scope([]{throw Jt::Cancelled();});try{JtDecode_VertexColors::Read(r,4,6);}catch(const Jt::Cancelled&){cancelled=true;}check(cancelled,"JT 9.x colours ignored cancellation");}
  {Reader r(stream(false,4,1),5);JtData_Limits::Scope scope({},32);reject([&]{JtDecode_VertexColors::Read(r,4,6);});}

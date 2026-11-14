@@ -4,6 +4,10 @@ Configure this folder as a standalone CMake project against ModelViewer's OCCT, 
 
 `JtContainerFixture.h` and `jt_scene_tests.cpp` contain original generated containers and synthetic geometry. They are part of the repository and do not require downloaded CAD data for the portable suite.
 
+[Production modern colour transport](../../research/jt/JT_PRODUCTION_COLOUR_TRANSPORT.md) adds original raw/hash and Lag1/hash lossless RGB/RGBA vectors in both byte orders, plus hash-matching invalid values. The private authentic JT 10.9 evidence is not bundled.
+
+[JT 9.5 production texture profile](../../research/jt/JT_95_PRODUCTION_TEXTURE_PROFILE.md) adds original aligned legacy texture-flag controls and published/per-component lossless colour and UV envelopes in both byte orders, including redundant exponent bits, truncation and malformed overlap. The three private authentic variants are not bundled.
+
 [JT 10.2 Gate 3d](../../research/jt/JT_102_VALIDATION.md) adds minor 2 to the original LE/BE container, coordinate, UV, colour and texture checks. Its texture fixtures deliberately retain the authentic base-version-1/unwrapped profile observed in private sample T102-A; qualified 10.3-and-later texture fixtures retain base-version-2/Sabot wrappers. The private authentic file is not bundled. The appearance follow-up covers Tex Coord Channel `-1` only when one stored UV set is the sole non-generated mapping, plus the sampled post-lit `MODULATE` profile as a diagnosed pre-lit approximation.
 
 `JtLegacyFixture.h` also exercises the shared 8.0–8.2 lossless family with LE/BE, raw/zlib vertices, codec/binding rejection and the version-specific sample L81 EOF exception. See [8.x validation](../../research/jt/JT_8X_FAMILY_VALIDATION.md) for the authentic 8.0 success and expected 8.2 quantized sample Q82 rejection. Recognizing a family does not claim all its geometry encodings are implemented.

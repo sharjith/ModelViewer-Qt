@@ -8,6 +8,10 @@ Runtime detail (C5): [LOD evidence and design](JT_C5_RUNTIME_LOD_DESIGN.md) (3 N
 
 Current point-version gate (13 November 2026): [JT 10.2 sampled-subset qualification](JT_102_VALIDATION.md), prepared from one authentic private assembly with stored tessellation, PMI and inline textures; clean build, CTest and native geometry validation pass, and the owner confirmed the model loads. A follow-up resolves Tex Coord Channel `-1` only for a sole stored UV set and retains the sampled post-lit `MODULATE` as a diagnosed pre-lit approximation. The owner accepted the authentic texture appearance; the follow-up's native regression run remains pending.
 
+Current production compatibility gate (14 November 2026): [modern lossless colour transport](JT_PRODUCTION_COLOUR_TRANSPORT.md), prepared from one authentic JT 10.9 model whose complete stored hashes select raw IEEE colour arrays rather than Lag1. The isolated Release build, full viewer build, registered codec CTest and authentic native probe pass; the owner UI gate is pending.
+
+Current JT 9.5 production gate (14 November 2026): [production texture profile](JT_95_PRODUCTION_TEXTURE_PROFILE.md), prepared from three authentic private variants with aligned legacy texture flags and a structurally distinct per-component lossless colour/UV envelope. The isolated Release build, full viewer build, registered codec CTest and all three native probes pass; the owner confirmed all three models open and look correct in ADS and PBR.
+
 Suggested reading order:
 
 1. [Feasibility and legal scope](JT_IMPORT_FEASIBILITY.md), [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [pass-specific provenance](JT_PROVENANCE.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).

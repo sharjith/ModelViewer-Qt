@@ -165,14 +165,19 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP1 (JtData_Reader&
   return EncodedDataHandle (aData);
 }
 
-JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP2 (JtData_Reader& theReader)
+JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP2
+  (JtData_Reader& theReader, const Jt_I32* thePrefetchedValueCount)
 {
   static thread_local unsigned depth=0;
   if(depth>=8) throw std::runtime_error("JT integer codec recursion limit exceeded");
   struct Depth {unsigned& d;Depth(unsigned& d):d(d){++d;}~Depth(){--d;}} guard(depth);
   // Read number of output values
   Jt_I32 aValueCount;
-  if (!theReader.ReadI32 (aValueCount) || aValueCount<0 || aValueCount>16000000)
+  if (thePrefetchedValueCount != 0)
+    aValueCount = *thePrefetchedValueCount;
+  else if (!theReader.ReadI32 (aValueCount))
+    return EncodedDataHandle();
+  if (aValueCount<0 || aValueCount>16000000)
     return EncodedDataHandle();
 
   if (aValueCount == 0)
@@ -196,7 +201,7 @@ JtDecode_Int32CDP::EncodedDataHandle JtDecode_Int32CDP::loadCDP2 (JtData_Reader&
       return EncodedDataHandle();
 
     if (aChop == 0)
-      return loadCDP2 (theReader);
+      return loadCDP2 (theReader, 0);
 
     Jt_I32 aBias;
     Jt_U8  aSpan;

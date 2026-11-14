@@ -6,7 +6,7 @@
 #include <vector>
 #include <algorithm>
 namespace TextureFixture {
-struct Options {bool big=false,inlineImage=true,wrapped=false;unsigned baseVersion=1,version=1;int width=2,height=2,alignment=1,total=12,mipBytes=12,storage=-1,coordinate=2;
+struct Options {bool big=false,inlineImage=true,wrapped=false,wideLegacyFlags=false;unsigned baseVersion=1,version=1;int width=2,height=2,alignment=1,total=12,mipBytes=12,storage=-1,coordinate=2;
     unsigned pixelFormat=1,pixelType=3,inhibit=0,legacyType=2,shared=0,textureType=9,stateFlags=8,finalFields=0,imageCount=1;int channel=0,imageBorder=0,borderMode=0,wrapS=2,wrapT=2,minFilter=2,magFilter=2,blendType=2;QByteArray pixels;
     std::vector<QByteArray> extraMips;
     std::array<float,4> borderColor{0,0,0,1},blendColor{0,0,0,1};
@@ -50,9 +50,14 @@ inline Fixture::Bytes block9(Options o,unsigned block,bool stub=false){
     for(int v:{o.borderMode,o.magFilter,o.minFilter,o.wrapS,o.wrapT,2,o.blendType,0})b.u32(v);
     for(float v:o.blendColor)b.f32(v);for(float v:o.borderColor)b.f32(v);
     for(float value:o.transform)b.f32(value);for(auto mode:o.generation)b.u32(mode);for(float value:o.planes)b.f32(value);
-    b.u32(stub?0:o.channel);b.u32(0);b.u8(o.storage>=0?o.storage:o.inlineImage?1:0);b.u32(stub?0:o.imageCount);
+    b.u32(stub?0:o.channel);b.u32(0);
+    const unsigned storage=o.storage>=0?unsigned(o.storage):o.inlineImage?1u:0u;
+    if(o.wideLegacyFlags)b.u32(storage);else b.u8(storage);
+    b.u32(stub?0:o.imageCount);
     if(!stub&&o.imageCount&&o.inlineImage){
-        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(o.imageBorder);b.u8(o.shared);b.u16(1+unsigned(o.extraMips.size()));
+        b.u32(o.pixelFormat);b.u32(o.pixelType);b.u16(2);b.u16(o.alignment);b.u16(o.width);b.u16(o.height);b.u16(1);b.u16(o.imageBorder);
+        if(o.wideLegacyFlags)b.u32(o.shared);else b.u8(o.shared);
+        b.u16(1+unsigned(o.extraMips.size()));
         int extraBytes=0;for(const auto& mip:o.extraMips)extraBytes+=mip.size();
         b.u32(o.total+extraBytes);b.u32(o.mipBytes);
         if(!o.pixels.isNull())b.data+=o.pixels;
