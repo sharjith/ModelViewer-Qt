@@ -234,7 +234,7 @@
     <message>
         <location filename="../src/App/AboutDialog.cpp" line="202"/>
         <source>Supported JT versions: 8.0-8.2, 9.0, 9.5, 10.0, 10.2, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10.</source>
-        <translation type="unfinished"></translation>
+        <translation>Versions JT prises en charge : 8.0-8.2, 9.0, 9.5, 10.0, 10.2, 10.3, 10.5, 10.7, 10.8, 10.9 et 10.10.</translation>
     </message>
     <message>
         <source>Supported JT versions: 8.0-8.2, 9.0, 9.5, 10.0, 10.3, 10.5, 10.7, 10.8, 10.9 and 10.10.</source>
@@ -3667,27 +3667,27 @@ Le modèle peut être partiellement chargé</translation>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="907"/>
         <source>Publish Sheets...</source>
-        <translation type="unfinished"></translation>
+        <translation>Publier les feuilles...</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="910"/>
         <source>Publish the captured views as drawing sheets, in the order you choose, to print or save</source>
-        <translation type="unfinished"></translation>
+        <translation>Publie les vues capturées sous forme de feuilles de dessin, dans l&apos;ordre choisi, pour imprimer ou enregistrer</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="919"/>
         <source>Print...</source>
-        <translation type="unfinished"></translation>
+        <translation>Imprimer...</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="922"/>
         <source>Print the view on a white background, on a sheet template, to a printer or a PDF printer</source>
-        <translation type="unfinished"></translation>
+        <translation>Imprime la vue sur fond blanc, sur un modèle de feuille, vers une imprimante ou une imprimante PDF</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="925"/>
         <source>Ctrl+P</source>
-        <translation type="unfinished">Ctrl+A</translation>
+        <translation>Ctrl+P</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="934"/>
@@ -8827,12 +8827,12 @@ Générer maintenant les coordonnées UV ?</numerusform>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6125"/>
         <source>Replace Export?</source>
-        <translation type="unfinished"></translation>
+        <translation>Remplacer l&apos;exportation ?</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6125"/>
         <source>Replace the existing file “%1”?</source>
-        <translation type="unfinished"></translation>
+        <translation>Remplacer le fichier existant « %1 » ?</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6418"/>
@@ -8842,58 +8842,58 @@ Générer maintenant les coordonnées UV ?</numerusform>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6487"/>
         <source>Open saved file</source>
-        <translation type="unfinished"></translation>
+        <translation>Ouvrir le fichier enregistré</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6488"/>
         <source>Saved %1, but it could not be opened automatically.</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 a été enregistré, mais n&apos;a pas pu être ouvert automatiquement.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6508"/>
         <location filename="../src/App/ModelViewer.cpp" line="6639"/>
         <source>Publish Sheets</source>
-        <translation type="unfinished"></translation>
+        <translation>Publier les feuilles</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6508"/>
         <source>Capture a view in the Cameras panel first.</source>
-        <translation type="unfinished"></translation>
+        <translation>Capturez d&apos;abord une vue dans le panneau Caméras.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6515"/>
         <source>Check the saved views to publish. Drag them to set the sheet order.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cochez les vues enregistrées à publier. Faites-les glisser pour définir l&apos;ordre des feuilles.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6548"/>
         <source>Select a view to edit its overlays.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sélectionnez une vue pour modifier ses incrustations.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6555"/>
         <source>Overlays for %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Incrustations pour %1</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6558"/>
         <source>Use Captured Visibility</source>
-        <translation type="unfinished"></translation>
+        <translation>Utiliser la visibilité capturée</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6558"/>
         <source>Use Current Visibility</source>
-        <translation type="unfinished">Utiliser la visibilité actuelle</translation>
+        <translation>Utiliser la visibilité actuelle</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6567"/>
         <source>%1 (custom visibility)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (visibilité personnalisée)</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6639"/>
         <source>One of the saved views could not be captured.</source>
-        <translation type="unfinished"></translation>
+        <translation>Une des vues enregistrées n&apos;a pas pu être capturée.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6692"/>
@@ -8903,89 +8903,89 @@ Générer maintenant les coordonnées UV ?</numerusform>
         <location filename="../src/App/ModelViewer.cpp" line="6853"/>
         <location filename="../src/App/ModelViewer.cpp" line="6866"/>
         <source>Print</source>
-        <translation type="unfinished"></translation>
+        <translation>Imprimer</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6692"/>
         <location filename="../src/App/ModelViewer.cpp" line="6853"/>
         <source>The page could not be prepared for printing.</source>
-        <translation type="unfinished"></translation>
+        <translation>La page n&apos;a pas pu être préparée pour l&apos;impression.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6748"/>
         <source>Save as SVG</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer en SVG</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6748"/>
         <source>Save as PDF</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer en PDF</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6761"/>
         <source>Saved SVG sheets to %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Feuilles SVG enregistrées dans %1</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6765"/>
         <source>The sheets were saved to %1, but the folder could not be opened.</source>
-        <translation type="unfinished"></translation>
+        <translation>Les feuilles ont été enregistrées dans %1, mais le dossier n&apos;a pas pu être ouvert.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6771"/>
         <source>SVG files (*.svg)</source>
-        <translation type="unfinished"></translation>
+        <translation>Fichiers SVG (*.svg)</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6771"/>
         <source>PDF files (*.pdf)</source>
-        <translation type="unfinished"></translation>
+        <translation>Fichiers PDF (*.pdf)</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6795"/>
         <source>Saved SVG</source>
-        <translation type="unfinished"></translation>
+        <translation>SVG enregistré</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6795"/>
         <source>Saved PDF</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF enregistré</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6796"/>
         <source>%1 using viewport resolution</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 avec la résolution de la vue</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6804"/>
         <source>No printer is available. Use Save as PDF to create a copy.</source>
-        <translation type="unfinished"></translation>
+        <translation>Aucune imprimante n&apos;est disponible. Utilisez « Enregistrer en PDF » pour créer une copie.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6843"/>
         <location filename="../src/App/ModelViewer.cpp" line="6870"/>
         <source>Sent to the printer</source>
-        <translation type="unfinished"></translation>
+        <translation>Envoyé à l&apos;imprimante</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6846"/>
         <source>The sheets could not be printed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Les feuilles n&apos;ont pas pu être imprimées.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6854"/>
         <source>The current view does not fit the printer&apos;s paper at the selected scale.</source>
-        <translation type="unfinished"></translation>
+        <translation>La vue actuelle ne tient pas sur le papier de l&apos;imprimante à l&apos;échelle sélectionnée.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6866"/>
         <source>The page could not be printed.</source>
-        <translation type="unfinished"></translation>
+        <translation>La page n&apos;a pas pu être imprimée.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6869"/>
         <source>Sent to the printer using viewport resolution</source>
-        <translation type="unfinished"></translation>
+        <translation>Envoyé à l&apos;imprimante avec la résolution de la vue</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6882"/>
@@ -9015,12 +9015,12 @@ Réinstallez l&apos;application ou recompilez-la.</translation>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6944"/>
         <source>The visible model contains only lines or points. 3D PDF export requires triangle meshes.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le modèle visible ne contient que des lignes ou des points. L&apos;exportation en PDF 3D nécessite des maillages triangulaires.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6945"/>
         <source>There is no visible geometry to export.</source>
-        <translation type="unfinished">Il n&apos;y a aucune géométrie visible à exporter.</translation>
+        <translation>Il n&apos;y a aucune géométrie visible à exporter.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="6959"/>
@@ -9134,7 +9134,7 @@ Réinstallez l&apos;application ou recompilez-la.</translation>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="7410"/>
         <source>3D PDF export canceled</source>
-        <translation type="unfinished"></translation>
+        <translation>Exportation en PDF 3D annulée</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="7416"/>
@@ -9615,12 +9615,12 @@ Voulez-vous continuer&#xa0;?</translation>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="7042"/>
         <source>One plane from a multi-plane section</source>
-        <translation type="unfinished"></translation>
+        <translation>Un plan d&apos;une coupe à plusieurs plans</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="7065"/>
         <source>Box clipping is omitted from the interactive view.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le découpage par boîte est omis de la vue interactive.</translation>
     </message>
     <message>
         <location filename="../src/App/ModelViewer.cpp" line="7513"/>
@@ -10694,12 +10694,12 @@ numéro de repère, nom de la pièce, matériau et quantité.</translation>
     <message>
         <location filename="../ui/Pdf3D/Pdf3DExportDialog.ui" line="333"/>
         <source>Use captured measurement and annotation visibility in saved views</source>
-        <translation type="unfinished"></translation>
+        <translation>Utiliser la visibilité capturée des mesures et annotations dans les vues enregistrées</translation>
     </message>
     <message>
         <location filename="../ui/Pdf3D/Pdf3DExportDialog.ui" line="357"/>
         <source>Tick the measurements and annotations to add to the 3D model. Use the Views tab to control where they appear.</source>
-        <translation type="unfinished"></translation>
+        <translation>Cochez les mesures et annotations à ajouter au modèle 3D. L&apos;onglet Vues permet de choisir où elles apparaissent.</translation>
     </message>
     <message>
         <source>Tick the measurements and annotations to add to the 3D model. They are written for the view they were made from and show in every view.</source>
@@ -10755,55 +10755,55 @@ Décoché : le lecteur clique sur la zone 3D et appuie sur lecture.</translation
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="53"/>
         <source>Save &amp;to:</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer &amp;sous :</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="55"/>
         <source>Save to</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer sous</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="57"/>
         <source>Browse...</source>
-        <translation type="unfinished">Parcourir...</translation>
+        <translation>Parcourir...</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="63"/>
         <source>Save 3D PDF</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer le PDF 3D</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="67"/>
         <source>Open 3D PDF after saving</source>
-        <translation type="unfinished"></translation>
+        <translation>Ouvrir le PDF 3D après l&apos;enregistrement</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="83"/>
         <source>Opening 3D view:</source>
-        <translation type="unfinished"></translation>
+        <translation>Vue 3D d&apos;ouverture :</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="86"/>
         <source>The cover uses the selected saved camera view when its clipping is supported. Other opening views use the current viewport for the cover.</source>
-        <translation type="unfinished"></translation>
+        <translation>La page de garde utilise la vue de caméra enregistrée sélectionnée si son découpage est pris en charge. Avec les autres vues d&apos;ouverture, elle utilise la vue actuelle.</translation>
     </message>
     <message numerus="yes">
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="91"/>
         <source>Includes %n static sheet(s) in the Publish Sheets order.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
+        <translation>
+            <numerusform>Inclut %n feuille statique dans l&apos;ordre de « Publier les feuilles ».</numerusform>
+            <numerusform>Inclut %n feuilles statiques dans l&apos;ordre de « Publier les feuilles ».</numerusform>
         </translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="96"/>
         <source>Review</source>
-        <translation type="unfinished"></translation>
+        <translation>Vérifier</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="97"/>
         <source>Review export limitations</source>
-        <translation type="unfinished"></translation>
+        <translation>Vérifier les limites de l&apos;exportation</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="136"/>
@@ -10867,112 +10867,112 @@ Décoché : le lecteur clique sur la zone 3D et appuie sur lecture.</translation
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="394"/>
         <source>Taken from the model. You can change it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Repris du modèle. Vous pouvez le modifier.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="566"/>
         <source>First included view</source>
-        <translation type="unfinished"></translation>
+        <translation>Première vue incluse</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="572"/>
         <source>%1 (%2)</source>
-        <translation type="unfinished"></translation>
+        <translation>%1 (%2)</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="607"/>
         <source>Choose 3D PDF Destination</source>
-        <translation type="unfinished"></translation>
+        <translation>Choisir la destination du PDF 3D</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="608"/>
         <source>PDF files (*.pdf)</source>
-        <translation type="unfinished"></translation>
+        <translation>Fichiers PDF (*.pdf)</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="620"/>
         <source>Select at least one view.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sélectionnez au moins une vue.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="622"/>
         <source>Enter a destination for the PDF.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saisissez une destination pour le PDF.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="629"/>
         <source>Visible geometry: %1 mesh instances, %2 mesh resources, %3 triangles across those resources.</source>
-        <translation type="unfinished"></translation>
+        <translation>Géométrie visible : %1 instances de maillage, %2 ressources de maillage, %3 triangles dans ces ressources.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="636"/>
         <source>Included: %1 views, %2 measurements or annotations.</source>
-        <translation type="unfinished"></translation>
+        <translation>Inclus : %1 vues, %2 mesures ou annotations.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="637"/>
         <source>Parts list: included.</source>
-        <translation type="unfinished"></translation>
+        <translation>Liste des pièces : incluse.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="637"/>
         <source>Parts list: off.</source>
-        <translation type="unfinished"></translation>
+        <translation>Liste des pièces : désactivée.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="638"/>
         <source>View buttons: on.</source>
-        <translation type="unfinished"></translation>
+        <translation>Boutons de vue : activés.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="638"/>
         <source>View buttons: off.</source>
-        <translation type="unfinished"></translation>
+        <translation>Boutons de vue : désactivés.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="639"/>
         <source>Animation: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Animation : %1</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="639"/>
         <source>None</source>
-        <translation type="unfinished">Aucun</translation>
+        <translation>Aucune</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="643"/>
         <source>Lines and points appear only in the cover image if visible there.</source>
-        <translation type="unfinished"></translation>
+        <translation>Les lignes et les points n&apos;apparaissent que sur l&apos;image de la page de garde s&apos;ils y sont visibles.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="645"/>
         <source>The interactive model uses material colors. Texture maps appear only in the cover image if visible there.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le modèle interactif utilise les couleurs des matériaux. Les textures n&apos;apparaissent que sur l&apos;image de la page de garde si elles y sont visibles.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="647"/>
         <source>This is a large export. Creating and opening the interactive model may take longer.</source>
-        <translation type="unfinished"></translation>
+        <translation>Il s&apos;agit d&apos;une exportation volumineuse. La création et l&apos;ouverture du modèle interactif peuvent prendre plus de temps.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="655"/>
         <source>Export limitations</source>
-        <translation type="unfinished"></translation>
+        <translation>Limites de l&apos;exportation</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="670"/>
         <source>Enter a PDF filename in an existing folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saisissez un nom de fichier PDF dans un dossier existant.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="675"/>
         <source>Replace PDF?</source>
-        <translation type="unfinished"></translation>
+        <translation>Remplacer le PDF ?</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportDialog.cpp" line="675"/>
         <source>Replace the existing file “%1”?</source>
-        <translation type="unfinished"></translation>
+        <translation>Remplacer le fichier existant « %1 » ?</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/SheetFieldEditors.cpp" line="164"/>
@@ -11024,87 +11024,87 @@ Décoché : le lecteur clique sur la zone 3D et appuie sur lecture.</translation
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="31"/>
         <source>Save as 3D PDF</source>
-        <translation type="unfinished">Enregistrer en PDF 3D</translation>
+        <translation>Enregistrer en PDF 3D</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="36"/>
         <source>Preparing the export...</source>
-        <translation type="unfinished"></translation>
+        <translation>Préparation de l&apos;exportation...</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="56"/>
         <source>Canceling the export...</source>
-        <translation type="unfinished"></translation>
+        <translation>Annulation de l&apos;exportation...</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="91"/>
         <source>Encoding the interactive model...</source>
-        <translation type="unfinished"></translation>
+        <translation>Encodage du modèle interactif...</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="94"/>
         <source>Drawing the PDF sheets...</source>
-        <translation type="unfinished"></translation>
+        <translation>Dessin des feuilles du PDF...</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="97"/>
         <source>Adding views and interactive content...</source>
-        <translation type="unfinished"></translation>
+        <translation>Ajout des vues et du contenu interactif...</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="100"/>
         <source>Writing the PDF...</source>
-        <translation type="unfinished"></translation>
+        <translation>Écriture du PDF...</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="104"/>
         <source>Finalizing the PDF...</source>
-        <translation type="unfinished"></translation>
+        <translation>Finalisation du PDF...</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="134"/>
         <source>Export failed: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Échec de l&apos;exportation : %1</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExportProgress.cpp" line="139"/>
         <source>The export failed with an unexpected error.</source>
-        <translation type="unfinished"></translation>
+        <translation>L&apos;exportation a échoué avec une erreur inattendue.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/U3dWorker.cpp" line="213"/>
         <source>The temporary encoder folder could not be created.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le dossier temporaire de l&apos;encodeur n&apos;a pas pu être créé.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/U3dWorker.cpp" line="219"/>
         <source>The export scene could not be written to the encoder folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>La scène d&apos;exportation n&apos;a pas pu être écrite dans le dossier de l&apos;encodeur.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/U3dWorker.cpp" line="242"/>
         <source>The 3D encoder could not start: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>L&apos;encodeur 3D n&apos;a pas pu démarrer : %1</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/U3dWorker.cpp" line="248"/>
         <source>The 3D encoder stopped before completing the model.</source>
-        <translation type="unfinished"></translation>
+        <translation>L&apos;encodeur 3D s&apos;est arrêté avant d&apos;avoir terminé le modèle.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/U3dWorker.cpp" line="253"/>
         <source>The 3D encoder did not produce a model.</source>
-        <translation type="unfinished"></translation>
+        <translation>L&apos;encodeur 3D n&apos;a produit aucun modèle.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/U3dWorker.cpp" line="256"/>
         <source>The encoded model is too large to embed.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le modèle encodé est trop volumineux pour être intégré.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/U3dWorker.cpp" line="267"/>
         <source>The encoded model could not be read.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le modèle encodé n&apos;a pas pu être lu.</translation>
     </message>
 </context>
 <context>
@@ -11177,17 +11177,17 @@ Décoché : le lecteur clique sur la zone 3D et appuie sur lecture.</translation
     <message>
         <location filename="../src/Pdf3D/Pdf3DExporter.cpp" line="330"/>
         <source>The sheet template leaves no usable area for the 3D model.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le modèle de feuille ne laisse aucune zone utilisable pour le modèle 3D.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExporter.cpp" line="348"/>
         <source>The companion sheet could not be created: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>La feuille complémentaire n&apos;a pas pu être créée : %1</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExporter.cpp" line="362"/>
         <source>The parts list page could not be created.</source>
-        <translation type="unfinished"></translation>
+        <translation>La page de la liste des pièces n&apos;a pas pu être créée.</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/Pdf3DExporter.cpp" line="552"/>
@@ -12922,491 +12922,491 @@ dont les valeurs Z sont dans cette colonne (mêmes X et Y).</translation>
         <location filename="../src/Print/PrintDialog.cpp" line="418"/>
         <location filename="../src/Print/PrintDialog.cpp" line="450"/>
         <source>Print Presets</source>
-        <translation type="unfinished"></translation>
+        <translation>Préréglages d&apos;impression</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="55"/>
         <source>The print presets could not be saved.</source>
-        <translation type="unfinished"></translation>
+        <translation>Les préréglages d&apos;impression n&apos;ont pas pu être enregistrés.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="62"/>
         <location filename="../src/Print/PrintDialog.cpp" line="353"/>
         <source>Page Setup</source>
-        <translation type="unfinished"></translation>
+        <translation>Mise en page</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="71"/>
         <source>Custom</source>
-        <translation type="unfinished"></translation>
+        <translation>Personnalisé</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="74"/>
         <source>Paper:</source>
-        <translation type="unfinished"></translation>
+        <translation>Papier :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="86"/>
         <source>Paper width (portrait):</source>
-        <translation type="unfinished"></translation>
+        <translation>Largeur du papier (portrait) :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="87"/>
         <source>Paper height (portrait):</source>
-        <translation type="unfinished"></translation>
+        <translation>Hauteur du papier (portrait) :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="90"/>
         <source>Portrait</source>
-        <translation type="unfinished">Portrait</translation>
+        <translation>Portrait</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="91"/>
         <source>Landscape</source>
-        <translation type="unfinished">Paysage</translation>
+        <translation>Paysage</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="93"/>
         <source>Orientation:</source>
-        <translation type="unfinished"></translation>
+        <translation>Orientation :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="100"/>
         <source>Left margin:</source>
-        <translation type="unfinished"></translation>
+        <translation>Marge gauche :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="101"/>
         <source>Top margin:</source>
-        <translation type="unfinished"></translation>
+        <translation>Marge supérieure :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="102"/>
         <source>Right margin:</source>
-        <translation type="unfinished"></translation>
+        <translation>Marge droite :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="103"/>
         <source>Bottom margin:</source>
-        <translation type="unfinished"></translation>
+        <translation>Marge inférieure :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="105"/>
         <source>Leave at least 10 mm of printable width and height.</source>
-        <translation type="unfinished"></translation>
+        <translation>Laissez au moins 10 mm de largeur et de hauteur imprimables.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="149"/>
         <source>Publish Sheets</source>
-        <translation type="unfinished"></translation>
+        <translation>Publier les feuilles</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="149"/>
         <source>Print</source>
-        <translation type="unfinished"></translation>
+        <translation>Imprimer</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="156"/>
         <source>Use Page Setup to change the paper, orientation, or margins. The sheet adapts to the selected paper.</source>
-        <translation type="unfinished"></translation>
+        <translation>Utilisez « Mise en page » pour modifier le papier, l&apos;orientation ou les marges. La feuille s&apos;adapte au papier sélectionné.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="174"/>
         <source>Apply saved paper, margins, sheet template and model image quality.</source>
-        <translation type="unfinished"></translation>
+        <translation>Applique le papier, les marges, le modèle de feuille et la qualité d&apos;image du modèle enregistrés.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="175"/>
         <source>Save...</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer...</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="176"/>
         <source>Save the current settings as a named print preset.</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistre les paramètres actuels comme préréglage d&apos;impression nommé.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="178"/>
         <source>Remove</source>
-        <translation type="unfinished">Supprimer</translation>
+        <translation>Supprimer</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="179"/>
         <source>Remove the selected print preset.</source>
-        <translation type="unfinished"></translation>
+        <translation>Supprime le préréglage d&apos;impression sélectionné.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="181"/>
         <source>Print preset:</source>
-        <translation type="unfinished"></translation>
+        <translation>Préréglage d&apos;impression :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="189"/>
         <source>Print on a sheet template (border and title block)</source>
-        <translation type="unfinished"></translation>
+        <translation>Imprimer sur un modèle de feuille (cadre et cartouche)</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="201"/>
         <source>Sheet template:</source>
-        <translation type="unfinished">Modèle de feuille :</translation>
+        <translation>Modèle de feuille :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="206"/>
         <source>Taken from the model. You can change it.</source>
-        <translation type="unfinished"></translation>
+        <translation>Repris du modèle. Vous pouvez le modifier.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="211"/>
         <source>Title:</source>
-        <translation type="unfinished">Titre :</translation>
+        <translation>Titre :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="212"/>
         <source>Drawing number:</source>
-        <translation type="unfinished">Numéro de plan :</translation>
+        <translation>Numéro de dessin :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="213"/>
         <source>Revision:</source>
-        <translation type="unfinished">Révision :</translation>
+        <translation>Révision :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="214"/>
         <source>Author:</source>
-        <translation type="unfinished">Auteur :</translation>
+        <translation>Auteur :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="215"/>
         <source>Company:</source>
-        <translation type="unfinished">Société :</translation>
+        <translation>Société :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="216"/>
         <source>Notes:</source>
-        <translation type="unfinished">Notes :</translation>
+        <translation>Notes :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="219"/>
         <source>Fit to page (NTS)</source>
-        <translation type="unfinished"></translation>
+        <translation>Ajuster à la page (H.É.)</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="226"/>
         <source>Fixed scale requires a stationary orthographic view and consistent declared or assigned model units.</source>
-        <translation type="unfinished"></translation>
+        <translation>Une échelle fixe nécessite une vue orthographique fixe et des unités de modèle déclarées ou attribuées cohérentes.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="227"/>
         <source>Print the current orthographic view at the selected physical scale.</source>
-        <translation type="unfinished"></translation>
+        <translation>Imprime la vue orthographique actuelle à l&apos;échelle physique sélectionnée.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="228"/>
         <source>Drawing scale:</source>
-        <translation type="unfinished"></translation>
+        <translation>Échelle du dessin :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="231"/>
         <source>Draft (150 dpi)</source>
-        <translation type="unfinished"></translation>
+        <translation>Brouillon (150 ppp)</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="232"/>
         <source>Normal (300 dpi)</source>
-        <translation type="unfinished"></translation>
+        <translation>Normale (300 ppp)</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="233"/>
         <source>Fine (600 dpi)</source>
-        <translation type="unfinished"></translation>
+        <translation>Fine (600 ppp)</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="236"/>
         <source>Sets the target resolution of the model image. Large sheets may use a lower resolution. Some viewport modes use the on-screen image.</source>
-        <translation type="unfinished"></translation>
+        <translation>Définit la résolution cible de l&apos;image du modèle. Les grandes feuilles peuvent utiliser une résolution inférieure. Certains modes de vue utilisent l&apos;image à l&apos;écran.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="240"/>
         <source>Captured view resolution</source>
-        <translation type="unfinished"></translation>
+        <translation>Résolution de la vue capturée</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="241"/>
         <source>Each published sheet uses the image captured from its saved view.</source>
-        <translation type="unfinished"></translation>
+        <translation>Chaque feuille publiée utilise l&apos;image capturée depuis sa vue enregistrée.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="242"/>
         <location filename="../src/Print/PrintDialog.cpp" line="247"/>
         <source>Model image quality:</source>
-        <translation type="unfinished"></translation>
+        <translation>Qualité de l&apos;image du modèle :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="266"/>
         <location filename="../src/Print/PrintDialog.cpp" line="609"/>
         <source>All sheets</source>
-        <translation type="unfinished"></translation>
+        <translation>Toutes les feuilles</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="275"/>
         <location filename="../src/Print/PrintDialog.cpp" line="684"/>
         <source>The sheet could not be previewed at this paper size.</source>
-        <translation type="unfinished"></translation>
+        <translation>La feuille n&apos;a pas pu être prévisualisée à ce format de papier.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="309"/>
         <source>Companion layout unavailable. Reflowing %1.</source>
-        <translation type="unfinished"></translation>
+        <translation>Mise en page complémentaire indisponible. Réagencement de %1.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="310"/>
         <source>Sheet layout: %1</source>
-        <translation type="unfinished"></translation>
+        <translation>Mise en page de la feuille : %1</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="341"/>
         <source>Reset Paper</source>
-        <translation type="unfinished"></translation>
+        <translation>Réinitialiser le papier</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="353"/>
         <source>The selected paper settings could not be applied.</source>
-        <translation type="unfinished"></translation>
+        <translation>Les paramètres de papier sélectionnés n&apos;ont pas pu être appliqués.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="360"/>
         <source>Page Setup...</source>
-        <translation type="unfinished"></translation>
+        <translation>Mise en page...</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="373"/>
         <source>Current settings</source>
-        <translation type="unfinished"></translation>
+        <translation>Paramètres actuels</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="418"/>
         <source>The preset&apos;s template is unavailable. The default template was applied.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le modèle du préréglage est indisponible. Le modèle par défaut a été appliqué.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="431"/>
         <location filename="../src/Print/PrintDialog.cpp" line="437"/>
         <source>Save Print Preset</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer le préréglage d&apos;impression</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="431"/>
         <source>Preset name:</source>
-        <translation type="unfinished"></translation>
+        <translation>Nom du préréglage :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="438"/>
         <source>Replace the print preset &quot;%1&quot;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Remplacer le préréglage d&apos;impression « %1 » ?</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="450"/>
         <source>Remove the print preset &quot;%1&quot;?</source>
-        <translation type="unfinished"></translation>
+        <translation>Supprimer le préréglage d&apos;impression « %1 » ?</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="461"/>
         <source>Open PDF or SVG after saving</source>
-        <translation type="unfinished"></translation>
+        <translation>Ouvrir le PDF ou le SVG après l&apos;enregistrement</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="466"/>
         <location filename="../src/Print/PrintDialog.cpp" line="555"/>
         <source>Print...</source>
-        <translation type="unfinished"></translation>
+        <translation>Imprimer...</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="477"/>
         <source>Save as PDF...</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer en PDF...</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="478"/>
         <source>Save as SVG...</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer en SVG...</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="501"/>
         <source>PDF</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="502"/>
         <source>SVG files</source>
-        <translation type="unfinished"></translation>
+        <translation>Fichiers SVG</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="503"/>
         <source>3D PDF</source>
-        <translation type="unfinished"></translation>
+        <translation>PDF 3D</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="504"/>
         <source>Printer</source>
-        <translation type="unfinished"></translation>
+        <translation>Imprimante</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="507"/>
         <source>Format:</source>
-        <translation type="unfinished">Format :</translation>
+        <translation>Format :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="514"/>
         <source>Browse...</source>
-        <translation type="unfinished">Parcourir...</translation>
+        <translation>Parcourir...</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="528"/>
         <source>Back</source>
-        <translation type="unfinished"></translation>
+        <translation>Retour</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="529"/>
         <location filename="../src/Print/PrintDialog.cpp" line="580"/>
         <source>Next</source>
-        <translation type="unfinished">Suivant</translation>
+        <translation>Suivant</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="537"/>
         <location filename="../src/Print/PrintDialog.cpp" line="543"/>
         <source>Save to:</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer sous :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="543"/>
         <source>Destination folder:</source>
-        <translation type="unfinished"></translation>
+        <translation>Dossier de destination :</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="550"/>
         <source>Open SVG folder after saving</source>
-        <translation type="unfinished"></translation>
+        <translation>Ouvrir le dossier SVG après l&apos;enregistrement</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="550"/>
         <source>Open PDF after saving</source>
-        <translation type="unfinished"></translation>
+        <translation>Ouvrir le PDF après l&apos;enregistrement</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="552"/>
         <source>The interactive cover comes first, followed by the selected sheets. Continue to configure and preview the cover.</source>
-        <translation type="unfinished"></translation>
+        <translation>La page de garde interactive vient en premier, suivie des feuilles sélectionnées. Continuez pour configurer et prévisualiser la page de garde.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="553"/>
         <source>Each sheet is saved as a numbered SVG in a new folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Chaque feuille est enregistrée sous forme de SVG numéroté dans un nouveau dossier.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="554"/>
         <source>Choose your printer and page range in the system print dialog.</source>
-        <translation type="unfinished"></translation>
+        <translation>Choisissez l&apos;imprimante et la plage de pages dans la boîte de dialogue d&apos;impression du système.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="555"/>
         <source>Configure 3D PDF...</source>
-        <translation type="unfinished"></translation>
+        <translation>Configurer le PDF 3D...</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="555"/>
         <source>Save</source>
-        <translation type="unfinished"></translation>
+        <translation>Enregistrer</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="561"/>
         <source>Choose SVG Destination</source>
-        <translation type="unfinished"></translation>
+        <translation>Choisir la destination du SVG</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="562"/>
         <source>Choose PDF Destination</source>
-        <translation type="unfinished"></translation>
+        <translation>Choisir la destination du PDF</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="563"/>
         <source>PDF files (*.pdf)</source>
-        <translation type="unfinished"></translation>
+        <translation>Fichiers PDF (*.pdf)</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="577"/>
         <location filename="../src/Print/PrintDialog.cpp" line="658"/>
         <source>1 of 3 · Choose Views</source>
-        <translation type="unfinished"></translation>
+        <translation>1 sur 3 · Choisir les vues</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="577"/>
         <source>2 of 3 · Set Up Sheets</source>
-        <translation type="unfinished"></translation>
+        <translation>2 sur 3 · Configurer les feuilles</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="577"/>
         <source>3 of 3 · Choose Output</source>
-        <translation type="unfinished"></translation>
+        <translation>3 sur 3 · Choisir la sortie</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="611"/>
         <source>%1. %2</source>
-        <translation type="unfinished"></translation>
+        <translation>%1. %2</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="643"/>
         <source>Choose an existing destination folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Choisissez un dossier de destination existant.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="644"/>
         <source>Enter a PDF filename in an existing folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saisissez un nom de fichier PDF dans un dossier existant.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="649"/>
         <source>Replace PDF?</source>
-        <translation type="unfinished"></translation>
+        <translation>Remplacer le PDF ?</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="649"/>
         <source>Replace the existing file “%1”?</source>
-        <translation type="unfinished"></translation>
+        <translation>Remplacer le fichier existant « %1 » ?</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="683"/>
         <source>The current view is too large at this scale. Choose a smaller scale or a larger paper size.</source>
-        <translation type="unfinished"></translation>
+        <translation>La vue actuelle est trop grande à cette échelle. Choisissez une échelle plus petite ou un format de papier plus grand.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintDialog.cpp" line="760"/>
         <source>NTS</source>
-        <translation type="unfinished"></translation>
+        <translation>H.É.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintPage.cpp" line="196"/>
         <source>The sheets could not be exported.</source>
-        <translation type="unfinished"></translation>
+        <translation>Les feuilles n&apos;ont pas pu être exportées.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintPage.cpp" line="262"/>
         <source>The sheet could not be exported.</source>
-        <translation type="unfinished"></translation>
+        <translation>La feuille n&apos;a pas pu être exportée.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintPage.cpp" line="288"/>
         <source>Select at least one sheet to export.</source>
-        <translation type="unfinished"></translation>
+        <translation>Sélectionnez au moins une feuille à exporter.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintPage.cpp" line="307"/>
         <source>Could not create the SVG staging folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le dossier intermédiaire SVG n&apos;a pas pu être créé.</translation>
     </message>
     <message>
         <location filename="../src/Print/PrintPage.cpp" line="330"/>
         <source>Could not create the SVG output folder.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le dossier de sortie SVG n&apos;a pas pu être créé.</translation>
     </message>
 </context>
 <context>
@@ -17962,12 +17962,12 @@ dont les valeurs Z sont dans cette colonne (mêmes X et Y).</translation>
     <message>
         <location filename="../src/MeshTools/ReportExportDialog.cpp" line="225"/>
         <source>Measurement and Annotation Visibility</source>
-        <translation type="unfinished"></translation>
+        <translation>Visibilité des mesures et des annotations</translation>
     </message>
     <message>
         <location filename="../src/MeshTools/ReportExportDialog.cpp" line="229"/>
         <source>Use Captured Visibility</source>
-        <translation type="unfinished"></translation>
+        <translation>Utiliser la visibilité capturée</translation>
     </message>
     <message>
         <location filename="../src/MeshTools/ReportExportDialog.cpp" line="275"/>
@@ -21503,22 +21503,22 @@ Un nombre négatif est mesuré à partir du bord droit ou inférieur.</translati
     <message>
         <location filename="../src/Pdf3D/SheetTemplateEditor.cpp" line="571"/>
         <source>Use a separately authored template when printing in the opposite orientation. The paper size and margins still come from Page Setup.</source>
-        <translation type="unfinished"></translation>
+        <translation>Utilisez un modèle distinct pour imprimer dans l&apos;orientation opposée. Le format du papier et les marges proviennent toujours de « Mise en page ».</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/SheetTemplateEditor.cpp" line="573"/>
         <source>Opposite orientation for print:</source>
-        <translation type="unfinished"></translation>
+        <translation>Orientation opposée pour l&apos;impression :</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/SheetTemplateEditor.cpp" line="616"/>
         <source>Reflow this template</source>
-        <translation type="unfinished"></translation>
+        <translation>Réagencer ce modèle</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/SheetTemplateEditor.cpp" line="626"/>
         <source>Unavailable (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Indisponible (%1)</translation>
     </message>
     <message>
         <location filename="../src/Pdf3D/SheetTemplateEditor.cpp" line="713"/>
@@ -25197,13 +25197,13 @@ Adapté aux modèles à surfaces dures/mécaniques.</translation>
         <location filename="../src/MeshTools/ReportExportDialog.cpp" line="148"/>
         <location filename="../src/MeshTools/ReportExportDialog.cpp" line="152"/>
         <source>Measurements</source>
-        <translation type="unfinished">Mesures</translation>
+        <translation>Mesures</translation>
     </message>
     <message>
         <location filename="../src/MeshTools/ReportExportDialog.cpp" line="150"/>
         <location filename="../src/MeshTools/ReportExportDialog.cpp" line="153"/>
         <source>Annotations</source>
-        <translation type="unfinished">Annotations</translation>
+        <translation>Annotations</translation>
     </message>
 </context>
 <context>
