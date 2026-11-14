@@ -59,6 +59,7 @@
 #include "ProcessMemory.h"
 #include <cstring>
 #include <algorithm>
+#include <chrono>
 #include <functional>
 #include <unordered_map>
 #include <set>
@@ -741,7 +742,35 @@ _floorPlane(nullptr),
 	_inertiaTimer = new QTimer(this);
 	_inertiaTimer->setInterval(16); // ~60 FPS
 	connect(_inertiaTimer, &QTimer::timeout, this, &ViewportWidget::onInertiaTimer);
-
+	// The coast is stepped right after each frame is shown, by the elapsed time: a 16 ms timer beats against the display refresh
+	// (16.67 ms), so some frames got no step (a repeated image) and some two (a jump). The timer remains as the fallback.
+	connect(this, &QOpenGLWidget::frameSwapped, this, [this]() {
+		if (!_inertiaTimer || !_inertiaTimer->isActive())
+			return;
+		const qint64 sinceStepNs = _inertiaClockRunning ? _inertiaClock.nsecsElapsed() : qint64(1) << 40;
+		if (sinceStepNs < 8000000)
+		{
+			// The frame came right after a late step (measured in a log: a 27 ms step followed by a frame 6 ms later): do not drop
+			// the chain, which left the timer to take over 66 ms later (a visible hitch). Step a little later, and not faster than
+			// ~120 steps per second when vsync is off.
+			if (!_inertiaStepPending)
+			{
+				_inertiaStepPending = true;
+				const int waitMs = static_cast<int>((8000000 - sinceStepNs) / 1000000) + 1;
+				QTimer::singleShot(std::chrono::milliseconds(waitMs), Qt::PreciseTimer, this, [this]() {
+					_inertiaStepPending = false;
+					if (_inertiaTimer && _inertiaTimer->isActive())
+					{
+						_inertiaFrameStepped = true;
+						stepInertia();
+					}
+				});
+			}
+			return;
+		}
+		_inertiaFrameStepped = true;
+		stepInertia();
+	});
 	_turntableTimer = new QTimer(this);
 	_turntableTimer->setInterval(16); // ~60 FPS, same cadence as _inertiaTimer
 	connect(_turntableTimer, &QTimer::timeout, this, &ViewportWidget::onTurntableTimer);
@@ -18745,11 +18774,28 @@ void ViewportWidget::mouseMoveEvent(QMouseEvent* e)
 			_viewCtrl.setViewMode(ViewMode::NONE);
 			updateViewSelectorState();
 
+			// The coast must continue the drag. The velocity used to be -delta/dt of the LAST mouse event alone, in pixels per
+			// second, then capped at 10 - so it was saturated for almost any drag (the coast always kicked off at the maximum
+			// speed, whatever the drag speed), pointed along a one-pixel last delta (the direction snapped to an axis), ignored the
+			// mouse sensitivity and the inverted-Y setting. Now: the displacement over the last ~80 ms, converted to the
+			// per-tick units the coast steps in (one tick = 1/60 s, degrees per tick = velocity / 2), with the same sensitivity and
+			// Y direction as the drag itself.
 			const float maxInertiaVelocity = 10.0f; // Adjust as needed
-			if (dt > 0) {
-				_viewCtrl.setInertiaRotateVelocity(-QVector2D(delta) / dt);
-				if (_viewCtrl.inertiaRotateVelocity().length() > maxInertiaVelocity)
-					_viewCtrl.setInertiaRotateVelocity(_viewCtrl.inertiaRotateVelocity().normalized() * maxInertiaVelocity);
+			if (!_rotateSamples.isEmpty() && currentTime - _rotateSamples.last().second > 100)
+				_rotateSamples.clear();   // a new drag
+			_rotateSamples.append({ currentPos, currentTime });
+			while (_rotateSamples.size() > 2 && currentTime - _rotateSamples.first().second > 80)
+				_rotateSamples.removeFirst();
+			const qint64 spanMs = _rotateSamples.last().second - _rotateSamples.first().second;
+			if (_rotateSamples.size() >= 2 && spanMs >= 4)
+			{
+				const QPoint moved = _rotateSamples.last().first - _rotateSamples.first().first;
+				const float k = (_primaryCamera->getMode() == Camera::CameraMode::Orbit ? 1.0f : 0.4f) * _mouseSensitivity;
+				const float perTick = (1000.0f / 60.0f) / static_cast<float>(spanMs);
+				QVector2D velocity(-moved.x() * perTick * k, -moved.y() * perTick * k * (_invertYAxis ? -1.0f : 1.0f));
+				if (velocity.length() > maxInertiaVelocity)
+					velocity = velocity.normalized() * maxInertiaVelocity;
+				_viewCtrl.setInertiaRotateVelocity(velocity);
 			}
 		}
 
@@ -19704,28 +19750,63 @@ bool ViewportWidget::interactionLowRes() const
 
 void ViewportWidget::onInertiaTimer()
 {
+	// While frames drive the coast the timer only steps when frames stopped arriving (a hidden or stalled window).
+	if (_inertiaFrameStepped && _inertiaClockRunning && _inertiaClock.nsecsElapsed() < 50000000)
+		return;
+	_inertiaFrameStepped = false;
+	stepInertia();
+}
+
+void ViewportWidget::stepInertia()
+{
 	// Inertia effects are suppressed when a glTF camera is active (read-only view).
 	if (isGltfCameraActive())
 		return;
 
 	bool active = false;
 
+	// Time since the previous tick, in units of the nominal 16.67 ms tick. The first tick of a coast (and the first after a pause
+	// longer than 100 ms, i.e. a restart) counts as one nominal tick; a very slow frame counts at most three.
+	constexpr float kNominalTickMs = 1000.0f / 60.0f;
+	float tickScale = 1.0f;
+	if (_inertiaClockRunning)
+	{
+		const float gapMs = static_cast<float>(_inertiaClock.nsecsElapsed()) / 1.0e6f;
+		if (gapMs <= 100.0f)
+			tickScale = std::clamp(gapMs, 1.0f, 50.0f) / kNominalTickMs;
+		else
+			_inertiaPanRemainder = QPointF();
+	}
+	else
+		_inertiaPanRemainder = QPointF();
+	_inertiaClock.restart();
+	_inertiaClockRunning = true;
+	// The per-tick damping, applied over the elapsed time.
+	const float damping = std::pow(_viewCtrl.inertiaDamping(), tickScale);
+
 	// --- Pan inertia ---
 	if (_viewCtrl.inertiaPanVelocity().lengthSquared() > 0.01f) {
-		// Apply pan inertia from the last pan point, in the same way as interactive panning
-		QPointF panDelta(-_viewCtrl.inertiaPanVelocity().x(), -_viewCtrl.inertiaPanVelocity().y());
-		QPoint newPanPoint = _viewCtrl.lastPanPoint() + panDelta.toPoint();
-		QVector3D OP = get3dTranslationVectorFromMousePoints(_viewCtrl.lastPanPoint(), newPanPoint);
-		_primaryCamera->move(OP.x(), OP.y(), OP.z());
-		_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
-		_viewCtrl.setLastPanPoint(newPanPoint); // Update for next frame
-		_viewCtrl.scaleInertiaPanVelocity(_viewCtrl.inertiaDamping());
+		// Apply pan inertia from the last pan point, in the same way as interactive panning. The pixel remainder is carried to the
+		// next tick, so the tail of the coast moves smoothly instead of in whole-pixel steps that end while the velocity is still > 0.
+		const QPointF panDelta(-_viewCtrl.inertiaPanVelocity().x() * tickScale + _inertiaPanRemainder.x(),
+		                       -_viewCtrl.inertiaPanVelocity().y() * tickScale + _inertiaPanRemainder.y());
+		const QPoint whole(qRound(panDelta.x()), qRound(panDelta.y()));
+		_inertiaPanRemainder = panDelta - QPointF(whole);
+		if (!whole.isNull())
+		{
+			QPoint newPanPoint = _viewCtrl.lastPanPoint() + whole;
+			QVector3D OP = get3dTranslationVectorFromMousePoints(_viewCtrl.lastPanPoint(), newPanPoint);
+			_primaryCamera->move(OP.x(), OP.y(), OP.z());
+			_viewCtrl.syncTranslationFromCamera(*_primaryCamera);
+			_viewCtrl.setLastPanPoint(newPanPoint); // Update for next frame
+		}
+		_viewCtrl.scaleInertiaPanVelocity(damping);
 		active = true;
 	}
 
 	// --- Zoom inertia ---
 		if (std::abs(_viewCtrl.inertiaZoomVelocity()) > 0.001f) {
-		float zoomFactor = 1.005f;
+		float zoomFactor = std::pow(1.005f, tickScale);
 		// Same surface-distance zoom as the wheel (perspective orbit); the legacy path handles everything else.
 		const bool surfaceZoomActive = zoomTowardSurface(mapFromGlobal(QCursor::pos()), zoomFactor, _viewCtrl.inertiaZoomVelocity() > 0);
 		if (!surfaceZoomActive)
@@ -19743,8 +19824,9 @@ void ViewportWidget::onInertiaTimer()
 		}
 
 		// Decay inertia
-		_viewCtrl.scaleInertiaZoomVelocity(_viewCtrl.inertiaDamping() * 0.1f);
-		_viewCtrl.scaleInertiaZoomPanVelocity(_viewCtrl.inertiaDamping() * 0.1f);
+		const float zoomDamping = std::pow(_viewCtrl.inertiaDamping() * 0.1f, tickScale);
+		_viewCtrl.scaleInertiaZoomVelocity(zoomDamping);
+		_viewCtrl.scaleInertiaZoomPanVelocity(zoomDamping);
 
 		if (std::abs(_viewCtrl.inertiaZoomVelocity()) > 0.001f)
 			active = true;
@@ -19770,8 +19852,8 @@ void ViewportWidget::onInertiaTimer()
 		if (_primaryCamera->getMode() == Camera::CameraMode::Fly ||
 		    _primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 		{
-			_primaryCamera->getYaw()   += _viewCtrl.inertiaRotateVelocity().x() / 2.0f;
-			_primaryCamera->getPitch() += _viewCtrl.inertiaRotateVelocity().y() / 2.0f;
+			_primaryCamera->getYaw()   += _viewCtrl.inertiaRotateVelocity().x() / 2.0f * tickScale;
+			_primaryCamera->getPitch() += _viewCtrl.inertiaRotateVelocity().y() / 2.0f * tickScale;
 			if (_primaryCamera->getMode() == Camera::CameraMode::FirstPerson)
 				_primaryCamera->getPitch() = std::clamp(_primaryCamera->getPitch(), -60.0f, 60.0f);
 			else
@@ -19780,16 +19862,19 @@ void ViewportWidget::onInertiaTimer()
 		}
 		else
 		{
-			_primaryCamera->rotateX(_viewCtrl.inertiaRotateVelocity().y() / 2.0);
-			_primaryCamera->rotateY(_viewCtrl.inertiaRotateVelocity().x() / 2.0);
+			_primaryCamera->rotateX(_viewCtrl.inertiaRotateVelocity().y() / 2.0 * tickScale);
+			_primaryCamera->rotateY(_viewCtrl.inertiaRotateVelocity().x() / 2.0 * tickScale);
 		}
 		_viewCtrl.syncRotationFromCamera(*_primaryCamera);
-		_viewCtrl.scaleInertiaRotateVelocity(_viewCtrl.inertiaDamping());
+		_viewCtrl.scaleInertiaRotateVelocity(damping);
 		active = true;
 	}
 
 	if (!active) {
 		_inertiaTimer->stop();
+		_inertiaClockRunning = false;
+		_inertiaFrameStepped = false;
+		_inertiaPanRemainder = QPointF();
 		_viewCtrl.clearInertiaState();
 		QTimer::singleShot(100, this, &ViewportWidget::disableSectionCapsInteractionSuppression);
 	}

@@ -154,18 +154,29 @@ void Camera::updateViewMatrix(void)
 	_viewMatrix.setToIdentity();
 	QVector3D eye = _position;
 	QVector3D viewPoint = _position + _viewDir;
+	bool orbitLocalAim = false;
 
 	if (_cameraMode == CameraMode::Orbit)
 	{
 		eye = getRenderPosition();
-		// Aim along the stored view direction. Looking at the orbit target gives the same direction in exact arithmetic, but
-		// target minus eye is a tiny difference of large numbers when zoomed in on a large model, and its rounding turned the
-		// view direction itself jittery.
-		viewPoint = eye + _viewDir.normalized();
+		orbitLocalAim = true;
 	}
 
-	//as we know the up vector, we can easily use gluLookAt:
-	_viewMatrix.lookAt(eye, viewPoint, _upVector);
+	if (orbitLocalAim)
+	{
+		// Aim along the stored view direction, with the rotation built at the origin and the eye applied as a translation afterwards.
+		// Neither "target minus eye" (a small difference of two large numbers: it made the direction jittery when zoomed in on a
+		// large model) nor "eye plus direction" (a unit vector added to large coordinates: the sum is rounded to the float step of
+		// the coordinates, so the direction was quantised, which made the whole image vibrate while a large model rotated, worst when
+		// zoomed out) is used: the direction stays exact and only the translation carries the large coordinates.
+		_viewMatrix.lookAt(QVector3D(0.0f, 0.0f, 0.0f), _viewDir.normalized(), _upVector);
+		_viewMatrix.translate(-eye);
+	}
+	else
+	{
+		//as we know the up vector, we can easily use gluLookAt:
+		_viewMatrix.lookAt(eye, viewPoint, _upVector);
+	}
 
 	// Camera Zooming
 	_viewMatrix.scale(_zoomValue);

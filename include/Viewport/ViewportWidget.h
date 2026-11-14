@@ -1417,7 +1417,8 @@ public slots:
 	void animateFitAll();
 	void animateWindowZoom();
 	void animateCenterScreen();
-	void onInertiaTimer();
+	void onInertiaTimer();   // the timer fallback of stepInertia()
+	void stepInertia();      // one inertia step by elapsed time; driven by frameSwapped while coasting, by the timer otherwise
 	// True while the camera is being moved or is coasting after the mouse was released (the inertia timer runs), which is
 	// when the interaction fast path (coarse copies, single-sample rendering, no reflections or shadows) applies. The mouse
 	// release clears the low-resolution flag itself, so the coast would otherwise render at full quality.
@@ -2351,6 +2352,16 @@ private:
 	QRubberBand* _rubberBand;
 	QRubberBand* _selectRect;
 	QTimer* _inertiaTimer        = nullptr;
+	// Inertia is stepped by elapsed time, not per tick: a slow frame (heavy model) then moves the camera further in one step
+	// instead of running several 16 ms ticks between two displayed frames, so the coast keeps its duration and speed.
+	QElapsedTimer _inertiaClock;
+	bool _inertiaClockRunning = false;
+	// Mouse positions of the current rotate drag over the last ~100 ms (position, event time in ms): the release velocity of the coast is
+	// measured over this window instead of taken from the last mouse event alone.
+	QList<QPair<QPoint, qint64>> _rotateSamples;
+	bool _inertiaStepPending = false;     // a deferred frame-driven step is scheduled
+	bool _inertiaFrameStepped = false;   // the last step came from frameSwapped (then the timer stays out of the way)
+	QPointF _inertiaPanRemainder;   // the fraction of a pixel not yet moved by the pan coast
 
 	// Lasso selection state. _lassoPoints accumulates screen-space points
 	// across mouseMoveEvent()s during one drag (member, not local, since it
