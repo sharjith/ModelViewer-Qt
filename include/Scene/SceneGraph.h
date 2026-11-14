@@ -142,6 +142,22 @@ public:
     // pass the result to PunctualLights::setLights().
     std::vector<GPULight> buildEnabledLightList() const;
 
+    // Lights the user added to the scene. They belong to the scene, not to a model file, so they sit in the per-file table under a
+    // reserved key: that way they share the lights tree, the enabled flags, the GPU lists and the MVF save and load with the imported
+    // lights. The key never matches a real file, so no model transform applies to them.
+    static QString userLightsKey() { return QStringLiteral("__user__"); }
+    static bool isUserLightsKey(const QString& key) { return key == userLightsKey(); }
+
+    // Number of lights across all files, enabled or not (the raster shader holds PunctualLights::MAX_LIGHTS of them).
+    int totalLightCount() const;
+
+    // Insert a user light at `index` (negative or past the end appends) / remove the user light at `index`.
+    // Each emits lightDataChanged() once.
+    void insertUserLight(int index, const GltfLightEntry& entry);
+    void removeUserLight(int index);
+    // Replace the user light at `index` (a property edit); emits lightDataChanged() once.
+    void replaceUserLight(int index, const GltfLightEntry& entry);
+
     SceneNode* findFileNode(const QString& sourceFile) const;
 
     // Every currently loaded source file (one entry per synthetic top-level

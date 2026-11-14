@@ -66,6 +66,7 @@ public:
         bool deduplicateTextures = true;      ///< Remove duplicate textures
         bool verbose = true;                  ///< Enable debug logging
         std::vector<GPULight> lights;
+        QStringList lightNames;            ///< display names parallel to `lights`; an empty entry keeps the default light_N name
         QVector<GltfCameraEntry> cameras;  ///< glTF cameras to inject via post-processor
         // Ordered variant names for KHR_materials_variants export.
         // Leave empty to omit the extension from the output.

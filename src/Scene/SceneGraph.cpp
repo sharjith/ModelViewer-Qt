@@ -1241,6 +1241,44 @@ void SceneGraph::setLightEnabled(const QString& sourceFile, int lightIndex, bool
     emit lightDataChanged();
 }
 
+int SceneGraph::totalLightCount() const
+{
+    int count = 0;
+    for (auto it = _lightDataByFile.cbegin(); it != _lightDataByFile.cend(); ++it)
+        count += static_cast<int>(it->lights.size());
+    return count;
+}
+
+void SceneGraph::insertUserLight(int index, const GltfLightEntry& entry)
+{
+    GltfLightData& data = _lightDataByFile[userLightsKey()];
+    data.sourceFile = userLightsKey();
+    if (index < 0 || index > data.lights.size())
+        index = static_cast<int>(data.lights.size());
+    data.lights.insert(index, entry);
+    emit lightDataChanged();
+}
+
+void SceneGraph::removeUserLight(int index)
+{
+    auto it = _lightDataByFile.find(userLightsKey());
+    if (it == _lightDataByFile.end() || index < 0 || index >= it->lights.size())
+        return;
+    it->lights.remove(index);
+    if (it->lights.isEmpty())
+        _lightDataByFile.erase(it);
+    emit lightDataChanged();
+}
+
+void SceneGraph::replaceUserLight(int index, const GltfLightEntry& entry)
+{
+    auto it = _lightDataByFile.find(userLightsKey());
+    if (it == _lightDataByFile.end() || index < 0 || index >= it->lights.size())
+        return;
+    it->lights[index] = entry;
+    emit lightDataChanged();
+}
+
 std::vector<GPULight> SceneGraph::buildEnabledLightList() const
 {
     std::vector<GPULight> result;

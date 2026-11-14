@@ -173,6 +173,12 @@ public:
     static void setGltfCameraData(const QVector<GltfCameraEntry>& cameras);
     static void clearGltfCameraData();
 
+    /**
+     * Names for the punctual lights of the next export, parallel to the `lights` vector passed to the post-processor. An index
+     * with no entry, or an empty one, keeps the default "light_N" name. Set before every export (the names persist until replaced).
+     */
+    static void setLightExportNames(const QStringList& names);
+
     static void setVariantExportData(
         const QStringList& variantNames,
         const QVector<MeshVariantExportEntry>& entries);
@@ -327,6 +333,7 @@ private:
 
     // KHR_materials_variants export state (set by setVariantExportData before post-processing)
     static QVector<GltfCameraEntry> _gltfCameras;
+    static QStringList _lightNames;
 
     static QStringList _variantNames;
     static QVector<MeshVariantExportEntry> _variantEntries;

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "EditUserLightCommand.h"
 #include "GltfLightData.h"
 #include <QTreeWidgetItem>
 #include <QWidget>
@@ -8,6 +9,7 @@
 #include <memory>
 
 class QFrame;
+class QLabel;
 
 namespace Ui {
 	class VisualizationEnvironmentPanel;
@@ -17,6 +19,7 @@ class ViewportWidget;
 class ModelViewer;
 class MaterialPreviewWidget;
 class SceneGraph;
+class SceneLightPropertiesPanel;
 
 class VisualizationEnvironmentPanel : public QWidget
 {
@@ -115,6 +118,27 @@ public slots:
 	void refreshPunctualLightsTree();
 	// Called when any tree item's check state changes — rebuilds GPU light list.
 	void onPunctualLightItemChanged(QTreeWidgetItem* item, int column);
+
+	// ===== Scene (user-added) lights =====
+	// Add a light of `type` (LightType), delete the selected one, and keep the buttons' enabled state right.
+	void addUserLight(LightType type);
+	void deleteSelectedUserLight();
+	void updateSceneLightButtons();
+	// The tree's selection changed: select that light in the viewport.
+	void onLightTreeSelectionChanged();
+	// The viewport's selected light changed (or vanished): follow it in the tree and the properties panel.
+	void onViewportLightSelectionChanged();
+	// Show the selected light in the properties panel, or hide the panel when none is selected.
+	void syncLightProperties();
+	// An edit from the properties panel: apply it to the selected scene light through an undo command.
+	void onLightPropertyEdited(const GltfLightEntry& entry, EditUserLightCommand::Field field);
+	void aimSelectedLightAtCentre();
+	// Put one property of the selected scene light (colour, intensity, range or the cone angles) back to its default.
+	void resetSelectedLightProperty(EditUserLightCommand::Field field);
+	// Clicking the selected light again (not its check box) deselects it, and clicking empty space in the tree does too.
+	void onLightTreeItemClicked(QTreeWidgetItem* item);
+	// Make the Default Light row's check box follow the Default Lights check box (which is also set with signals blocked).
+	void syncDefaultLightRow();
 
 	// ===== Skybox Controls =====
 	void onSkyBoxStateChanged(bool checked);
@@ -251,6 +275,13 @@ private:
 	// then re-centres the sliders and moves the light with them. Cleared once the user moves a slider or a saved offset is restored, so
 	// a range refresh never moves a light the user placed.
 	bool _lightOffsetIsDefault = true;
+
+	QTreeWidgetItem* _pressedLightItem = nullptr;       // the tree row under the last mouse press (compared only, never dereferenced)
+	bool _pressedLightWasSelected = false;
+	Qt::CheckState _pressedLightCheck = Qt::Unchecked;
+	QLabel* _lightsAdsHint = nullptr;                   // "lights are ignored in ADS" note under the lights tree
+	SceneLightPropertiesPanel* _lightProps = nullptr;   // numeric editor for the selected light, under the lights tree
+	QMetaObject::Connection _viewportLightSelectionConnection;
 
 	float sliderTickToOffset(const LightAxisSliderMapping& mapping, int tick) const;
 	int offsetToSliderTick(const LightAxisSliderMapping& mapping, float offsetValue) const;

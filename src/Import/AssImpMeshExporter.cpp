@@ -633,6 +633,9 @@ aiReturn AssImpMeshExporter::exportMeshes(
 
     auto logCallback = [this](const QString& msg) { logMessage(msg); };
 
+    // Names for the punctual lights (parallel to settings.lights); always set, so a previous export's names never leak into this one.
+    GltfPostProcessor::setLightExportNames(settings.lightNames);
+
     // Register camera data so the post-processor injects glTF cameras.
     if (!settings.cameras.isEmpty())
         GltfPostProcessor::setGltfCameraData(settings.cameras);
@@ -1063,6 +1066,9 @@ aiReturn AssImpMeshExporter::exportScene(
     auto logCallback = [this](const QString& msg) {
         logMessage(msg);
         };
+
+    // Names for the punctual lights (parallel to settings.lights); always set, so a previous export's names never leak into this one.
+    GltfPostProcessor::setLightExportNames(settings.lightNames);
 
     // Register camera data so the post-processor injects glTF cameras.
     if (!settings.cameras.isEmpty())

@@ -3277,6 +3277,10 @@ void ModelViewer::validateLightData()
 
 	for (const QString& sourceFile : files)
 	{
+		// User-added lights belong to the scene and have no mesh of their own.
+		if (SceneGraph::isUserLightsKey(sourceFile))
+			continue;
+
 		const bool hasLiveMesh = std::any_of(meshes.cbegin(), meshes.cend(),
 			[&](SceneMesh* mesh)
 			{
@@ -6241,19 +6245,16 @@ void ModelViewer::exportModelDialog()
 	// transform is identity while the parsed light positions still carry the
 	// baked-in correction.
 	std::vector<GPULight> lights;
+	QStringList lightNames;   // parallel to `lights`, so the exported lights keep their names
 	{
-		// Only the exported file's lights — other loaded models' lights must
-		// not leak into the output.
-		QStringList lightFiles;
-		if (selectedSourceFile.isEmpty())
-			lightFiles = _sceneGraph->filesWithLights();
-		else if (_sceneGraph->filesWithLights().contains(selectedSourceFile))
-			lightFiles << selectedSourceFile;
-
-		for (const QString& file : lightFiles)
+		// Lights are written as root-level nodes of the exported scene. An imported light is un-baked with its own file's
+		// correction, so it lines up with that file's geometry. The scene's own (user-added) lights are exported whatever file is
+		// exported - they belong to the scene - with the correction of a reference file: the exported file, or the first loaded file
+		// when the whole scene is exported (files with different corrections cannot all be matched by one).
+		const auto addLights = [&](const GltfLightData& ld, const QString& correctionFile)
 		{
 			glm::mat4 inverseCorrection(1.0f);
-			if (const SceneNode* fileNode = _sceneGraph->findFileNode(file))
+			if (const SceneNode* fileNode = _sceneGraph->findFileNode(correctionFile))
 			{
 				if (!fileNode->importCorrection.IsIdentity())
 					inverseCorrection = glm::inverse(
@@ -6266,7 +6267,6 @@ void ModelViewer::exportModelDialog()
 				glm::length(glm::vec3(inverseCorrection[2])));
 			const float avgScale = (invScale.x + invScale.y + invScale.z) / 3.0f;
 
-			const GltfLightData ld = _sceneGraph->lightDataForFile(file);
 			for (const GltfLightEntry& entry : ld.lights)
 			{
 				GPULight light = entry.gpuLight;
@@ -6276,7 +6276,32 @@ void ModelViewer::exportModelDialog()
 					inverseCorrection * glm::vec4(light.direction, 0.0f)));
 				light.range *= avgScale;
 				lights.push_back(light);
+				lightNames << entry.name;
 			}
+		};
+
+		// Only the exported file's lights - other loaded models' lights must not leak into the output.
+		const QStringList filesWithLights = _sceneGraph->filesWithLights();
+		QStringList lightFiles;
+		if (selectedSourceFile.isEmpty())
+			lightFiles = filesWithLights;
+		else if (filesWithLights.contains(selectedSourceFile))
+			lightFiles << selectedSourceFile;
+		lightFiles.removeAll(SceneGraph::userLightsKey());
+		for (const QString& file : lightFiles)
+			addLights(_sceneGraph->lightDataForFile(file), file);
+
+		const GltfLightData sceneLights = _sceneGraph->lightDataForFile(SceneGraph::userLightsKey());
+		if (!sceneLights.isEmpty())
+		{
+			QString referenceFile = selectedSourceFile;
+			if (referenceFile.isEmpty())
+			{
+				const QStringList loadedFiles = _sceneGraph->allSourceFiles();
+				if (!loadedFiles.isEmpty())
+					referenceFile = loadedFiles.first();
+			}
+			addLights(sceneLights, referenceFile);
 		}
 	}
 
@@ -6288,6 +6313,7 @@ void ModelViewer::exportModelDialog()
 	expSettings.deduplicateTextures = true;
 	expSettings.verbose = true;
 	expSettings.lights  = lights;
+	expSettings.lightNames = lightNames;
 
 	// Collect glTF cameras for all exported files.
 	{

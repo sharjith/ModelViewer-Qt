@@ -70,6 +70,7 @@ class ToolsToolbar;
 #include "TabbedViewportToolbar.h"
 #include "SceneUtils.h"
 #include "PunctualLights.h"
+#include "GltfLightData.h"
 #include "KTX2Loader.h"
 #include "SelectionManager.h"
 #include "TransformGizmo.h"
@@ -1400,6 +1401,8 @@ signals:
 	// Forwarded from SelectionManager so external panels (e.g. TextureDebugPanel)
 	// can react to mesh selection changes without needing access to SelectionManager.
 	void selectionChanged(const QList<int>& selectedIds);
+	// The selected light (see selectLight()) changed, or ceased to exist.
+	void selectedLightChanged();
 	// Emitted by requestTextureReadback() once the GL readback is complete.
 	void textureReadbackReady(QVector<TextureSlotInfo> slots, QString meshName);
 	void cameraUpAxisChanged(bool zUp);
@@ -1491,6 +1494,23 @@ public slots:
 	// Upload a new GPU light list (e.g. after a per-light checkbox toggle) and
 	// sync the hasPunctualLights / lightCount shader uniforms in one call.
 	void applyEnabledLightList(const std::vector<GPULight>& enabledLights);
+
+	// A new user light of `type` (LightType value), named `name`, placed in view of the camera near the scene: above and to the right of
+	// the scene centre, nearer to the eye, aimed at the centre. Intensity is calibrated to the distance (inverse-square), so the light
+	// brightens the scene centre the same way whatever the model's size.
+	GltfLightEntry makeUserLight(int type, const QString& name) const;
+	// The intensity a new light of `type` at `position` gets (and the value its reset button restores): 2 at the scene centre, so
+	// it grows with the square of the distance; a sun has no distance and gets 2.
+	float defaultUserLightIntensity(int type, const QVector3D& position) const;
+	// After user lights were added or removed in the scene graph (the scene graph signal has already uploaded the list): restore the
+	// default-light fallback when no light is left, tell the ray tracers and repaint.
+	void userLightsChanged();
+
+	// The light selected in the lights tree (index -1 = none). Scene lights and imported lights can both be selected; the selected
+	// fixture gets an accent ring and, for a spot, its beam cone. Cleared when the selected light no longer exists.
+	void selectLight(const QString& sourceFile, int index);
+	const QString& selectedLightFile() const { return _selectedLightFile; }
+	int selectedLightIndex() const { return _selectedLightIndex; }
 	void useIBL(bool useIBL) { _renderCtrl.setUseIBL(useIBL); update(); }
 	void showFileReadingProgress(float percent);
 	void showMeshLoadingProgress(float percent);
@@ -2944,6 +2964,37 @@ private:
 	LightFixtureRenderable* _fixtureBeamRim = nullptr;
 	LightFixtureRenderable* _fixtureBeamFill = nullptr;
 	LightFixtureRenderable* _fixtureLampShade = nullptr;
+	QString _selectedLightFile;          // source file key of the selected light ("__user__" for scene lights)
+	int     _selectedLightIndex = -1;    // its index within that file's lights; -1 = no selection
+
+	// Dragging a handle of the transform gizmo on the selected scene light (move along an axis, or turn the aim about an axis).
+	struct LightGizmoDrag
+	{
+		bool                     active = false;
+		TransformGizmo::Handle   handle = TransformGizmo::Handle::None;
+		QPoint                   startPixel;
+		QVector3D                axis;          // translation axis, or the rotation plane's normal
+		QVector3D                pivot;         // gizmo pivot when the drag began
+		float                    dragScale = 1.0f;   // world length of the axis used to turn mouse motion into distance
+		QVector3D                startVector;   // rotation: start direction in the plane, from the pivot
+		GltfLightEntry           startEntry;
+		GltfLightEntry           currentEntry;
+	};
+	LightGizmoDrag _lightDrag;
+	bool _clickSelecting = false;       // inside the viewport's click selection, so an empty-space result can end the light selection
+	bool _lightDragCancelled = false;   // Escape cancelled the drag; the mouse is still down, and the rest of its gesture is ignored
+
+	// The selected light, when it is a scene light that exists; false otherwise.
+	bool selectedSceneLight(GltfLightEntry& entry) const;
+	// Where a light's fixture (and its gizmo) sits in the scene: the emitter for point and spot lights, the sun head for a sun.
+	QVector3D lightFixturePosition(const GPULight& light) const;
+	// True while the transform gizmo is showing for the selected scene light.
+	bool lightGizmoActive() const;
+	// A left press at `pixel`: grab a handle of the selected light's gizmo, or select the light fixture under the cursor.
+	bool handleLightPress(const QPoint& pixel);
+	bool beginLightGizmoDrag(TransformGizmo::Handle handle, const QPoint& pixel);
+	void updateLightGizmoDrag(const QPoint& pixel);
+	void finishLightGizmoDrag(bool commit);
 	// _showLights â†’ SceneRenderController (Phase 12)
 
 	// GPU-context-recreation-survival registry (see IGpuContextResource.h) -

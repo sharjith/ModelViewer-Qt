@@ -212,7 +212,8 @@ public:
     // Clear all parsed and repositioned light state (e.g. on scene reset).
     void clearParsedLights();
     // Return the enabled-filtered repositioned lights for gizmo rendering.
-    std::vector<GPULight> buildGizmoLights(const SceneGraph* sg) const;
+    // When `origins` is given it receives, per returned light, the file and index it came from (an empty file and -1 when unknown).
+    std::vector<GPULight> buildGizmoLights(const SceneGraph* sg, std::vector<LightOrigin>* origins = nullptr) const;
 
     // ---- Static helpers ----------------------------------------------------
     static QMatrix4x4           aiToQMatrix(const aiMatrix4x4& m);
