@@ -21,6 +21,10 @@ layout(location = 11) in vec4 analysisColor;
 uniform mat4 modelMatrix;
 uniform mat4 viewMatrix;
 uniform mat4 modelViewMatrix;
+// Eye-relative model-view (double-precision composition on the CPU, translation relative to the eye). When eyeRelative is set it
+// replaces projection * view * model for gl_Position only; everything else keeps the world-space values.
+uniform bool eyeRelative;
+uniform mat4 eyeModelView;
 uniform mat3 normalMatrix;
 uniform mat3 worldNormalMatrix;
 uniform mat4 projectionMatrix;
@@ -159,7 +163,9 @@ void main()
     else
         v_worldBitangent = worldBitangent / worldBitangentLen;
 
-    gl_Position = projectionMatrix * viewMatrix * worldPos;
+    gl_Position = eyeRelative
+        ? projectionMatrix * (eyeModelView * skinnedPosition)
+        : projectionMatrix * viewMatrix * worldPos;
 
     // Shadow mapping
     vs_out_shadow.FragPos = vec3(worldPos);

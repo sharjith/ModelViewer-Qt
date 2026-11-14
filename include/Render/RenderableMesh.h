@@ -52,6 +52,13 @@ public:
 	                                   const QMatrix4x4& viewMatrix);
 	static void clearCurrentRenderContext();
 
+	// Eye-relative transform context for the main-scene pass: the view matrix the context belongs to and the exact (double)
+	// eye position. While a draw's current view matrix equals `view`, SceneMesh::render() composes the model-view matrix in
+	// double precision with the translation taken relative to the eye, and the main-scene vertex shaders use it for gl_Position.
+	// Any other view (shadow pass, light views) simply does not match and draws the old way.
+	static void setEyeRelativeContext(const QMatrix4x4& view, const double eye[3]);
+	static void clearEyeRelativeContext();
+
 	// Interaction-time geometry LOD - set once per frame (mirrors
 	// setCurrentRenderContext's pattern) from ViewportWidget::setCommonUniforms(),
 	// gated on the SAME lowResEnabled()+oversized-model condition that already
@@ -699,6 +706,8 @@ protected: // methods
 	{
 		int modelMatrix = -1;
 		int modelViewMatrix = -1;
+		int eyeRelative = -1;
+		int eyeModelView = -1;
 		int normalMatrix = -1;
 		int worldNormalMatrix = -1;
 		int hasSkinning = -1;
@@ -711,6 +720,8 @@ protected: // methods
 	const DrawUniformLocations& drawUniformLocations() const;
 	static const QMatrix4x4& currentGlobalModelMatrix();
 	static const QMatrix4x4& currentViewMatrix();
+	// True (and the eye position) when the eye-relative context belongs to the view matrix this draw is using.
+	static bool eyeRelativeContextFor(const QMatrix4x4& currentView, double eyeOut[3]);
 
 	// Rebinds debug-override textures after the normal texture setup.
 	// Call at the end of any render() path that binds textures.
@@ -796,6 +807,9 @@ protected:
 
 	static QMatrix4x4 _currentGlobalModelMatrix;
 	static QMatrix4x4 _currentViewMatrix;
+	static QMatrix4x4 _eyeContextView;
+	static double     _eyeContextPosition[3];
+	static bool       _eyeContextValid;
 	static bool       _lodPolicyUseLod1;
 
 	// ---- Debug override maps -----------------------------------------------

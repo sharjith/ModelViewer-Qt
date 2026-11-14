@@ -158,7 +158,10 @@ void Camera::updateViewMatrix(void)
 	if (_cameraMode == CameraMode::Orbit)
 	{
 		eye = getRenderPosition();
-		viewPoint = _position;
+		// Aim along the stored view direction. Looking at the orbit target gives the same direction in exact arithmetic, but
+		// target minus eye is a tiny difference of large numbers when zoomed in on a large model, and its rounding turned the
+		// view direction itself jittery.
+		viewPoint = eye + _viewDir.normalized();
 	}
 
 	//as we know the up vector, we can easily use gluLookAt:
@@ -557,6 +560,34 @@ void Camera::setPosition(float iX, float iY, float iZ)
 void Camera::setPosition(QVector3D pos)
 {
 	setPosition(pos.x(), pos.y(), pos.z());
+}
+
+bool Camera::getRenderPositionExact(double out[3]) const
+{
+	if (std::abs(_zoomValue - 1.0f) > 1.0e-6f)
+		return false;
+	const bool inSync = _exactPositionValid
+		&& static_cast<float>(_exactPosition[0]) == _position.x()
+		&& static_cast<float>(_exactPosition[1]) == _position.y()
+		&& static_cast<float>(_exactPosition[2]) == _position.z();
+	double p[3] = { _position.x(), _position.y(), _position.z() };
+	if (inSync)
+	{
+		p[0] = _exactPosition[0];
+		p[1] = _exactPosition[1];
+		p[2] = _exactPosition[2];
+	}
+	if (_cameraMode != CameraMode::Orbit)
+	{
+		out[0] = p[0]; out[1] = p[1]; out[2] = p[2];
+		return true;
+	}
+	const float distance = (_projectionType == ProjectionType::ORTHOGRAPHIC) ? getOrthoViewDistance() : getOrbitDistance();
+	const QVector3D dir = _viewDir.normalized();
+	out[0] = p[0] - static_cast<double>(dir.x()) * distance;
+	out[1] = p[1] - static_cast<double>(dir.y()) * distance;
+	out[2] = p[2] - static_cast<double>(dir.z()) * distance;
+	return true;
 }
 
 QVector3D Camera::getRenderPosition() const

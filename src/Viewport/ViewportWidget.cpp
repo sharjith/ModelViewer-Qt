@@ -10296,7 +10296,7 @@ float ViewportWidget::minimumViewRange()
 	// the largest coordinate that the perspective zoom uses as its precision floor, plus a sliver of the scene size.
 	const QVector3D target = _primaryCamera ? _primaryCamera->getPosition() : QVector3D();
 	const float magnitude = std::max({ std::abs(target.x()), std::abs(target.y()), std::abs(target.z()) });
-	const float fraction = 1.0e-4f;
+	const float fraction = 2.0e-5f;
 	const float sceneRadius = std::max(_viewCtrl.boundingSphere().getRadius(), 1.0e-6f);
 	return std::max({ fraction * magnitude, 1.0e-6f * sceneRadius, 1.0e-9f });
 }
@@ -10314,7 +10314,9 @@ bool ViewportWidget::zoomTowardSurface(const QPoint& cursor, float factor, bool 
 	// closer (0.1 = to a tenth of the distance it had then). Precision floor: the closest approach, as a fraction of the
 	// largest coordinate in play, at which single-precision vertices still give a stable picture (about 1.5 pixels of jitter).
 	constexpr float kAllowanceFraction = 0.1f;
-	constexpr float kPrecisionFloor = 1.0e-4f;
+	// The geometry is eye-relative, so it no longer jitters with the camera; what remains is the fixed rounding of the stored
+	// coordinates (a floor set from the owner's tests).
+	constexpr float kPrecisionFloor = 2.0e-5f;
 
 	if (!surfaceZoomApplies() || factor <= 1.0f)
 		return false;
@@ -10681,6 +10683,14 @@ void ViewportWidget::setCommonUniforms(QOpenGLShaderProgram* prog, Camera* camer
 	prog->setUniformValue("lightPos",
 		shaderLightPos);
 	RenderableMesh::setCurrentRenderContext(_viewCtrl.modelMatrix(), camera->getViewMatrix());
+	{
+		// Eye-relative model-view for the primary camera's main-scene draws (see RenderableMesh::setEyeRelativeContext).
+		double eye[3];
+		if (camera == _primaryCamera && camera->getRenderPositionExact(eye))
+			RenderableMesh::setEyeRelativeContext(camera->getViewMatrix(), eye);
+		else
+			RenderableMesh::clearEyeRelativeContext();
+	}
 	// Second consumer of the same interactionFastPath signal that already
 	// gates shadow-map sampling and expensive shader branches above - drops
 	// eligible meshes to their precomputed coarse LOD1 tier for the same

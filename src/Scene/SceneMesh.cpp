@@ -1265,6 +1265,43 @@ void SceneMesh::prepareForDraw()
 		ensureTextureVertexAttributes();
 }
 
+// Model-view matrix with the translation taken relative to the eye, composed in double precision. view is the camera's view
+// matrix (rotation about the eye; its own translation is ignored), global and combined are the model matrices, eye the exact
+// eye position in world space. The rotation block is the usual one; only the translation differs, so the large world
+// translations cancel before they are rounded to float.
+static QMatrix4x4 eyeRelativeModelView(const QMatrix4x4& view, const QMatrix4x4& global, const QMatrix4x4& combined, const double eye[3])
+{
+	const auto mul = [](const double* a, const double* b, double* out)
+	{
+		for (int col = 0; col < 4; ++col)
+			for (int row = 0; row < 4; ++row)
+			{
+				double sum = 0.0;
+				for (int k = 0; k < 4; ++k)
+					sum += a[k * 4 + row] * b[col * 4 + k];
+				out[col * 4 + row] = sum;
+			}
+	};
+	double g[16], c[16], m[16], v[16], r[16];
+	for (int i = 0; i < 16; ++i)
+	{
+		g[i] = global.constData()[i];
+		c[i] = combined.constData()[i];
+		v[i] = view.constData()[i];
+	}
+	mul(g, c, m);
+	m[12] -= eye[0] * m[15];
+	m[13] -= eye[1] * m[15];
+	m[14] -= eye[2] * m[15];
+	v[12] = v[13] = v[14] = 0.0;
+	mul(v, m, r);
+	QMatrix4x4 out;
+	float* d = out.data();
+	for (int i = 0; i < 16; ++i)
+		d[i] = static_cast<float>(r[i]);
+	return out;
+}
+
 void SceneMesh::render()
 {
 	if (!_vertexArrayObject.isCreated())
@@ -1324,6 +1361,21 @@ void SceneMesh::render()
 	{
 		_prog->setUniformValue(drawLoc.modelViewMatrix, modelViewMatrix);
 		++transformUniformUploads;
+	}
+	// Eye-relative model-view: the model-view matrix composed in double precision with the translation taken relative to the
+	// eye, so its numbers stay small and the geometry does not jitter at deep zoom in a large model. Only when the exact eye
+	// context belongs to this draw's view and the program has the uniforms; reset after the draw (below).
+	bool eyeRelativeUploaded = false;
+	if (drawLoc.eyeRelative >= 0 && drawLoc.eyeModelView >= 0)
+	{
+		double eye[3];
+		if (RenderableMesh::eyeRelativeContextFor(viewMatrix, eye))
+		{
+			_prog->setUniformValue(drawLoc.eyeModelView, eyeRelativeModelView(viewMatrix, globalModelMatrix, combinedRenderTransformRef(), eye));
+			_prog->setUniformValue(drawLoc.eyeRelative, true);
+			eyeRelativeUploaded = true;
+			transformUniformUploads += 2;
+		}
 	}
 	if (drawLoc.normalMatrix >= 0)
 	{
@@ -1528,6 +1580,9 @@ void SceneMesh::render()
 	}
 
 	probeLap(); // 8: draw + VAO release (plus mesh-wireframe scope exit)
+	// Other draws that share this program (floor, batches) must see the default again.
+	if (eyeRelativeUploaded)
+		_prog->setUniformValue(drawLoc.eyeRelative, false);
 	if (isTransparent()) glDepthMask(prevDepthMask); // restore immediately
 	if (profiling)
 		recordAssImpRenderCpuMs(static_cast<double>(renderTimer.nsecsElapsed()) / 1000000.0);

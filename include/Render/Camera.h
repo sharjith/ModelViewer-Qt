@@ -163,6 +163,9 @@ public:
 	QVector3D getUpVector()	const { return _upVector; }
 	QVector3D getWorldUpVector() const { return _worldUpVector; }
 	QVector3D getPosition()	const { return _position; }
+	// The eye position in world space in double precision (the exact camera position, less the orbit offset). False when the
+	// view matrix is not a plain rotation about the eye (a view zoom scale other than 1).
+	bool getRenderPositionExact(double out[3]) const;
 	QVector3D getRenderPosition() const;
 	float getOrbitDistance() const;
 	float getOrthoViewDistance() const;

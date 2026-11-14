@@ -96,7 +96,24 @@ QQuaternion meshEulerToQuaternion(const QVector3D& rotation)
 
 QMatrix4x4 RenderableMesh::_currentGlobalModelMatrix;
 QMatrix4x4 RenderableMesh::_currentViewMatrix;
+QMatrix4x4 RenderableMesh::_eyeContextView;
+double     RenderableMesh::_eyeContextPosition[3] = { 0.0, 0.0, 0.0 };
+bool       RenderableMesh::_eyeContextValid = false;
 bool       RenderableMesh::_lodPolicyUseLod1 = false;
+
+void RenderableMesh::setEyeRelativeContext(const QMatrix4x4& view, const double eye[3])
+{
+	_eyeContextView = view;
+	_eyeContextPosition[0] = eye[0];
+	_eyeContextPosition[1] = eye[1];
+	_eyeContextPosition[2] = eye[2];
+	_eyeContextValid = true;
+}
+
+void RenderableMesh::clearEyeRelativeContext()
+{
+	_eyeContextValid = false;
+}
 
 void RenderableMesh::setCurrentRenderContext(const QMatrix4x4& globalModelMatrix,
                                            const QMatrix4x4& viewMatrix)
@@ -129,6 +146,16 @@ const QMatrix4x4& RenderableMesh::currentGlobalModelMatrix()
 const QMatrix4x4& RenderableMesh::currentViewMatrix()
 {
 	return _currentViewMatrix;
+}
+
+bool RenderableMesh::eyeRelativeContextFor(const QMatrix4x4& currentView, double eyeOut[3])
+{
+	if (!_eyeContextValid || !(currentView == _eyeContextView))
+		return false;
+	eyeOut[0] = _eyeContextPosition[0];
+	eyeOut[1] = _eyeContextPosition[1];
+	eyeOut[2] = _eyeContextPosition[2];
+	return true;
 }
 
 void RenderableMesh::bindTextureUnitCached(GLenum textureUnit, GLuint textureId)
@@ -1255,6 +1282,8 @@ const RenderableMesh::DrawUniformLocations& RenderableMesh::drawUniformLocations
 	DrawUniformLocations& loc = _drawUniformLocations;
 	loc.modelMatrix = uniformLocationCached("modelMatrix");
 	loc.modelViewMatrix = uniformLocationCached("modelViewMatrix");
+	loc.eyeRelative = uniformLocationCached("eyeRelative");
+	loc.eyeModelView = uniformLocationCached("eyeModelView");
 	loc.normalMatrix = uniformLocationCached("normalMatrix");
 	loc.worldNormalMatrix = uniformLocationCached("worldNormalMatrix");
 	loc.hasSkinning = uniformLocationCached("hasSkinning");
