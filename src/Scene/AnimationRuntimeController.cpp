@@ -154,18 +154,10 @@ void AnimationRuntimeController::rebuildCurrentRepositionedLights(
         }
     }
 
-    if (!_animatedLightVisibilitySourceFile.isEmpty() &&
-        _animatedLightVisibilityMask.size() == static_cast<qsizetype>(repositionedLights.size()))
-    {
-        std::vector<GPULight> visibleLights;
-        visibleLights.reserve(repositionedLights.size());
-        for (int lightIndex = 0; lightIndex < static_cast<int>(repositionedLights.size()); ++lightIndex)
-        {
-            if (_animatedLightVisibilityMask[lightIndex])
-                visibleLights.push_back(repositionedLights[lightIndex]);
-        }
-        repositionedLights = std::move(visibleLights);
-    }
+    // Node visibility (KHR_node_visibility) is not applied by dropping lights here: that broke the
+    // one-to-one index map used for the enabled flags and fixture picking. It is written to the
+    // lights' enabled flags instead (ViewportWidget::setAnimatedLightVisibilityState), so the tree
+    // check boxes show it and the user can still override it.
 }
 
 std::vector<GPULight> AnimationRuntimeController::rebuildAndBuildUploadLights(

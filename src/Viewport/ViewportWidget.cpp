@@ -1992,7 +1992,13 @@ void ViewportWidget::paintGL()
 				axisViewOverride = &interactivePtAxisView;
 			}
 
-			drawViewCube(axisViewOverride);
+			// Light fixtures: same reason as the axes below - drawn in render() they are covered by the ray-traced frame.
+				if (_renderCtrl.showLights() && !_viewCtrl.multiViewActive() && !_compareActive
+				    && _rtInteractionCtrl->armed() && (_rayTracedInteractiveActive || !_rayTracedIdleTimer->isActive())
+				    && _rtPresenter.hasFrame())
+					drawLights(_primaryCamera);
+
+				drawViewCube(axisViewOverride);
 
 			// Axis trihedrons (center + corner): drawn here, after the path-
 			// traced overlay above, for the same reason the ViewCube is -
@@ -7537,7 +7543,28 @@ void ViewportWidget::updatePunctualLights()
 
 void ViewportWidget::setAnimatedLightVisibilityState(const QString& sourceFile, const QVector<bool>& visibleByParsedLight)
 {
+	// The model's node visibility is carried by the lights' enabled flags, so the tree check boxes and the
+	// lights actually drawn agree. Only a change of the node visibility rewrites a flag, so a manual toggle holds.
+	QVector<int> changedLights;
+	QVector<bool> changedValues;
+	const bool hasPrevious = _animCtrl.animatedLightVisibilitySourceFile() == sourceFile;
+	const QVector<bool> previous = hasPrevious ? _animCtrl.animatedLightVisibilityMask() : QVector<bool>();
+	for (int i = 0; i < visibleByParsedLight.size(); ++i)
+	{
+		const bool before = i < previous.size() ? previous[i] : true;
+		if (before != visibleByParsedLight[i])
+		{
+			changedLights.append(i);
+			changedValues.append(visibleByParsedLight[i]);
+		}
+	}
+
 	_animCtrl.setAnimatedLightVisibility(sourceFile, visibleByParsedLight);
+	if (_viewer && _viewer->sceneGraph())
+	{
+		for (int k = 0; k < changedLights.size(); ++k)
+			_viewer->sceneGraph()->setLightEnabled(sourceFile, changedLights[k], changedValues[k]);
+	}
 	updatePunctualLights();
 }
 
@@ -13966,7 +13993,14 @@ void ViewportWidget::render(Camera* camera)
 		drawSimulationGlyphs(camera);
 		drawSimulationTensorGlyphs(camera);
 	}
-	if (_renderCtrl.showLights()) drawLights(camera);
+	// While the ray-traced frame is presented, paintGL() draws the fixtures after it (the GPU frame is opaque and would cover them).
+	const bool lightsDrawnAfterRayTrace =
+		camera == _primaryCamera && _rtInteractionCtrl->armed()
+		&& (_rayTracedInteractiveActive || !_rayTracedIdleTimer->isActive())
+		&& _rtPresenter.hasFrame()
+		&& !_viewCtrl.multiViewActive() && !_compareActive;
+	// Fixtures are editing aids: never in an exported image (offline render, report, sheet capture).
+	if (_renderCtrl.showLights() && !lightsDrawnAfterRayTrace && !_capturingCleanFrame) drawLights(camera);
 	if (profileRendering)
 	{
 		endFrameGpuTimer();
@@ -20399,9 +20433,18 @@ void ViewportWidget::showLights(bool showLights)
 void ViewportWidget::applyEnabledLightList(const std::vector<GPULight>& enabledLights)
 {
 	makeCurrent();
-	_renderCtrl.punctualLights()->setLights(enabledLights);
-	syncPunctualLightUniforms(static_cast<int>(enabledLights.size()),
-	                          !enabledLights.empty());
+	if (!_animCtrl.originalParsedLights().empty())
+	{
+		// Same path as every other light update, so imported lights keep their animated/moved
+		// positions and the fixtures stay in step with the enabled flags.
+		updatePunctualLights();
+	}
+	else
+	{
+		_renderCtrl.punctualLights()->setLights(enabledLights);
+		syncPunctualLightUniforms(static_cast<int>(enabledLights.size()),
+		                          !enabledLights.empty());
+	}
 
 	// Per-light enable/disable checkbox toggles reach here (see
 	// VisualizationEnvironmentPanel::onPunctualLightItemChanged()) - must be
