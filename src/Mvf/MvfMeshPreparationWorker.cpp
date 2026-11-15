@@ -331,6 +331,18 @@ QVector<PreparedMvfMesh> MvfMeshPreparationWorker::prepare(const Mvf::Document& 
 					else if (mimeType == QLatin1String("image/jpeg")) ext = QStringLiteral(".jpg");
 					else if (mimeType == QLatin1String("image/webp")) ext = QStringLiteral(".webp");
 					else if (mimeType == QLatin1String("image/bmp"))  ext = QStringLiteral(".bmp");
+					else if (mimeType == QLatin1String("image/ktx2")) ext = QStringLiteral(".ktx2");
+					else
+					{
+						// Other formats (tga, dds, hdr, exr, ...): the extension recorded at save time. The loaders pick the reader by
+						// extension, so ".bin" would never be read. Only a short plain word is accepted.
+						const QString saved = imgObj[QStringLiteral("fileExtension")].toString().toLower();
+						bool plain = !saved.isEmpty() && saved.size() <= 8;
+						for (const QChar c : saved)
+							plain = plain && (c.isLetterOrNumber() && c.unicode() < 128);
+						if (plain)
+							ext = QLatin1Char('.') + saved;
+					}
 
 					const QString tempPath = s_embeddedImageDir.filePath(
 						QStringLiteral("img_%1_%2%3")

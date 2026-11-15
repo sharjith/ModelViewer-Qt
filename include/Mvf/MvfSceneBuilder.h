@@ -8,6 +8,7 @@ class SceneMesh;
 #include <QHash>
 #include <QList>
 #include <QSet>
+#include <QStringList>
 #include <QVector>
 #include <QUuid>
 
@@ -24,6 +25,9 @@ struct MVFPackage
     Document document;
     QByteArray geometryChunk;
     QByteArray imageChunk;
+    // Files the session refers to that could not be embedded (missing on disk, unresolved or empty). The saved file keeps their
+    // path only, so they will be missing wherever the original is not available. The caller reports them to the user.
+    QStringList skippedImages;
 };
 
 MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,

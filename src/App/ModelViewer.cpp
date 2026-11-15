@@ -85,6 +85,10 @@
 #include <QColorDialog>
 #include <QDataStream>
 #include <QDir>
+#include <QFileInfo>
+#include <QMutex>
+#include <QMutexLocker>
+#include <QTemporaryDir>
 #include <QEventLoop>
 #include <QFile>
 #include <QDesktopServices>
@@ -7588,6 +7592,113 @@ bool ModelViewer::loadFile(const QString& fileName)
 	return false;
 }
 
+namespace
+{
+// Files a saved scene state embedded in the IMGS chunk (a custom skybox folder, a floor texture), written back out for the viewer
+// to load by path. Kept for the life of the process; the same state is restored from the same files more than once per load.
+struct EmbeddedStateFiles
+{
+	QMutex mutex;
+	QTemporaryDir dir;
+	QHash<QString, QString> pathBySignature;
+};
+
+EmbeddedStateFiles& embeddedStateFiles()
+{
+	static EmbeddedStateFiles files;
+	return files;
+}
+
+QByteArray embeddedBufferViewBytes(const Mvf::Document& document, const QByteArray& imageChunk, int bufferViewIndex)
+{
+	if (bufferViewIndex < 0 || bufferViewIndex >= document.bufferViews.size())
+		return QByteArray();
+	const QJsonObject bufferView = document.bufferViews[bufferViewIndex].toObject();
+	if (bufferView[QStringLiteral("buffer")].toInt(-1) != 1)
+		return QByteArray();
+	const qint64 offset = static_cast<qint64>(bufferView[QStringLiteral("byteOffset")].toDouble(0));
+	const qint64 length = static_cast<qint64>(bufferView[QStringLiteral("byteLength")].toDouble(0));
+	if (offset < 0 || length <= 0 || offset + length > imageChunk.size())
+		return QByteArray();
+	return QByteArray(imageChunk.constData() + offset, static_cast<int>(length));
+}
+
+// A file name read from the session is data, not a path: only its last component is used, never a separator or "..".
+QString safeEmbeddedFileName(const QString& name)
+{
+	const QString leaf = QFileInfo(name).fileName();
+	if (leaf.isEmpty() || leaf == QLatin1String(".") || leaf == QLatin1String(".."))
+		return QString();
+	return leaf;
+}
+
+// Restores a scene state's custom skybox folder and floor texture from the embedded copies when the original path is no longer
+// there. A path that still exists is kept, so a texture edited on disk is still the one shown.
+void restoreEmbeddedSceneStateFiles(const QJsonObject& stateObj, const Mvf::Document& document, const QByteArray& imageChunk, SceneState& st)
+{
+	EmbeddedStateFiles& store = embeddedStateFiles();
+
+	const QJsonObject floorObj = stateObj[QStringLiteral("floorTextureEmbedded")].toObject();
+	if (!floorObj.isEmpty() && (st.floorTexturePath.isEmpty() || !QFileInfo::exists(st.floorTexturePath)))
+	{
+		const int bufferView = floorObj[QStringLiteral("bufferView")].toInt(-1);
+		const QString name = safeEmbeddedFileName(floorObj[QStringLiteral("name")].toString());
+		const QString signature = QStringLiteral("floor|%1").arg(bufferView);
+		QMutexLocker lock(&store.mutex);
+		if (store.pathBySignature.contains(signature))
+			st.floorTexturePath = store.pathBySignature.value(signature);
+		else if (!name.isEmpty() && store.dir.isValid())
+		{
+			const QByteArray bytes = embeddedBufferViewBytes(document, imageChunk, bufferView);
+			const QString folder = store.dir.filePath(QStringLiteral("floor_%1").arg(bufferView));
+			QDir().mkpath(folder);
+			const QString path = QDir(folder).filePath(name);
+			QFile out(path);
+			if (!bytes.isEmpty() && out.open(QIODevice::WriteOnly) && out.write(bytes) == bytes.size())
+			{
+				out.close();
+				store.pathBySignature.insert(signature, path);
+				st.floorTexturePath = path;
+			}
+		}
+	}
+
+	const QJsonObject skyObj = stateObj[QStringLiteral("skyBoxEmbedded")].toObject();
+	const QJsonArray skyFiles = skyObj[QStringLiteral("files")].toArray();
+	if (!skyFiles.isEmpty() && (st.skyBoxFolderPath.isEmpty() || !QDir(st.skyBoxFolderPath).exists()))
+	{
+		QString signature = QStringLiteral("sky");
+		for (const QJsonValue& fileVal : skyFiles)
+			signature += QLatin1Char('|') + QString::number(fileVal.toObject()[QStringLiteral("bufferView")].toInt(-1));
+		QMutexLocker lock(&store.mutex);
+		if (store.pathBySignature.contains(signature))
+			st.skyBoxFolderPath = store.pathBySignature.value(signature);
+		else if (store.dir.isValid())
+		{
+			const QString folder = store.dir.filePath(QStringLiteral("sky_%1").arg(store.pathBySignature.size()));
+			QDir().mkpath(folder);
+			bool wroteAny = false;
+			for (const QJsonValue& fileVal : skyFiles)
+			{
+				const QJsonObject fileObj = fileVal.toObject();
+				const QString name = safeEmbeddedFileName(fileObj[QStringLiteral("name")].toString());
+				const QByteArray bytes = embeddedBufferViewBytes(document, imageChunk, fileObj[QStringLiteral("bufferView")].toInt(-1));
+				if (name.isEmpty() || bytes.isEmpty())
+					continue;
+				QFile out(QDir(folder).filePath(name));
+				if (out.open(QIODevice::WriteOnly) && out.write(bytes) == bytes.size())
+					wroteAny = true;
+			}
+			if (wroteAny)
+			{
+				store.pathBySignature.insert(signature, folder);
+				st.skyBoxFolderPath = folder;
+			}
+		}
+	}
+}
+} // namespace
+
 bool ModelViewer::loadFromFile(const QString& fileName)
 {
 	// no view-state checks while an MVF loads (the state is restored in steps): the baseline is taken once it is complete
@@ -8026,6 +8137,8 @@ bool ModelViewer::loadFromFile(const QString& fileName)
 			st.floorTexRepeatS = stateObj[QStringLiteral("floorTexRepeatS")].toDouble(st.floorTexRepeatS);
 			st.floorTexRepeatT = stateObj[QStringLiteral("floorTexRepeatT")].toDouble(st.floorTexRepeatT);
 			st.floorOffsetPercent = stateObj[QStringLiteral("floorOffsetPercent")].toDouble(st.floorOffsetPercent);
+			// A custom skybox folder or floor texture is embedded in the file; use the copy when the original is gone.
+			restoreEmbeddedSceneStateFiles(stateObj, result.document, imgChunk, st);
 			st.shadowQuality = stateObj[QStringLiteral("shadowQuality")].toInt(st.shadowQuality);
 			st.reflectionsEnabled = stateObj[QStringLiteral("reflectionsEnabled")].toBool(st.reflectionsEnabled);
 			st.shadowsEnabled = stateObj[QStringLiteral("shadowsEnabled")].toBool(st.shadowsEnabled);
@@ -9200,6 +9313,48 @@ QJsonObject ModelViewer::buildViewerStateJson(bool forDirtyCheck) const
 	return viewerState;
 }
 
+namespace
+{
+// Appends a file's bytes to the IMGS chunk and records a buffer view for it; returns the buffer view index, or -1 when the file cannot
+// be read (it is then added to package.skippedImages so the save can tell the user).
+int embedFileInImageChunk(Mvf::MVFPackage& package, const QString& path)
+{
+	QFile file(path);
+	if (!file.open(QIODevice::ReadOnly))
+	{
+		package.skippedImages.append(path);
+		return -1;
+	}
+	const QByteArray bytes = file.readAll();
+	if (bytes.isEmpty())
+	{
+		package.skippedImages.append(path);
+		return -1;
+	}
+	while (package.imageChunk.size() % 4 != 0)
+		package.imageChunk.append(char(0));
+	const qint64 offset = package.imageChunk.size();
+	package.imageChunk.append(bytes);
+
+	QJsonObject bufferView;
+	bufferView.insert(QStringLiteral("buffer"), 1);
+	bufferView.insert(QStringLiteral("byteOffset"), offset);
+	bufferView.insert(QStringLiteral("byteLength"), static_cast<qint64>(bytes.size()));
+	package.document.bufferViews.append(bufferView);
+	return package.document.bufferViews.size() - 1;
+}
+
+// The built-in skybox presets live in the install; only a folder picked by the user ("Select Custom Map") needs embedding.
+bool isCustomSkyboxFolder(const QString& folder)
+{
+	if (folder.isEmpty() || !QDir(folder).exists())
+		return false;
+	const QString presets = QDir::cleanPath(QDir(PathUtils::getDataDirectory()).filePath(QStringLiteral("textures/envmap/skyboxes")));
+	const QString canonical = QDir::cleanPath(QFileInfo(folder).absoluteFilePath());
+	return !canonical.startsWith(presets + QLatin1Char('/'), Qt::CaseInsensitive);
+}
+} // namespace
+
 Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 {
 	QSet<QUuid> selectedSet;
@@ -9399,6 +9554,8 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 		};
 
 		QJsonArray statesJson;
+		QHash<QString, QJsonArray> embeddedSkyboxFiles;   // folder -> its embedded files (several states may share one)
+		QHash<QString, int> embeddedFloorTextures;        // path -> buffer view, -1 when it could not be read
 		for (const SceneState& s : _sceneGraph->sceneStates())
 		{
 			const GltfCameraEntry& cam = s.camera;
@@ -9449,6 +9606,47 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 			stateObj.insert(QStringLiteral("skyBoxBlurPercent"), s.skyBoxBlurPercent);
 			stateObj.insert(QStringLiteral("skyBoxFOV"), s.skyBoxFOV);
 			stateObj.insert(QStringLiteral("skyBoxZRotationDegrees"), s.skyBoxZRotationDegrees);
+
+			// A custom skybox folder and a custom floor texture are files outside the session: embed them, so the session still
+			// shows them on a machine (or after a move) where the original path is gone. Built-in presets are not embedded.
+			if (isCustomSkyboxFolder(s.skyBoxFolderPath))
+			{
+				auto cached = embeddedSkyboxFiles.constFind(s.skyBoxFolderPath);
+				if (cached == embeddedSkyboxFiles.constEnd())
+				{
+					static const QStringList kSkyboxImageSuffixes = {
+						QStringLiteral("png"), QStringLiteral("jpg"), QStringLiteral("jpeg"), QStringLiteral("bmp"),
+						QStringLiteral("tga"), QStringLiteral("hdr"), QStringLiteral("exr"), QStringLiteral("tif"),
+						QStringLiteral("tiff"), QStringLiteral("webp") };
+					QJsonArray files;
+					const QFileInfoList entries = QDir(s.skyBoxFolderPath).entryInfoList(QDir::Files | QDir::Readable, QDir::Name);
+					for (const QFileInfo& entry : entries)
+					{
+						if (!kSkyboxImageSuffixes.contains(entry.suffix().toLower()))
+							continue;
+						const int bufferView = embedFileInImageChunk(package, entry.absoluteFilePath());
+						if (bufferView < 0)
+							continue;
+						QJsonObject fileObj;
+						fileObj.insert(QStringLiteral("name"), entry.fileName());
+						fileObj.insert(QStringLiteral("bufferView"), bufferView);
+						files.append(fileObj);
+					}
+					cached = embeddedSkyboxFiles.insert(s.skyBoxFolderPath, files);
+				}
+				if (!cached.value().isEmpty())
+					stateObj.insert(QStringLiteral("skyBoxEmbedded"), QJsonObject{ { QStringLiteral("files"), cached.value() } });
+			}
+			if (!s.floorTexturePath.isEmpty())
+			{
+				auto cached = embeddedFloorTextures.constFind(s.floorTexturePath);
+				if (cached == embeddedFloorTextures.constEnd())
+					cached = embeddedFloorTextures.insert(s.floorTexturePath, embedFileInImageChunk(package, s.floorTexturePath));
+				if (cached.value() >= 0)
+					stateObj.insert(QStringLiteral("floorTextureEmbedded"), QJsonObject{
+						{ QStringLiteral("name"), QFileInfo(s.floorTexturePath).fileName() },
+						{ QStringLiteral("bufferView"), cached.value() } });
+			}
 
 			stateObj.insert(QStringLiteral("floorTextureShown"), s.floorTextureShown);
 			stateObj.insert(QStringLiteral("floorTexturePath"), s.floorTexturePath);
@@ -9566,6 +9764,15 @@ Mvf::MVFPackage ModelViewer::buildMVFPackage() const
 		}
 	}
 
+	// Files embedded above grew the IMGS chunk after Mvf::buildMVFPackage() recorded its length: bring the metadata back in line.
+	if (package.document.buffers.size() > 1 && !package.imageChunk.isEmpty())
+	{
+		QJsonObject imageBuffer = package.document.buffers.at(1).toObject();
+		imageBuffer.insert(QStringLiteral("byteLength"), static_cast<qint64>(package.imageChunk.size()));
+		package.document.buffers.replace(1, imageBuffer);
+		package.document.mvfSession.insert(QStringLiteral("imageChunkPresent"), true);
+	}
+
 	return package;
 }
 
@@ -9617,7 +9824,29 @@ bool ModelViewer::saveToFile(const QString& fileName)
 	QSaveFile file(fileName);
 	if (!file.open(QIODevice::WriteOnly))
 		return false;
-	return writeAll(file) && file.commit();
+	if (!(writeAll(file) && file.commit()))
+		return false;
+
+	// Textures (and skybox / floor images) that could not be embedded stay as a path to the original only: say so, once, with
+	// the first few names, so a missing texture on another machine does not come as a surprise.
+	if (!package.skippedImages.isEmpty())
+	{
+		QStringList unique;
+		for (const QString& path : package.skippedImages)
+			if (!unique.contains(path))
+				unique.append(path);
+		qWarning() << "MVF save:" << unique.size() << "image file(s) could not be embedded:" << unique;
+		QStringList shown;
+		for (int i = 0; i < unique.size() && i < 8; ++i)
+			shown.append(QFileInfo(unique.at(i)).fileName().isEmpty() ? unique.at(i) : QFileInfo(unique.at(i)).fileName());
+		QString text = tr("The file was saved, but %n image file(s) could not be read and are not stored in it. "
+			"They will be missing wherever the original files are not available.", nullptr, unique.size());
+		text += QStringLiteral("\n\n") + shown.join(QLatin1Char('\n'));
+		if (unique.size() > shown.size())
+			text += QStringLiteral("\n") + tr("... and %1 more").arg(unique.size() - shown.size());
+		QMessageBox::warning(this, tr("Some images were not embedded"), text);
+	}
+	return true;
 }
 
 void ModelViewer::setMaterialToSelectedItems(const Material& mat)

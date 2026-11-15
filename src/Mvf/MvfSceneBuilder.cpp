@@ -1498,7 +1498,8 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
     // --- Image embedding ---
     // Try to read each image's source file and append it to the IMGS chunk.
     // glb:// URIs are resolved via TextureLocationManager (uses its cache).
-    // KTX2 files are skipped (complex GPU-compressed format; path-only fallback).
+    // KTX2 and other GPU/HDR formats are embedded as raw bytes like the rest; the extension is kept (fileExtension) so the load
+    // side can hand them back to the matching loader.
     {
         TextureLocationManager resolver;
 
@@ -1515,20 +1516,27 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             {
                 const TextureMetadata meta = resolver.resolveTexture(origUri);
                 if (meta.resolvedPath.isEmpty())
+                {
+                    package.skippedImages.append(origUri);
                     continue;
+                }
                 resolvedPath = meta.resolvedPath;
             }
 
             const QString ext = QFileInfo(resolvedPath).suffix().toLower();
-            if (ext == QLatin1String("ktx2"))
-                continue;   // skip GPU-compressed textures
 
             QFile f(resolvedPath);
             if (!f.exists() || !f.open(QIODevice::ReadOnly))
+            {
+                package.skippedImages.append(resolvedPath);
                 continue;
+            }
             const QByteArray fileData = f.readAll();
             if (fileData.isEmpty())
+            {
+                package.skippedImages.append(resolvedPath);
                 continue;
+            }
 
             QString mimeType;
             if      (ext == QLatin1String("png"))  mimeType = QStringLiteral("image/png");
@@ -1536,6 +1544,7 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
                                                    mimeType = QStringLiteral("image/jpeg");
             else if (ext == QLatin1String("webp")) mimeType = QStringLiteral("image/webp");
             else if (ext == QLatin1String("bmp"))  mimeType = QStringLiteral("image/bmp");
+            else if (ext == QLatin1String("ktx2")) mimeType = QStringLiteral("image/ktx2");
             else                                   mimeType = QStringLiteral("application/octet-stream");
 
             alignBuffer(package.imageChunk);
@@ -1553,6 +1562,10 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
             imageObj.insert(QStringLiteral("bufferView"), imgBvIndex);
             imageObj.insert(QStringLiteral("byteLength"), static_cast<qint64>(fileData.size()));
             imageObj.insert(QStringLiteral("mimeType"),   mimeType);
+            // The file extension decides which texture loader reads the image (.ktx2, .dds, .tga, .hdr, .exr each have their own),
+            // and a mime type cannot name all of them. Keep it so the loader can restore the right name for the embedded bytes.
+            if (!ext.isEmpty())
+                imageObj.insert(QStringLiteral("fileExtension"), ext);
             document.images.replace(imgIdx, imageObj);
         }
 
