@@ -5,6 +5,7 @@
 #include "ScopedSelectionDepthBias.h"
 #include <Standard_Failure.hxx>
 #include <new>
+#include <QWindow>
 #include <QScopeGuard>
 #include <QOpenGLDebugLogger>
 #include <QOpenGLDebugMessage>
@@ -19170,6 +19171,18 @@ void ViewportWidget::wheelEvent(QWheelEvent* e)
 	update();
 }
 
+void ViewportWidget::setCursor(const QCursor& cursor)
+{
+	QWidget::setCursor(cursor);
+	if (!isVisible())
+		return;
+	if (QApplication::widgetAt(QCursor::pos()) != this)
+		return;
+	if (QWidget* top = window())
+		if (QWindow* handle = top->windowHandle())
+			handle->setCursor(cursor);
+}
+
 void ViewportWidget::showWheelZoomCursor()
 {
 	// A button drag already owns the cursor (its own rotate/pan/zoom cursor,
@@ -20072,17 +20085,41 @@ QVector3D ViewportWidget::get3dTranslationVectorFromMousePoints(const QPoint& st
 			return rawDepth;
 		};
 
-		const float depthZ = sampleSceneDepth(clampedStart);
-
-		// Perspective: the pan distance per pixel is set by the eye depth of the surface under the cursor. Work it out
-		// from that depth directly. Unprojecting both points and subtracting them loses the answer once the step per
-		// pixel is smaller than float precision at the model's coordinates (deep zoom into a small part of a large
-		// model: the pan almost stops).
+		// Perspective: the pan distance per pixel is set by the eye depth of the surface under the cursor. It is taken from the
+		// same source the zoom uses (accurate in the multisampled and high-DPI cases, where a raw depth-buffer read here was wrong:
+		// the pan shrank as the view zoomed in). Over empty space the orbit distance stands in. Worked out from the depth directly,
+		// because unprojecting two points and subtracting them loses the answer once the step per pixel is smaller than float
+		// precision at the model's coordinates.
 		if (camera->getProjectionType() == Camera::ProjectionType::PERSPECTIVE)
 		{
-			const float ndcZ = depthZ * 2.0f - 1.0f;
-			const float denom = ndcZ + projection(2, 2);
-			const float eyeDepth = (std::abs(denom) > 1.0e-12f) ? projection(2, 3) / denom : -1.0f;
+			float eyeDepth = -1.0f;
+			if (camera == _primaryCamera)
+			{
+				if (!_panDepthClock.isValid())
+					_panDepthClock.start();
+				const qint64 nowMs = _panDepthClock.elapsed();
+				const bool reuse = _panDepth.valid && nowMs - _panDepth.lastUseMs < 200
+					&& _panDepth.viewRange == camera->getViewRange() && _panDepth.viewDir == camera->getViewDir();
+				if (reuse)
+					eyeDepth = _panDepth.depth;
+				else
+				{
+					eyeDepth = surfaceEyeDepthAt(clampedStart);
+					_panDepth.valid = eyeDepth > 0.0f;
+					_panDepth.depth = eyeDepth;
+					_panDepth.viewRange = camera->getViewRange();
+					_panDepth.viewDir = camera->getViewDir();
+				}
+				_panDepth.lastUseMs = nowMs;
+			}
+			if (!(eyeDepth > 0.0f) && camera->getMode() == Camera::CameraMode::Orbit)
+				eyeDepth = camera->getOrbitDistance();
+			if (!(eyeDepth > 0.0f))
+			{
+				const float depthZ = sampleSceneDepth(clampedStart);
+				const float denom = (depthZ * 2.0f - 1.0f) + projection(2, 2);
+				eyeDepth = (std::abs(denom) > 1.0e-12f) ? projection(2, 3) / denom : -1.0f;
+			}
 			if (std::isfinite(eyeDepth) && eyeDepth > 0.0f && std::abs(projection(0, 0)) > 1.0e-9f && std::abs(projection(1, 1)) > 1.0e-9f)
 			{
 				const float unitsPerPixelX = 2.0f * eyeDepth / (projection(0, 0) * static_cast<float>(std::max(viewport.width(), 1)));
@@ -20095,6 +20132,7 @@ QVector3D ViewportWidget::get3dTranslationVectorFromMousePoints(const QPoint& st
 			}
 		}
 
+		const float depthZ = sampleSceneDepth(clampedStart);
 		QVector3D worldStart(clampedStart.x(), height() - clampedStart.y(), depthZ);
 		QVector3D worldEnd(clampedEnd.x(), height() - clampedEnd.y(), depthZ);
 

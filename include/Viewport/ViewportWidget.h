@@ -2427,6 +2427,24 @@ private:
 	// duration of one wheel "burst" (each wheel tick restarts a short timer);
 	// endWheelZoomCursor() hands back whatever cursor was showing before, unless
 	// something else (a drag, an armed tool) has changed it in the meantime.
+	// Hides QWidget::setCursor for this class. Qt applies a widget's cursor to the window through the widget it last saw the mouse
+	// enter, which can be a stale one (a dialog or overlay that closed under the mouse while the model loaded); the viewport's
+	// zoom/pan/rotate cursors were then ignored until the window was reactivated. When the mouse is over the viewport itself the
+	// cursor is also handed straight to the window.
+	void setCursor(const QCursor& cursor);
+
+	// Eye depth the pan works from, held for the length of one drag: a pan perpendicular to the view does not change the depth
+	// of the surface that was grabbed, and reading it afresh on every mouse move would run the pick pass each time.
+	struct PanDepthCache
+	{
+		bool valid = false;
+		float depth = 0.0f;
+		float viewRange = 0.0f;
+		QVector3D viewDir;
+		qint64 lastUseMs = 0;
+	};
+	PanDepthCache _panDepth;
+	QElapsedTimer _panDepthClock;
 	void showWheelZoomCursor();
 	void endWheelZoomCursor();
 
