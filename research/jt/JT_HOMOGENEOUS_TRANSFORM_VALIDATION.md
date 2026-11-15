@@ -1,6 +1,6 @@
 # JT affine homogeneous transform normalization
 
-15 November 2026, `dev`. Implementation prepared and the owner confirmed that the authentic JT9.5 assembly opens in the installed viewer. Native build, registered CTest and authentic probe remain unreported; successful loading alone does not independently verify exact occurrence placement.
+15 November 2026, `dev`. Implementation, focused native build, registered CTest and authentic probe pass; the owner confirmed that the authentic JT9.5 assembly opens in the installed viewer. Successful loading and structural validation do not independently verify exact occurrence placement.
 
 ## Evidence and scope
 
@@ -30,11 +30,13 @@ Dividing a homogeneous matrix by nonzero `w` is exact projective-coordinate equi
 
 Original in-memory scene tests cover a globally scaled affine matrix, the exact F32 predecessor of one observed in T95-H1, retained projective rejection, zero scale and reciprocal overflow. Existing binary fixtures continue to cover JT8 F32 and JT9/JT10 F64 transform transport; those fixtures plus the shared adapter test establish code-path coverage, not authentic exporter evidence for every version.
 
-## Gate status
+## Gate results
 
 Owner GUI result, 15 November 2026: T95-H1 opens after homogeneous normalization. Detailed placement comparison with the source CAD or another qualified viewer was not reported and remains unclaimed.
 
-The remaining native gate is:
+The focused `jt_tests` and `jt_probe` targets rebuilt successfully. From the installed `bin` working directory, with the installed runtime first on `PATH`, the complete registered `jt_codec_tests` passed 1/1 in 142.18 seconds; both prior authentic JT9.5 polyline controls were also enabled in that run. The authentic T95-H1 `--validate` probe then passed in the same installed environment: 6 mesh resources, 2,684 vertices, 2,540 triangles, 0 lines, 0 points, 56 nodes, 9 occurrences and 9 stored-tessellation fallbacks. The local mesh bounds were `(-131.98, -65, -22.4189)` to `(125, 147, 22.5)`. The ignored probe log is `out/jt-research/T95-H1.probe.log`.
+
+Commands:
 
 The owner-authorized build gate, when requested, is:
 
@@ -44,4 +46,4 @@ ctest --test-dir out/jt102-build --output-on-failure
 out/jt102-build/jt_probe.exe <local-samples>/T95-H1.jt --validate
 ```
 
-The commands above have not been reported as run for this change.
+The test and probe tools remain build-tree executables; they were launched with the installed directory as their working directory and runtime source. No exact-geometry backend was available for the nine occurrences, so stored tessellation fallback is expected and separately reported by the probe.
