@@ -10367,6 +10367,21 @@ La superficie viene mostrata con i colori che aveva al momento del salvataggio.<
             <numerusform>%n materiali salvati nella libreria.</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>The file was saved, but %n image file(s) could not be read and are not stored in it. They will be missing wherever the original files are not available.</source>
+        <translation>
+            <numerusform>Il file è stato salvato, ma %n file immagine non ha potuto essere letto e non è memorizzato al suo interno. Mancherà ovunque il file originale non sia disponibile.</numerusform>
+            <numerusform>Il file è stato salvato, ma %n file immagine non hanno potuto essere letti e non sono memorizzati al suo interno. Mancheranno ovunque i file originali non siano disponibili.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>... and %1 more</source>
+        <translation>... e altri %1</translation>
+    </message>
+    <message>
+        <source>Some images were not embedded</source>
+        <translation>Alcune immagini non sono state incorporate</translation>
+    </message>
 </context>
 <context>
     <name>NotesListBox</name>

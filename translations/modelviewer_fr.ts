@@ -10363,6 +10363,21 @@ La surface est affichée avec les couleurs qu&apos;elle avait lors de l&apos;enr
             <numerusform>%n matériaux enregistrés dans la bibliothèque.</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>The file was saved, but %n image file(s) could not be read and are not stored in it. They will be missing wherever the original files are not available.</source>
+        <translation>
+            <numerusform>Le fichier a été enregistré, mais %n fichier image n'a pas pu être lu et n'y est pas stocké. Il sera absent partout où le fichier d'origine n'est pas disponible.</numerusform>
+            <numerusform>Le fichier a été enregistré, mais %n fichiers image n'ont pas pu être lus et n'y sont pas stockés. Ils seront absents partout où les fichiers d'origine ne sont pas disponibles.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>... and %1 more</source>
+        <translation>... et %1 de plus</translation>
+    </message>
+    <message>
+        <source>Some images were not embedded</source>
+        <translation>Certaines images n'ont pas été incorporées</translation>
+    </message>
 </context>
 <context>
     <name>NotesListBox</name>

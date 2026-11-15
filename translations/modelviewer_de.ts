@@ -10365,6 +10365,21 @@ Die Oberfläche wird mit den Farben angezeigt, die sie beim Speichern hatte.</tr
             <numerusform>%n Materialien in der Bibliothek gespeichert.</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>The file was saved, but %n image file(s) could not be read and are not stored in it. They will be missing wherever the original files are not available.</source>
+        <translation>
+            <numerusform>Die Datei wurde gespeichert, aber %n Bilddatei konnte nicht gelesen werden und ist nicht darin gespeichert. Sie fehlt überall dort, wo die Originaldatei nicht verfügbar ist.</numerusform>
+            <numerusform>Die Datei wurde gespeichert, aber %n Bilddateien konnten nicht gelesen werden und sind nicht darin gespeichert. Sie fehlen überall dort, wo die Originaldateien nicht verfügbar sind.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>... and %1 more</source>
+        <translation>... und %1 weitere</translation>
+    </message>
+    <message>
+        <source>Some images were not embedded</source>
+        <translation>Einige Bilder wurden nicht eingebettet</translation>
+    </message>
 </context>
 <context>
     <name>NotesListBox</name>

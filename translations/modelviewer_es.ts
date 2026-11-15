@@ -10367,6 +10367,21 @@ La superficie se muestra con los colores que tenía al guardarla.</translation>
             <numerusform>Se guardaron %n materiales en la biblioteca.</numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>The file was saved, but %n image file(s) could not be read and are not stored in it. They will be missing wherever the original files are not available.</source>
+        <translation>
+            <numerusform>El archivo se guardó, pero %n archivo de imagen no se pudo leer y no está almacenado en él. Faltará dondequiera que el archivo original no esté disponible.</numerusform>
+            <numerusform>El archivo se guardó, pero %n archivos de imagen no se pudieron leer y no están almacenados en él. Faltarán dondequiera que los archivos originales no estén disponibles.</numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>... and %1 more</source>
+        <translation>... y %1 más</translation>
+    </message>
+    <message>
+        <source>Some images were not embedded</source>
+        <translation>Algunas imágenes no se incrustaron</translation>
+    </message>
 </context>
 <context>
     <name>NotesListBox</name>

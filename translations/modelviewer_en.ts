@@ -8365,6 +8365,21 @@ The surface is shown with the colours it had when it was saved.</source>
             <numerusform></numerusform>
         </translation>
     </message>
+    <message numerus="yes">
+        <source>The file was saved, but %n image file(s) could not be read and are not stored in it. They will be missing wherever the original files are not available.</source>
+        <translation type="unfinished">
+            <numerusform></numerusform>
+            <numerusform></numerusform>
+        </translation>
+    </message>
+    <message>
+        <source>... and %1 more</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Some images were not embedded</source>
+        <translation type="unfinished"></translation>
+    </message>
 </context>
 <context>
     <name>NotesListBox</name>
