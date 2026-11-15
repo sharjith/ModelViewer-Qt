@@ -18,7 +18,9 @@
 #include <assimp/material.h>
 #include <assimp/Exporter.hpp>
 #include <assimp/Importer.hpp>
+#include <cmath>
 #include <iostream>
+#include <limits>
 namespace {
 using Object=Handle(JtData_Object);
 void check(bool b,const char* why){if(!b)throw std::runtime_error(why);}
@@ -39,6 +41,7 @@ struct Material:JtAttribute_Material {
 };
 struct Transform:JtAttribute_GeometricTransform {
  void noise(double value){myTransform[3]=value;myTransform[15]=1+value;}
+ void homogeneousScale(double value,bool scaleMatrix=true){for(int i=0;i<16;++i)if(scaleMatrix||i==15)myTransform[i]*=value;}
  Transform(int pi,double x,unsigned finals=0,unsigned state=8){myPaletteIndex=pi;myStateFlags=state;myFieldFinalFlags=finals;for(int i=0;i<16;++i)myTransform[i]=i%5==0?1:0;myTransform[12]=x;}
 };
 struct Mapping:JtAttribute_PaletteMap {
@@ -122,6 +125,14 @@ void paletteTests(){
  {auto r=root();auto shape=leaf();opencascade::handle<Node<JtNode_Instance>> a=new Node<JtNode_Instance>,b=new Node<JtNode_Instance>;a->target(shape);b->target(shape);a->attrs({new Transform(-1,10)});b->attrs({new Transform(-1,20)});r->children({a,b});r->attrs({new Material(0,red),new Mapping({0,0,0})});auto result=Jt::Detail::buildScene(r,path,{});checkPaletteUV(*result.scene);const auto occ=occurrences(*result.scene);check(result.scene->mNumMeshes==1&&occ.size()==2,"Palette repeated instances lost resource sharing");check(occ[0].world.a4==10&&occ[1].world.a4==20,"Palette states leaked between occurrences");}
  {auto r=root();auto shape=leaf();r->children({shape});r->attrs({new Transform(0,0),new Mapping({0,0,0})});Jt::Options cancel;cancel.cancelled=[] {return true;};bool stopped=false;try{Jt::Detail::buildScene(r,path,cancel);}catch(const Jt::Cancelled&){stopped=true;}check(stopped,"Palette traversal swallowed cancellation");}
  for(double noise:{1e-18,1e-6}) {auto r=root();auto shape=leaf();r->children({shape});auto t=new Transform(-1,10);t->noise(noise);r->attrs({t});if(noise<1e-12)Jt::Detail::buildScene(r,path,{});else rejects([&]{Jt::Detail::buildScene(r,path,{});});}
+ // Any finite nonzero homogeneous scale represents an affine matrix after
+ // division. Exercise an exact scalar multiple and the authentic producer's
+ // F32 predecessor of one without weakening the projective-row rejection.
+ for(bool scaleMatrix:{false,true}) {auto r=root();auto shape=leaf();r->children({shape});auto t=new Transform(-1,10);
+  const double w=scaleMatrix?2.0:double(std::nextafter(1.0f,0.0f));t->homogeneousScale(w,scaleMatrix);r->attrs({t});
+  const auto result=Jt::Detail::buildScene(r,path,{});const auto occ=occurrences(*result.scene);check(occ.size()==1,"Homogeneous transform scale lost geometry");
+  const double expected=scaleMatrix?10.0:10.0/w;check(std::abs(double(occ[0].world.a4)-expected)<1e-5,"Homogeneous transform scale was not normalized");}
+ for(double w:{0.0,std::numeric_limits<double>::denorm_min()}) {auto r=root();auto shape=leaf();r->children({shape});auto t=new Transform(-1,10);t->homogeneousScale(w,false);r->attrs({t});rejects([&]{Jt::Detail::buildScene(r,path,{});});}
  // A single escape symbol produces the sole explicit OOB value. External
  // compression stores this OOB array raw; uncompressed packets nest CDP data.
  struct OobModel:JtData_Model {OobModel(bool big):JtData_Model(TCollection_ExtendedString()){myMajorVersion=10;myMinorVersion=0;myIsFileLE=!big;}};

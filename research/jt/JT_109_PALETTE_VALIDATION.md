@@ -10,7 +10,7 @@
 - Map entry -1 selects fallback appearance. Entry -2 retains the geometry in a hidden viewer node. **Limitation:** the viewer's existing visibility controls also affect picking; this approximates render-only inhibition. Retain a diagnostic rather than claiming exact inhibition/picking parity.
 - Read modern arithmetic escape values as a raw vector in externally compressed segments, and as nested CDP data in ordinary mesh segments. Do not infer this distinction from a minor version number.
 - Accept the published four-byte palette-map fallback tail and the observed omitted redundant tail only at an exact bounded packet end. Reject partial or unexplained trailing bytes. Other version-2 attributes retain their required tails.
-- Normalize numerical noise in an affine matrix's final row only within 64 double-precision epsilons. Larger projective components remain unsupported. All 1,964 inspected A109 transform records have a maximum final-row residual of 2.220446049250313e-16.
+- Normalize numerical noise in an affine matrix's three perspective-row components only within 64 double-precision epsilons. All 1,964 inspected A109 transform records have a maximum final-row residual of 2.220446049250313e-16. The later [affine homogeneous-scale gate](JT_HOMOGENEOUS_TRANSFORM_VALIDATION.md) exactly divides out a finite nonzero bottom-right homogeneous scale; actual normalized projective components remain unsupported.
 
 ## Native evidence and remaining checks
 

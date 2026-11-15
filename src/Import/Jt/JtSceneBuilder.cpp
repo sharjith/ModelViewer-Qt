@@ -402,10 +402,29 @@ struct PaletteContext {
 };
 aiMatrix4x4 transformMatrix(const JtAttribute_GeometricTransform& source) {
     const auto t=source.GetTrsf();
-    for(unsigned j=0;j<16;++j)if(!std::isfinite(float(t[j])))throw std::runtime_error("JT has nonfinite transform values");
+    for(unsigned j=0;j<16;++j)if(!std::isfinite(t[j]))throw std::runtime_error("JT has nonfinite transform values");
+    // A homogeneous matrix is unchanged when every component is divided by
+    // its nonzero bottom-right value. Some JT writers preserve an F32-rounded
+    // value there even though 9.x/10.x transport it as F64. Normalize the
+    // homogeneous scale exactly instead of treating that affine matrix as
+    // perspective or merely widening a tolerance around one.
+    const double w=t[15];
+    if(w==0)throw std::runtime_error("JT transform has zero homogeneous scale");
+    const double inverseW=1.0/w;
+    if(!std::isfinite(inverseW))throw std::runtime_error("JT transform homogeneous scale is numerically unrepresentable");
     const double tolerance=64*std::numeric_limits<double>::epsilon();
-    if(std::abs(t[3])>tolerance||std::abs(t[7])>tolerance||std::abs(t[11])>tolerance||std::abs(t[15]-1)>tolerance)throw std::runtime_error("Unsupported projective JT transform");
-    return aiMatrix4x4(float(t[0]),float(t[4]),float(t[8]),float(t[12]),float(t[1]),float(t[5]),float(t[9]),float(t[13]),float(t[2]),float(t[6]),float(t[10]),float(t[14]),0,0,0,1);
+    if(std::abs(t[3]*inverseW)>tolerance||std::abs(t[7]*inverseW)>tolerance||std::abs(t[11]*inverseW)>tolerance)
+        throw std::runtime_error("Unsupported projective JT transform");
+    const auto component=[&](unsigned index) {
+        const double value=t[index]*inverseW;
+        const float result=float(value);
+        if(!std::isfinite(result)||(value!=0&&result==0))
+            throw std::runtime_error("JT transform is numerically unrepresentable by the renderer");
+        return result;
+    };
+    return aiMatrix4x4(component(0),component(4),component(8),component(12),
+                       component(1),component(5),component(9),component(13),
+                       component(2),component(6),component(10),component(14),0,0,0,1);
 }
 std::unique_ptr<aiMesh> faceSubset(const aiMesh& source,const std::vector<unsigned>& faces) {
     // A sorted index vector avoids a tree node allocation per used vertex and

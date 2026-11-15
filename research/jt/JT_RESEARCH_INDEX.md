@@ -14,6 +14,8 @@ Current JT 9.5 production gate (14 November 2026): [production texture profile](
 
 Current transitional-version gate (14 November 2026): [JT 9.4 sampled-subset qualification](JT_94_VALIDATION.md), prepared from one authentic private assembly whose triangle display records and local versions match the bounded 9.x reader. JT 9.1-9.3 remain rejected; native and owner UI results are recorded in the linked gate.
 
+Current transform compatibility gate (15 November 2026): [affine homogeneous normalization](JT_HOMOGENEOUS_TRANSFORM_VALIDATION.md), prepared from one authentic private JT9.5 assembly whose nonzero bottom-right scale was incorrectly rejected as projective. The owner confirmed the model opens after the change; native CTest/probe execution and exact-placement comparison remain unreported.
+
 Suggested reading order:
 
 1. [Feasibility and legal scope](JT_IMPORT_FEASIBILITY.md), [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [pass-specific provenance](JT_PROVENANCE.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
