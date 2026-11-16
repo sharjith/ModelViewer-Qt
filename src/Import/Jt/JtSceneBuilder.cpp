@@ -418,7 +418,13 @@ aiMatrix4x4 transformMatrix(const JtAttribute_GeometricTransform& source) {
     const auto component=[&](unsigned index) {
         const double value=t[index]*inverseW;
         const float result=float(value);
-        if(!std::isfinite(result)||(value!=0&&result==0))
+        // JT transforms often contain harmless near-zero residue in affine
+        // rotation/shear entries. The renderer used to round those values to
+        // zero when converting the source matrix to float, and doing so does
+        // not make the represented affine transform invalid. Reject only
+        // overflow here; loss of an essential scale axis is still rejected by
+        // the accumulated singular-transform check below.
+        if(!std::isfinite(result))
             throw std::runtime_error("JT transform is numerically unrepresentable by the renderer");
         return result;
     };
