@@ -42,6 +42,7 @@ struct Material:JtAttribute_Material {
 struct Transform:JtAttribute_GeometricTransform {
  void noise(double value){myTransform[3]=value;myTransform[15]=1+value;}
  void homogeneousScale(double value,bool scaleMatrix=true){for(int i=0;i<16;++i)if(scaleMatrix||i==15)myTransform[i]*=value;}
+ void component(unsigned index,double value){myTransform[index]=value;}
  Transform(int pi,double x,unsigned finals=0,unsigned state=8){myPaletteIndex=pi;myStateFlags=state;myFieldFinalFlags=finals;for(int i=0;i<16;++i)myTransform[i]=i%5==0?1:0;myTransform[12]=x;}
 };
 struct Mapping:JtAttribute_PaletteMap {
@@ -132,6 +133,9 @@ void paletteTests(){
   const double w=scaleMatrix?2.0:double(std::nextafter(1.0f,0.0f));t->homogeneousScale(w,scaleMatrix);r->attrs({t});
   const auto result=Jt::Detail::buildScene(r,path,{});const auto occ=occurrences(*result.scene);check(occ.size()==1,"Homogeneous transform scale lost geometry");
   const double expected=scaleMatrix?10.0:10.0/w;check(std::abs(double(occ[0].world.a4)-expected)<1e-5,"Homogeneous transform scale was not normalized");}
+ {auto r=root();auto shape=leaf();r->children({shape});auto t=new Transform(-1,10);t->component(1,std::numeric_limits<double>::denorm_min());r->attrs({t});
+  const auto result=Jt::Detail::buildScene(r,path,{});const auto occ=occurrences(*result.scene);
+  check(occ.size()==1&&occ[0].world.b1==0&&occ[0].world.a4==10,"Near-zero affine residue was not rounded safely");}
  for(double w:{0.0,std::numeric_limits<double>::denorm_min()}) {auto r=root();auto shape=leaf();r->children({shape});auto t=new Transform(-1,10);t->homogeneousScale(w,false);r->attrs({t});rejects([&]{Jt::Detail::buildScene(r,path,{});});}
  // A single escape symbol produces the sole explicit OOB value. External
  // compression stores this OOB array raw; uncompressed packets nest CDP data.

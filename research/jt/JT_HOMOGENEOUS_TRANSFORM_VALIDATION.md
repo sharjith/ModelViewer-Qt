@@ -24,11 +24,11 @@ Every enabled family already reaches the same scene adapter after its binary tra
 2. requires the bottom-right homogeneous scale `w` to be nonzero and have a finite reciprocal;
 3. divides every retained affine component and the three perspective-row components by `w`;
 4. accepts only negligible normalized perspective-row residue, preserving the existing strict rejection of actual perspective transforms;
-5. rejects normalized values that overflow or underflow the renderer's F32 matrix representation.
+5. rejects normalized values that overflow the renderer's F32 matrix representation. Harmless affine residue below the F32 range rounds to zero as it did before normalization; loss of an essential axis is still rejected by the accumulated singular-transform check.
 
 Dividing a homogeneous matrix by nonzero `w` is exact projective-coordinate equivalence. It correctly handles both a globally scaled matrix and T95-H1's producer rounding without inventing a format-specific tolerance. It does not add projective rendering.
 
-Original in-memory scene tests cover a globally scaled affine matrix, the exact F32 predecessor of one observed in T95-H1, retained projective rejection, zero scale and reciprocal overflow. Existing binary fixtures continue to cover JT8 F32 and JT9/JT10 F64 transform transport; those fixtures plus the shared adapter test establish code-path coverage, not authentic exporter evidence for every version.
+Original in-memory scene tests cover a globally scaled affine matrix, the exact F32 predecessor of one observed in T95-H1, harmless near-zero affine residue, retained projective rejection, zero scale and reciprocal overflow. Existing binary fixtures continue to cover JT8 F32 and JT9/JT10 F64 transform transport; those fixtures plus the shared adapter test establish code-path coverage, not authentic exporter evidence for every version.
 
 ## Gate results
 
