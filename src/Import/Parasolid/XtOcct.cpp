@@ -4255,9 +4255,9 @@ void Builder::buildBody(const Node& body) {
         }
         // Edges that the builder flagged SameParameter by hand are skipped by the non-forced call, so their real
         // pcurve/3D deviation is never measured and BRepCheck later reports InvalidSameParameterFlag.
-        // XT_FORCE_SAMEPARAM=1 forces the measurement. In the standalone tool it cut invalid faces from 1009 to 70
-        // (XS650) and 2726 to 334 (CBR) with no loss of meshed faces; it is opt-in until checked in the viewer.
-        BRepLib::SameParameter(compound, 1e-4 * scale, std::getenv("XT_FORCE_SAMEPARAM") != nullptr);
+        // Forced by default: in the standalone tool it cut invalid faces from 1009 to 70 (XS650) and 2726 to 334
+        // (CBR) with no loss of meshed faces. XT_NO_FORCE_SAMEPARAM restores the old behaviour for comparison.
+        BRepLib::SameParameter(compound, 1e-4 * scale, std::getenv("XT_NO_FORCE_SAMEPARAM") == nullptr);
         if (pcDebug)
             std::fprintf(stderr, "pcdebug body %lld: faces without pcurves before-reshape %zu after-reshape %zu after-sameparam %zu\n",
                          (long long)body.index, pc0, pc1, countFacesWithoutPCurves(compound));
