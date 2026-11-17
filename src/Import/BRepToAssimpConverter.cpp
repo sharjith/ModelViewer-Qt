@@ -217,7 +217,7 @@ Standard_Real BRepToAssimpConverter::resolveAngularDeflection()
  * @return Pointer to the newly created aiScene containing all converted shapes,
  *         or nullptr if the input vector is empty.
  */
-aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples)
+aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation)
 {
 	if (shapeTuples.empty())
 		return nullptr;
@@ -244,9 +244,9 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 
 		// Apply transformation to the shape
 		TopoDS_Shape transformedShape = shape;
-		if (!trsf.Form() == gp_Identity)
+		if (trsf.Form() != gp_Identity)
 		{
-			BRepBuilderAPI_Transform trsfBuilder(shape, trsf, true);
+			BRepBuilderAPI_Transform trsfBuilder(shape, trsf, true, copyTriangulation);
 			transformedShape = trsfBuilder.Shape();
 		}
 

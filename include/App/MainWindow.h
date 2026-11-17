@@ -3,6 +3,7 @@
 #include <QMainWindow>
 #include <QSettings>
 #include <QMap>
+#include <atomic>
 
 QT_BEGIN_NAMESPACE
 class QProgressBar;
@@ -377,7 +378,7 @@ private:
 	QString _importWarningsFile;
 	QStringList _importWarnings;
 	void showImportWarningsDialog();
-	static bool _fileLoadCancelRequested;
+	static std::atomic_bool _fileLoadCancelRequested;
 
 	static QuickHelpDialog* _helpDialog;
 	static class WhatsNewDialog* _whatsNewDialog;

@@ -96,6 +96,7 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 	QString allExtensions = QString::fromStdString(extList).replace(';', ' ');
 	if (!allExtensions.contains("*.3dxml", Qt::CaseInsensitive)) allExtensions += " *.3dxml";
 	if (!allExtensions.contains("*.jt", Qt::CaseInsensitive)) allExtensions += " *.jt";
+	if (!allExtensions.contains("*.x_t", Qt::CaseInsensitive)) allExtensions += " *.x_t *.xmt_txt";
 
 	// 2. Manually add STEP/IGES extensions (if not in Assimp list)
 	if (!allExtensions.contains("*.step", Qt::CaseInsensitive)) {
@@ -129,6 +130,7 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 		"STEP (*.step *.stp)",
 		"3DXML (*.3dxml)",
 		"JT (*.jt)",
+		"Parasolid (*.x_t *.xmt_txt)",
 		"IGES (*.iges *.igs)",
 		"BREP (*.brep *.rle)",
 		"VRML (*.wrl *.vrml)",

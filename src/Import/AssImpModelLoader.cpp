@@ -15,6 +15,8 @@
 #include <Standard_Failure.hxx>
 #include <new>
 #include "ThreeDXml/Importer.h"
+#include "Parasolid/XtSceneImporter.h"
+#include "Parasolid/XtImport.h"
 #include "MeshImportAdaptor.h"
 #include "SceneImportCounts.h"
 #include "IXCAFDocProcessor.hxx"
@@ -1335,6 +1337,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_totalMeshOccurrences = 0;
 	_threeDXml = {};
 	_jt = {};
+	_xtWarnings.clear();
 	_declaredLengthUnit = LengthUnit::Unknown;
 
 	_materialProcessor.clearGLBCaches();
@@ -1390,10 +1393,51 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			return;
 		}
 	}
+	else if (fi.suffix().compare("x_t", Qt::CaseInsensitive) == 0 || fi.suffix().compare("xmt_txt", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			BRepToAssimpConverter::clearColorCache();
+			Xt::SceneImportOptions options;
+			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			options.progress = [this](const QString&, int done, int total) {
+				emit fileReadProcessed(total ? float(done) / total : 0.0f);
+			};
+			_importStage = "worker.xt-read";
+			ImportDiagnostics::checkpoint(_importStage);
+			Xt::SceneImportResult imported = Xt::importScene(fi.absoluteFilePath(), options);
+			_importStage = "worker.xt-read-complete";
+			ImportDiagnostics::checkpoint(_importStage);
+			_xcafScene = std::move(imported.scene);
+			_scene = _xcafScene.get();
+			_declaredLengthUnit = LengthUnit::Millimeter; // the importer scales XT metres to millimetres
+			for (const QString& warning : imported.warnings) qWarning().noquote() << warning;
+			_xtWarnings = imported.warnings;
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true; _errorMessage = "Model loading cancelled by user."; emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
+	}
 	else if (fi.suffix().compare("jt", Qt::CaseInsensitive) == 0)
 	{
 		try {
 			Jt::Options options=Jt::Options::fromEnvironment();
+			// XT B-Rep segments inside JT files: decode them with the XT reader. A shape that fails validation
+			// is rejected by the JT builder, which then keeps the stored tessellation.
+			// Experimental: the XT length unit inside a JT file is not verified against the JT unit yet, so the exact
+			// decoder is only used when asked for explicitly (MODELVIEWER_JT_XT_EXACT=1).
+			if (qEnvironmentVariableIntValue("MODELVIEWER_JT_XT_EXACT") != 0)
+			options.exactDecoder = [this](const QByteArray& bytes) -> TopoDS_Shape {
+				Xt::BuildOptions build;
+				build.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+				Xt::ImportReport xtReport;
+				TopoDS_Shape shape = Xt::shapeFromJtElement(bytes.constData(), size_t(bytes.size()), build, xtReport);
+				if (shape.IsNull()) throw std::runtime_error(xtReport.error.empty() ? "XT decode failed" : xtReport.error);
+				return shape;
+			};
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
 			options.progress = [this](const QString&, int done, int total) {
 				emit fileReadProcessed(total ? float(done)/total : 0.0f);
@@ -2458,15 +2502,21 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 
 	// Return a mesh object created from the extracted mesh data
 	QString meshName = QString::fromStdString(mesh->mName.C_Str());
+	// Parasolid parts carry their real names, and the assembly tree already shows the model above them, so the
+	// file name prefix would only repeat the top node ("FullAssembly (Dipstick)").
+	const QString sourceSuffix = QFileInfo(QString(_path.data())).suffix();
+	const bool prefixWithFileName = sourceSuffix.compare("x_t", Qt::CaseInsensitive) != 0 && sourceSuffix.compare("xmt_txt", Qt::CaseInsensitive) != 0;
+	const QString filePrefix = QFileInfo(QString(_path.data())).baseName() + " (";
 	if(meshName.isEmpty())
 	{
 		// An unnamed mesh is traced through the node that owns it (the part or instance name) rather than shown anonymously.
 		const QString ownerName = nodeName ? QString::fromUtf8(nodeName) : QString();
-		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + (ownerName.isEmpty() ? QStringLiteral("Unnamed Mesh") : ownerName) + ")";
+		const QString label = ownerName.isEmpty() ? QStringLiteral("Unnamed Mesh") : ownerName;
+		meshName = prefixWithFileName ? filePrefix + label + ")" : label;
 	}
 	else
 	{
-		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
+		meshName = prefixWithFileName ? filePrefix + mesh->mName.C_Str() + ")" : QString::fromUtf8(mesh->mName.C_Str());
 	}
 
 	// Material and textures details

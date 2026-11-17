@@ -158,3 +158,4 @@ set_target_properties(step_material_probe PROPERTIES CXX_STANDARD 17 CXX_STANDAR
 # Native 3DXML codec and scene parity checks (QtCore, Assimp and ZIP; no GL).
 add_subdirectory(3dxml)
 add_subdirectory(jt)
+add_subdirectory(parasolid)

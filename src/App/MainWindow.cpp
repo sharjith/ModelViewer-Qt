@@ -90,7 +90,7 @@ int MainWindow::_viewerCount = 1;
 MainWindow* MainWindow::_mainWindow = nullptr;
 QuickHelpDialog* MainWindow::_helpDialog = nullptr;
 WhatsNewDialog* MainWindow::_whatsNewDialog = nullptr;
-bool MainWindow::_fileLoadCancelRequested = false;
+std::atomic_bool MainWindow::_fileLoadCancelRequested{false};
 
 MainWindow::MainWindow(QWidget* parent)
 	: QMainWindow(parent)

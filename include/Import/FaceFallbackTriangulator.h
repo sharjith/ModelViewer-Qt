@@ -1,6 +1,7 @@
 #pragma once
 
 #include <gp_Pnt.hxx>
+#include <gp_Pnt2d.hxx>
 #include <Poly_Triangulation.hxx>
 #include <TopoDS_Face.hxx>
 #include "OcctDeprecatedAliases.h"
@@ -40,6 +41,7 @@ namespace FaceFallbackTriangulator
 	struct Boundary
 	{
 		std::vector<std::vector<gp_Pnt>> loops; // one closed polyline per wire (outer loop first, then holes), global coordinates
+		std::vector<std::vector<gp_Pnt2d>> trimUV; // optional samples of the face's own trims, parallel to loops
 		double diag = 0.0;                      // extent of the loops
 		bool valid = false;
 		// per loop: (index of each piece's first point in the loop, a description of it) - for the import log
@@ -52,8 +54,10 @@ namespace FaceFallbackTriangulator
 
 	// edgeToFaces: edge -> faces map over the faces of the part being converted (TopExp::MapShapesAndAncestors).
 	Boundary captureBoundary(const TopoDS_Face& face, const TopTools_IndexedDataMapOfShapeListOfShape& edgeToFaces);
+	Boundary captureSurfaceTrims(const TopoDS_Face& face);
 
 	// The triangulation of `face` from its captured boundary (see the file comment); null if it cannot be built.
 	// `failure`, if given, receives the reason when the result is null.
-	Handle(Poly_Triangulation) triangulate(const TopoDS_Face& face, const Boundary& boundary, std::string* failure = nullptr);
+	Handle(Poly_Triangulation) triangulate(const TopoDS_Face& face, const Boundary& boundary, std::string* failure = nullptr,
+	                                     double maxProjectionError = 0.0, bool unwrapSurfaceTrims = true);
 }

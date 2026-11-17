@@ -25,6 +25,9 @@ When you add an asset whose licence needs attribution, add a row here and a cred
 
 ## Importer references
 
+- **Parasolid XT blend comparison:** monozukuri-ai's parasolid-kit, [commit b91972a](https://github.com/monozukuri-ai/parasolid-kit/tree/b91972a1ff86d8c8b55b07516923f7c35bfedf77). The upstream distribution declares MIT AND Apache-2.0. See the [source comparison and provenance](research/parasolid/PARASOLID_PROVENANCE.md#parasolid-kit-geometry-comparison-17-november-2026).
+
+- **Parasolid XT topology reference:** Open CASCADE Technology 8.0.1, Copyright OPEN CASCADE SAS. The local STEP and IGES translator sources and public B-Rep APIs were consulted for edge, pcurve and wire construction. See the [source comparison and provenance](research/parasolid/PARASOLID_OCCT_TOPOLOGY_COMPARISON.md).
 - **3DXML:** cad-in-unity (i2e-haw-hamburg contributors), Apache-2.0, [commit 43a9f0582ecafcdae5bb6f5919c0191467465f86](https://github.com/i2e-haw-hamburg/cad-in-unity/tree/43a9f0582ecafcdae5bb6f5919c0191467465f86), was consulted for XML tessellation concepts. No C# implementation is bundled. See the [consolidated provenance](research/3dxml/3DXML_PROVENANCE.md). This credit does not license third-party CAD samples or imply Dassault endorsement.
 - **JT:** Open CASCADE JT-Assistant, Copyright OPEN CASCADE SAS, GPL-2.0-or-later (GPLv3 chosen for the combined work), [commit e859e8c2d809f9d9468e6211eba0052f433978ee](https://github.com/Open-Cascade-SAS/JT-Assistant/commit/e859e8c2d809f9d9468e6211eba0052f433978ee). The [vendored subset](src/ThirdParty/occt-jt/README.md) retains upstream notices and records ModelViewer modifications.
 - **JT reference structures/operators:** Copyright 2014 Siemens Product Lifecycle Management Software Inc.; Copyright 2026 Siemens. Used under the published JT reference permissions. See [third-party notices](THIRD_PARTY_NOTICES.md) for the permission sources and limits. No Siemens endorsement or certification is claimed.
