@@ -16,6 +16,8 @@ Current transitional-version gate (14 November 2026): [JT 9.4 sampled-subset qua
 
 Current transform compatibility gate (15 November 2026): [affine homogeneous normalization](JT_HOMOGENEOUS_TRANSFORM_VALIDATION.md), prepared from one authentic private JT9.5 assembly whose nonzero bottom-right scale was incorrectly rejected as projective. Focused build, complete registered CTest and authentic probe pass from the installed runtime environment, and the owner confirmed the model opens. Exact-placement comparison remains unreported.
 
+Current PMI compatibility gate (18 November 2026): [PMI study and version-1 qualification](JT_PMI_STUDY.md#pmi-manager-element-version-1-qualification-18-november-2026), prepared from one authentic private JT10.0 assembly containing 76 version-1 PMI Manager elements and 102 supported dimensions. The AddressSanitizer-enabled JT suite passes, and the owner confirmed that the installed viewer displays the assembly's PMI; exact item-by-item presentation parity remains unreported.
+
 Suggested reading order:
 
 1. [Feasibility and legal scope](JT_IMPORT_FEASIBILITY.md), [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [pass-specific provenance](JT_PROVENANCE.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).

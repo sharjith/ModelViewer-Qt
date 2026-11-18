@@ -361,3 +361,51 @@ With the right grammar the API draws compartments and symbols, checked by decodi
 
 The names are from looking at the strokes (the two-letter codes are Solid Edge's, not a published list); `PE`, `PA` and `ST` for straightness were wrong guesses (`PE` and `PA` draw literally, `ST` is the statistical-tolerance hexagon). The generator `tools/jt/solid_edge_add_pmi.py` now builds its frames from these codes: perpendicularity, flatness, position with diameter and M, one frame for each other characteristic, least-material and regardless-of-feature-size position frames, a projected-zone frame and a statistical-tolerance frame (18 frames); the regenerated set is `c4block_pmi_symbols.par/.jt` and `c4block_pmi_symbols_views.par/.jt` (`311976dd96f1aa41` and `9d53860cb41cc367` for the JTs). Not yet opened by the owner in Solid Edge or in the viewer.
 
+## PMI Manager element version 1 qualification, 18 November 2026
+
+Branch at preparation: `feature/parasolid-importer`. This pass used one owner-identified local JT assembly, recorded here as
+**C4-V1-A**, SHA-256 `808ffb913c1ffc7ac8593dcf81c25a71ba949c16289cf352ac1a31aad512a1f6`. Its original source and redistribution terms were not
+established, so the model, decoded payloads and screenshots remain outside Git. The owner's Solid Edge screenshot is visual evidence
+that the source application displays the PMI; it is not used as a binary-decoding oracle. No vendor SDK, vendor implementation or
+disassembly was used in this pass. The existing spec-based original decoder and a new privacy-reduced inventory wrapper read the
+local bytes; this is a method/provenance statement, not legal clearance.
+
+Regenerate the ignored inventory:
+
+```text
+python -B tools/jt/inventory_pmi_segments.py <local-samples>/sample-C4-V1-A.jt --output out/jt-research/c4-v1-a-pmi-inventory.json
+```
+
+Observed in C4-V1-A:
+
+- JT 10.0, little endian; 76 segment-type-3 PMI data segments.
+- Every PMI Manager element has local version 1. All 76 common bodies decode with the same field order already qualified for
+  version 5: header counts, string table, model views, Generic PMI Entities, 2D base data, non-text polylines and property atoms
+  containing one flag byte after each string.
+- 178 entities: 76 Coordinate Systems and 102 Dimensions. The dimensions contain 19,822 stored polyline vertices and no separate
+  2D text entities.
+- The 102 dimensions use only forms already accepted by `RecordedPmi`: 88 linear (`type=1`, two leader terminators) and 14 diameter
+  (`type=3`, `style=0`, one rim terminator plus frame origin). Every dimension carries the required value, unit, precision,
+  geometry colour and terminator/property vocabulary.
+- Each element has trailing version-specific bytes after the common entity body. As with qualified version 5, the element reader
+  deliberately leaves those trailing overlays, sort orders and association-property sections to the enclosing element reader to
+  skip; this pass does not interpret them.
+
+Implementation prepared from those observations:
+
+- `JtElement_MetaData_PMIManager` accepts local versions 1 and 5 for the common body. Other local versions remain explicitly
+  rejected. Existing bounds, unsupported-feature diagnostics and version-5 behavior are unchanged.
+- Literal tests exercise versions 1 and 5 in both byte orders and retain the malformed-input and unsupported-version cases. These
+  are original synthetic fixtures, not substituted conformance evidence for C4-V1-A.
+- `tools/jt/inventory_pmi_segments.py` inventories every PMI segment while omitting filenames, model strings, property values and
+  coordinates from its report.
+
+Qualification limit: this establishes the observed version-1 common body only. It does not claim all version-1 producer variants,
+non-empty design groups or user attributes, separate 2D text entities, or the semantics of the trailing sections.
+
+Validation on 18 November 2026: the owner built and installed the current branch and reported that C4-V1-A displays its PMI in
+the installed viewer. The isolated Release JT suite was then refreshed for Visual Studio 18.12 / MSVC 19.52, rebuilt with its
+existing AddressSanitizer option and run with the installed runtime; `jt_tests` completed with exit code 0. The owner did not report
+an item-by-item count or placement comparison against the source screenshot, so this records visible PMI and regression success,
+not exact presentation parity.
+

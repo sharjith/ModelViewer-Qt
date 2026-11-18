@@ -1,7 +1,7 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-// Original literal in-memory tests of the PMI Manager Meta Data Element reader (JT 10.6 section 8.3, element version 5). The
-// fixtures are written by this file from the published layout and from the field order observed in authentic Solid Edge
-// JT 10.10 controls; they are not themselves authentic exporter evidence.
+// Original literal in-memory tests of the PMI Manager Meta Data Element reader (JT 10.6 section 8.3, qualified element
+// versions 1 and 5). The fixtures are written by this file from the published layout and from the field order observed in
+// authentic files; they are not themselves authentic exporter evidence.
 #include "JtContainerFixture.h"
 #include <JtData_Model.hxx>
 #include <JtData_Reader.hxx>
@@ -51,8 +51,8 @@ Handle(JtElement_MetaData_PMIManager) read(const Spec& s,size_t* consumed=nullpt
  const auto bytes=element(s);PmiReader reader(bytes);Handle(JtElement_MetaData_PMIManager) pmi=new JtElement_MetaData_PMIManager;
  check(pmi->Read(reader),"PMI element read returned false");if(consumed)*consumed=reader.pos;if(total)*total=size_t(bytes.data.size());return pmi;
 }
-void verify(const Handle(JtElement_MetaData_PMIManager)& pmi) {
- check(pmi->LocalVersion()==5 && pmi->Strings().size()==2 && pmi->Strings()[0]==u"Dimension" && pmi->Strings()[1]==u"PMI","String table");
+void verify(const Handle(JtElement_MetaData_PMIManager)& pmi,unsigned version) {
+ check(pmi->LocalVersion()==version && pmi->Strings().size()==2 && pmi->Strings()[0]==u"Dimension" && pmi->Strings()[1]==u"PMI","String table");
  check(pmi->Entities().size()==1,"One entity");
  const auto& e=pmi->Entities()[0];
  check(e.UserLabel==3 && e.HasFrame && e.Frame[0]==0.1f && e.Frame[3]==1.1f && e.Frame[8]==1.f,"Label and reference frame");
@@ -64,19 +64,20 @@ void verify(const Handle(JtElement_MetaData_PMIManager)& pmi) {
 }
 }
 void pmiTests() {
- // Both byte orders read the same entity, and the reader stops before the trailing sections.
- for(bool big:{false,true}) {
-  Spec s;s.big=big;size_t used=0,total=0;const auto pmi=read(s,&used,&total);verify(pmi);
+ // Both qualified versions and both byte orders read the same common body, and the reader stops before trailing sections.
+ for(unsigned version:{1u,5u}) for(bool big:{false,true}) {
+  Spec s;s.version=version;s.big=big;size_t used=0,total=0;const auto pmi=read(s,&used,&total);verify(pmi,version);
   check(used+8==total,"The reader must leave exactly the trailing sections unread");
  }
  // Anything not evidenced is rejected, not guessed.
+ { Spec s;s.version=0; rejects([&]{read(s);},"earlier element version"); }
  { Spec s;s.version=4; rejects([&]{read(s);},"other element version"); }
  { Spec s;s.version=6; rejects([&]{read(s);},"later element version"); }
  { Spec s;s.designGroups=1; rejects([&]{read(s);},"design groups"); }
- { Spec s;s.associations=2; const auto pmi=read(s); verify(pmi); check(pmi->AssociationCount()==2,"Associations are counted and skipped"); }
+ { Spec s;s.associations=2; const auto pmi=read(s); verify(pmi,s.version); check(pmi->AssociationCount()==2,"Associations are counted and skipped"); }
  { Spec s;s.associations=0x7fffffff; rejects([&]{read(s);},"implausible association count"); }
  { Spec s;s.userAttributes=1; rejects([&]{read(s);},"user attributes"); }
- { Spec s;s.modelViews=1; const auto pmi=read(s); verify(pmi);
+ { Spec s;s.modelViews=1; const auto pmi=read(s); verify(pmi,s.version);
    check(pmi->ModelViews().size()==1 && pmi->ModelViews()[0].Name==u"PMI" && pmi->ModelViews()[0].Id==7 && pmi->ModelViews()[0].Active==1
          && pmi->ModelViews()[0].EyeDirection[1]==-1.f && pmi->ModelViews()[0].Angle==30.f && pmi->ModelViews()[0].TargetPoint[0]==90.f,"A model view is read"); }
  { Spec s;s.modelViews=0x7fffffff; rejects([&]{read(s);},"implausible model view count"); }

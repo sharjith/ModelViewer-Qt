@@ -1219,5 +1219,15 @@
       "src/ThirdParty/occt-jt/JtElement/JtElement_ShapeLOD_Vertex.cxx"
     ],
     "validation": "research/jt/JT_DISPLAY_PRIMITIVES_AUDIT.md"
+  },
+  "pmi_manager_v1_follow_up": {
+    "date": "2026-11-18",
+    "scope": "Qualified original extension of the modified PMI Manager reader: local version 1 shares the already-supported bounded common body with version 5; other versions and unevidenced features remain rejected",
+    "reference": "One hash-qualified private JT10.0 assembly with 76 version-1 PMI Manager elements; no vendor implementation",
+    "files": [
+      "include/ThirdParty/occt-jt/JtElement/JtElement_MetaData_PMIManager.hxx",
+      "src/ThirdParty/occt-jt/JtElement/JtElement_MetaData_PMIManager.cxx"
+    ],
+    "validation": "research/jt/JT_PMI_STUDY.md"
   }
 }
