@@ -485,20 +485,32 @@ File readText(std::string_view bytes, const LayoutTable& base, const Options& op
         file.diagnostics.push_back({code, msg, -1, static_cast<int64_t>(file.nodes.size())});
     };
 
+    // Some exporters write the transmit data without the common header (the "**ABC...**PART1;...**END_OF_HEADER" block).
+    // Accept a bare "T<len> : TRANSMIT FILE ..." start; the common schema is then simply unknown.
     const size_t marker = bytes.find("**END_OF_HEADER");
+    size_t bodyStart = 0;
     if (marker == std::string_view::npos) {
-        diag("header-missing", "common header trailer not found");
-        return file;
-    }
-    {
+        size_t at = 0;
+        while (at < bytes.size() && (bytes[at] == ' ' || bytes[at] == '\t' || bytes[at] == '\r' || bytes[at] == '\n'))
+            ++at;
+        const std::string_view rest = bytes.substr(at, 160);
+        const size_t colon = rest.find(" : TRANSMIT FILE");
+        const bool bare = !rest.empty() && rest[0] == 'T' && colon != std::string_view::npos && colon > 1 &&
+                          rest.substr(1, colon - 1).find_first_not_of("0123456789") == std::string_view::npos;
+        if (!bare) {
+            diag("header-missing", "common header trailer not found");
+            return file;
+        }
+        bodyStart = at;
+    } else {
         const size_t part2 = bytes.substr(0, marker).find("SCH=");
         if (part2 != std::string_view::npos) {
             const size_t end = bytes.find(';', part2);
             file.header.commonSchema = std::string(bytes.substr(part2 + 4, end == std::string_view::npos ? 0 : end - part2 - 4));
         }
+        bodyStart = bytes.find('\n', marker);
+        bodyStart = bodyStart == std::string_view::npos ? bytes.size() : bodyStart + 1;
     }
-    size_t bodyStart = bytes.find('\n', marker);
-    bodyStart = bodyStart == std::string_view::npos ? bytes.size() : bodyStart + 1;
     const std::string body = normalise(bytes.substr(bodyStart));
     if (body.empty()) {
         diag("truncated", "no data after the common header");

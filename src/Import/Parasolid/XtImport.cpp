@@ -16,8 +16,9 @@ std::string failureText(const File& file) {
         return "the XT data could not be decoded";
     const Diagnostic& d = file.diagnostics.front();
     if (d.code == "legacy-schema-unsupported")
-        return "this X_T file uses an older unsuffixed Parasolid schema that is not supported; re-export it with a newer "
-               "schema (an embedded or V13 schema key)";
+        return "this X_T file does not carry its own schema (" + d.message.substr(0, d.message.find(" has no")) +
+               "), so its record layouts are unknown; re-export it from the CAD system with an embedded schema "
+               "(the \"embed schema\" / latest-schema transmit option) or as STEP";
     if (d.code == "header-missing" || d.code == "unknown-transport")
         return "this is not a text X_T file (or it is a binary X_B file, which is not supported yet)";
     return d.message + " (" + d.code + ")";
