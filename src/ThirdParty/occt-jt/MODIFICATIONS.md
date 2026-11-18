@@ -225,3 +225,7 @@ trailing version overlays/sort orders/association properties remain outside this
 limits: `research/jt/JT_PMI_STUDY.md`; original literal fixtures: `tests/jt/jt_pmi_tests.cpp`; privacy-reduced inventory:
 `tools/jt/inventory_pmi_segments.py`. No vendor implementation was used.
 
+## 18 November 2026 - JT 10.6 sampled-subset qualification
+
+`JtData_Model.cxx` admits one independently supplied authentic JT 10.6 assembly through the existing modern graph and stored-tessellation reader. The explicit gate adds only minor version 6. Original little- and big-endian container, geometry-channel, attribute, palette, texture and malformed-record tests cover the shared layout; JT 10.4 and 10.11 remain rejected. The unchanged authentic input passes the AddressSanitizer-enabled suite and native validation with 175 mesh occurrences and no fallback parts. Unsupported metadata remains diagnosed. See `research/jt/JT_106_VALIDATION.md`. Existing upstream notices and hashes are retained; no vendor implementation was used.
+

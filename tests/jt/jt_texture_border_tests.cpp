@@ -40,7 +40,7 @@ void explicitBorderTests(){
         check(result.scene->mMaterials[mesh.mMaterialIndex]->GetTexture(aiTextureType_DIFFUSE,0,&path)==AI_SUCCESS,"Sampled ring image association missing");
         const auto* image=result.scene->GetEmbeddedTexture(path.C_Str());check(image,"Sampled ring image missing");
         return QImage::fromData(reinterpret_cast<const uchar*>(image->pcData),int(image->mWidth)).convertToFormat(QImage::Format_RGBA8888);};
-    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})
+    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,6,7,8,9,10})
     for(unsigned version:family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})for(bool big:{false,true}){
         TextureFixture::Options base;base.big=big;base.coordinate=0;base.version=version;base.legacyType=version==1?2:9;
         base.baseVersion=family==10&&Fixture::modernTextureUsesSabot(minor)?2:1;base.wrapped=family==10&&Fixture::modernTextureUsesSabot(minor);base.borderMode=2;base.imageBorder=1;base.alignment=8;
@@ -81,7 +81,7 @@ void textureBorderTests(){
     QTemporaryDir dir;check(dir.isValid(),"Cannot create border test directory");
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;geometry.materialDataFlags=0x3990;
     LegacyFixture::write(dir.filePath("geometry.jt"),geometry);const auto baseline=Jt::Importer::read(dir.filePath("geometry.jt"));
-    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})
+    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,6,7,8,9,10})
     for(unsigned version:family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})for(bool big:{false,true}){
         const auto write=[&](TextureFixture::Options o){if(family==9)TextureFixture::write9(dir.filePath("border.jt"),minor,o);else TextureFixture::write(dir.filePath("border.jt"),minor,o);};
         TextureFixture::Options base;base.big=big;base.coordinate=0;base.version=version;base.legacyType=version==1?2:9;base.baseVersion=family==10&&Fixture::modernTextureUsesSabot(minor)?2:1;base.wrapped=family==10&&Fixture::modernTextureUsesSabot(minor);base.alignment=8;

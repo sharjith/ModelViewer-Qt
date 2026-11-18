@@ -90,6 +90,10 @@ The subsequent additional 10.7/10.8 appearance cases extend `duplicateMaterialCo
 
 [Gate 5a](../../research/jt/JT_1010_VALIDATION.md) adds minor 10 to original LE/BE container, modern attribute/palette, fallback scene/GLB, malformed-record and published material-order tests. 10.1 and 10.11 remain negative cases. The original material-profile guard suite also runs the newly observed exact 10.10 writer signature, retaining opt-out and writer/author/flags/palette isolation. `jt_tests --1010-fixtures <folder>` generates two original 10.10 LE/BE attribute graphs referencing original 8.2 geometry; each displays a green mesh with seven vertices/three triangles at world x=20, y=-3. Authentic 10.10 tessellation qualification comes from the separate supplied assemblies, not these mixed-version controls.
 
+## JT 10.6 qualification
+
+[JT 10.6 sampled-subset qualification](../../research/jt/JT_106_VALIDATION.md) adds minor 6 to the original LE/BE container, coordinate, UV, quantized-colour, modern attribute/palette and texture matrices. Unsupported 10.4 and 10.11 remain negative cases. Authentic tessellation qualification comes from the separate private T106-A assembly; no sample geometry is included here.
+
 ## Feature gate C1a: legacy Huffman
 
 `jt_huffman_tests.cpp` supplies original known-value CDP1 packets, tie/singleton/cross-word/escape tests, every truncated prefix, declared-bit and OOB bounds, cancellation and budgets. The full original 8.x geometry tests now include Huffman strip boundaries. `jt_tests --huffman-fixtures <folder>` generates six self-contained blue quad-plus-triangle JT files for 8.0/8.1/8.2, LE/BE: one mesh, seven vertices, three triangles each. Multiple-context Huffman remains an explicit unsupported case; modern packet transports are unchanged. See [C1a validation](../../research/jt/JT_HUFFMAN_VALIDATION.md) and the [feature-completion plan](../../research/jt/JT_FEATURE_COMPLETION_PLAN.md).

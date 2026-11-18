@@ -77,7 +77,7 @@ void textureHomogeneousTests(){
         const QString companion=missingUV?"no_uv.jt":"geometry.jt";
         if(family==9)TextureFixture::write9(path,minor,o,companion);else TextureFixture::write(path,minor,o,companion);
     };
-    for(unsigned family:{9u,10u})for(unsigned minor:(family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10}))for(bool big:{false,true}){
+    for(unsigned family:{9u,10u})for(unsigned minor:(family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,6,7,8,9,10}))for(bool big:{false,true}){
         const auto versions=family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1};
         for(unsigned version:versions){
             TextureFixture::Options o;o.coordinate=0;o.big=big;o.version=version;o.legacyType=version==1?2:9;

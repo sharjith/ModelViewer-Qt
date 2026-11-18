@@ -22,7 +22,7 @@ void constantBorderTests(){
     QTemporaryDir dir;check(dir.isValid(),"Cannot create constant-border test folder");
     LegacyFixture::Options geometry;geometry.quantizedData=true;geometry.quantizedBits=4;geometry.uvBinding=1;geometry.materialDataFlags=0x3990;LegacyFixture::write(dir.filePath("blend.jt"),geometry);
     geometry.materialDataFlags=0x3980;LegacyFixture::write(dir.filePath("opaque.jt"),geometry);const auto baseline=Jt::Importer::read(dir.filePath("opaque.jt"));
-    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,7,8,9,10})
+    for(unsigned family:{9u,10u})for(unsigned minor:family==9?std::vector<unsigned>{0,5}:std::vector<unsigned>{0,2,3,5,6,7,8,9,10})
     for(unsigned version:family==9?std::vector<unsigned>{1,2,3}:std::vector<unsigned>{1})for(bool big:{false,true}){
         const auto write=[&](TextureFixture::Options o,bool blend){const auto geometry=blend?"blend.jt":"opaque.jt";if(family==9)TextureFixture::write9(dir.filePath("border.jt"),minor,o,geometry);else TextureFixture::write(dir.filePath("border.jt"),minor,o,geometry);};
         auto base=options(big);base.version=version;base.legacyType=version==1?2:9;base.baseVersion=family==10&&Fixture::modernTextureUsesSabot(minor)?2:1;base.wrapped=family==10&&Fixture::modernTextureUsesSabot(minor);

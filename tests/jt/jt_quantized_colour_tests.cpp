@@ -39,7 +39,7 @@ void verify(const Fixture::Bytes& b,unsigned components,unsigned minor){
 }
 }
 void quantizedColourTests(){
- for(unsigned minor:{0u,2u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true})for(bool hsv:{false,true})for(unsigned components:{3u,4u}){
+ for(unsigned minor:{0u,2u,3u,5u,6u,7u,8u,9u,10u})for(bool big:{false,true})for(bool hsv:{false,true})for(unsigned components:{3u,4u}){
   auto b=stream(big,components,hsv);verify(b,components,minor);
   for(qsizetype n=0;n<b.data.size();++n){auto shortData=b;shortData.data.truncate(n);reject([&]{Reader r(shortData,minor);JtDecode_VertexColors::Read(r,components,6);});}
   for(unsigned damage=1;damage<=7;++damage){if(damage==7&&components==4)continue;reject([&]{Reader r(stream(big,components,hsv,damage),minor);JtDecode_VertexColors::Read(r,components,6);});}

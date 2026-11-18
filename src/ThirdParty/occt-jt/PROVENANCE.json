@@ -1229,5 +1229,17 @@
       "src/ThirdParty/occt-jt/JtElement/JtElement_MetaData_PMIManager.cxx"
     ],
     "validation": "research/jt/JT_PMI_STUDY.md"
+  },
+  "jt106_qualification_follow_up": {
+    "date": "2026-11-18",
+    "scope": "Explicit sampled JT 10.6 container and stored-tessellation qualification through the existing bounded modern reader; unsupported records remain locally rejected or diagnosed",
+    "references": [
+      "Retained public Siemens JT 10.6 reference",
+      "One hash-qualified private JT10.6 assembly; no vendor implementation"
+    ],
+    "files": [
+      "src/ThirdParty/occt-jt/JtData/JtData_Model.cxx"
+    ],
+    "validation": "research/jt/JT_106_VALIDATION.md"
   }
 }
