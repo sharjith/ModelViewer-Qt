@@ -49,7 +49,13 @@
 #include <BRepBuilderAPI_MakeEdge.hxx>
 #include <BRepAdaptor_Curve.hxx>
 #include <BRepAdaptor_Surface.hxx>
+#include <optional>
 #include <Geom_BSplineCurve.hxx>
+#include <GeomLProp_SLProps.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
+#include <GeomConvert.hxx>
+#include <GeomConvert_CompCurveToBSplineCurve.hxx>
 #include <Geom_BSplineSurface.hxx>
 #include <Geom_Circle.hxx>
 #include <Geom_ConicalSurface.hxx>
@@ -72,6 +78,7 @@
 #include <Precision.hxx>
 #include <ShapeAnalysis_Surface.hxx>
 #include <BRepTools.hxx>
+#include <ShapeFix.hxx>
 #include <ShapeFix_Edge.hxx>
 #include <ShapeBuild_ReShape.hxx>
 #include <ShapeFix_Face.hxx>
@@ -243,6 +250,17 @@ private:
     Handle(Geom_BSplineSurface) nurbsSurface(const Node& nurbs);
     Handle(Geom_BSplineCurve) chartCurve(const Node& intersection);
     Handle(Geom_BSplineCurve) rebuildBlendContact(const Node& intersection, const gp_Pnt& start, const gp_Pnt& end);
+    // Contact curve of a rolling-ball blend on one support (intersection of the support with the blend boundary), built from the
+    // exact spine: the foot of each spine point on the support. Null when the pair is not of that kind or anything disagrees.
+    Handle(Geom_BSplineCurve) contactCurveFromSpine(const Node& intersection);
+    // A blend spine is an intersection of two surfaces (offsets of the supports) but its stored chart stops where the chart
+    // stops, while the blend may reach further. Extend the cached curve at either end, by marching along the two surfaces, until
+    // it covers the given points. Returns true when the cached curve was changed.
+    bool extendSpine(int64_t spineIndex, const std::vector<gp_Pnt>& points);
+    // Replace the cached spine of a rolling-ball blend between two buildable supports by one whose points are exactly the
+    // ball-centre distance from both supports (the stored chart can run on past the surface it was cut from).
+    void correctSpineAgainstSupports(const Node& blend);
+    std::unordered_set<int64_t> m_spineCorrected;
     Handle(Geom_BSplineCurve) rebuildSplineBlendRail(const Node& intersection, const Handle(Geom_Curve)& seed,
         double first, double last, const gp_Pnt& start, const gp_Pnt& end);
     Handle(Geom_BSplineCurve) rebuildPlaneSplineIntersection(const Node& intersection,
@@ -494,6 +512,174 @@ Handle(Geom_BSplineSurface) Builder::nurbsSurface(const Node& nurbs) {
     }
 }
 
+// XT defines the point of an intersection curve between two chart points exactly: it is the local intersection of the two
+// surfaces with the plane through the chord midpoint orthogonal to the chord. This finds that point by Newton iteration on
+// (u0, v0, u1, v1): S0(u0, v0) - S1(u1, v1) = 0 (three equations) and (S0(u0, v0) - M) . t = 0. `uv0` and `uv1` hold the start
+// parameters on each surface. Returns false when the iteration does not converge to a point near the chord.
+static bool exactChartPoint(const Handle(Geom_Surface)& s0, const Handle(Geom_Surface)& s1, const gp_Pnt& mid, const gp_Vec& chord,
+                            gp_Pnt2d& uv0, gp_Pnt2d& uv1, gp_Pnt& result, double tolerance) {
+    gp_Vec t = chord;
+    const double length = t.Magnitude();
+    if (length < 1e-12)
+        return false;
+    t /= length;
+    double x[4] = {uv0.X(), uv0.Y(), uv1.X(), uv1.Y()};
+    double u0a, u0b, v0a, v0b;
+    s0->Bounds(u0a, u0b, v0a, v0b);
+    double u1a, u1b, v1a, v1b;
+    s1->Bounds(u1a, u1b, v1a, v1b);
+    for (int iteration = 0; iteration < 30; ++iteration) {
+        gp_Pnt p0, p1;
+        gp_Vec d0u, d0v, d1u, d1v;
+        s0->D1(x[0], x[1], p0, d0u, d0v);
+        s1->D1(x[2], x[3], p1, d1u, d1v);
+        const gp_Vec gap(p1, p0);
+        double f[4] = {gap.X(), gap.Y(), gap.Z(), gp_Vec(mid, p0).Dot(t)};
+        if (std::sqrt(f[0] * f[0] + f[1] * f[1] + f[2] * f[2]) < tolerance && std::abs(f[3]) < tolerance) {
+            result = gp_Pnt((p0.X() + p1.X()) * 0.5, (p0.Y() + p1.Y()) * 0.5, (p0.Z() + p1.Z()) * 0.5);
+            uv0 = gp_Pnt2d(x[0], x[1]);
+            uv1 = gp_Pnt2d(x[2], x[3]);
+            return result.Distance(mid) < length;
+        }
+        double a[4][5] = {{d0u.X(), d0v.X(), -d1u.X(), -d1v.X(), -f[0]},
+                          {d0u.Y(), d0v.Y(), -d1u.Y(), -d1v.Y(), -f[1]},
+                          {d0u.Z(), d0v.Z(), -d1u.Z(), -d1v.Z(), -f[2]},
+                          {d0u.Dot(t), d0v.Dot(t), 0, 0, -f[3]}};
+        // Gaussian elimination with partial pivoting.
+        for (int c = 0; c < 4; ++c) {
+            int pivot = c;
+            for (int r = c + 1; r < 4; ++r)
+                if (std::abs(a[r][c]) > std::abs(a[pivot][c]))
+                    pivot = r;
+            if (std::abs(a[pivot][c]) < 1e-14)
+                return false;
+            if (pivot != c)
+                for (int k = 0; k < 5; ++k)
+                    std::swap(a[c][k], a[pivot][k]);
+            for (int r = c + 1; r < 4; ++r) {
+                const double factor = a[r][c] / a[c][c];
+                for (int k = c; k < 5; ++k)
+                    a[r][k] -= factor * a[c][k];
+            }
+        }
+        double dx[4];
+        for (int r = 3; r >= 0; --r) {
+            double sum = a[r][4];
+            for (int k = r + 1; k < 4; ++k)
+                sum -= a[r][k] * dx[k];
+            dx[r] = sum / a[r][r];
+        }
+        for (int k = 0; k < 4; ++k) {
+            if (!std::isfinite(dx[k]))
+                return false;
+            x[k] += dx[k];
+        }
+        // Stay inside the surface domain; a step that leaves it is not a solution near the chart.
+        const double slack = 1e-6;
+        if (!Precision::IsInfinite(u0a) && (x[0] < u0a - slack || x[0] > u0b + slack)) return false;
+        if (!Precision::IsInfinite(v0a) && (x[1] < v0a - slack || x[1] > v0b + slack)) return false;
+        if (!Precision::IsInfinite(u1a) && (x[2] < u1a - slack || x[2] > u1b + slack)) return false;
+        if (!Precision::IsInfinite(v1a) && (x[3] < v1a - slack || x[3] > v1b + slack)) return false;
+    }
+    return false;
+}
+
+// Makes the interpolated curve through `pts` agree with both surfaces. Each round interpolates the points, takes the predicted
+// midpoint of every span that is not yet accepted, and solves for the exact intersection point on the plane through it normal to
+// the curve. A span whose prediction is within `target` of the exact point is accepted; otherwise the exact point is inserted and
+// the two halves are checked in the next round. Returns the number of points inserted. Surfaces that cannot be evaluated by
+// parameter, and spans where the solver fails, are left as they are.
+static size_t refineChartAdaptive(std::vector<gp_Pnt>& pts, const Handle(Geom_Surface)& s0, const Handle(Geom_Surface)& s1,
+                                  double target, double newtonTolerance, double surfaceTolerance, size_t maxPoints) {
+    if (s0.IsNull() || s1.IsNull() || pts.size() < 2)
+        return 0;
+    const Handle(ShapeAnalysis_Surface) a0 = new ShapeAnalysis_Surface(s0), a1 = new ShapeAnalysis_Surface(s1);
+    std::vector<char> accepted(pts.size() - 1, 0);
+    size_t inserted = 0;
+    for (int round = 0; round < 8 && pts.size() < maxPoints; ++round) {
+        // Chord-length parameters make span i the parameter interval [t[i], t[i + 1]] of the interpolated curve.
+        std::vector<double> t(pts.size(), 0.0);
+        for (size_t i = 1; i < pts.size(); ++i)
+            t[i] = t[i - 1] + pts[i].Distance(pts[i - 1]);
+        Handle(Geom_BSplineCurve) curve;
+        try {
+            Handle(NCollection_HArray1<gp_Pnt>) arr = new NCollection_HArray1<gp_Pnt>(1, static_cast<int>(pts.size()));
+            Handle(NCollection_HArray1<double>) params = new NCollection_HArray1<double>(1, static_cast<int>(pts.size()));
+            for (size_t i = 0; i < pts.size(); ++i) {
+                arr->SetValue(static_cast<int>(i) + 1, pts[i]);
+                params->SetValue(static_cast<int>(i) + 1, t[i]);
+            }
+            GeomAPI_Interpolate interp(arr, params, false, Precision::Confusion());
+            interp.Perform();
+            if (!interp.IsDone())
+                break;
+            curve = interp.Curve();
+        } catch (const Standard_Failure&) {
+            break;
+        }
+        // Parameters of every point on both surfaces, tracked point to point.
+        std::vector<gp_Pnt2d> uv0(pts.size()), uv1(pts.size());
+        try {
+            uv0[0] = a0->ValueOfUV(pts[0], surfaceTolerance);
+            uv1[0] = a1->ValueOfUV(pts[0], surfaceTolerance);
+            for (size_t i = 1; i < pts.size(); ++i) {
+                uv0[i] = a0->NextValueOfUV(uv0[i - 1], pts[i], surfaceTolerance, 1e3 * surfaceTolerance);
+                uv1[i] = a1->NextValueOfUV(uv1[i - 1], pts[i], surfaceTolerance, 1e3 * surfaceTolerance);
+            }
+        } catch (const Standard_Failure&) {
+            break;
+        }
+        std::vector<gp_Pnt> next;
+        std::vector<char> nextAccepted;
+        next.reserve(pts.size() * 2);
+        nextAccepted.reserve(pts.size() * 2);
+        size_t added = 0;
+        for (size_t i = 0; i + 1 < pts.size(); ++i) {
+            next.push_back(pts[i]);
+            if (accepted[i] || !(t[i + 1] > t[i])) {
+                nextAccepted.push_back(1);
+                continue;
+            }
+            try {
+                const double tm = 0.5 * (t[i] + t[i + 1]);
+                gp_Pnt predicted;
+                gp_Vec tangent;
+                curve->D1(tm, predicted, tangent);
+                gp_Pnt2d m0 = a0->NextValueOfUV(uv0[i], predicted, surfaceTolerance, 1e3 * surfaceTolerance);
+                gp_Pnt2d m1 = a1->NextValueOfUV(uv1[i], predicted, surfaceTolerance, 1e3 * surfaceTolerance);
+                gp_Pnt exact;
+                if (tangent.Magnitude() > 1e-12 && exactChartPoint(s0, s1, predicted, tangent, m0, m1, exact, newtonTolerance)) {
+                    const double miss = exact.Distance(predicted);
+                    const double limit = 0.5 * pts[i].Distance(pts[i + 1]);
+                    if (miss > target && miss < limit && exact.Distance(pts[i]) > newtonTolerance &&
+                        exact.Distance(pts[i + 1]) > newtonTolerance) {
+                        next.push_back(exact);
+                        nextAccepted.push_back(0);
+                        nextAccepted.push_back(0);
+                        ++added;
+                        continue;
+                    }
+                }
+            } catch (const Standard_Failure&) {
+            }
+            nextAccepted.push_back(1); // within target, or the solver could not improve it
+        }
+        next.push_back(pts.back());
+        if (!added)
+            break;
+        // `nextAccepted` was filled per original span: a split span contributes its two halves, so rebuild the flags from it.
+        std::vector<char> flags;
+        flags.reserve(next.size());
+        for (size_t k = 0; k < nextAccepted.size();)
+            flags.push_back(nextAccepted[k++]);
+        pts.swap(next);
+        accepted.swap(flags);
+        accepted.resize(pts.size() - 1, 0);
+        inserted += added;
+    }
+    return inserted;
+}
+
 Handle(Geom_BSplineCurve) Builder::chartCurve(const Node& inter) {
     ++res.stats.approximatedGeometry; // a chart is a chordal approximation of the intersection curve
     const Node* chart = node(ptr(inter, "INTERSECTION", "chart"));
@@ -558,6 +744,38 @@ Handle(Geom_BSplineCurve) Builder::chartCurve(const Node& inter) {
     const bool closed = !hasStart && !hasEnd && pts.size() > 3 && pts.front().Distance(pts.back()) <= minGap * 10;
     if (closed)
         pts.pop_back();
+    if (!std::getenv("XT_NO_REFINE_CHART")) {
+        // The stored chart is a chordal approximation with its own error estimate; points between chart points are defined
+        // exactly by the two surfaces. Insert them until the estimated chord error is small.
+        const double chordalMm = num(*chart, "CHART", "chordal_error") * scale;
+        const double targetLength = (std::getenv("XT_REFINE_TARGET") ? std::atof(std::getenv("XT_REFINE_TARGET")) : 1e-8) * scale; // default 0.00001 mm
+        if (std::isfinite(chordalMm) && chordalMm > targetLength) {
+            const SurfaceInfo first = surfaceFor(ptr(inter, "INTERSECTION", "surface", 0)); // copies: the map may rehash
+            const SurfaceInfo second = surfaceFor(ptr(inter, "INTERSECTION", "surface", 1));
+            auto supported = [](const SurfaceInfo& s) {
+                return s.ok && s.kind != "BLENDED_EDGE" && s.kind != "BLEND_BOUND";
+            };
+            if (supported(first) && supported(second)) {
+                if (closed)
+                    pts.push_back(pts.front());
+                const size_t inserted = refineChartAdaptive(pts, first.surface, second.surface, targetLength, 1e-9 * scale, 1e-6 * scale, 4000);
+                if (closed)
+                    pts.pop_back();
+                if (std::getenv("XT_DEBUG_CS"))
+                    std::fprintf(stderr, "refine %lld: chordal %g mm, inserted %zu, now %zu points\n", (long long)inter.index, chordalMm, inserted, pts.size());
+                if (inserted) {
+                    ++res.stats.facesSkippedBySurface["  chart-refined"];
+                    res.stats.facesSkippedBySurface["  chart-points-inserted"] += inserted;
+                } else {
+                    ++res.stats.facesSkippedBySurface["  chart-refine-failed"];
+                }
+            } else {
+                if (std::getenv("XT_DEBUG_CS"))
+                    std::fprintf(stderr, "refine unsupported %lld: %s ok=%d / %s ok=%d\n", (long long)inter.index, first.kind.c_str(), (int)first.ok, second.kind.c_str(), (int)second.ok);
+                ++res.stats.facesSkippedBySurface["  chart-refine-unsupported"];
+            }
+        }
+    }
     if (!closed && pts.size() > 48) {
         // Charts are dense; a fitted spline with far fewer poles is much cheaper downstream.
         try {
@@ -930,6 +1148,12 @@ const CurveInfo& Builder::curveFor(int64_t index) {
                 info.senseSign = signOf(*n, "B_CURVE", "sense");
             } else if (k == "INTERSECTION") {
                 info.curve = chartCurve(*n);
+                if (!std::getenv("XT_NO_BLEND_CONTACT_SPINE")) {
+                    if (const auto contact = contactCurveFromSpine(*n); !contact.IsNull()) {
+                        info.curve = contact;
+                        ++res.stats.facesSkippedBySurface["  contact-from-spine"];
+                    }
+                }
                 info.senseSign = signOf(*n, "INTERSECTION", "sense");
             } else if (k == "SP_CURVE") {
                 info.curve = liftSpCurve(*n, nullptr);
@@ -1066,7 +1290,15 @@ const SurfaceInfo& Builder::surfaceFor(int64_t index) {
                 if (under.ok) {
                     // The offset runs along the underlying natural normal as modified by its sense.
                     const double value = num(*n, "OFFSET_SURF", "offset") * scale * under.senseSign * under.flip;
-                    info.surface = new Geom_OffsetSurface(under.surface, value);
+                    try {
+                        info.surface = new Geom_OffsetSurface(under.surface, value);
+                    } catch (const Standard_Failure& failure) {
+                        // A basis that is only C0 somewhere is refused by the constructor's continuity check.
+                        if (std::getenv("XT_DEBUG_CS"))
+                            std::fprintf(stderr, "offset surface %lld refused: %s\n", (long long)index, failure.GetMessageString());
+                        if (!std::getenv("XT_NO_OFFSET_C0"))
+                            info.surface = new Geom_OffsetSurface(under.surface, value, true);
+                    }
                     info.flip = under.flip;
                 }
             }
@@ -1088,8 +1320,12 @@ bool Builder::blendSupportContact(const Node& blend, const gp_Pnt& centre, doubl
             std::fprintf(stderr, "bsc %d\n", code);
         return false;
     };
-    if (num(blend, "BLENDED_EDGE", "blend_type") != 'R' || !std::isfinite(offset))
+    const bool cliffType = num(blend, "BLENDED_EDGE", "blend_type") == 'E' && !std::getenv("XT_NO_CLIFF_BLEND");
+    if ((num(blend, "BLENDED_EDGE", "blend_type") != 'R' && !cliffType) || !std::isfinite(offset)) {
+        if (std::getenv("XT_DEBUG_BS"))
+            std::fprintf(stderr, "bsc1 type=%c finite=%d\n", static_cast<char>(num(blend, "BLENDED_EDGE", "blend_type")), (int)std::isfinite(offset));
         return bsFail(1);
+    }
     const double r0 = std::abs(num(blend, "BLENDED_EDGE", "range", 0)) * scale;
     const double r1 = std::abs(num(blend, "BLENDED_EDGE", "range", 1)) * scale;
     const double tolerance = kBlendContactTolerance * scale;
@@ -1099,7 +1335,19 @@ bool Builder::blendSupportContact(const Node& blend, const gp_Pnt& centre, doubl
     const CurveInfo spine = curveFor(ptr(blend, "BLENDED_EDGE", "spine"));
     const SurfaceInfo a = surfaceFor(ptr(blend, "BLENDED_EDGE", "surface", 0));
     const SurfaceInfo b = surfaceFor(ptr(blend, "BLENDED_EDGE", "surface", 1));
-    if (!spine.ok || !a.ok || !b.ok)
+    // Cliff-edge blend: one support is a zero-range blend whose spine is the edge curve the ball rolls on.
+    Handle(Geom_Curve) cliffCurve;
+    if (cliffType) {
+        for (int side = 0; side < 2 && cliffCurve.IsNull(); ++side) {
+            const Node* sn = node(ptr(blend, "BLENDED_EDGE", "surface", side));
+            if (sn && nameOf(*sn) == "BLENDED_EDGE" && num(*sn, "BLENDED_EDGE", "range", 0) == 0 &&
+                num(*sn, "BLENDED_EDGE", "range", 1) == 0)
+                cliffCurve = curveFor(ptr(*sn, "BLENDED_EDGE", "spine")).curve;
+        }
+        if (cliffCurve.IsNull() || (a.ok == b.ok))
+            return bsFail(11);
+    }
+    if (!spine.ok || (!cliffType && (!a.ok || !b.ok)))
         return bsFail(3);
     GeomAPI_ProjectPointOnCurve foot(centre, spine.curve);
     if (foot.NbPoints() == 0)
@@ -1110,10 +1358,24 @@ bool Builder::blendSupportContact(const Node& blend, const gp_Pnt& centre, doubl
     if (tangent.SquareMagnitude() <= Precision::SquareConfusion())
         return bsFail(5);
 
-    GeomAPI_ProjectPointOnSurf onA(origin, a.surface), onB(origin, b.surface);
-    if (onA.NbPoints() == 0 || onB.NbPoints() == 0)
+    gp_Pnt footA, footB;
+    auto footOnSide = [&](const SurfaceInfo& side, gp_Pnt& out) {
+        if (side.ok) {
+            GeomAPI_ProjectPointOnSurf on(origin, side.surface);
+            if (on.NbPoints() == 0)
+                return false;
+            out = on.NearestPoint();
+            return true;
+        }
+        GeomAPI_ProjectPointOnCurve on(origin, cliffCurve);
+        if (on.NbPoints() == 0)
+            return false;
+        out = on.NearestPoint();
+        return true;
+    };
+    if (!footOnSide(a, footA) || !footOnSide(b, footB))
         return bsFail(6);
-    const gp_Vec fromA(origin, onA.NearestPoint()), fromB(origin, onB.NearestPoint());
+    const gp_Vec fromA(origin, footA), fromB(origin, footB);
     if (fromA.SquareMagnitude() <= Precision::SquareConfusion() ||
         fromB.SquareMagnitude() <= Precision::SquareConfusion() ||
         std::abs(fromA.Magnitude() - r0) > tolerance || std::abs(fromB.Magnitude() - r1) > tolerance)
@@ -1178,12 +1440,38 @@ SurfaceInfo Builder::blendSurfaceForFace(const Node& blend, const Node& face) {
     const int64_t bIndex = ptr(blend, "BLENDED_EDGE", "surface", 1);
     const SurfaceInfo a = surfaceFor(aIndex);
     const SurfaceInfo b = surfaceFor(bIndex);
-    const bool nested = a.ok != b.ok;
-    const Node* nestedSupport = nested ? node(a.ok ? bIndex : aIndex) : nullptr;
-    if (!spine.ok || (!a.ok && !b.ok) ||
-        (nested && (!nestedSupport || nameOf(*nestedSupport) != "BLENDED_EDGE" ||
-                    num(blend, "BLENDED_EDGE", "blend_type") != 'R')))
-        return failBlend(1);
+    if (std::getenv("XT_BLEND_SUPPORT_STATS")) {
+        std::string pair = a.kind < b.kind ? a.kind + "+" + b.kind : b.kind + "+" + a.kind;
+        pair += std::string(" type ") + static_cast<char>(num(blend, "BLENDED_EDGE", "blend_type"));
+        ++res.stats.facesSkippedBySurface["  blend-supports " + pair];
+        std::fprintf(stderr, "BLENDPAIR\t%lld\t%s\n", (long long)face.index, pair.c_str());
+    }
+    const bool nested = !a.ok || !b.ok;
+    const Node* nestedA = !a.ok ? node(aIndex) : nullptr; // a support that is itself a blend
+    const Node* nestedB = !b.ok ? node(bIndex) : nullptr;
+    if (!spine.ok)
+        return failBlend(21);
+    if (!a.ok && !b.ok && std::getenv("XT_NO_DOUBLE_NESTED"))
+        return failBlend(22);
+    if ((nestedA == nullptr) != a.ok || (nestedB == nullptr) != b.ok ||
+        (nestedA && nameOf(*nestedA) != "BLENDED_EDGE") || (nestedB && nameOf(*nestedB) != "BLENDED_EDGE"))
+        return failBlend(23);
+    // A cliff-edge blend ('E') rolls a ball between one surface and an edge curve: its second support is a blend of range
+    // [0,0] whose spine is that edge curve. The ball centre is r from the surface and r from the edge.
+    Handle(Geom_Curve) cliffCurve;
+    int cliffSide = -1; // 0 = support a is the edge, 1 = support b
+    if (nested && num(blend, "BLENDED_EDGE", "blend_type") == 'E' && !std::getenv("XT_NO_CLIFF_BLEND")) {
+        for (int side = 0; side < 2 && cliffCurve.IsNull(); ++side) {
+            const Node* sn = side == 0 ? nestedA : nestedB;
+            if (sn && num(*sn, "BLENDED_EDGE", "range", 0) == 0 && num(*sn, "BLENDED_EDGE", "range", 1) == 0) {
+                cliffCurve = curveFor(ptr(*sn, "BLENDED_EDGE", "spine")).curve;
+                cliffSide = side;
+            }
+        }
+    }
+    const bool cliff = !cliffCurve.IsNull();
+    if (nested && !cliff && num(blend, "BLENDED_EDGE", "blend_type") != 'R')
+        return failBlend(24);
     const double aOffset = num(blend, "BLENDED_EDGE", "range", 0) * scale;
     const double bOffset = num(blend, "BLENDED_EDGE", "range", 1) * scale;
     if (nested && (!std::isfinite(aOffset) || !std::isfinite(bOffset) ||
@@ -1215,7 +1503,11 @@ SurfaceInfo Builder::blendSurfaceForFace(const Node& blend, const Node& face) {
     }
     if (pts.empty())
         return failBlend(5);
-    const Handle(Geom_Curve) sc = spine.curve;
+    if (!nested && !spine.curve.IsNull() && !spine.curve->IsPeriodic())
+        extendSpine(ptr(blend, "BLENDED_EDGE", "spine"), pts);
+    if (!nested)
+        correctSpineAgainstSupports(blend);
+    const Handle(Geom_Curve) sc = curveFor(ptr(blend, "BLENDED_EDGE", "spine")).curve; // possibly extended or corrected
     bool closedSpine = false;
     double tmin = 1e300, tmax = -1e300;
     std::vector<double> params;
@@ -1409,21 +1701,148 @@ SurfaceInfo Builder::blendSurfaceForFace(const Node& blend, const Node& face) {
         nu = std::clamp(bs->NbPoles() * 2, 24, 160);
     constexpr int nv = 8;
     NCollection_Array2<gp_Pnt> grid(1, nu, 1, nv + 1);
+    const Handle(ShapeAnalysis_Surface) trackA = a.ok ? new ShapeAnalysis_Surface(a.surface) : Handle(ShapeAnalysis_Surface)();
+    const Handle(ShapeAnalysis_Surface) trackB = b.ok ? new ShapeAnalysis_Surface(b.surface) : Handle(ShapeAnalysis_Surface)();
+    gp_Pnt2d trackUvA, trackUvB;
+    bool trackHaveA = false, trackHaveB = false;
     double radiusSum = 0;
     for (int i = 0; i < nu; ++i) {
         if (cancelled())
             return failBlend(8);
-        const gp_Pnt c = sc->Value(tmin + (tmax - tmin) * i / (closedSpine ? nu : nu - 1));
-        auto projectContact = [&](const SurfaceInfo& support, double offset, gp_Pnt& q) {
-            if (!support.ok)
-                return blendSupportContact(*nestedSupport, c, offset, q);
-            GeomAPI_ProjectPointOnSurf projection(c, support.surface);
-            if (projection.NbPoints() == 0) {
-                if (std::getenv("XT_DEBUG_BS"))
-                    std::fprintf(stderr, "blend %lld i=%d: projection empty on %s\n", (long long)blend.index, i, support.kind.c_str());
-                return false;
+        const double sampleT = tmin + (tmax - tmin) * i / (closedSpine ? nu : nu - 1);
+        gp_Pnt c = sc->Value(sampleT);
+        if (cliff && (a.ok || b.ok)) {
+            // The stored spine is a coarse chart: move each sample to the exact point r from the surface and r from the edge,
+            // in the plane through the sample normal to the chart direction (Newton on three conditions).
+            const SurfaceInfo& surf = a.ok ? a : b;
+            const double r = std::abs(a.ok ? aOffset : bOffset);
+            gp_Pnt tmp;
+            gp_Vec d;
+            sc->D1(sampleT, tmp, d);
+            if (d.Magnitude() > 1e-12) {
+                d /= d.Magnitude();
+                const gp_Pnt seed = c;
+                for (int it = 0; it < 12; ++it) {
+                    GeomAPI_ProjectPointOnSurf ps(c, surf.surface);
+                    GeomAPI_ProjectPointOnCurve pe(c, cliffCurve);
+                    if (ps.NbPoints() == 0 || pe.NbPoints() == 0)
+                        break;
+                    const gp_Pnt fs = ps.NearestPoint(), fe = pe.NearestPoint();
+                    const gp_Vec gs(fs, c), ge(fe, c);
+                    const double ds = gs.Magnitude(), de = ge.Magnitude();
+                    if (ds < 1e-12 || de < 1e-12)
+                        break;
+                    const gp_Vec ns = gs / ds, ne = ge / de;
+                    const double f[3] = {ds - r, de - r, gp_Vec(seed, c).Dot(d)};
+                    if (std::abs(f[0]) < 1e-9 * scale && std::abs(f[1]) < 1e-9 * scale && std::abs(f[2]) < 1e-9 * scale)
+                        break;
+                    double m[3][4] = {{ns.X(), ns.Y(), ns.Z(), -f[0]}, {ne.X(), ne.Y(), ne.Z(), -f[1]}, {d.X(), d.Y(), d.Z(), -f[2]}};
+                    bool singular = false;
+                    for (int col = 0; col < 3 && !singular; ++col) {
+                        int piv = col;
+                        for (int row = col + 1; row < 3; ++row)
+                            if (std::abs(m[row][col]) > std::abs(m[piv][col])) piv = row;
+                        if (std::abs(m[piv][col]) < 1e-9) { singular = true; break; }
+                        for (int k = 0; k < 4; ++k) std::swap(m[col][k], m[piv][k]);
+                        for (int row = col + 1; row < 3; ++row) {
+                            const double fac = m[row][col] / m[col][col];
+                            for (int k = col; k < 4; ++k) m[row][k] -= fac * m[col][k];
+                        }
+                    }
+                    if (singular)
+                        break;
+                    double dx[3];
+                    for (int row = 2; row >= 0; --row) {
+                        double sum = m[row][3];
+                        for (int k = row + 1; k < 3; ++k) sum -= m[row][k] * dx[k];
+                        dx[row] = sum / m[row][row];
+                    }
+                    c.Translate(gp_Vec(dx[0], dx[1], dx[2]));
+                }
+                ++res.stats.facesSkippedBySurface["  cliff-spine-corrected"];
             }
-            q = projection.NearestPoint();
+        }
+        std::optional<ScopedTimer> sampleTimer;
+        sampleTimer.emplace(res.stats.seconds["spine-sample-check"]);
+        if (std::getenv("XT_SAMPLE_CORRECT") && !cliff && !nested && a.ok && b.ok && std::isfinite(aOffset) && std::isfinite(bOffset) && std::abs(aOffset) > 1e-9 &&
+            std::abs(bOffset) > 1e-9 && !std::getenv("XT_NO_SPINE_CORRECT")) {
+            // Where the stored spine strays from the ball-centre condition (its chart runs on past the surface it was cut
+            // from) the sample is moved to the exact centre: |aOffset| from the first support, |bOffset| from the second.
+            GeomAPI_ProjectPointOnSurf pa(c, a.surface), pb(c, b.surface);
+            const bool off = pa.NbPoints() == 0 || pb.NbPoints() == 0 ||
+                std::abs(pa.LowerDistance() - std::abs(aOffset)) > 2.5e-4 * scale || std::abs(pb.LowerDistance() - std::abs(bOffset)) > 2.5e-4 * scale;
+            if (off) {
+                gp_Pnt tmp;
+                gp_Vec d;
+                sc->D1(sampleT, tmp, d);
+                if (d.Magnitude() > 1e-12) {
+                    d /= d.Magnitude();
+                    const gp_Pnt seed = c;
+                    for (int it = 0; it < 20; ++it) {
+                        GeomAPI_ProjectPointOnSurf qa(c, a.surface), qb(c, b.surface);
+                        if (qa.NbPoints() == 0 || qb.NbPoints() == 0)
+                            break;
+                        const gp_Vec ga(qa.NearestPoint(), c), gb(qb.NearestPoint(), c);
+                        const double da = ga.Magnitude(), db = gb.Magnitude();
+                        if (da < 1e-12 || db < 1e-12)
+                            break;
+                        const gp_Vec na = ga / da, nb = gb / db;
+                        const double f[3] = {da - std::abs(aOffset), db - std::abs(bOffset), gp_Vec(seed, c).Dot(d)};
+                        if (std::abs(f[0]) < 1e-9 * scale && std::abs(f[1]) < 1e-9 * scale && std::abs(f[2]) < 1e-9 * scale)
+                            break;
+                        double m[3][4] = {{na.X(), na.Y(), na.Z(), -f[0]}, {nb.X(), nb.Y(), nb.Z(), -f[1]}, {d.X(), d.Y(), d.Z(), -f[2]}};
+                        bool singular = false;
+                        for (int col = 0; col < 3 && !singular; ++col) {
+                            int piv = col;
+                            for (int row = col + 1; row < 3; ++row)
+                                if (std::abs(m[row][col]) > std::abs(m[piv][col])) piv = row;
+                            if (std::abs(m[piv][col]) < 1e-9) { singular = true; break; }
+                            for (int k = 0; k < 4; ++k) std::swap(m[col][k], m[piv][k]);
+                            for (int row = col + 1; row < 3; ++row) {
+                                const double fac = m[row][col] / m[col][col];
+                                for (int k = col; k < 4; ++k) m[row][k] -= fac * m[col][k];
+                            }
+                        }
+                        if (singular)
+                            break;
+                        double dx[3];
+                        for (int row = 2; row >= 0; --row) {
+                            double sum = m[row][3];
+                            for (int k = row + 1; k < 3; ++k) sum -= m[row][k] * dx[k];
+                            dx[row] = sum / m[row][row];
+                        }
+                        c.Translate(gp_Vec(dx[0], dx[1], dx[2]));
+                    }
+                    ++res.stats.facesSkippedBySurface["  spine-sample-corrected"];
+                }
+            }
+        }
+        auto projectContact = [&](const SurfaceInfo& support, double offset, gp_Pnt& q) {
+            const bool isASupport = &support == &a;
+            if (!support.ok && cliff && cliffSide == (isASupport ? 0 : 1)) {
+                GeomAPI_ProjectPointOnCurve onEdge(c, cliffCurve);
+                if (onEdge.NbPoints() == 0)
+                    return false;
+                q = onEdge.NearestPoint();
+                return std::abs(c.Distance(q) - std::abs(offset)) <= kBlendContactTolerance * scale;
+            }
+            if (!support.ok)
+                return blendSupportContact(isASupport ? *nestedA : *nestedB, c, offset, q);
+            {
+                // Tracked projection: the foot moves little between neighbouring spine samples.
+                const bool isA = &support == &a;
+                const Handle(ShapeAnalysis_Surface)& an = isA ? trackA : trackB;
+                gp_Pnt2d& uvT = isA ? trackUvA : trackUvB;
+                bool& haveT = isA ? trackHaveA : trackHaveB;
+                try {
+                    const double tolT = 1e-6 * scale;
+                    uvT = haveT ? an->NextValueOfUV(uvT, c, tolT, 1e3 * tolT) : an->ValueOfUV(c, tolT);
+                    haveT = true;
+                    q = support.surface->Value(uvT.X(), uvT.Y());
+                } catch (const Standard_Failure&) {
+                    return false;
+                }
+            }
             const bool good = !nested || std::abs(c.Distance(q) - std::abs(offset)) <= kBlendContactTolerance * scale;
             if (!good && std::getenv("XT_DEBUG_BS"))
                 std::fprintf(stderr, "blend %lld i=%d: nested distance %g vs offset %g on %s\n", (long long)blend.index, i, c.Distance(q), offset, support.kind.c_str());
@@ -1445,16 +1864,17 @@ SurfaceInfo Builder::blendSurfaceForFace(const Node& blend, const Node& face) {
         const double r = 0.5 * (r0 + r1);
         radiusSum += r;
         const double alpha = std::acos(std::clamp(u0.Dot(u1), -1.0, 1.0));
-        if (alpha < 1e-9 || alpha > kPi - 1e-3)
+        // alpha ~ 0: the two contacts coincide (the blend closes up here); every point of the arc is the contact itself.
+        if (alpha > kPi - 1e-3 || (alpha < 1e-9 && std::getenv("XT_NO_BLEND_CLOSE")))
             return failBlend(11);
         for (int j = 0; j <= nv; ++j) {
             const double v = static_cast<double>(j) / nv;
-            const gp_Vec dir = (std::sin((1 - v) * alpha) * u0 + std::sin(v * alpha) * u1) / std::sin(alpha);
+            const gp_Vec dir = alpha < 1e-9 ? u0 : (std::sin((1 - v) * alpha) * u0 + std::sin(v * alpha) * u1) / std::sin(alpha);
             grid.SetValue(i + 1, j + 1, gp_Pnt(c.XYZ() + r * dir.XYZ()));
         }
     }
     try {
-        const double tol = std::max(1e-5 * scale, 2e-5 * radiusSum / nu);
+        const double tol = std::getenv("XT_BLEND_FIT_TOL") ? std::atof(std::getenv("XT_BLEND_FIT_TOL")) * scale : std::max(1e-5 * scale, 2e-5 * radiusSum / nu);
         GeomAPI_PointsToBSplineSurface fit;
         fit.Init(grid, Approx_ChordLength, 3, 5, GeomAbs_C2, tol, closedSpine);
         if (!fit.IsDone())
@@ -1673,9 +2093,22 @@ TopoDS_Edge Builder::edgeForImpl(const Node& edge) {
                 prev = cur;
             }
             const double chord = begin.Distance(prev);
-            if (length > 20 * chord + 1e-3 * scale) {
+            bool wild = length > 20 * chord + 1e-3 * scale;
+            if (wild && !std::getenv("XT_NO_LOOP_EDGE")) {
+                // A curve that is closed up to a small gap is a loop; an edge that runs forwards along it
+                // from one vertex to a vertex close by (near the seam) legitimately covers almost the whole
+                // loop. Only a curve that is not such a loop makes a long edge between close vertices wrong.
+                const double fullFirst = curve->FirstParameter();
+                const double fullLast = curve->LastParameter();
+                if (!Precision::IsInfinite(fullFirst) && !Precision::IsInfinite(fullLast) &&
+                    curve->Value(fullFirst).Distance(curve->Value(fullLast)) < 0.01 * length) {
+                    wild = false;
+                    ++res.stats.edgesSkippedByCurve["loop-edge-kept"];
+                }
+            }
+            if (wild) {
                 if (std::getenv("XT_DEBUG_TOL"))
-                    std::fprintf(stderr, "wild kind=%s length=%g chord=%g range=[%g %g] per=%d same=%d\n", ci.kind.c_str(), length, chord, first, last, (int)curve->IsPeriodic(), (int)sameVertex);
+                    std::fprintf(stderr, "wild kind=%s length=%g chord=%g range=[%g %g] per=%d same=%d full=[%g %g] ends-gap=%g\n", ci.kind.c_str(), length, chord, first, last, (int)curve->IsPeriodic(), (int)sameVertex, curve->FirstParameter(), curve->LastParameter(), curve->Value(curve->FirstParameter()).Distance(curve->Value(curve->LastParameter())));
                 ++res.stats.edgesSkippedByCurve["wild-edge"];
                 return remember(result);
             }
@@ -1887,6 +2320,383 @@ static bool circularRevolutionUV(const Geom_SurfaceOfRevolution& revolution, con
     const double v = std::fmod(d0 <= d1 ? v0 : v1, circle.Period());
     uv.SetCoord(u < 0 ? u + revolution.UPeriod() : u, v < 0 ? v + circle.Period() : v);
     return true;
+}
+
+void Builder::correctSpineAgainstSupports(const Node& blend) {
+    if (std::getenv("XT_NO_SPINE_CORRECT") || num(blend, "BLENDED_EDGE", "blend_type") != 'R')
+        return;
+    const int64_t spineIndex = ptr(blend, "BLENDED_EDGE", "spine");
+    if (!m_spineCorrected.insert(blend.index).second)
+        return;
+    ScopedTimer correctTimer(res.stats.seconds["spine-correct"]);
+    const SurfaceInfo a = surfaceFor(ptr(blend, "BLENDED_EDGE", "surface", 0)); // copies: the maps may rehash
+    const SurfaceInfo b = surfaceFor(ptr(blend, "BLENDED_EDGE", "surface", 1));
+    const double ra = std::abs(num(blend, "BLENDED_EDGE", "range", 0)) * scale, rb = std::abs(num(blend, "BLENDED_EDGE", "range", 1)) * scale;
+    if (!a.ok || !b.ok || a.kind == "BLENDED_EDGE" || b.kind == "BLENDED_EDGE" || !(ra > 1e-9) || !(rb > 1e-9))
+        return;
+    const CurveInfo info = curveFor(spineIndex); // copy
+    if (!info.ok || info.curve.IsNull() || info.curve->IsPeriodic() || Precision::IsInfinite(info.curve->FirstParameter()) ||
+        Precision::IsInfinite(info.curve->LastParameter()))
+        return;
+    const Handle(Geom_Curve) curve = info.curve;
+    const double t0 = curve->FirstParameter(), t1 = curve->LastParameter();
+    const int n = 120;
+    const Handle(ShapeAnalysis_Surface) sa = new ShapeAnalysis_Surface(a.surface), sb = new ShapeAnalysis_Surface(b.surface);
+    const double uvTol = 1e-6 * scale;
+    gp_Pnt2d uvA, uvB;
+    bool haveUv = false;
+    // Foot of a point on a support, tracked from the previous foot (the cached projector is far cheaper than a fresh one).
+    auto foot = [&](const Handle(ShapeAnalysis_Surface)& analysis, const Handle(Geom_Surface)& surface, gp_Pnt2d& uv, const gp_Pnt& p) {
+        uv = haveUv ? analysis->NextValueOfUV(uv, p, uvTol, 1e3 * uvTol) : analysis->ValueOfUV(p, uvTol);
+        return surface->Value(uv.X(), uv.Y());
+    };
+    {
+        // Most spines are already exact: probe a few samples before doing the full pass.
+        bool allGood = true;
+        gp_Pnt2d pa, pb;
+        bool have = false;
+        try {
+            for (int i = 0; i <= 12 && allGood; ++i) {
+                const gp_Pnt c = curve->Value(t0 + (t1 - t0) * i / 12);
+                pa = have ? sa->NextValueOfUV(pa, c, uvTol, 1e3 * uvTol) : sa->ValueOfUV(c, uvTol);
+                pb = have ? sb->NextValueOfUV(pb, c, uvTol, 1e3 * uvTol) : sb->ValueOfUV(c, uvTol);
+                have = true;
+                allGood = std::abs(c.Distance(a.surface->Value(pa.X(), pa.Y())) - ra) <= 2.5e-4 * scale &&
+                          std::abs(c.Distance(b.surface->Value(pb.X(), pb.Y())) - rb) <= 2.5e-4 * scale;
+            }
+        } catch (const Standard_Failure&) {
+            allGood = false;
+        }
+        if (allGood)
+            return;
+    }
+    std::vector<gp_Pnt> points;
+    bool any = false;
+    gp_Pnt previous;
+    try {
+        for (int i = 0; i <= n; ++i) {
+            const double t = t0 + (t1 - t0) * i / n;
+            gp_Pnt c = curve->Value(t);
+            const gp_Pnt fa = foot(sa, a.surface, uvA, c), fb = foot(sb, b.surface, uvB, c);
+            haveUv = true;
+            const bool off = std::abs(c.Distance(fa) - ra) > 2.5e-4 * scale || std::abs(c.Distance(fb) - rb) > 2.5e-4 * scale;
+            if (off) {
+                gp_Pnt tmp;
+                gp_Vec d;
+                curve->D1(t, tmp, d);
+                if (d.Magnitude() > 1e-12) {
+                    d /= d.Magnitude();
+                    const gp_Pnt seed = c;
+                    for (int it = 0; it < 20; ++it) {
+                        const gp_Pnt qa = foot(sa, a.surface, uvA, c), qb = foot(sb, b.surface, uvB, c);
+                        const gp_Vec ga(qa, c), gb(qb, c);
+                        const double da = ga.Magnitude(), db = gb.Magnitude();
+                        if (da < 1e-12 || db < 1e-12)
+                            break;
+                        const gp_Vec na = ga / da, nb = gb / db;
+                        const double f[3] = {da - ra, db - rb, gp_Vec(seed, c).Dot(d)};
+                        if (std::abs(f[0]) < 1e-9 * scale && std::abs(f[1]) < 1e-9 * scale && std::abs(f[2]) < 1e-9 * scale)
+                            break;
+                        double m[3][4] = {{na.X(), na.Y(), na.Z(), -f[0]}, {nb.X(), nb.Y(), nb.Z(), -f[1]}, {d.X(), d.Y(), d.Z(), -f[2]}};
+                        bool singular = false;
+                        for (int col = 0; col < 3 && !singular; ++col) {
+                            int piv = col;
+                            for (int row = col + 1; row < 3; ++row)
+                                if (std::abs(m[row][col]) > std::abs(m[piv][col])) piv = row;
+                            if (std::abs(m[piv][col]) < 1e-9) { singular = true; break; }
+                            for (int k = 0; k < 4; ++k) std::swap(m[col][k], m[piv][k]);
+                            for (int row = col + 1; row < 3; ++row) {
+                                const double fac = m[row][col] / m[col][col];
+                                for (int k = col; k < 4; ++k) m[row][k] -= fac * m[col][k];
+                            }
+                        }
+                        if (singular)
+                            break;
+                        double dx[3];
+                        for (int row = 2; row >= 0; --row) {
+                            double sum = m[row][3];
+                            for (int k = row + 1; k < 3; ++k) sum -= m[row][k] * dx[k];
+                            dx[row] = sum / m[row][row];
+                        }
+                        c.Translate(gp_Vec(dx[0], dx[1], dx[2]));
+                        if (std::sqrt(dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2]) < 1e-8 * scale)
+                            break; // converged: the residual cannot drop further than the projection noise
+                    }
+                    any = true;
+                }
+            }
+            if (i > 0 && c.Distance(previous) < 1e-7 * scale)
+                continue; // collapsed onto the previous point: drop the duplicate
+            points.push_back(c);
+            previous = c;
+        }
+    } catch (const Standard_Failure&) {
+        return;
+    }
+    if (!any || points.size() < 4)
+        return;
+    try {
+        Handle(NCollection_HArray1<gp_Pnt>) arr = new NCollection_HArray1<gp_Pnt>(1, static_cast<int>(points.size()));
+        for (size_t i = 0; i < points.size(); ++i)
+            arr->SetValue(static_cast<int>(i) + 1, points[i]);
+        GeomAPI_Interpolate fit(arr, false, Precision::Confusion());
+        fit.Perform();
+        if (!fit.IsDone())
+            return;
+        m_curves[spineIndex].curve = fit.Curve();
+        ++res.stats.facesSkippedBySurface["  spine-corrected"];
+    } catch (const Standard_Failure&) {
+    }
+}
+
+bool Builder::extendSpine(int64_t spineIndex, const std::vector<gp_Pnt>& points) {
+    if (std::getenv("XT_NO_EXTEND_SPINE") || points.empty())
+        return false;
+    ScopedTimer extendTimer(res.stats.seconds["spine-extend"]);
+    const Node* sn = node(spineIndex);
+    if (!sn || nameOf(*sn) != "INTERSECTION")
+        return false;
+    const SurfaceInfo s0 = surfaceFor(ptr(*sn, "INTERSECTION", "surface", 0)); // copies: the maps may rehash
+    const SurfaceInfo s1 = surfaceFor(ptr(*sn, "INTERSECTION", "surface", 1));
+    auto supported = [](const SurfaceInfo& s) { return s.ok && s.kind != "BLENDED_EDGE" && s.kind != "BLEND_BOUND"; };
+    if (!supported(s0) || !supported(s1)) {
+        if (std::getenv("XT_DEBUG_CS")) std::fprintf(stderr, "spine %lld: unsupported surfaces %s ok=%d / %s ok=%d\n", (long long)spineIndex, s0.kind.c_str(), (int)s0.ok, s1.kind.c_str(), (int)s1.ok);
+        return false;
+    }
+    const CurveInfo info = curveFor(spineIndex); // copy
+    if (!info.ok || info.curve.IsNull() || info.curve->IsPeriodic()) {
+        if (std::getenv("XT_DEBUG_CS")) std::fprintf(stderr, "spine %lld: curve not usable\n", (long long)spineIndex);
+        return false;
+    }
+    Handle(Geom_Curve) curve = info.curve;
+    const double c0 = curve->FirstParameter(), c1 = curve->LastParameter();
+    if (Precision::IsInfinite(c0) || Precision::IsInfinite(c1))
+        return false;
+    double length = 0;
+    {
+        gp_Pnt prev = curve->Value(c0);
+        for (int k = 1; k <= 32; ++k) {
+            const gp_Pnt cur = curve->Value(c0 + (c1 - c0) * k / 32);
+            length += prev.Distance(cur);
+            prev = cur;
+        }
+    }
+    // How far beyond each end the points reach along the curve's direction there.
+    double need[2] = {0, 0};
+    gp_Pnt endPoint[2] = {curve->Value(c0), curve->Value(c1)};
+    gp_Vec endTangent[2];
+    {
+        gp_Pnt tmp;
+        gp_Vec d;
+        curve->D1(c0, tmp, d);
+        endTangent[0] = d.Magnitude() > 1e-12 ? -d / d.Magnitude() : gp_Vec();
+        curve->D1(c1, tmp, d);
+        endTangent[1] = d.Magnitude() > 1e-12 ? d / d.Magnitude() : gp_Vec();
+    }
+    for (const gp_Pnt& p : points) {
+        // A point beyond an end has no orthogonal projection on the curve (or a far one): the end point is then its nearest.
+        GeomAPI_ProjectPointOnCurve projection(p, curve, c0, c1);
+        const double interior = projection.NbPoints() > 0 ? projection.LowerDistance() : 1e300;
+        for (int e = 0; e < 2; ++e) {
+            if (endTangent[e].Magnitude() < 0.5)
+                continue;
+            const double dEnd = p.Distance(endPoint[e]);
+            if (dEnd > interior - 1e-7 * scale)
+                continue;
+            const double along = gp_Vec(endPoint[e], p).Dot(endTangent[e]);
+            need[e] = std::max(need[e], along);
+        }
+    }
+    if (std::getenv("XT_DEBUG_CS")) std::fprintf(stderr, "spine %lld need %g / %g length %g\n", (long long)spineIndex, need[0], need[1], length);
+    bool changed = false;
+    for (int e = 0; e < 2; ++e) {
+        if (need[e] < 1e-3 * scale)
+            continue;
+        const double total = std::min(need[e] * 1.1 + 1e-3 * scale, 0.5 * length + 5e-3 * scale);
+        const int steps = std::clamp(static_cast<int>(std::ceil(total / (0.01 * length + 1e-9))), 4, 60);
+        const double h = total / steps;
+        const Handle(ShapeAnalysis_Surface) a0 = new ShapeAnalysis_Surface(s0.surface), a1 = new ShapeAnalysis_Surface(s1.surface);
+        std::vector<gp_Pnt> ext{endPoint[e]};
+        try {
+            gp_Pnt2d uv0 = a0->ValueOfUV(endPoint[e], 1e-6 * scale), uv1 = a1->ValueOfUV(endPoint[e], 1e-6 * scale);
+            gp_Vec tangent = endTangent[e];
+            for (int k = 1; k <= steps; ++k) {
+                const gp_Pnt predicted = ext.back().Translated(tangent * h);
+                gp_Pnt exact;
+                if (!exactChartPoint(s0.surface, s1.surface, predicted, tangent * h, uv0, uv1, exact, 1e-9 * scale))
+                    break;
+                gp_Vec step(ext.back(), exact);
+                if (step.Magnitude() < 0.2 * h)
+                    break;
+                tangent = step / step.Magnitude();
+                ext.push_back(exact);
+            }
+        } catch (const Standard_Failure&) {
+        }
+        if (ext.size() < 3)
+            continue;
+        try {
+            Handle(NCollection_HArray1<gp_Pnt>) arr = new NCollection_HArray1<gp_Pnt>(1, static_cast<int>(ext.size()));
+            for (size_t i = 0; i < ext.size(); ++i)
+                arr->SetValue(static_cast<int>(i) + 1, ext[i]);
+            GeomAPI_Interpolate fit(arr, false, Precision::Confusion());
+            fit.Perform();
+            if (!fit.IsDone())
+                continue;
+            Handle(Geom_BSplineCurve) piece = fit.Curve();
+            if (e == 0)
+                piece->Reverse();
+            Handle(Geom_BSplineCurve) base = Handle(Geom_BSplineCurve)::DownCast(curve);
+            if (base.IsNull())
+                base = GeomConvert::CurveToBSplineCurve(curve);
+            GeomConvert_CompCurveToBSplineCurve joiner(e == 0 ? piece : base);
+            if (!joiner.Add(e == 0 ? base : piece, 1e-4 * scale, true))
+                continue;
+            curve = joiner.BSplineCurve();
+            changed = true;
+            ++res.stats.facesSkippedBySurface["  spine-extended"];
+        } catch (const Standard_Failure&) {
+        }
+    }
+    if (changed) {
+        m_curves[spineIndex].curve = curve;
+        if (std::getenv("XT_DEBUG_CS"))
+            std::fprintf(stderr, "spine %lld extended by %g / %g (length %g)\n", (long long)spineIndex, need[0], need[1], length);
+    }
+    return changed;
+}
+
+Handle(Geom_BSplineCurve) Builder::contactCurveFromSpine(const Node& inter) {
+    const int64_t s0 = ptr(inter, "INTERSECTION", "surface", 0), s1 = ptr(inter, "INTERSECTION", "surface", 1);
+    const Node* bound = node(s0);
+    int64_t supportId = s1;
+    if (!bound || nameOf(*bound) != "BLEND_BOUND") {
+        bound = node(s1);
+        supportId = s0;
+    }
+    if (!bound || nameOf(*bound) != "BLEND_BOUND")
+        return {};
+    const Node* blend = node(ptr(*bound, "BLEND_BOUND", "blend"));
+    if (!blend || nameOf(*blend) != "BLENDED_EDGE" || num(*blend, "BLENDED_EDGE", "blend_type") != 'R')
+        return {};
+    const int side = ptr(*blend, "BLENDED_EDGE", "surface", 0) == supportId ? 0 : (ptr(*blend, "BLENDED_EDGE", "surface", 1) == supportId ? 1 : -1);
+    if (side < 0)
+        return {};
+    const double radius = std::abs(num(*blend, "BLENDED_EDGE", "range", side)) * scale;
+    if (!std::isfinite(radius) || radius < 1e-6 * scale)
+        return {};
+    const SurfaceInfo support = surfaceFor(supportId); // copy: the map may rehash
+    const bool dbgCs = std::getenv("XT_DEBUG_CS") != nullptr;
+    if (!support.ok || support.kind == "BLENDED_EDGE" || support.kind == "BLEND_BOUND") {
+        if (dbgCs) std::fprintf(stderr, "cs %lld: support not usable (%s ok=%d)\n", (long long)inter.index, support.kind.c_str(), (int)support.ok);
+        return {};
+    }
+    const CurveInfo& pre = curveFor(ptr(*blend, "BLENDED_EDGE", "spine"));
+    if (!pre.ok || pre.curve.IsNull() || pre.curve->IsPeriodic()) {
+        if (dbgCs) std::fprintf(stderr, "cs %lld: spine not usable ok=%d periodic=%d\n", (long long)inter.index, (int)pre.ok, pre.curve.IsNull() ? -1 : (int)pre.curve->IsPeriodic());
+        return {};
+    }
+    const Node* chart = node(ptr(inter, "INTERSECTION", "chart"));
+    const Slot& hv = sl("CHART", "hvec");
+    if (!chart || !hv.ok())
+        return {};
+    const size_t count = chart->valueCount > hv.offset ? (chart->valueCount - hv.offset) / 3 : 0;
+    if (count < 2)
+        return {};
+    const auto chartPoint = [&](size_t i) {
+        return gp_Pnt(m.value(*chart, hv, i * 3) * scale, m.value(*chart, hv, i * 3 + 1) * scale, m.value(*chart, hv, i * 3 + 2) * scale);
+    };
+    correctSpineAgainstSupports(*blend);
+    {
+        std::vector<gp_Pnt> chartPoints;
+        for (size_t i = 0; i < count; ++i)
+            chartPoints.push_back(chartPoint(i));
+        extendSpine(ptr(*blend, "BLENDED_EDGE", "spine"), chartPoints);
+    }
+    const CurveInfo spine = curveFor(ptr(*blend, "BLENDED_EDGE", "spine")); // copy, possibly extended
+    // The contact point lies on the circular section normal to the spine, so its nearest point on the spine is the ball centre.
+    std::vector<double> t(count);
+    const double tolerance = 5e-4 * scale;
+    for (size_t i = 0; i < count; ++i) {
+        const gp_Pnt p = chartPoint(i);
+        GeomAPI_ProjectPointOnCurve projection(p, spine.curve);
+        if (projection.NbPoints() == 0 || std::abs(projection.LowerDistance() - radius) > tolerance) {
+            if (dbgCs) {
+                double lo = 1e300, hi = 0;
+                for (int k = 0; k <= 40; ++k) {
+                    const gp_Pnt q = spine.curve->Value(spine.curve->FirstParameter() + (spine.curve->LastParameter() - spine.curve->FirstParameter()) * k / 40);
+                    GeomAPI_ProjectPointOnSurf ps(q, support.surface);
+                    if (ps.NbPoints() > 0) { lo = std::min(lo, ps.LowerDistance()); hi = std::max(hi, ps.LowerDistance()); }
+                    if (ps.NbPoints() > 0 && std::getenv("XT_DEBUG_CS2")) std::fprintf(stderr, "  spine k=%d/40 distance to support %g\n", k, ps.LowerDistance());
+                }
+                if (const Node* sn = node(ptr(*blend, "BLENDED_EDGE", "spine"))) {
+                    for (int which = 0; which < 2; ++which) {
+                        const SurfaceInfo ss = surfaceFor(ptr(*sn, "INTERSECTION", "surface", which));
+                        double worst = 0;
+                        for (int k = 0; k <= 40 && ss.ok; ++k) {
+                            const gp_Pnt q = spine.curve->Value(spine.curve->FirstParameter() + (spine.curve->LastParameter() - spine.curve->FirstParameter()) * k / 40);
+                            GeomAPI_ProjectPointOnSurf ps(q, ss.surface);
+                            if (ps.NbPoints() > 0) worst = std::max(worst, ps.LowerDistance());
+                        }
+                        std::fprintf(stderr, "cs %lld: spine surface %d is %s ok=%d, worst spine deviation %g\n", (long long)inter.index, which, ss.kind.c_str(), (int)ss.ok, worst);
+                    }
+                }
+                {
+                    // Independent check: the true ball centre of this contact point is P +- r * (normal of the support at P).
+                    GeomAPI_ProjectPointOnSurf onSup(p, support.surface);
+                    if (onSup.NbPoints() > 0) {
+                        double uu, vv;
+                        onSup.LowerDistanceParameters(uu, vv);
+                        GeomLProp_SLProps props(support.surface, uu, vv, 1, 1e-9);
+                        if (props.IsNormalDefined()) {
+                            const gp_Vec nrm(props.Normal().XYZ());
+                            for (int sg = -1; sg <= 1; sg += 2) {
+                                const gp_Pnt centre = p.Translated(nrm * (sg * radius));
+                                GeomAPI_ProjectPointOnCurve toSpine(centre, spine.curve);
+                                std::fprintf(stderr, "cs %lld: true centre side %d is %g from the spine curve\n", (long long)inter.index, sg, toSpine.NbPoints() ? toSpine.LowerDistance() : -1.0);
+                            }
+                        }
+                    }
+                }
+                GeomAPI_ProjectPointOnSurf pp(p, support.surface);
+                std::fprintf(stderr, "cs %lld: spine distance to support %g..%g; chart point distance to support %g\n", (long long)inter.index, lo, hi, pp.NbPoints() ? pp.LowerDistance() : -1.0);
+            }
+            if (dbgCs) std::fprintf(stderr, "cs %lld: chart point %zu distance to spine %g vs radius %g (to ends %g %g, spine length ends param %g..%g, found param %g)\n", (long long)inter.index, i, projection.NbPoints() ? projection.LowerDistance() : -1.0, radius, p.Distance(spine.curve->Value(spine.curve->FirstParameter())), p.Distance(spine.curve->Value(spine.curve->LastParameter())), spine.curve->FirstParameter(), spine.curve->LastParameter(), projection.NbPoints() ? projection.LowerDistanceParameter() : -1.0);
+            return {};
+        }
+        t[i] = projection.LowerDistanceParameter();
+    }
+    const double tFirst = t.front(), tLast = t.back();
+    if (!(std::abs(tLast - tFirst) > 1e-9))
+        return {};
+    const size_t samples = std::clamp<size_t>(count * 3, 24, 240);
+    const Handle(ShapeAnalysis_Surface) analysis = new ShapeAnalysis_Surface(support.surface);
+    Handle(NCollection_HArray1<gp_Pnt>) points = new NCollection_HArray1<gp_Pnt>(1, static_cast<int>(samples));
+    gp_Pnt2d uv;
+    try {
+        for (size_t j = 0; j < samples; ++j) {
+            const gp_Pnt centre = spine.curve->Value(tFirst + (tLast - tFirst) * static_cast<double>(j) / static_cast<double>(samples - 1));
+            uv = j == 0 ? analysis->ValueOfUV(chartPoint(0), 1e-6 * scale) : analysis->NextValueOfUV(uv, centre, 1e-6 * scale, 1e3 * 1e-6 * scale);
+            gp_Pnt foot = support.surface->Value(uv.X(), uv.Y());
+            if (std::abs(foot.Distance(centre) - radius) > tolerance) {
+                // The tracked solution can sit on another branch; fall back to the global projection once.
+                uv = analysis->ValueOfUV(centre, 1e-6 * scale);
+                foot = support.surface->Value(uv.X(), uv.Y());
+                if (std::abs(foot.Distance(centre) - radius) > tolerance) {
+                    if (dbgCs) std::fprintf(stderr, "cs %lld: foot at sample %zu distance %g vs radius %g\n", (long long)inter.index, j, foot.Distance(centre), radius);
+                    return {};
+                }
+            }
+            points->SetValue(static_cast<int>(j) + 1, j == 0 ? chartPoint(0) : (j + 1 == samples ? chartPoint(count - 1) : foot));
+        }
+        GeomAPI_Interpolate fit(points, false, Precision::Confusion());
+        fit.Perform();
+        if (!fit.IsDone())
+            return {};
+        return fit.Curve();
+    } catch (const Standard_Failure&) {
+        return {};
+    }
 }
 
 Handle(Geom_BSplineCurve) Builder::rebuildBlendContact(const Node& intersection, const gp_Pnt& start, const gp_Pnt& end) {
@@ -3252,6 +4062,8 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
         double outerArea = 0;
         for (TopExp_Explorer ew(f, TopAbs_WIRE); ew.More(); ew.Next()) {
             const double a = wireParameterArea(f, TopoDS::Wire(ew.Current()));
+            if (const char* dbg = std::getenv("XT_DEBUG_ORIENT"); dbg && std::atoll(dbg) == face.index)
+                std::fprintf(stderr, "orient face %lld: wire uv-area %g (surface %s)\n", static_cast<long long>(face.index), a, si.kind.c_str());
             if (std::abs(a) > std::abs(outerArea))
                 outerArea = a;
         }
@@ -3272,17 +4084,38 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
             const Handle(Geom_Curve) c = BRep_Tool::Curve(it.edge, c0, c1);
             if (c.IsNull())
                 continue;
+            double edgeWorst = 0;
+            int worstSample = 0;
             for (int s = 0; s <= opt.deviationSamples; ++s) {
                 const gp_Pnt p = c->Value(c0 + (c1 - c0) * s / opt.deviationSamples);
                 GeomAPI_ProjectPointOnSurf proj(p, faceSurface);
-                if (proj.NbPoints() > 0)
+                if (proj.NbPoints() > 0) {
                     worst = std::max(worst, proj.LowerDistance());
+                    if (proj.LowerDistance() > edgeWorst) {
+                        edgeWorst = proj.LowerDistance();
+                        worstSample = s;
+                    }
+                }
                 if (std::getenv("XT_DEBUG") && proj.NbPoints() > 0 && proj.LowerDistance() > 1e-6) {
                     std::fprintf(stderr, "  edgekind %s\n", m_edgeKind[it.edge.TShape().get()].c_str());
                     std::fprintf(stderr, "  dev %s face %lld edge-pt (%g %g %g) dist %g\n", si.kind.c_str(), (long long)face.index,
                                  p.X(), p.Y(), p.Z(), proj.LowerDistance());
                 }
             }
+            if (std::getenv("XT_DEV_BRUTE") && edgeWorst > 0.05) {
+                // Is the large distance real, or a failed point projection? Brute-force nearest surface sample.
+                double u0b, u1b, v0b, v1b;
+                faceSurface->Bounds(u0b, u1b, v0b, v1b);
+                double best = 1e300;
+                const gp_Pnt p = c->Value(c0 + (c1 - c0) * worstSample / opt.deviationSamples);
+                for (int iu = 0; iu <= 300; ++iu)
+                    for (int iv = 0; iv <= 100; ++iv)
+                        best = std::min(best, p.Distance(faceSurface->Value(u0b + (u1b - u0b) * iu / 300.0, v0b + (v1b - v0b) * iv / 100.0)));
+                std::fprintf(stderr, "BRUTE face %lld edge %s projected %.6g brute-grid %.6g\n", (long long)face.index, m_edgeKind[it.edge.TShape().get()].c_str(), edgeWorst, best);
+            }
+            if (std::getenv("XT_DEV_TABLE"))
+                std::fprintf(stderr, "DEVROW\t%s\t%s\t%lld\t%.6g\t%d\t%d\n", m_edgeKind[it.edge.TShape().get()].c_str(), si.kind.c_str(),
+                             static_cast<long long>(face.index), edgeWorst, worstSample, opt.deviationSamples);
         }
         double& slot = res.stats.maxSurfaceDeviation[si.kind];
         slot = std::max(slot, worst);
@@ -4257,7 +5090,15 @@ void Builder::buildBody(const Node& body) {
         // pcurve/3D deviation is never measured and BRepCheck later reports InvalidSameParameterFlag.
         // Forced by default: in the standalone tool it cut invalid faces from 1009 to 70 (XS650) and 2726 to 334
         // (CBR) with no loss of meshed faces. XT_NO_FORCE_SAMEPARAM restores the old behaviour for comparison.
-        BRepLib::SameParameter(compound, 1e-4 * scale, std::getenv("XT_NO_FORCE_SAMEPARAM") == nullptr);
+        // OCCT's STEP-style operator: for an edge already flagged SameParameter it measures the deviation and raises the tolerance;
+        // for the others it keeps the better of the original and a recomputed pcurve. XT_SAMEPARAM_MODE=enforce re-derives every
+        // edge, XT_SAMEPARAM_MODE=legacy restores the earlier forced BRepLib::SameParameter (and XT_NO_FORCE_SAMEPARAM the
+        // unforced one). Measured against the legacy call: XS650-class engine 63 to 47 invalid faces, same build time.
+        if (const char* mode = std::getenv("XT_SAMEPARAM_MODE"); mode && std::string(mode) == "legacy") {
+            BRepLib::SameParameter(compound, 1e-4 * scale, std::getenv("XT_NO_FORCE_SAMEPARAM") == nullptr);
+        } else {
+            ShapeFix::SameParameter(compound, mode && std::string(mode) == "enforce", 1e-4 * scale);
+        }
         if (pcDebug)
             std::fprintf(stderr, "pcdebug body %lld: faces without pcurves before-reshape %zu after-reshape %zu after-sameparam %zu\n",
                          (long long)body.index, pc0, pc1, countFacesWithoutPCurves(compound));
@@ -4332,7 +5173,19 @@ void Builder::buildBody(const Node& body) {
                                 size_t holesLost = 0;
                                 const TopoDS_Face filled = fillFromBoundaryOf(face, &holesLost);
                                 res.stats.facesSkippedBySurface["  fill-broken-holes-capped"] += holesLost;
-                                if (!filled.IsNull()) {
+                                bool runaway = false;
+                                if (!filled.IsNull() && !std::getenv("XT_NO_FILL_RUNAWAY_GUARD")) {
+                                    // A fill far larger than the face it replaces has run away through a bad boundary.
+                                    GProp_GProps before, after;
+                                    BRepGProp::SurfaceProperties(face, before);
+                                    BRepGProp::SurfaceProperties(filled, after);
+                                    if (std::getenv("XT_DEBUG_CS"))
+                                        std::fprintf(stderr, "broken fill: before %g after %g\n", before.Mass(), after.Mass());
+                                    runaway = std::abs(after.Mass()) > 4 * std::abs(before.Mass()) + 50 * scale * scale * 1e-6;
+                                    if (runaway)
+                                        ++res.stats.facesSkippedBySurface["  fill-broken-runaway"];
+                                }
+                                if (!filled.IsNull() && !runaway) {
                                     bb.Add(shells[si2], filled);
                                     setOutcomeOrigin(face, "", "broken->fill");
                                     if (const auto n = nodeOfFace.find(face.TShape().get()); n != nodeOfFace.end())
@@ -5076,9 +5929,23 @@ void Builder::assignColours(BuiltBody& out, const Node& body) {
     };
     out.hasBodyColour = rgb(attributeReals(body.index, "SDL/TYSA_COLOUR_2"), out.bodyColour) ||
                         rgb(attributeReals(body.index, "SDL/TYSA_COLOUR"), out.bodyColour);
+    // Opacity: SDL/TYSA_TRANSLUCENCY is a fraction (0 = opaque), TYSA_ALPHA an integer 0-255 (255 = opaque).
+    auto opacityOf = [&](int64_t owner) {
+        double opacity = 1.0;
+        const std::vector<double> t = attributeReals(owner, "SDL/TYSA_TRANSLUCENCY");
+        if (!t.empty() && std::isfinite(t[0]) && t[0] > 0)
+            opacity = std::clamp(1.0 - t[0], 0.0, 1.0);
+        return opacity;
+    };
+    out.bodyColour.a = opacityOf(body.index);
     for (const auto& kv : out.faceOutcomes) {
-        Rgb c;
-        if (rgb(attributeReals(kv.first, "SDL/TYSA_COLOUR"), c))
+        Rgb c = out.bodyColour;
+        const bool hasColour = rgb(attributeReals(kv.first, "SDL/TYSA_COLOUR"), c);
+        double opacity = opacityOf(kv.first);
+        if (opacity >= 1.0)
+            opacity = out.bodyColour.a; // no face translucency: inherit the body's
+        c.a = opacity;
+        if (hasColour || opacity < 1.0)
             out.faceColours[kv.first] = c;
     }
 }

@@ -162,7 +162,8 @@ public:
 	// Clears the edge segment cache.  Called from clearColorCache() before each load.
 	static void clearEdgeCache();
 
-	static aiScene* convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation = false);
+	static aiScene* convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation = false,
+							const std::vector<float>* opacities = nullptr); // opacities: one per tuple (1 = opaque), optional
 	static aiScene* convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& index, const std::string& name = "");
 	static aiScene* convert(
 		const TopoDS_Shape& shape,

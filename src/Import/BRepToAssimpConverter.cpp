@@ -217,7 +217,8 @@ Standard_Real BRepToAssimpConverter::resolveAngularDeflection()
  * @return Pointer to the newly created aiScene containing all converted shapes,
  *         or nullptr if the input vector is empty.
  */
-aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation)
+aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation,
+										const std::vector<float>* opacities)
 {
 	if (shapeTuples.empty())
 		return nullptr;
@@ -241,6 +242,8 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 		const std::string& name = std::get<1>(tuple);
 		const gp_Trsf& trsf = std::get<2>(tuple);
 		const Quantity_Color& color = std::get<3>(tuple);
+		const size_t tupleIndex = static_cast<size_t>(&tuple - shapeTuples.data());
+		const float opacity = (opacities && tupleIndex < opacities->size()) ? (*opacities)[tupleIndex] : 1.0f;
 
 		// Apply transformation to the shape
 		TopoDS_Shape transformedShape = shape;
@@ -301,6 +304,9 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 						// Shininess
 						float shininess = 24.0f;
 						material->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
+
+						if (opacity < 1.0f)
+							material->AddProperty(&opacity, 1, AI_MATKEY_OPACITY);
 
 					}
 				}

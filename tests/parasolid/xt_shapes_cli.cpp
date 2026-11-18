@@ -11,6 +11,8 @@
 #include "XtReader.h"
 
 #include <BRepBndLib.hxx>
+#include <ShapeFix_Face.hxx>
+#include <ShapeExtend_Status.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepCheck_Result.hxx>
 #include <BRepCheck_Status.hxx>
@@ -159,6 +161,90 @@ int main(int argc, char** argv) {
     }
 
     const Xt::Model model(file);
+    if (const char* bs = std::getenv("XT_DUMP_BSURF")) {
+        // Research aid: the stored description of one B-spline surface (node index of the B_SURFACE).
+        const Xt::Node* surf = model.find(std::atoll(bs));
+        const Xt::Node* nurbs = surf ? model.find(model.pointer(*surf, model.slot("B_SURFACE", "nurbs"))) : nullptr;
+        if (!nurbs) {
+            std::printf("surface %s: no B_SURFACE/NURBS_SURF found\n", bs);
+        } else {
+            auto flag = [&](const char* f) { return static_cast<char>(model.value(*nurbs, model.slot("NURBS_SURF", f))); };
+            auto numv = [&](const char* f) { return model.value(*nurbs, model.slot("NURBS_SURF", f)); };
+            std::printf("surface %s: u_periodic=%c v_periodic=%c u_closed=%c v_closed=%c u_degree=%.0f v_degree=%.0f n_u=%.0f n_v=%.0f u_knot_type=%.0f v_knot_type=%.0f form=%.0f rational=%c\n",
+                        bs, flag("u_periodic"), flag("v_periodic"), flag("u_closed"), flag("v_closed"), numv("u_degree"), numv("v_degree"),
+                        numv("n_u_vertices"), numv("n_v_vertices"), numv("u_knot_type"), numv("v_knot_type"), numv("surface_form"), flag("rational"));
+            for (const char* which : {"u_knots", "v_knots", "u_knot_mult", "v_knot_mult"}) {
+                const Xt::Node* k = model.find(model.pointer(*nurbs, model.slot("NURBS_SURF", which)));
+                std::printf("  %s:", which);
+                for (size_t i = 0; k && i < k->valueCount && i < 24; ++i) std::printf(" %g", file.values[k->valueOffset + i]);
+                std::printf("%s\n", k && k->valueCount > 24 ? " ..." : "");
+            }
+        }
+    }
+    if (std::getenv("XT_CHART_STATS")) {
+        // Research aid: the chart of every INTERSECTION curve states its own chordal error (metres); report the spread.
+        const Xt::Slot chordal = model.slot("CHART", "chordal_error"), count = model.slot("CHART", "chart_count"),
+                       angular = model.slot("CHART", "angular_error");
+        std::vector<double> errs, cnt;
+        size_t nullErr = 0;
+        for (const Xt::Node* c : model.nodesNamed("CHART")) {
+            const double e = model.value(*c, chordal), n = model.value(*c, count);
+            if (std::isnan(e) || e <= 0 || e > 1e10) { ++nullErr; continue; }
+            errs.push_back(e * 1000.0); // millimetres
+            cnt.push_back(n);
+        }
+        std::sort(errs.begin(), errs.end());
+        std::printf("charts %zu, with chordal error %zu, null %zu\n", errs.size() + nullErr, errs.size(), nullErr);
+        if (!errs.empty()) {
+            auto q = [&](double f) { return errs[std::min(errs.size() - 1, static_cast<size_t>(f * errs.size()))]; };
+            std::printf("chordal error (mm): min %.3g  p50 %.3g  p90 %.3g  p99 %.3g  max %.3g\n", errs.front(), q(0.5), q(0.9), q(0.99), errs.back());
+            size_t above = 0;
+            for (double e : errs) above += e > 1e-3;
+            std::printf("charts with chordal error above 0.001 mm: %zu\n", above);
+        }
+    }
+    if (const char* dumpOffset = std::getenv("XT_DUMP_OFFSET")) {
+        const Xt::Node* o = model.find(std::atoll(dumpOffset));
+        if (o) {
+            const Xt::Node* u = model.find(model.pointer(*o, model.slot("OFFSET_SURF", "surface")));
+            std::printf("offset %lld distance %.6g underlying %s(%lld)\n", static_cast<long long>(o->index), model.value(*o, model.slot("OFFSET_SURF", "offset")),
+                        u ? model.typeName(u->type).c_str() : "none", u ? static_cast<long long>(u->index) : 0LL);
+        }
+    }
+    if (const char* dumpBlend = std::getenv("XT_DUMP_BLEND")) {
+        // Research aid: parameters of a BLENDED_EDGE surface node.
+        const Xt::Node* b = model.find(std::atoll(dumpBlend));
+        if (b) {
+            auto kind = [&](double idx) { const Xt::Node* n = model.find(static_cast<int64_t>(idx)); return n ? model.typeName(n->type) : std::string("none"); };
+            std::printf("blend %lld type '%c' sense %.0f range %.6g %.6g\n", static_cast<long long>(b->index), static_cast<int>(model.value(*b, model.slot("BLENDED_EDGE", "blend_type"))),
+                        model.value(*b, model.slot("BLENDED_EDGE", "sense")), model.value(*b, model.slot("BLENDED_EDGE", "range"), 0), model.value(*b, model.slot("BLENDED_EDGE", "range"), 1));
+            std::printf("  supports %s(%lld) %s(%lld) spine %s\n", kind(model.value(*b, model.slot("BLENDED_EDGE", "surface"), 0)).c_str(), static_cast<long long>(model.value(*b, model.slot("BLENDED_EDGE", "surface"), 0)),
+                        kind(model.value(*b, model.slot("BLENDED_EDGE", "surface"), 1)).c_str(), static_cast<long long>(model.value(*b, model.slot("BLENDED_EDGE", "surface"), 1)),
+                        (kind(model.value(*b, model.slot("BLENDED_EDGE", "spine"))) + "(" + std::to_string(static_cast<long long>(model.value(*b, model.slot("BLENDED_EDGE", "spine")))) + ")").c_str());
+        }
+    }
+    if (const char* dumpEdge = std::getenv("XT_DUMP_EDGE")) {
+        // Research aid: kind of curve an EDGE node uses and, for an intersection, its two surfaces and chart size.
+        const Xt::Node* e = model.find(std::atoll(dumpEdge));
+        if (e) {
+            const Xt::Node* c = model.typeName(e->type) == "INTERSECTION" ? e : model.find(model.pointer(*e, model.slot("EDGE", "curve")));
+            std::printf("edge %lld curve node %lld type %s\n", static_cast<long long>(e->index), c ? static_cast<long long>(c->index) : 0LL, c ? model.typeName(c->type).c_str() : "none");
+            if (c && model.typeName(c->type) == "TRIMMED_CURVE") {
+                const Xt::Node* basis = model.find(model.pointer(*c, model.slot("TRIMMED_CURVE", "basis_curve")));
+                std::printf("  trimmed basis %s node %lld parm %.9g..%.9g\n", basis ? model.typeName(basis->type).c_str() : "none", basis ? static_cast<long long>(basis->index) : 0LL,
+                            model.value(*c, model.slot("TRIMMED_CURVE", "parm_1")), model.value(*c, model.slot("TRIMMED_CURVE", "parm_2")));
+                if (basis) c = basis;
+            }
+            if (c && model.typeName(c->type) == "INTERSECTION") {
+                for (int k = 0; k < 2; ++k) {
+                    const Xt::Node* sf = model.find(static_cast<int64_t>(model.value(*c, model.slot("INTERSECTION", "surface"), k)));
+                    std::printf("  surface %d: %s node %lld\n", k, sf ? model.typeName(sf->type).c_str() : "none", sf ? static_cast<long long>(sf->index) : 0LL);
+                }
+                const Xt::Node* ch = model.find(model.pointer(*c, model.slot("INTERSECTION", "chart")));
+                if (ch) std::printf("  chart count %.0f chordal_error %.6g\n", model.value(*ch, model.slot("CHART", "chart_count")), model.value(*ch, model.slot("CHART", "chordal_error")));
+            }
+        }
+    }
     if (const char* dumpFace = std::getenv("XT_DUMP_FACE")) {
         // Research aid: which shell holds the given FACE node, how many faces and which faces share its surface.
         const int64_t want = std::atoll(dumpFace);
@@ -227,6 +313,12 @@ int main(int argc, char** argv) {
             const Xt::Node* owner = model.find(model.pointer(*a, ownerOf));
             const std::string key = str(id, idStr) + " on " + (owner ? model.typeName(owner->type) : std::string("?"));
             ++hist[key];
+            if (key.find("TRANSLUC") != std::string::npos || key.find("ALPHA") != std::string::npos || key.find("OPAC") != std::string::npos) {
+                const Xt::Node* fv = a->valueCount > fieldsOf.offset ? model.find(static_cast<int64_t>(model.value(*a, fieldsOf, 0))) : nullptr;
+                char b[64];
+                std::snprintf(b, sizeof b, " value=%.6g", fv && fv->valueCount ? file.values[fv->valueOffset] : -1.0);
+                ++hist["VALUE " + key + b];
+            }
             if (shown[key]++ < 2) {
                 std::string sample;
                 const size_t nf = a->valueCount > fieldsOf.offset ? a->valueCount - fieldsOf.offset : 0;
@@ -445,8 +537,8 @@ int main(int argc, char** argv) {
     if (mesh) {
         const auto m0 = std::chrono::steady_clock::now();
         IMeshTools_Parameters params;
-        params.Deflection = 0.1;
-        params.Angle = 0.3;
+        params.Deflection = std::getenv("XT_MESH_DEFL") ? std::atof(std::getenv("XT_MESH_DEFL")) : 0.1;
+        params.Angle = std::getenv("XT_MESH_ANGLE") ? std::atof(std::getenv("XT_MESH_ANGLE")) : 0.3;
         params.Relative = true;
         params.InParallel = true;
         params.AllowQualityDecrease = true;
@@ -747,9 +839,12 @@ int main(int argc, char** argv) {
             const auto& colouredBody = r.bodies[inst.body];
             std::set<std::tuple<double, double, double>> distinct;
             for (const auto& kv : colouredBody.faceColours) distinct.emplace(kv.second.r, kv.second.g, kv.second.b);
-            std::printf("%*s%s  body-colour=%s(%.2f %.2f %.2f) face-colours=%zu on %zu of %zu faces\n", static_cast<int>(2 * inst.path.size()), "",
+            size_t translucent = 0;
+            for (const auto& kv : colouredBody.faceColours) translucent += kv.second.a < 1.0 ? 1 : 0;
+            std::printf("%*s%s  body-colour=%s(%.2f %.2f %.2f) face-colours=%zu on %zu of %zu faces, translucent faces=%zu (body opacity %.2f)\n", static_cast<int>(2 * inst.path.size()), "",
                         inst.name.c_str(), colouredBody.hasBodyColour ? "" : "none", colouredBody.bodyColour.r, colouredBody.bodyColour.g,
-                        colouredBody.bodyColour.b, distinct.size(), colouredBody.faceColours.size(), colouredBody.faceOutcomes.size());
+                        colouredBody.bodyColour.b, distinct.size(), colouredBody.faceColours.size(), colouredBody.faceOutcomes.size(), translucent,
+                        colouredBody.bodyColour.a);
         }
     }
     if (const char* dumpFace = std::getenv("XT_DUMP_FACE_TRIM")) {
@@ -770,6 +865,13 @@ int main(int argc, char** argv) {
                 std::printf("face %lld: %s origin=%s\n  surface %s u[%.6g,%.6g] v[%.6g,%.6g] uperiodic=%d vperiodic=%d uclosed=%d vclosed=%d\n  face uv bounds u[%.6g,%.6g] v[%.6g,%.6g]\n",
                             static_cast<long long>(want), o->second.surface.c_str(), o->second.origin.c_str(), s->DynamicType()->Name(), su0, su1, sv0, sv1,
                             s->IsUPeriodic(), s->IsVPeriodic(), s->IsUClosed(), s->IsVClosed(), u0, u1, v0, v1);
+                try {
+                    // Area of the full uv rectangle of the face on its surface: the face can be no larger.
+                    const TopoDS_Face rect = BRepBuilderAPI_MakeFace(s, std::max(u0, su0), std::min(u1, su1), std::max(v0, sv0), std::min(v1, sv1), 1e-6);
+                    GProp_GProps rp;
+                    BRepGProp::SurfaceProperties(rect, rp);
+                    std::printf("  uv-rectangle surface area %.6g\n", rp.Mass());
+                } catch (const Standard_Failure&) {}
                 {
                     NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher> ef;
                     TopExp::MapShapesAndAncestors(body.shape, TopAbs_EDGE, TopAbs_FACE, ef);
@@ -819,7 +921,7 @@ int main(int argc, char** argv) {
         if (!ft) {
             std::fprintf(stderr, "cannot write %s\n", faceTable.c_str());
         } else {
-            std::fprintf(ft, "body\tface\tsurface\torigin\treason\tbrepcheck\ttriangles\tcx\tcy\tcz\tdiag\tstatus\tarea\tsurftype\tfree_edges\n");
+            std::fprintf(ft, "body\tface\tsurface\torigin\treason\tbrepcheck\ttriangles\tcx\tcy\tcz\tdiag\tstatus\tarea\tsurftype\tfree_edges\tmaxdih\n");
             std::map<std::string, size_t> summary; // "origin brepcheck meshed" -> faces
             for (const auto& body : r.bodies) {
                 NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher> edgeFacesMap;
@@ -834,6 +936,7 @@ int main(int argc, char** argv) {
                     double cx = 0, cy = 0, cz = 0, diag = 0, faceArea = 0;
                     int freeEdges = 0; // edges of this face that no other face of the body shares (not seam or degenerate)
                     int surfType = -1;
+                    double maxDihedral = 0; // largest angle (degrees) between normals of neighbouring triangles; a crumpled face scores high
                     const auto it = o.shape ? byShape.find(o.shape) : byShape.end();
                     if (it != byShape.end()) {
                         const TopoDS_Face& f = it->second;
@@ -848,6 +951,8 @@ int main(int argc, char** argv) {
                                 for (TopExp_Explorer ew(f, TopAbs_WIRE); ew.More(); ew.Next()) {
                                     const auto wr = an.Result(ew.Current());
                                     if (!wr.IsNull()) for (const auto& st : wr->Status()) if (st != BRepCheck_NoError) codes.insert("wire" + std::to_string(static_cast<int>(st)));
+                                    // The checks that depend on the face (closure and self-intersection in parameter space) are stored on the face context.
+                                    if (!wr.IsNull() && wr->IsStatusOnShape(f)) for (const auto& st : wr->StatusOnShape(f)) if (st != BRepCheck_NoError) codes.insert("wireOnFace" + std::to_string(static_cast<int>(st)));
                                 }
                                 for (TopExp_Explorer ee(f, TopAbs_EDGE); ee.More(); ee.Next()) {
                                     const auto er = an.Result(ee.Current());
@@ -862,6 +967,37 @@ int main(int argc, char** argv) {
                         TopLoc_Location loc;
                         const auto tri = BRep_Tool::Triangulation(f, loc);
                         if (!tri.IsNull()) tris = static_cast<size_t>(tri->NbTriangles());
+                        if (!tri.IsNull() && tri->NbTriangles() > 1) {
+                            std::vector<gp_Vec> nrm(static_cast<size_t>(tri->NbTriangles()) + 1);
+                            std::map<std::pair<int, int>, int> owner;
+                            for (int t = 1; t <= tri->NbTriangles(); ++t) {
+                                int n1, n2, n3;
+                                tri->Triangle(t).Get(n1, n2, n3);
+                                const gp_Vec nv = gp_Vec(tri->Node(n1), tri->Node(n2)).Crossed(gp_Vec(tri->Node(n1), tri->Node(n3)));
+                                nrm[static_cast<size_t>(t)] = nv.Magnitude() > 1e-300 ? nv / nv.Magnitude() : gp_Vec(0, 0, 0);
+                                const int ids[3] = {n1, n2, n3};
+                                for (int k = 0; k < 3; ++k) {
+                                    const int u = ids[k], v = ids[(k + 1) % 3];
+                                    const std::pair<int, int> key(std::min(u, v), std::max(u, v));
+                                    const auto found = owner.find(key);
+                                    if (found == owner.end()) {
+                                        owner.emplace(key, t);
+                                    } else {
+                                        if (nrm[static_cast<size_t>(t)].SquareMagnitude() < 0.5 || nrm[static_cast<size_t>(found->second)].SquareMagnitude() < 0.5)
+                                            continue; // a zero-area triangle has no normal
+                                        const double dot = std::clamp(nrm[static_cast<size_t>(t)].Dot(nrm[static_cast<size_t>(found->second)]), -1.0, 1.0);
+                                        const double deg = std::acos(dot) * 180.0 / 3.14159265358979323846;
+                                        maxDihedral = std::max(maxDihedral, deg);
+                                        if (const char* wantFace = std::getenv("XT_DIHEDRAL_FACE"); wantFace && std::atoll(wantFace) == static_cast<long long>(node) && deg > 30.0) {
+                                            const gp_Pnt c0 = tri->Node(u).Transformed(loc.Transformation());
+                                            gp_Pnt2d uv(0, 0);
+                                            if (tri->HasUVNodes()) uv = tri->UVNode(u);
+                                            std::printf("fold %.0f deg at (%.1f %.1f %.1f) uv(%.4f %.4f)\n", deg, c0.X(), c0.Y(), c0.Z(), uv.X(), uv.Y());
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         for (TopExp_Explorer ee(f, TopAbs_EDGE); ee.More(); ee.Next()) {
                             const TopoDS_Edge e = TopoDS::Edge(ee.Current());
                             if (BRep_Tool::Degenerated(e)) continue;
@@ -884,9 +1020,9 @@ int main(int argc, char** argv) {
                             diag = std::sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) + (z1 - z0) * (z1 - z0));
                         }
                     }
-                    std::fprintf(ft, "%lld\t%lld\t%s\t%s\t%s\t%s\t%zu\t%.4g\t%.4g\t%.4g\t%.4g\t%s\t%.8g\t%d\t%d\n", static_cast<long long>(body.index),
+                    std::fprintf(ft, "%lld\t%lld\t%s\t%s\t%s\t%s\t%zu\t%.4g\t%.4g\t%.4g\t%.4g\t%s\t%.8g\t%d\t%d\t%.1f\n", static_cast<long long>(body.index),
                                  static_cast<long long>(node), o.surface.c_str(), o.origin.c_str(), o.reason.c_str(), check, tris, cx, cy, cz, diag,
-                                 statusKey.c_str(), faceArea, surfType, freeEdges);
+                                 statusKey.c_str(), faceArea, surfType, freeEdges, maxDihedral);
                     ++summary[o.origin + " | " + check + (tris ? " | meshed" : " | no-triangles")];
                 }
             }
@@ -894,6 +1030,50 @@ int main(int argc, char** argv) {
             std::printf("face table: %s\n", faceTable.c_str());
             for (const auto& kv : summary) std::printf("  %-60s %zu\n", kv.first.c_str(), kv.second);
         }
+    }
+    if (std::getenv("XT_TRY_SHAPEFIX")) {
+        // Experiment: run OCCT's own face repair, with the settings its STEP reader uses (automatic fix modes, precision from the
+        // environment in millimetres, maximum tolerance 1 mm), on every face that BRepCheck rejects and count what it achieves.
+        const double precision = std::getenv("XT_SHAPEFIX_PRECISION") ? std::atof(std::getenv("XT_SHAPEFIX_PRECISION")) : 1e-3;
+        size_t invalid = 0, nowValid = 0, areaChanged = 0, dropped = 0, crashed = 0;
+        std::map<std::string, size_t> byStatus, repairedByKind, invalidByKind;
+        for (const auto& body : r.bodies) {
+            for (TopExp_Explorer ex(body.shape, TopAbs_FACE); ex.More(); ex.Next()) {
+                const TopoDS_Face face = TopoDS::Face(ex.Current());
+                if (checkGuarded(face) != 0) continue;
+                ++invalid;
+                std::string kind = "?";
+                try { kind = std::to_string(static_cast<int>(BRepAdaptor_Surface(face).GetType())); } catch (...) {}
+                ++invalidByKind[kind];
+                double before = 0;
+                try { GProp_GProps g; BRepGProp::SurfaceProperties(face, g); before = g.Mass(); } catch (...) {}
+                try {
+                    ShapeFix_Face fix(face);
+                    fix.SetPrecision(precision);
+                    fix.SetMaxTolerance(1.0);
+                    fix.SetMinTolerance(1e-7);
+                    fix.Perform();
+                    const TopoDS_Shape result = fix.Result();
+                    TopExp_Explorer fe(result, TopAbs_FACE);
+                    if (!fe.More()) { ++dropped; continue; }
+                    const TopoDS_Face repaired = TopoDS::Face(fe.Current());
+                    const int ok = checkGuarded(repaired);
+                    if (ok < 0) { ++crashed; continue; }
+                    double after = 0;
+                    try { GProp_GProps g; BRepGProp::SurfaceProperties(repaired, g); after = g.Mass(); } catch (...) {}
+                    if (before > 1e-9 && std::abs(after - before) > 0.01 * std::abs(before)) ++areaChanged;
+                    if (ok == 1) { ++nowValid; ++repairedByKind[kind]; }
+                    std::string st;
+                    for (int k = 1; k <= 8; ++k) if (fix.Status(static_cast<ShapeExtend_Status>(ShapeExtend_DONE1 + (k - 1)))) st += "D" + std::to_string(k);
+                    ++byStatus[st.empty() ? "none" : st];
+                } catch (const Standard_Failure&) { ++crashed; }
+            }
+        }
+        std::printf("shapefix experiment (precision %.3g mm): %zu invalid faces; now valid %zu; area changed >1%% %zu; dropped %zu; failed %zu\n",
+                    precision, invalid, nowValid, areaChanged, dropped, crashed);
+        for (const auto& kv : invalidByKind)
+            std::printf("  surface type %s: %zu invalid, %zu repaired\n", kv.first.c_str(), kv.second, repairedByKind[kv.first]);
+        for (const auto& kv : byStatus) std::printf("  fix status %-12s %zu\n", kv.first.c_str(), kv.second);
     }
     if (!dump.empty()) BRepTools::Write(all, dump.c_str());
     return 0;

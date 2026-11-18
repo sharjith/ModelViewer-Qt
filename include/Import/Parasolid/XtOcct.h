@@ -71,7 +71,8 @@ struct FaceOutcome {
 
 struct Rgb {
     double r = 0.7, g = 0.7, b = 0.7;
-    bool operator<(const Rgb& o) const { return r != o.r ? r < o.r : g != o.g ? g < o.g : b < o.b; }
+    double a = 1.0; // opacity: 1 - SDL/TYSA_TRANSLUCENCY (and TYSA_ALPHA / 255); 1 = opaque
+    bool operator<(const Rgb& o) const { return r != o.r ? r < o.r : g != o.g ? g < o.g : b != o.b ? b < o.b : a < o.a; }
 };
 
 struct BuiltBody {

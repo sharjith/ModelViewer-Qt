@@ -665,6 +665,7 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
     struct ColourPart {
         Quantity_Color colour;
         TopoDS_Shape shape;
+        float opacity = 1.0f;
     };
     std::vector<std::vector<ColourPart>> colourParts(r.build.bodies.size());
     std::vector<char> colourPartsReady(r.build.bodies.size(), 0);
@@ -687,13 +688,16 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
                     colour = f->second;
                     coloured = true;
                 }
-            if (!coloured)
-                colour = Xt::Rgb{0.7, 0.7, 0.7};
+            if (!coloured) {
+                const double alpha = colour.a;
+                colour = Xt::Rgb{0.7, 0.7, 0.7, alpha};
+            }
             groups[colour].push_back(TopoDS::Face(ex.Current()));
         }
         auto toColour = [](const Xt::Rgb& c) { return Quantity_Color(c.r, c.g, c.b, Quantity_TOC_RGB); };
         if (groups.size() <= 1) {
-            colourParts[bodyIdx].push_back({groups.empty() ? defaultColour : toColour(groups.begin()->first), body.shape});
+            colourParts[bodyIdx].push_back({groups.empty() ? defaultColour : toColour(groups.begin()->first), body.shape,
+                                            groups.empty() ? 1.0f : static_cast<float>(groups.begin()->first.a)});
         } else {
             for (const auto& [colour, faces] : groups) {
                 TopoDS_Compound compound;
@@ -701,13 +705,14 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
                 builder.MakeCompound(compound);
                 for (const TopoDS_Face& f : faces)
                     builder.Add(compound, f);
-                colourParts[bodyIdx].push_back({toColour(colour), compound});
+                colourParts[bodyIdx].push_back({toColour(colour), compound, static_cast<float>(colour.a)});
             }
         }
         return colourParts[bodyIdx];
     };
 
     std::vector<ShapeWithNameAndTrsf> tuples;
+    std::vector<float> opacities; // parallel to tuples
     for (size_t instanceIndex = 0; instanceIndex < r.build.instances.size(); ++instanceIndex) {
         const Xt::BuiltInstance& inst = r.build.instances[instanceIndex];
         if (!bodyMeshed[inst.body])
@@ -720,14 +725,18 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
         const auto& parts = partsOf(inst.body);
         const Quantity_Color color = parts.empty() ? defaultColour : parts.front().colour;
         if (display.IsNull() || TopExp_Explorer(body.shape, TopAbs_FACE).More())
-            for (const ColourPart& part : parts)
+            for (const ColourPart& part : parts) {
                 tuples.emplace_back(part.shape, taggedName, inst.location, part.colour);
-        if (!display.IsNull())
+                opacities.push_back(part.opacity);
+            }
+        if (!display.IsNull()) {
             tuples.emplace_back(display.Moved(inst.location, false), taggedName, TopLoc_Location(), color);
+            opacities.push_back(1.0f);
+        }
     }
     if (tuples.empty())
         throw std::runtime_error("Parasolid import failed: no body could be meshed.");
-    result.scene.reset(BRepToAssimpConverter::convert(tuples, /*copyTriangulation=*/true));
+    result.scene.reset(BRepToAssimpConverter::convert(tuples, /*copyTriangulation=*/true, &opacities));
     if (!result.scene || result.scene->mNumMeshes == 0)
         throw std::runtime_error("Parasolid import failed: the shapes could not be converted to meshes.");
     regroupByAssembly(result.scene.get(), r.build.instances);
