@@ -316,3 +316,17 @@ Owner acceptance has not been given for any statement here.
 Owner decision: the samples C4-M3b (feature control frame, datum feature symbol, datum target, weld symbol, chamfer, region, each created singly) and C4-M4 (the C4-M1 part with named PMI views) are **not planned**. Feature control frames, datum feature symbols, welds, chamfers and named model views therefore stay unsupported and are not to be guessed from the specification; the importer reports PMI it cannot read (it never skips silently).
 
 Status of the staging item "3. Check value": built for recorded linear dimensions, diameters and radii (the label shows the authored value and the mesh's own value side by side, see step 2). Recorded angles show the authored value only; a mesh angle would need the stored extension-line directions mapped onto the part and has not been attempted.
+
+## PMI Manager element version 1 qualification (18 November 2026)
+
+One authentic private JT10.0 little-endian assembly was retained locally as neutral sample `C4-V1-A`, SHA-256 `808ffb913c1ffc7ac8593dcf81c25a71ba949c16289cf352ac1a31aad512a1f6`. Its inventory can be regenerated without publishing the sample:
+
+```text
+python -B tools/jt/inventory_pmi_segments.py <local-samples>/sample-C4-V1-A.jt --output out/jt-research/c4-v1-a-pmi-inventory.json
+```
+
+The assembly contains 76 type-3 PMI segments. All 76 PMI Manager elements use local version 1 and share the already-qualified version-5 common body: 178 entities (76 coordinate systems and 102 dimensions), 19,822 polyline vertices and no 2D text entities. The dimensions comprise 88 linear records (`type=1`) and 14 diameter records (`type=3`, `style=0`), both already handled by the recorded-PMI builder. Bytes after that common body remain outside this qualification and are left to the element boundary handling.
+
+The reader therefore accepts only local versions 1 and 5 for this bounded common body; all other versions and the still-unevidenced design-group, association, user-attribute, model-view and 2D-text collections remain explicitly rejected. Literal tests cover both qualified versions in both byte orders and preserve the version-5 malformed-input and unsupported-feature checks.
+
+Validation: the owner built and installed the current branch and confirmed that the sample's PMI is visible in the UI. The isolated AddressSanitizer-enabled `jt_tests` executable also completed with exit code 0. This qualifies decoding and display for this sample; exact item-by-item presentation parity and other version-1 layouts are not claimed.

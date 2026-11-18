@@ -6,6 +6,8 @@ Current owner priority (24 October 2026): [C2 paused at C2ag; core viewing essen
 
 Runtime detail (C5): [LOD evidence and design](JT_C5_RUNTIME_LOD_DESIGN.md) (3 November 2026, design only); [LOD materials as material variants](JT_C5_LOD_MATERIAL_VARIANTS.md) (4 November 2026, analysis and plan).
 
+Current PMI compatibility gate (18 November 2026): [PMI study and version-1 qualification](JT_PMI_STUDY.md#pmi-manager-element-version-1-qualification-18-november-2026), prepared from one authentic private JT10.0 assembly containing 76 version-1 PMI Manager elements and 102 supported dimensions. The AddressSanitizer-enabled JT suite passes, and the owner confirmed that the installed viewer displays the assembly's PMI; exact item-by-item presentation parity remains unreported.
+
 Suggested reading order:
 
 1. [Feasibility and legal scope](JT_IMPORT_FEASIBILITY.md), [JT/Parasolid implementation scope](JT_PARASOLID_IMPLEMENTATION_SCOPE.md), [pass-specific provenance](JT_PROVENANCE.md) and [third-party notices](../../THIRD_PARTY_NOTICES.md).
