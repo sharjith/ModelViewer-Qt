@@ -162,6 +162,10 @@ public:
 	// Clears the edge segment cache.  Called from clearColorCache() before each load.
 	static void clearEdgeCache();
 
+	// When on, small gaps between the tessellations of the faces of a solid (hairline cracks, a face that failed to mesh) are closed
+	// on the mesh with triangles that reuse the existing vertices. Off by default; the Parasolid importer turns it on.
+	static void setFillMeshGaps(bool enabled);
+
 	static aiScene* convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation = false,
 							const std::vector<float>* opacities = nullptr); // opacities: one per tuple (1 = opaque), optional
 	static aiScene* convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& index, const std::string& name = "");

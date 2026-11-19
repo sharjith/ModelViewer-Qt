@@ -2,6 +2,8 @@
 #include "MainWindow.h"
 #include "FaceFallbackTriangulator.h"
 #include "SceneUtils.h"
+#include "MeshGapFill.h"
+#include <atomic>
 #include <algorithm>
 #include <QCoreApplication>
 #include <QDebug>
@@ -217,6 +219,17 @@ Standard_Real BRepToAssimpConverter::resolveAngularDeflection()
  * @return Pointer to the newly created aiScene containing all converted shapes,
  *         or nullptr if the input vector is empty.
  */
+namespace
+{
+std::atomic<bool> s_fillMeshGaps{false};
+thread_local bool t_groupIsSolid = false;
+} // namespace
+
+void BRepToAssimpConverter::setFillMeshGaps(bool enabled)
+{
+	s_fillMeshGaps = enabled;
+}
+
 aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation,
 										const std::vector<float>* opacities)
 {
@@ -426,7 +439,9 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
 			}
 
 			// Convert the collected faces into a mesh
+			t_groupIsSolid = true;
 			aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
+			t_groupIsSolid = false;
 			if (mesh)
 			{
 				// Add the mesh to the list
@@ -1651,6 +1666,29 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			std::cout << "  Slivers kept: " << sliverTriangles << std::endl;
 			std::cout << "  Valid triangles: " << (totalTriangles - degenerateTriangles) << std::endl;
 			std::cout << "  Threshold: " << threshold << std::endl;
+		}
+	}
+
+	if (s_fillMeshGaps && t_groupIsSolid && !vertices.empty() && !faces.empty())
+	{
+		// A solid has no open boundary: what is left open between its faces is a tessellation gap, closed here.
+		const size_t originalTriangles = faces.size();
+		std::vector<unsigned> indices;
+		indices.reserve(faces.size() * 3 + 64);
+		for (const aiFace& f : faces)
+			indices.insert(indices.end(), {f.mIndices[0], f.mIndices[1], f.mIndices[2]});
+		const MeshGapFill::Result gaps = MeshGapFill::fill(&vertices[0].x, vertices.size(), indices);
+		if (gaps.trianglesAdded > 0)
+		{
+			for (size_t t = originalTriangles * 3; t + 2 < indices.size(); t += 3)
+			{
+				aiFace meshFace;
+				meshFace.mNumIndices = 3;
+				meshFace.mIndices = new unsigned int[3]{ indices[t], indices[t + 1], indices[t + 2] };
+				faces.push_back(meshFace);
+			}
+			qInfo().noquote() << QStringLiteral("[mesh] mesh %1: closed %2 gap(s) with %3 triangle(s); %4 open edge(s) remain in larger openings")
+				.arg(meshIndex).arg(gaps.loopsFilled).arg(gaps.trianglesAdded).arg(gaps.boundaryEdges);
 		}
 	}
 

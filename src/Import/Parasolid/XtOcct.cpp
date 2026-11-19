@@ -2054,8 +2054,14 @@ TopoDS_Edge Builder::edgeForImpl(const Node& edge) {
                     last += period;
                 if (last > first + period * (1 + 1e-9))
                     last -= period;
-            } else if (last < first) {
-                // The vertices run against the curve direction: try the reversed curve once.
+            } else if (last <= first && !Precision::IsInfinite(curve->FirstParameter()) && !Precision::IsInfinite(curve->LastParameter()) &&
+                       BRep_Tool::Pnt(sv).Distance(BRep_Tool::Pnt(ev)) < 1e-4 * scale &&
+                       curve->Value(curve->FirstParameter()).Distance(curve->Value(curve->LastParameter())) < 1e-4 * scale) {
+                // A closed, non-periodic curve (a loop stored as a spline) with one vertex: both ends project to the same
+                // end of the curve, and the edge covers the whole curve.
+                first = curve->FirstParameter();
+                last = curve->LastParameter();
+            } else if (last < first) {                // The vertices run against the curve direction: try the reversed curve once.
                 curve = curve->Reversed();
                 if (project(BRep_Tool::Pnt(sv), first) && project(BRep_Tool::Pnt(ev), last) && last > first)
                     ++res.stats.edgeDirectionFlips;
@@ -2160,6 +2166,8 @@ TopoDS_Edge Builder::edgeForImpl(const Node& edge) {
         }
     }
     if (!(last > first)) {
+        if (std::getenv("XT_DEBUG_TOL"))
+            std::fprintf(stderr, "empty-range kind=%s trimmed=%d first=%g last=%g per=%d sv=%d ev=%d edge=%lld\n", ci.kind.c_str(), (int)ci.trimmed, first, last, (int)curve->IsPeriodic(), startV ? 1 : 0, endV ? 1 : 0, static_cast<long long>(edge.index));
         ++res.stats.edgesSkippedByCurve["empty-range"];
         return remember(result);
     }
@@ -2390,6 +2398,10 @@ void Builder::correctSpineAgainstSupports(const Node& blend) {
     std::vector<gp_Pnt> points;
     bool any = false;
     gp_Pnt previous;
+    double maxShift = 0;
+    int runaway = 0;
+    bool folded = false;
+    gp_Vec lastTangent;
     try {
         for (int i = 0; i <= n; ++i) {
             const double t = t0 + (t1 - t0) * i / n;
@@ -2439,8 +2451,22 @@ void Builder::correctSpineAgainstSupports(const Node& blend) {
                         if (std::sqrt(dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2]) < 1e-8 * scale)
                             break; // converged: the residual cannot drop further than the projection noise
                     }
+                    if (c.Distance(seed) > 0.5 * std::min(ra, rb) && !std::getenv("XT_SPINE_ACCEPT_ALL"))
+                    {
+                        c = seed; // the Newton step ran away to another branch of the support intersection: keep the stored point
+                        ++runaway;
+                    }
                     any = true;
                 }
+            }
+            {
+                gp_Pnt original;
+                gp_Vec tangent;
+                curve->D1(t, original, tangent);
+                maxShift = std::max(maxShift, c.Distance(original));
+                // A corrected point that moves backwards along the spine means the Newton step landed on another branch.
+                if (!points.empty() && tangent.Magnitude() > 1e-12 && gp_Vec(previous, c).Dot(tangent) < 0 && c.Distance(previous) > 1e-6 * scale)
+                    folded = true;
             }
             if (i > 0 && c.Distance(previous) < 1e-7 * scale)
                 continue; // collapsed onto the previous point: drop the duplicate
@@ -2452,6 +2478,10 @@ void Builder::correctSpineAgainstSupports(const Node& blend) {
     }
     if (!any || points.size() < 4)
         return;
+    if (std::getenv("XT_DEBUG_SPINE"))
+        std::fprintf(stderr, "spine blend %lld maxShift %.4g (min range %.4g) folded %d runaway %d\n", static_cast<long long>(blend.index), maxShift, std::min(ra, rb), folded ? 1 : 0, runaway);
+    if (!std::getenv("XT_SPINE_ACCEPT_ALL") && (folded || runaway > n / 10))
+        return; // a correction this large or this twisted is a wrong solution, not a refinement: keep the stored spine
     try {
         Handle(NCollection_HArray1<gp_Pnt>) arr = new NCollection_HArray1<gp_Pnt>(1, static_cast<int>(points.size()));
         for (size_t i = 0; i < points.size(); ++i)
@@ -4092,6 +4122,25 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
             f = g;
             faceReversed = !faceReversed;
             ++res.stats.orientationFlips[si.kind];
+        }
+    }
+    if (wires == 1 && !seamFreeSphericalTrim && (faceSurface->IsUClosed() || faceSurface->IsVClosed()) && !std::getenv("XT_NO_SMALL_LOOP_FLIP")) {
+        // A single small loop on a closed surface (the end cap of a ball): it crosses no seam and no pole, so its direction in
+        // (u, v) tells which side is the face. A clockwise loop would bound the whole rest of the surface.
+        for (TopExp_Explorer ew(f, TopAbs_WIRE); ew.More(); ew.Next()) {
+            double u0, u1, v0, v1;
+            BRepTools::UVBounds(f, TopoDS::Wire(ew.Current()), u0, u1, v0, v1);
+            const bool smallU = !faceSurface->IsUPeriodic() || (u1 - u0) < 0.5 * faceSurface->UPeriod();
+            const bool smallV = !faceSurface->IsVPeriodic() || (v1 - v0) < 0.5 * faceSurface->VPeriod();
+            if (smallU && smallV && wireParameterArea(f, TopoDS::Wire(ew.Current())) < 0) {
+                TopoDS_Face g;
+                bb.MakeFace(g, faceSurface, TopLoc_Location(), kXtTolerance * scale);
+                bb.Add(g, ew.Current().Reversed());
+                f = g;
+                faceReversed = !faceReversed;
+                ++res.stats.orientationFlips[si.kind + " small-loop"];
+            }
+            break;
         }
     }
     if (opt.deviationSamples > 0 && wires) {

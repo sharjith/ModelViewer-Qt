@@ -774,7 +774,10 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
     }
     if (tuples.empty())
         throw std::runtime_error("Parasolid import failed: no body could be meshed.");
+    // Solids have no open boundary: hairline gaps between the tessellations of neighbouring faces are closed on the mesh.
+    BRepToAssimpConverter::setFillMeshGaps(qEnvironmentVariableIsEmpty("MODELVIEWER_XT_NO_GAP_FILL"));
     result.scene.reset(BRepToAssimpConverter::convert(tuples, /*copyTriangulation=*/true, &opacities));
+    BRepToAssimpConverter::setFillMeshGaps(false);
     if (!result.scene || result.scene->mNumMeshes == 0)
         throw std::runtime_error("Parasolid import failed: the shapes could not be converted to meshes.");
     regroupByAssembly(result.scene.get(), r.build.instances);

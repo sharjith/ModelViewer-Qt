@@ -11,6 +11,7 @@
 #include "XtReader.h"
 
 #include <BRepBndLib.hxx>
+#include "Import/MeshGapFill.h"
 #include <ShapeFix_Face.hxx>
 #include <ShapeExtend_Status.hxx>
 #include <BRepCheck_Analyzer.hxx>
@@ -630,6 +631,39 @@ int main(int argc, char** argv) {
             }
             std::printf("viewer usable-triangulation check rejects %zu faces\n", rejected);
         }
+        if (std::getenv("XT_GAPFILL_TEST")) {
+            // Mesh-level gap closing as the viewer's converter does it: all face triangulations of a body, then fill.
+            size_t before = 0, loops = 0, filled = 0, added = 0, after = 0, bodiesTouched = 0;
+            for (const auto& body : r.bodies) {
+                std::vector<float> xyz;
+                std::vector<unsigned> idx;
+                for (TopExp_Explorer ex(body.shape, TopAbs_FACE); ex.More(); ex.Next()) {
+                    const TopoDS_Face face = TopoDS::Face(ex.Current());
+                    TopLoc_Location loc;
+                    const auto tri = BRep_Tool::Triangulation(face, loc);
+                    if (tri.IsNull()) continue;
+                    const unsigned base = static_cast<unsigned>(xyz.size() / 3);
+                    for (int i = 1; i <= tri->NbNodes(); ++i) {
+                        const gp_Pnt p = tri->Node(i).Transformed(loc.Transformation());
+                        xyz.push_back(static_cast<float>(p.X())); xyz.push_back(static_cast<float>(p.Y())); xyz.push_back(static_cast<float>(p.Z()));
+                    }
+                    for (int t = 1; t <= tri->NbTriangles(); ++t) {
+                        int n1, n2, n3;
+                        tri->Triangle(t).Get(n1, n2, n3);
+                        if (face.Orientation() == TopAbs_REVERSED) std::swap(n2, n3);
+                        idx.push_back(base + n1 - 1); idx.push_back(base + n2 - 1); idx.push_back(base + n3 - 1);
+                    }
+                }
+                const auto res = MeshGapFill::fill(xyz.data(), xyz.size() / 3, idx);
+                before += res.boundaryEdges; loops += res.loopsFound; filled += res.loopsFilled; added += res.trianglesAdded;
+                bodiesTouched += res.loopsFilled > 0;
+                std::vector<unsigned> again = idx;
+                after += MeshGapFill::fill(xyz.data(), xyz.size() / 3, again).boundaryEdges;
+                if (std::getenv("XT_GAPFILL_BODY") && std::atoll(std::getenv("XT_GAPFILL_BODY")) == static_cast<long long>(body.index))
+                    std::printf("  body %lld: boundary edges %zu, loops %zu, filled %zu, triangles added %zu\n", static_cast<long long>(body.index), res.boundaryEdges, res.loopsFound, res.loopsFilled, res.trianglesAdded);
+            }
+            std::printf("gap fill: boundary edges %zu -> %zu; loops %zu, filled %zu in %zu bodies, %zu triangles added\n", before, after, loops, filled, bodiesTouched, added);
+        }
         if (std::getenv("XT_MESH_OPEN")) {
             // What a section-capping pass sees: weld the vertices of each body mesh by position, then count the triangle
             // edges that only one triangle uses (open boundary) and those that three or more use.
@@ -721,6 +755,16 @@ int main(int argc, char** argv) {
                         if (!wr.IsNull()) for (const auto& st : wr->Status()) if (st != BRepCheck_NoError) key += " wire" + std::to_string(static_cast<int>(st));
                     }
                 } else key += " valid";
+                if (std::getenv("XT_UNTRI_LIST")) {
+                    Bnd_Box fb;
+                    BRepBndLib::Add(face, fb);
+                    double x0, y0, z0, x1, y1, z1;
+                    fb.Get(x0, y0, z0, x1, y1, z1);
+                    GProp_GProps fa;
+                    BRepGProp::SurfaceProperties(face, fa);
+                    std::printf("  untri-face: %s centre=(%.1f %.1f %.1f) size=(%.1f %.1f %.1f) area=%.2f\n", key.c_str(), (x0 + x1) / 2, (y0 + y1) / 2,
+                                (z0 + z1) / 2, x1 - x0, y1 - y0, z1 - z0, fa.Mass());
+                }
                 double worst = 0;
                 int nw = 0;
                 for (TopExp_Explorer ew(face, TopAbs_WIRE); ew.More(); ew.Next()) ++nw;
