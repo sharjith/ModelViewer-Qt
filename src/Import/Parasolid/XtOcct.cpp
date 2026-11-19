@@ -2459,6 +2459,11 @@ void Builder::correctSpineAgainstSupports(const Node& blend) {
     bool any = false;
     gp_Pnt previous;
     double maxShift = 0;
+    // 0 = accept every Newton correction, 1 = also reject a spine that folds back on itself, 2 = additionally clamp and reject runaways.
+    static const int spineMode = [] {
+        const char* mode = std::getenv("XT_SPINE_MODE");
+        return std::getenv("XT_SPINE_ACCEPT_ALL") ? 0 : mode ? std::atoi(mode) : 0;
+    }();
     int runaway = 0;
     bool folded = false;
     gp_Vec lastTangent;
@@ -2511,7 +2516,7 @@ void Builder::correctSpineAgainstSupports(const Node& blend) {
                         if (std::sqrt(dx[0] * dx[0] + dx[1] * dx[1] + dx[2] * dx[2]) < 1e-8 * scale)
                             break; // converged: the residual cannot drop further than the projection noise
                     }
-                    if (c.Distance(seed) > 0.5 * std::min(ra, rb) && !std::getenv("XT_SPINE_ACCEPT_ALL"))
+                    if (c.Distance(seed) > 0.5 * std::min(ra, rb) && spineMode == 2)
                     {
                         c = seed; // the Newton step ran away to another branch of the support intersection: keep the stored point
                         ++runaway;
@@ -2540,7 +2545,7 @@ void Builder::correctSpineAgainstSupports(const Node& blend) {
         return;
     if (std::getenv("XT_DEBUG_SPINE"))
         std::fprintf(stderr, "spine blend %lld maxShift %.4g (min range %.4g) folded %d runaway %d\n", static_cast<long long>(blend.index), maxShift, std::min(ra, rb), folded ? 1 : 0, runaway);
-    if (!std::getenv("XT_SPINE_ACCEPT_ALL") && (folded || runaway > n / 10))
+    if ((spineMode == 2 && (folded || runaway > n / 10)) || (spineMode == 1 && folded))
         return; // a correction this large or this twisted is a wrong solution, not a refinement: keep the stored spine
     try {
         Handle(NCollection_HArray1<gp_Pnt>) arr = new NCollection_HArray1<gp_Pnt>(1, static_cast<int>(points.size()));
