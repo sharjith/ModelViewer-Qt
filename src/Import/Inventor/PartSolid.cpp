@@ -509,6 +509,9 @@ private:
             }
         }
         for (const auto& use : _edgeUses) {
+            const Record& usedEdge = get(use.first, "edge");
+            if (usedEdge.link(8) < 0 && usedEdge.link(3) == usedEdge.link(5))
+                continue; // Degenerate edge at a singular point; it has no partner.
             if (use.second != 3)
                 fail("Inventor shell has an unpaired or non-manifold edge");
         }
@@ -609,7 +612,8 @@ private:
     const Record& get(qint32 id) const
     {
         if (id < 0 || static_cast<std::size_t>(id) >= _records.size())
-            fail("Inventor ASM link points outside the saved body records");
+            throw std::runtime_error("Inventor ASM link " + std::to_string(id) + " points outside the " +
+                                     std::to_string(_records.size()) + " saved body records");
         return _records[id];
     }
 
@@ -707,6 +711,10 @@ private:
                 fail("Inventor loop belongs to a different face");
             if (omittedLoops.count(loopId) == 0) {
                 const TopoDS_Wire wire = buildWire(loop, loopId, edges, vertices);
+                if (wire.IsNull()) {
+                    loopId = loop.link(3);
+                    continue;
+                }
                 if (firstWire.IsNull())
                     firstWire = wire;
                 builder.Add(result, wire);
@@ -791,6 +799,7 @@ private:
         qint32 id = first;
         qint32 initialVertex = -1;
         qint32 endVertex = -1;
+        unsigned wireEdges = 0;
         do {
             if (!visited.insert(id).second)
                 fail("Cyclic Inventor face boundary");
@@ -813,17 +822,25 @@ private:
                 fail("Inventor face boundary has disconnected edges");
             endVertex = edge.link(reversed ? 3 : 5);
 
-            auto [found, inserted] = edges.try_emplace(edgeId);
-            FaceEdge& local = found->second;
-            if (inserted)
-                local.shape = buildEdge(edgeId, vertices);
-            ++local.uses;
-            builder.Add(wire, local.shape.Oriented(reversed ? TopAbs_REVERSED : TopAbs_FORWARD));
+            // A curveless edge that starts and ends at one vertex collapses to a point (cone apex,
+            // sphere pole). Leave it out; ShapeFix_Face re-creates the degenerated edge from the
+            // neighbouring pcurves on the singular surface.
+            if (edge.link(8) >= 0 || edge.link(3) != edge.link(5)) {
+                auto [found, inserted] = edges.try_emplace(edgeId);
+                FaceEdge& local = found->second;
+                if (inserted)
+                    local.shape = buildEdge(edgeId, vertices);
+                ++local.uses;
+                builder.Add(wire, local.shape.Oriented(reversed ? TopAbs_REVERSED : TopAbs_FORWARD));
+                ++wireEdges;
+            }
             id = coedge.link(3);
         } while (id != first);
 
         if (initialVertex != endVertex)
             fail("Inventor face boundary is not closed");
+        if (wireEdges == 0)
+            return TopoDS_Wire(); // A pole loop; the singular point needs no boundary of its own.
         wire.Closed(true);
         return wire;
     }
@@ -1395,6 +1412,9 @@ TopoDS_Vertex SolidBuilder::vertex(qint32 id, std::unordered_map<qint32, TopoDS_
 TopoDS_Edge SolidBuilder::buildEdge(qint32 id, std::unordered_map<qint32, TopoDS_Vertex>& vertices) const
 {
     const Record& edge = get(id, "edge");
+    if (edge.link(8) < 0)
+        throw std::runtime_error("Inventor edge " + std::to_string(id) + " has no saved curve (vertices " +
+                                 std::to_string(edge.link(3)) + " and " + std::to_string(edge.link(5)) + ")");
     const Record& curve = get(edge.link(8));
     TopoDS_Vertex start = vertex(edge.link(3), vertices);
     TopoDS_Vertex finish = vertex(edge.link(5), vertices);
