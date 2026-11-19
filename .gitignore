@@ -23,3 +23,5 @@ dist/
 /vcpkg_installed/x64-linux
 /packaging/linux/vendor/vcpkg_installed
 /.claude
+
+__pycache__/
