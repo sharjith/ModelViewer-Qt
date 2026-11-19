@@ -69,15 +69,39 @@ int main(int argc, char* argv[])
     const QCommandLineOption hashStreams(QStringLiteral("hash-streams"), QStringLiteral("Also hash stream payloads"));
     const QCommandLineOption partBrep(QStringLiteral("part-brep"), QStringLiteral("Inspect the saved part B-rep segment"));
     const QCommandLineOption partSolid(QStringLiteral("part-solid"), QStringLiteral("Measure the reconstructed OCCT solids"));
+    const QCommandLineOption partAppearance(QStringLiteral("part-appearance"), QStringLiteral("Report saved colors mapped to the reconstructed part"));
     parser.addOption(hashStreams);
     parser.addOption(partBrep);
     parser.addOption(partSolid);
+    parser.addOption(partAppearance);
     parser.process(app);
     const auto arguments = parser.positionalArguments();
-    if (arguments.size() != 1 || parser.isSet(hashStreams) + parser.isSet(partBrep) + parser.isSet(partSolid) > 1)
+    if (arguments.size() != 1 || parser.isSet(hashStreams) + parser.isSet(partBrep) +
+        parser.isSet(partSolid) + parser.isSet(partAppearance) > 1)
         parser.showHelp(1);
 
     try {
+        if (parser.isSet(partAppearance)) {
+            Inventor::PartAppearance appearance;
+            Inventor::readPartSolids(arguments.front(), {}, &appearance);
+            const auto rgb = [](const Quantity_Color& color) {
+                return QJsonArray{color.Red(), color.Green(), color.Blue()};
+            };
+            QJsonObject report;
+            if (appearance.body)
+                report.insert(QStringLiteral("body_rgb"), rgb(*appearance.body));
+            QJsonArray faces;
+            for (const auto& [face, color] : appearance.faces) {
+                auto row = measure(face);
+                row.remove(QStringLiteral("volume_mm3"));
+                row.remove(QStringLiteral("faces"));
+                row.remove(QStringLiteral("edges"));
+                row.insert(QStringLiteral("rgb"), rgb(color));
+                faces.append(row);
+            }
+            report.insert(QStringLiteral("face_overrides"), faces);
+            return printJson(report);
+        }
         if (parser.isSet(partSolid)) {
             const auto solids = Inventor::readPartSolids(arguments.front());
             if (solids.size() == 1)

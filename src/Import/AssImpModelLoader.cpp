@@ -45,6 +45,7 @@
 #include <QCheckBox>
 #include <QLayout>
 #include <Quantity_ColorRGBA.hxx>
+#include <TDocStd_Document.hxx>
 #include <cmath>
 #include <limits>
 #include <unordered_set>
@@ -1400,7 +1401,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			const auto cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
 			_importStage = "worker.inventor-read";
 			ImportDiagnostics::checkpoint(_importStage);
-			const auto solids = Inventor::readPartSolids(fi.absoluteFilePath(), cancelled);
+			Inventor::PartAppearance appearance;
+			const auto solids = Inventor::readPartSolids(fi.absoluteFilePath(), cancelled, &appearance);
 			BRepToAssimpConverter::clearColorCache();
 			_importStage = "worker.inventor-tessellate";
 			ImportDiagnostics::checkpoint(_importStage);
@@ -1417,7 +1419,32 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			}
 			if (cancelled())
 				throw std::runtime_error("Inventor import cancelled");
-			_xcafScene.reset(BRepToAssimpConverter::convert(parts));
+			if (appearance.body || !appearance.faces.empty()) {
+				Handle(TDocStd_Document) document = new TDocStd_Document("BinOcaf");
+				const auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->Main());
+				const auto colorTool = XCAFDoc_DocumentTool::ColorTool(document->Main());
+				const auto label = shapeTool->AddShape(solids.front(), false);
+				// Keep one model-tree node for the solid, with face colors on XCAF sublabels.
+				TDataStd_Name::Set(label, TCollection_ExtendedString(baseName.toStdU16String().c_str()));
+				colorTool->SetColor(label, appearance.body.value_or(color), XCAFDoc_ColorSurf);
+				for (const auto& [face, faceColor] : appearance.faces) {
+					const auto faceLabel = shapeTool->AddSubShape(label, face);
+					if (!faceLabel.IsNull())
+						colorTool->SetColor(faceLabel, faceColor, XCAFDoc_ColorSurf);
+				}
+				int meshIndex = 0;
+				_xcafScene.reset(BRepToAssimpConverter::convert(solids.front(), colorTool, shapeTool, label, label,
+					meshIndex, baseName.toStdString()));
+				if (_xcafScene && _xcafScene->mRootNode) {
+					auto root = std::make_unique<aiNode>("Root");
+					root->mChildren = new aiNode*[1]{_xcafScene->mRootNode};
+					root->mNumChildren = 1;
+					_xcafScene->mRootNode->mParent = root.get();
+					_xcafScene->mRootNode = root.release();
+				}
+			} else {
+				_xcafScene.reset(BRepToAssimpConverter::convert(parts));
+			}
 			if (!_xcafScene || !_xcafScene->mRootNode || _xcafScene->mNumMeshes == 0 ||
 				_xcafScene->mRootNode->mNumChildren != solids.size())
 				throw std::runtime_error("Inventor part did not produce display geometry for every body");

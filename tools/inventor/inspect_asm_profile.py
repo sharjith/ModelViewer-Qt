@@ -87,15 +87,19 @@ def summarize(codec, data):
             raise ValueError("ASM link points outside the current record table")
         return rows[index][0]
 
-    edge_uses = Counter(fields[6] for name, fields in rows if name == "coedge")
+    coedge_types = {"coedge", "tcoedge-coedge"}
+    edge_types = {"edge", "tedge-edge"}
+    edge_uses = Counter(fields[6] for name, fields in rows if name in coedge_types)
     multiply_used = {edge_id: [] for edge_id, count in edge_uses.items() if count > 2}
     for coedge_id, (name, fields) in enumerate(rows):
-        if name == "coedge" and fields[6] in multiply_used:
+        if name in coedge_types and fields[6] in multiply_used:
             loop_id = fields[8]
+            face_id = rows[loop_id][1][5] if target_type(loop_id) == "loop" else -1
             multiply_used[fields[6]].append({
                 "coedge": coedge_id,
                 "loop": loop_id,
-                "face": rows[loop_id][1][5] if target_type(loop_id) == "loop" else None,
+                "face": face_id if face_id >= 0 else None,
+                "surface": target_type(rows[face_id][1][7]) if target_type(face_id) == "face" else None,
                 "next_coedge": fields[3],
             })
     points = [fields[3] for name, fields in rows if name == "point"]
@@ -105,7 +109,7 @@ def summarize(codec, data):
         "millimeters_per_model_unit": scale,
         "bodies": sum(name == "body" for name, _ in rows),
         "face_surfaces": dict(Counter(target_type(fields[7]) for name, fields in rows if name == "face")),
-        "edge_curves": dict(Counter(target_type(fields[8]) for name, fields in rows if name == "edge")),
+        "edge_curves": dict(Counter(target_type(fields[8]) for name, fields in rows if name in edge_types)),
         "edge_use_histogram": dict(sorted(Counter(edge_uses.values()).items())),
         "multiply_used_edges": multiply_used,
         "point_record_spans_mm": spans,
