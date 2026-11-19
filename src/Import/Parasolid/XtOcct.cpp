@@ -109,6 +109,8 @@
 #include <algorithm>
 #include <memory>
 #include <array>
+#include <atomic>
+#include <thread>
 #include <chrono>
 #include <cmath>
 #include <functional>
@@ -125,6 +127,7 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr double kXtTolerance = 1e-8; // modeller linear resolution, metres
 constexpr double kMaxVertexGap = 2.5e-3; // metres; larger gaps between a curve end and its vertex are not absorbed
 constexpr double kBlendContactTolerance = 2e-5; // maximum nested contact residual, metres
+constexpr double kNestedContactTolerance = 5e-5; // contact on a supporting blend (itself a fitted chart), metres
 
 // Signed area (parameter space) enclosed by a wire of a face, from sampled pcurves. Positive means the wire
 // runs counter-clockwise in (u, v), which is what OCCT expects of an outer wire stored on a face. Zero when
@@ -279,6 +282,7 @@ private:
     TopoDS_Face faceForImpl(const Node& face, TopAbs_Orientation use);
     TopoDS_Face fillFaceFromBoundary(const Node& face);
     void buildBody(const Node& body);
+    bool runParallel(const std::vector<const Node*>& todo);
     void buildBodyViaGraph(const Node& body); // spike: topology assembled with OCCT 8 BRepGraph (XT_GRAPH=1)
     void placeInstances();
     // Text of the named attribute on `owner` (UTF-8), empty when there is none. Builds the owner index on first use.
@@ -1328,7 +1332,7 @@ bool Builder::blendSupportContact(const Node& blend, const gp_Pnt& centre, doubl
     }
     const double r0 = std::abs(num(blend, "BLENDED_EDGE", "range", 0)) * scale;
     const double r1 = std::abs(num(blend, "BLENDED_EDGE", "range", 1)) * scale;
-    const double tolerance = kBlendContactTolerance * scale;
+    const double tolerance = kNestedContactTolerance * scale;
     if (!(r0 > 0 && r1 > 0) || std::abs(r0 - r1) > kXtTolerance * scale)
         return bsFail(2);
 
@@ -1347,7 +1351,14 @@ bool Builder::blendSupportContact(const Node& blend, const gp_Pnt& centre, doubl
         if (cliffCurve.IsNull() || (a.ok == b.ok))
             return bsFail(11);
     }
-    if (!spine.ok || (!cliffType && (!a.ok || !b.ok)))
+    // A support that is itself a blend (a blend of a blend of a blend) is handled by recursion, to a small depth.
+    thread_local int depth = 0;
+    struct DepthGuard {
+        DepthGuard() { ++depth; }
+        ~DepthGuard() { --depth; }
+    } depthGuard;
+    const bool recursiveOk = depth <= 3 && !std::getenv("XT_NO_DEEP_NESTED");
+    if (!spine.ok || (!cliffType && (!a.ok || !b.ok) && !recursiveOk))
         return bsFail(3);
     GeomAPI_ProjectPointOnCurve foot(centre, spine.curve);
     if (foot.NbPoints() == 0)
@@ -1359,7 +1370,13 @@ bool Builder::blendSupportContact(const Node& blend, const gp_Pnt& centre, doubl
         return bsFail(5);
 
     gp_Pnt footA, footB;
-    auto footOnSide = [&](const SurfaceInfo& side, gp_Pnt& out) {
+    auto footOnSide = [&](const SurfaceInfo& side, int sideIndex, gp_Pnt& out) {
+        if (!side.ok && !cliffType) {
+            const Node* sub = node(ptr(blend, "BLENDED_EDGE", "surface", sideIndex));
+            if (!sub || nameOf(*sub) != "BLENDED_EDGE")
+                return false;
+            return blendSupportContact(*sub, origin, num(blend, "BLENDED_EDGE", "range", sideIndex) * scale, out);
+        }
         if (side.ok) {
             GeomAPI_ProjectPointOnSurf on(origin, side.surface);
             if (on.NbPoints() == 0)
@@ -1373,7 +1390,7 @@ bool Builder::blendSupportContact(const Node& blend, const gp_Pnt& centre, doubl
         out = on.NearestPoint();
         return true;
     };
-    if (!footOnSide(a, footA) || !footOnSide(b, footB))
+    if (!footOnSide(a, 0, footA) || !footOnSide(b, 1, footB))
         return bsFail(6);
     const gp_Vec fromA(origin, footA), fromB(origin, footB);
     if (fromA.SquareMagnitude() <= Precision::SquareConfusion() ||
@@ -1824,7 +1841,7 @@ SurfaceInfo Builder::blendSurfaceForFace(const Node& blend, const Node& face) {
                 if (onEdge.NbPoints() == 0)
                     return false;
                 q = onEdge.NearestPoint();
-                return std::abs(c.Distance(q) - std::abs(offset)) <= kBlendContactTolerance * scale;
+                return std::abs(c.Distance(q) - std::abs(offset)) <= kNestedContactTolerance * scale;
             }
             if (!support.ok)
                 return blendSupportContact(isASupport ? *nestedA : *nestedB, c, offset, q);
@@ -1843,7 +1860,7 @@ SurfaceInfo Builder::blendSurfaceForFace(const Node& blend, const Node& face) {
                     return false;
                 }
             }
-            const bool good = !nested || std::abs(c.Distance(q) - std::abs(offset)) <= kBlendContactTolerance * scale;
+            const bool good = !nested || std::abs(c.Distance(q) - std::abs(offset)) <= kNestedContactTolerance * scale;
             if (!good && std::getenv("XT_DEBUG_BS"))
                 std::fprintf(stderr, "blend %lld i=%d: nested distance %g vs offset %g on %s\n", (long long)blend.index, i, c.Distance(q), offset, support.kind.c_str());
             return good;
@@ -5016,6 +5033,152 @@ void Builder::buildBody(const Node& body) {
                 it->second.origin += suffix;
         };
         const size_t pc1 = pcDebug ? countFacesWithoutPCurves(compound) : 0;
+        if (!std::getenv("XT_NO_MERGE_FREE_EDGES")) {
+            // The same XT edge can end up as two TopoDS edges, one on each of its faces (measured: 186 of the 192 open
+            // edges of the CBR airbox have a free partner at exactly the same place). Two free edges of different faces
+            // with the same ends and the same midpoint are one seam: the second is replaced by the first.
+            ScopedTimer mergeTimer(res.stats.seconds["merge-free-edges"]);
+            TopTools_IndexedDataMapOfShapeListOfShape edgeFaces;
+            TopExp::MapShapesAndAncestors(compound, TopAbs_EDGE, TopAbs_FACE, edgeFaces);
+            struct FreeEdge {
+                TopoDS_Edge edge;
+                TopoDS_Face face;
+                gp_Pnt a, b, mid;
+                double c0 = 0, c1 = 0;
+                Handle(Geom_Curve) curve;
+            };
+            std::vector<FreeEdge> freeEdges;
+            for (int i = 1; i <= edgeFaces.Extent(); ++i) {
+                const TopoDS_Edge e = TopoDS::Edge(edgeFaces.FindKey(i));
+                if (BRep_Tool::Degenerated(e) || edgeFaces.FindFromIndex(i).Size() != 1)
+                    continue;
+                FreeEdge fe;
+                fe.edge = e;
+                fe.face = TopoDS::Face(edgeFaces.FindFromIndex(i).First());
+                if (BRep_Tool::IsClosed(e, fe.face))
+                    continue;
+                fe.curve = BRep_Tool::Curve(e, fe.c0, fe.c1);
+                if (fe.curve.IsNull() || !(fe.c1 > fe.c0))
+                    continue;
+                fe.a = fe.curve->Value(fe.c0);
+                fe.b = fe.curve->Value(fe.c1);
+                fe.mid = fe.curve->Value(0.5 * (fe.c0 + fe.c1));
+                freeEdges.push_back(std::move(fe));
+            }
+            const double matchTol = 1e-5 * scale;
+            const double cell = std::max(1e-3 * scale, 1e-9);
+            auto cellOf = [&](const gp_Pnt& p) {
+                return std::array<long long, 3>{static_cast<long long>(std::floor(p.X() / cell)), static_cast<long long>(std::floor(p.Y() / cell)),
+                                                 static_cast<long long>(std::floor(p.Z() / cell))};
+            };
+            std::map<std::array<long long, 3>, std::vector<size_t>> grid;
+            for (size_t i = 0; i < freeEdges.size(); ++i)
+                grid[cellOf(freeEdges[i].mid)].push_back(i);
+            std::vector<char> used(freeEdges.size(), 0);
+            Handle(ShapeBuild_ReShape) merge = new ShapeBuild_ReShape;
+            BRep_Builder mergeBuilder;
+            size_t merged = 0;
+            std::vector<std::pair<TopoDS_Vertex, TopoDS_Vertex>> vertexPairs; // vertices that are one point
+            for (size_t i = 0; i < freeEdges.size(); ++i) {
+                if (used[i])
+                    continue;
+                const auto base = cellOf(freeEdges[i].mid);
+                for (int dx = -1; dx <= 1 && !used[i]; ++dx)
+                    for (int dy = -1; dy <= 1 && !used[i]; ++dy)
+                        for (int dz = -1; dz <= 1 && !used[i]; ++dz) {
+                            const auto it = grid.find({base[0] + dx, base[1] + dy, base[2] + dz});
+                            if (it == grid.end())
+                                continue;
+                            for (size_t j : it->second) {
+                                if (j <= i || used[j] || freeEdges[j].face.IsSame(freeEdges[i].face))
+                                    continue;
+                                FreeEdge& e1 = freeEdges[i];
+                                FreeEdge& e2 = freeEdges[j];
+                                if (e1.mid.Distance(e2.mid) > matchTol)
+                                    continue;
+                                const bool same = e1.a.Distance(e2.a) <= matchTol && e1.b.Distance(e2.b) <= matchTol;
+                                const bool opposite = e1.a.Distance(e2.b) <= matchTol && e1.b.Distance(e2.a) <= matchTol;
+                                if (!same && !opposite)
+                                    continue;
+                                // The face of e2 keeps its pcurve: when the 3D curve is the same object and runs the same way, copy it.
+                                if (same && e1.curve.get() == e2.curve.get() && std::abs(e1.c0 - e2.c0) < 1e-12 && std::abs(e1.c1 - e2.c1) < 1e-12) {
+                                    double p0, p1;
+                                    TopLoc_Location faceLocation;
+                                    const Handle(Geom_Surface) surface = BRep_Tool::Surface(e2.face, faceLocation);
+                                    const Handle(Geom2d_Curve) pc = BRep_Tool::CurveOnSurface(e2.edge, e2.face, p0, p1);
+                                    if (!surface.IsNull() && !pc.IsNull())
+                                        mergeBuilder.UpdateEdge(e1.edge, pc, surface, faceLocation, BRep_Tool::Tolerance(e2.edge));
+                                }
+                                merge->Replace(e2.edge.Oriented(TopAbs_FORWARD), same ? e1.edge.Oriented(TopAbs_FORWARD) : e1.edge.Oriented(TopAbs_REVERSED));
+                                const TopoDS_Vertex v1a = TopExp::FirstVertex(TopoDS::Edge(e1.edge.Oriented(TopAbs_FORWARD)), true),
+                                                    v1b = TopExp::LastVertex(TopoDS::Edge(e1.edge.Oriented(TopAbs_FORWARD)), true);
+                                const TopoDS_Vertex v2a = TopExp::FirstVertex(TopoDS::Edge(e2.edge.Oriented(TopAbs_FORWARD)), true),
+                                                    v2b = TopExp::LastVertex(TopoDS::Edge(e2.edge.Oriented(TopAbs_FORWARD)), true);
+                                const TopoDS_Vertex& m2a = same ? v1a : v1b;
+                                const TopoDS_Vertex& m2b = same ? v1b : v1a;
+                                vertexPairs.emplace_back(v2a, m2a);
+                                vertexPairs.emplace_back(v2b, m2b);
+                                used[i] = used[j] = 1;
+                                ++merged;
+                                break;
+                            }
+                        }
+            }
+            if (merged) {
+                // Several merged seams can meet at one point, each with its own copy of the vertex: every copy of a point
+                // becomes the one vertex that heads its group, so no edge is left on a stray copy.
+                std::unordered_map<const TopoDS_TShape*, const TopoDS_TShape*> parent;
+                std::unordered_map<const TopoDS_TShape*, TopoDS_Vertex> vertexOf;
+                std::function<const TopoDS_TShape*(const TopoDS_TShape*)> find = [&](const TopoDS_TShape* v) {
+                    auto it = parent.find(v);
+                    if (it == parent.end() || it->second == v)
+                        return v;
+                    return it->second = find(it->second);
+                };
+                for (const auto& [from, to] : vertexPairs) {
+                    vertexOf.emplace(from.TShape().get(), from);
+                    vertexOf.emplace(to.TShape().get(), to);
+                    parent.emplace(from.TShape().get(), from.TShape().get());
+                    parent.emplace(to.TShape().get(), to.TShape().get());
+                    const TopoDS_TShape* ra = find(from.TShape().get());
+                    const TopoDS_TShape* rb = find(to.TShape().get());
+                    if (ra != rb)
+                        parent[ra] = rb;
+                }
+                std::unordered_map<const TopoDS_TShape*, double> reach; // largest tolerance or distance in each group
+                for (const auto& [v, vertex] : vertexOf) {
+                    const TopoDS_TShape* root = find(v);
+                    if (root == v)
+                        continue;
+                    const TopoDS_Vertex& head = vertexOf[root];
+                    double& r = reach[root];
+                    r = std::max({r, BRep_Tool::Tolerance(head), BRep_Tool::Tolerance(vertex), BRep_Tool::Pnt(head).Distance(BRep_Tool::Pnt(vertex))});
+                    merge->Replace(vertex.Oriented(TopAbs_FORWARD), head.Oriented(TopAbs_FORWARD));
+                }
+                for (const auto& [root, r] : reach)
+                    mergeBuilder.UpdateVertex(vertexOf[root], r);
+                res.stats.facesSkippedBySurface["  free-edges-merged"] += merged;
+                const TopoDS_Shape before = compound;
+                compound = TopoDS::Compound(merge->Apply(compound));
+                for (TopExp_Explorer ex(before, TopAbs_FACE); ex.More(); ex.Next()) {
+                    const auto n = nodeOfFace.find(ex.Current().TShape().get());
+                    if (n == nodeOfFace.end())
+                        continue;
+                    const TopoDS_Shape moved = merge->Apply(ex.Current());
+                    if (moved.IsNull() || moved.ShapeType() != TopAbs_FACE || moved.TShape() == ex.Current().TShape())
+                        continue;
+                    const int64_t source = n->second;
+                    nodeOfFace.erase(n);
+                    nodeOfFace.emplace(moved.TShape().get(), source);
+                    if (const auto outcome = out.faceOutcomes.find(source); outcome != out.faceOutcomes.end())
+                        outcome->second.shape = moved.TShape().get();
+                    if (m_trace) {
+                        out.tracedFaceNodes.erase(ex.Current().TShape().get());
+                        out.tracedFaceNodes.emplace(moved.TShape().get(), source);
+                    }
+                }
+            }
+        }
         // Applying the shared repairs replaces an edge by the copy a repaired neighbour carries, and that copy
         // only has the pcurve of the face that was repaired. Give every other face its pcurves back.
         {
@@ -5761,9 +5924,126 @@ void Builder::buildBodyViaGraph(const Node& body) {
     res.bodies.push_back(std::move(out));
 }
 
+namespace {
+void mergeStats(BuildStats& to, const BuildStats& from) {
+    to.bodies += from.bodies; to.solidBodies += from.solidBodies; to.sheetBodies += from.sheetBodies; to.wireBodies += from.wireBodies;
+    to.faces += from.faces; to.facesBuilt += from.facesBuilt; to.edges += from.edges; to.edgesBuilt += from.edgesBuilt;
+    to.tolerantEdgesRebuilt += from.tolerantEdgesRebuilt; to.tolerantEdgesSkipped += from.tolerantEdgesSkipped;
+    to.edgeDirectionFlips += from.edgeDirectionFlips; to.edgeDirectionConflicts += from.edgeDirectionConflicts;
+    to.missingOccurrences += from.missingOccurrences; to.instancesWithUnsupportedTransform += from.instancesWithUnsupportedTransform;
+    to.facesFilledFromBoundary += from.facesFilledFromBoundary; to.approximatedGeometry += from.approximatedGeometry;
+    to.seamRepairedFaces += from.seamRepairedFaces; to.authoredPCurves += from.authoredPCurves;
+    to.rejectedAuthoredPCurves += from.rejectedAuthoredPCurves; to.pcurveProjectionAttempts += from.pcurveProjectionAttempts;
+    to.openTrimWires += from.openTrimWires;
+    for (const auto& kv : from.facesSkippedBySurface) to.facesSkippedBySurface[kv.first] += kv.second;
+    for (const auto& kv : from.edgesSkippedByCurve) to.edgesSkippedByCurve[kv.first] += kv.second;
+    for (const auto& kv : from.orientationFlips) to.orientationFlips[kv.first] += kv.second;
+    for (const auto& kv : from.surfacesBuilt) to.surfacesBuilt[kv.first] += kv.second;
+    for (const auto& kv : from.maxSurfaceDeviation) to.maxSurfaceDeviation[kv.first] = std::max(to.maxSurfaceDeviation[kv.first], kv.second);
+    for (const auto& kv : from.seconds) to.seconds[kv.first] += kv.second; // CPU seconds summed over the threads
+    to.maxEdgeTolerance = std::max(to.maxEdgeTolerance, from.maxEdgeTolerance);
+}
+} // namespace
+
+// Bodies are independent (own shapes, own caches), so they are built on several threads, each with its own Builder, and
+// the results are merged in file order. XT_NO_PARALLEL=1 (or XT_THREADS=1) keeps the serial path.
+bool Builder::runParallel(const std::vector<const Node*>& todo) {
+    unsigned threads = std::thread::hardware_concurrency();
+    if (const char* t = std::getenv("XT_THREADS"))
+        threads = static_cast<unsigned>(std::max(1, std::atoi(t)));
+    threads = std::min<unsigned>(threads, static_cast<unsigned>(todo.size()));
+    if (threads < 2 || std::getenv("XT_NO_PARALLEL") || std::getenv("XT_GRAPH") || m_trace || std::getenv("XT_DEBUG_SLOW"))
+        return false;
+    struct Worker {
+        BuildResult part;
+        std::vector<size_t> order; // todo index of each body in part.bodies
+    };
+    std::vector<Worker> workers(threads);
+    std::atomic<size_t> next{0};
+    std::atomic<bool> stop{false};
+    std::atomic<size_t> facesDone{0};
+    std::atomic<unsigned> running{threads};
+    std::vector<std::thread> pool;
+    for (unsigned w = 0; w < threads; ++w) {
+        pool.emplace_back([&, w] {
+            try {
+                BuildOptions o = opt;
+                size_t last = 0;
+                o.cancelled = [&] { return stop.load(); };
+                o.progress = [&](size_t done, size_t) {
+                    facesDone += done - last;
+                    last = done;
+                };
+                Builder b(m, o, workers[w].part);
+                for (;;) {
+                    if (stop.load())
+                        break;
+                    const size_t i = next.fetch_add(1);
+                    if (i >= todo.size())
+                        break;
+                    b.m_outcomes = nullptr;
+                    const size_t before = workers[w].part.bodies.size();
+                    b.buildBody(*todo[i]);
+                    for (size_t k = before; k < workers[w].part.bodies.size(); ++k)
+                        workers[w].order.push_back(i);
+                }
+            } catch (const std::exception& e) {
+                workers[w].part.diagnostics.push_back({"worker-failed", e.what(), -1, -1});
+            } catch (...) {
+                workers[w].part.diagnostics.push_back({"worker-failed", "unknown exception", -1, -1});
+            }
+            --running;
+        });
+    }
+    while (running.load() > 0) {
+        if (cancelled())
+            stop = true;
+        if (opt.progress)
+            opt.progress(facesDone.load(), m_totalFaces);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    for (std::thread& t : pool)
+        t.join();
+    std::vector<std::pair<size_t, BuiltBody*>> ordered;
+    for (Worker& w : workers) {
+        for (size_t k = 0; k < w.part.bodies.size(); ++k)
+            ordered.emplace_back(w.order[k], &w.part.bodies[k]);
+        mergeStats(res.stats, w.part.stats);
+        for (Diagnostic& d : w.part.diagnostics)
+            if (res.diagnostics.size() < 200)
+                res.diagnostics.push_back(std::move(d));
+        res.cancelled = res.cancelled || w.part.cancelled;
+    }
+    std::sort(ordered.begin(), ordered.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (auto& [order, body] : ordered)
+        res.bodies.push_back(std::move(*body));
+    if (stop.load())
+        res.cancelled = true;
+    return true;
+}
+
 void Builder::run() {
     const char* maxBodies = std::getenv("XT_MAX_BODIES"); // testing aid: stop after this many bodies
     const size_t bodyLimit = maxBodies ? static_cast<size_t>(std::atoll(maxBodies)) : static_cast<size_t>(-1);
+    {
+        std::vector<const Node*> todo;
+        for (const Node* body : m.nodesNamed("BODY")) {
+            if (todo.size() >= bodyLimit)
+                break;
+            if (const char* only = std::getenv("XT_ONLY_BODY"))
+                if (body->index != std::atoll(only))
+                    continue;
+            todo.push_back(body);
+        }
+        if (runParallel(todo)) {
+            if (cancelled() || res.cancelled) {
+                res.cancelled = true;
+                return;
+            }
+            placeInstances();
+            return;
+        }
+    }
     for (const Node* body : m.nodesNamed("BODY")) {
         if (res.stats.bodies >= bodyLimit)
             break;

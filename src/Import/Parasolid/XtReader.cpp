@@ -321,7 +321,8 @@ FieldDef readFieldDefinition(Source& s) {
 
 template <class Source>
 void decodeRecords(File& file, Source& s, const LayoutTable& base, const Options& options, int64_t* lastType,
-                   std::unordered_set<int64_t>* seen, std::vector<std::tuple<int64_t, int, int>>* pointers) {
+                   std::unordered_set<int64_t>* seen, std::vector<std::tuple<int64_t, int, int>>* pointers,
+                   bool externalLayouts = false) {
     size_t polled = 0;
     for (;;) {
         if (++polled % 4096 == 0 && options.cancelled && options.cancelled())
@@ -343,7 +344,12 @@ void decodeRecords(File& file, Source& s, const LayoutTable& base, const Options
         const int t = static_cast<int>(type);
         if (file.layouts.find(t) == file.layouts.end()) {
             const NodeLayout* baseLayout = base.find(t);
-            if (s.consumeBaseFlag()) {
+            if (externalLayouts) {
+                // The schema is not in the file: every node type is laid out by the schema table.
+                if (!baseLayout)
+                    throw Fail{"unknown-base-layout", "node type " + std::to_string(t) + " is not in the schema", type};
+                file.layouts[t] = *baseLayout;
+            } else if (s.consumeBaseFlag()) {
                 if (!baseLayout)
                     throw Fail{"unknown-base-layout", "node type " + std::to_string(t) + " uses the base layout, which is not known", type};
                 file.layouts[t] = *baseLayout;
@@ -425,6 +431,8 @@ void decodeRecords(File& file, Source& s, const LayoutTable& base, const Options
             }
         }
         node.valueCount = file.values.size() - node.valueOffset;
+        if (std::getenv("XT_DEBUG_DECODE") && file.nodes.size() < 12)
+            std::fprintf(stderr, "decode record %zu: type %d %s index %lld values %zu variable %lld fields %zu" "%c", file.nodes.size(), t, layout.name.c_str(), static_cast<long long>(node.index), node.valueCount, static_cast<long long>(variableCount), layout.fields.size(), 10);
         seen->insert(node.index);
         ++file.countsByName[layout.name];
         file.nodes.push_back(node);
@@ -534,8 +542,21 @@ File readText(std::string_view bytes, const LayoutTable& base, const Options& op
         if (file.header.embeddedSchema)
             file.header.nodeTypeLimit = static_cast<int>(s.headerInt());
         file.header.userFieldSize = static_cast<int>(s.headerInt());
-        requireEmbedded(file.header);
-        decodeRecords(file, s, base, options, &lastType, &seen, &pointers);
+        const LayoutTable* external = nullptr;
+        if (!file.header.embeddedSchema && options.externalSchema) {
+            const size_t us = file.header.internalSchema.rfind('_');
+            const int number = us == std::string::npos ? 0 : std::atoi(file.header.internalSchema.c_str() + us + 1);
+            if (number > 0)
+                external = options.externalSchema(number);
+        }
+        if (external) {
+            if (file.header.userFieldSize != 0)
+                throw Fail{"user-fields-unsupported", "files with user fields are not supported", -1};
+            file.header.externalSchemaUsed = true;
+        } else {
+            requireEmbedded(file.header);
+        }
+        decodeRecords(file, s, external ? *external : base, options, &lastType, &seen, &pointers, external != nullptr);
         file.status = Status::Complete;
     } catch (const Fail& f) {
         recordFailure(file, f, lastType);

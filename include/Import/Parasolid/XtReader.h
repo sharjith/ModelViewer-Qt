@@ -38,6 +38,9 @@ struct Options {
     std::function<bool()> cancelled;
     // Keep decoded field values (needed from stage X2). Off: count only.
     bool keepValues = true;
+    // Layouts for a file whose internal schema key has no embedded schema (for example SCH_3700000_36001): called with
+    // the schema number (36001); return null when the schema is not available. Not called for embedded schemas.
+    std::function<const LayoutTable*(int)> externalSchema;
 };
 
 struct Header {
@@ -47,6 +50,7 @@ struct Header {
     std::string commonSchema;    // SCH= from the human-readable header, may be empty
     std::string internalSchema;  // e.g. SCH_3801231_38101_13006
     bool embeddedSchema = false; // internal key carries a base-schema suffix
+    bool externalSchemaUsed = false; // layouts came from Options::externalSchema
     int nodeTypeLimit = 0;       // only when embeddedSchema
     int userFieldSize = 0;
     bool partition = false;      // partition file marker in the modeller string

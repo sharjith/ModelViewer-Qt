@@ -33,11 +33,32 @@ public:
     // `error` on malformed input.
     bool parse(std::string_view text, std::string* error);
 
+    // Parasolid schema text file (sch_<n>.sch_txt): header block, then per node type
+    // "<type> <NAME>; <description>; <a> <b> <variable>" followed by field lines
+    // "<name>; <type>; <transmitted> <class> <count>". Fields marked as not transmitted are left out. Newer schema
+    // files use other names for some nodes and fields; they are mapped to the names the builder reads. The schema
+    // files are Siemens data and are never part of the repository.
+    bool parseSchemaText(std::string_view text, std::string* error);
+
+    // Newer schemas rename some nodes and fields (HALFEDGE for FIN, pt for pvec ...). Where a node of this table has the
+    // same shape as the node of `reference` with the same number, but other names, the names of `reference` are taken, so
+    // the builder can keep reading one set of names. Positions, types and counts are never changed.
+    void adoptNamesFrom(const LayoutTable& reference);
+
+    // For schema 13006 read from a schema file: drop what files with an embedded schema define themselves, so the table
+    // can serve as the base of their edit scripts.
+    void useAsEmbeddedBase();
+
     const NodeLayout* find(int nodeType) const;
     size_t size() const { return m_layouts.size(); }
 
 private:
     std::map<int, NodeLayout> m_layouts;
 };
+
+// Table of schema <number> read from <dir>/sch_<number>.sch_txt (any letter case), cached per process; null when the
+// file is missing or cannot be read. `error` (optional) says why.
+const LayoutTable* schemaFromDirectory(const std::string& dir, int number, std::string* error = nullptr,
+                                       const LayoutTable* namesFrom = nullptr);
 
 } // namespace Xt

@@ -475,6 +475,32 @@ QString findBaseLayoutFile(QStringList* tried)
     return {};
 }
 
+// Directory with the Parasolid schema text files (sch_<number>.sch_txt): they give the record layout of every schema
+// version, including files that carry no schema of their own. The files are Siemens data and are not shipped.
+QString findSchemaDirectory(QStringList* tried)
+{
+    QStringList candidates;
+    const QString fromEnv = qEnvironmentVariable("MODELVIEWER_XT_SCHEMA_DIR");
+    if (!fromEnv.isEmpty())
+        candidates << fromEnv;
+    const QString fromSettings = QSettings().value(QStringLiteral("xtSchemaDir")).toString();
+    if (!fromSettings.isEmpty())
+        candidates << fromSettings;
+    const QString name = QStringLiteral("schema");
+    const QString appDir = QCoreApplication::applicationDirPath();
+    candidates << QDir(appDir).filePath(name) << QDir(appDir).filePath(QStringLiteral("data/") + name);
+    for (const QString& dir : QStandardPaths::standardLocations(QStandardPaths::AppDataLocation))
+        candidates << QDir(dir).filePath(name);
+    candidates << QDir(QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)).filePath(QStringLiteral("Sharjith N/ModelViewer/") + name);
+    for (const QString& path : candidates) {
+        if (tried)
+            tried->append(QDir::toNativeSeparators(path));
+        if (!QDir(path).entryList({QStringLiteral("sch_*.sch_txt")}, QDir::Files).isEmpty())
+            return path; // QDir name filters are case-insensitive on Windows
+    }
+    return {};
+}
+
 SceneImportResult importScene(const QString& path, const SceneImportOptions& options)
 {
     auto report = [&](const QString& message, int done, int total) {
@@ -483,18 +509,26 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
     };
     auto cancelledNow = [&] { return options.cancelled && options.cancelled(); };
 
-    QStringList tried;
+    QStringList tried, triedSchema;
     const QString layoutPath = findBaseLayoutFile(&tried);
-    if (layoutPath.isEmpty())
-        throw std::runtime_error(QStringLiteral("Parasolid X_T import needs the base layout file xt-layouts-v13.txt, which was not found. "
-                                                "Put it next to the application or set MODELVIEWER_XT_LAYOUTS. Looked in:\n%1")
-                                     .arg(tried.join(QLatin1Char('\n'))).toStdString());
+    const QString schemaDir = findSchemaDirectory(&triedSchema);
     Xt::LayoutTable layouts;
-    {
+    if (!layoutPath.isEmpty()) {
         QFile f(layoutPath);
         std::string error;
         if (!f.open(QIODevice::ReadOnly) || !layouts.parse(f.readAll().toStdString(), &error))
             throw std::runtime_error(QStringLiteral("Cannot use the XT layout file %1: %2").arg(layoutPath, QString::fromStdString(error)).toStdString());
+    } else if (!schemaDir.isEmpty()) {
+        std::string error;
+        const Xt::LayoutTable* base = Xt::schemaFromDirectory(schemaDir.toStdString(), 13006, &error);
+        if (!base)
+            throw std::runtime_error(QStringLiteral("Cannot use the XT schema 13006 in %1: %2").arg(schemaDir, QString::fromStdString(error)).toStdString());
+        layouts = *base;
+    } else {
+        throw std::runtime_error(QStringLiteral("Parasolid X_T import needs the Parasolid schema files (a folder with sch_13006.sch_txt and the "
+                                                "other sch_<number>.sch_txt files) or the base layout file xt-layouts-v13.txt, and found neither. "
+                                                "Put the schema folder next to the application as \"schema\" or set MODELVIEWER_XT_SCHEMA_DIR. Looked in:\n%1\n%2")
+                                     .arg(triedSchema.join(QLatin1Char('\n')), tried.join(QLatin1Char('\n'))).toStdString());
     }
 
     report(QObject::tr("Reading Parasolid file..."), 0, 1000);
@@ -514,6 +548,10 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
     };
     Xt::Options readOptions;
     readOptions.cancelled = cancelledNow;
+    if (!schemaDir.isEmpty()) {
+        const std::string dir = schemaDir.toStdString();
+        readOptions.externalSchema = [dir, &layouts](int number) { return Xt::schemaFromDirectory(dir, number, nullptr, &layouts); };
+    }
     report(QObject::tr("Decoding Parasolid data..."), 100, 1000);
     Xt::ImportReport r = Xt::importText(std::string_view(bytes.constData(), static_cast<size_t>(bytes.size())), layouts, build, readOptions);
     if (cancelledNow())

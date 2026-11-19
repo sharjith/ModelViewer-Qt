@@ -110,6 +110,7 @@ int main(int argc, char** argv) {
     std::setvbuf(stdout, nullptr, _IONBF, 0);
     int deviation = 0;
     std::string dump;
+    std::string schemaDir; // --schema-dir <dir>: sch_<n>.sch_txt files; layouts argument "-" takes sch_13006 from there
     std::string faceTable; // --face-table <out.tsv>: one row per XT face (origin, reason, BRepCheck, triangles); use with --mesh
     std::vector<std::string> positional;
     bool jt = false;
@@ -125,6 +126,7 @@ int main(int argc, char** argv) {
         else if (a == "--attribs") attribs = true;
         else if (a == "--dump" && i + 1 < argc) dump = argv[++i];
         else if (a == "--face-table" && i + 1 < argc) faceTable = argv[++i];
+        else if (a == "--schema-dir" && i + 1 < argc) schemaDir = argv[++i];
         else positional.push_back(a);
     }
     if ((jt && positional.size() != 1) || (!jt && positional.size() != 2)) {
@@ -145,18 +147,30 @@ int main(int argc, char** argv) {
     } else {
         Xt::LayoutTable table;
         std::string error;
-        if (!table.parse(readAll(positional[0].c_str()), &error)) {
+        if (positional[0] == "-") {
+            const Xt::LayoutTable* base = schemaDir.empty() ? nullptr : Xt::schemaFromDirectory(schemaDir, 13006, &error);
+            if (!base) {
+                std::fprintf(stderr, "schema 13006: %s\n", error.c_str());
+                return 2;
+            }
+            table = *base;
+        } else if (!table.parse(readAll(positional[0].c_str()), &error)) {
             std::fprintf(stderr, "layouts: %s\n", error.c_str());
             return 2;
         }
         const std::string bytes = readAll(positional[1].c_str());
-        file = Xt::readText(bytes, table);
+        Xt::Options readOptions;
+        if (!schemaDir.empty())
+            readOptions.externalSchema = [&](int number) { return Xt::schemaFromDirectory(schemaDir, number, nullptr, &table); };
+        file = Xt::readText(bytes, table, readOptions);
     }
     const auto t1 = std::chrono::steady_clock::now();
     std::printf("decode: %s, %zu records, %.2f s\n", file.status == Xt::Status::Complete ? "complete" : "FAILED",
                 file.nodes.size(), std::chrono::duration<double>(t1 - t0).count());
     if (file.status != Xt::Status::Complete) {
-        for (const auto& d : file.diagnostics) std::printf("  %s: %s\n", d.code.c_str(), d.message.c_str());
+        for (const auto& d : file.diagnostics) std::printf("  %s: %s (node type %lld, record %lld)\n", d.code.c_str(), d.message.c_str(), static_cast<long long>(d.nodeType), static_cast<long long>(d.recordIndex));
+        std::printf("  key %s embedded=%d external=%d userFieldSize=%d\n", file.header.internalSchema.c_str(), file.header.embeddedSchema, file.header.externalSchemaUsed, file.header.userFieldSize);
+        for (const auto& kv : file.countsByName) std::printf("  read %s x %zu\n", kv.first.c_str(), kv.second);
         return 1;
     }
 
@@ -449,6 +463,46 @@ int main(int argc, char** argv) {
                 }
             }
         }
+        if (std::getenv("XT_FREE_PAIRS") && freeEdges > 0) {
+            // Free edges that have a free partner nearby (a seam that was built twice) versus genuinely open boundaries.
+            NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher> efm;
+            TopExp::MapShapesAndAncestors(body.shape, TopAbs_EDGE, TopAbs_FACE, efm);
+            struct FreeEdge { gp_Pnt mid, a, b; double len; };
+            std::vector<FreeEdge> fr;
+            for (int i = 1; i <= efm.Extent(); ++i) {
+                const TopoDS_Edge e = TopoDS::Edge(efm.FindKey(i));
+                if (BRep_Tool::Degenerated(e) || efm.FindFromIndex(i).Size() != 1) continue;
+                double c0, c1;
+                const Handle(Geom_Curve) c = BRep_Tool::Curve(e, c0, c1);
+                if (c.IsNull()) continue;
+                const gp_Pnt a = c->Value(c0), b = c->Value(c1), m = c->Value(0.5 * (c0 + c1));
+                fr.push_back({m, a, b, a.Distance(b)});
+            }
+            size_t paired = 0;
+            double openLen = 0, pairedLen = 0;
+            for (size_t i = 0; i < fr.size(); ++i) {
+                bool has = false;
+                for (size_t j = 0; j < fr.size() && !has; ++j)
+                    if (j != i && fr[i].mid.Distance(fr[j].mid) < 0.5 + 0.02 * fr[i].len &&
+                        std::min(fr[i].a.Distance(fr[j].a) + fr[i].b.Distance(fr[j].b), fr[i].a.Distance(fr[j].b) + fr[i].b.Distance(fr[j].a)) < 1.0 + 0.05 * fr[i].len)
+                        has = true;
+                if (has) { ++paired; pairedLen += fr[i].len; } else openLen += fr[i].len;
+            }
+            if (std::getenv("XT_FREE_PAIRS") && std::string(std::getenv("XT_FREE_PAIRS")) == "hist") {
+                std::vector<double> nearest;
+                for (size_t i = 0; i < fr.size(); ++i) {
+                    double best = 1e300;
+                    for (size_t j = 0; j < fr.size(); ++j)
+                        if (j != i) best = std::min(best, fr[i].mid.Distance(fr[j].mid));
+                    nearest.push_back(best);
+                }
+                std::sort(nearest.begin(), nearest.end());
+                for (size_t q : {size_t(0), nearest.size() / 4, nearest.size() / 2, nearest.size() * 3 / 4, nearest.size() * 9 / 10, nearest.size() - 1})
+                    if (!nearest.empty()) std::printf("    nearest-partner mid distance q%zu: %.5g\n", q, nearest[std::min(q, nearest.size() - 1)]);
+            }
+            std::printf("  body %lld free edges: %zu total, %zu with a coincident free partner (%.1f mm), %zu open (%.1f mm)\n", static_cast<long long>(body.index),
+                        fr.size(), paired, pairedLen, fr.size() - paired, openLen);
+        }
         if (shown++ < 100000)
             std::printf("  body %lld: faces %zu/%zu valid=%d free_edges=%zu volume=%.6g area=%.6g type=%d\n",
                         static_cast<long long>(body.index), body.facesBuilt, body.facesTotal, ok, freeEdges, vol.Mass(), area.Mass(),
@@ -575,6 +629,62 @@ int main(int argc, char** argv) {
                 if (!ok) ++rejected;
             }
             std::printf("viewer usable-triangulation check rejects %zu faces\n", rejected);
+        }
+        if (std::getenv("XT_MESH_OPEN")) {
+            // What a section-capping pass sees: weld the vertices of each body mesh by position, then count the triangle
+            // edges that only one triangle uses (open boundary) and those that three or more use.
+            const double weld = std::getenv("XT_WELD_TOL") ? std::atof(std::getenv("XT_WELD_TOL")) : 0.01;
+            size_t bodiesOpen = 0, totalOpen = 0, totalNonManifold = 0;
+            std::vector<std::tuple<size_t, long long, size_t>> rows;
+            for (const auto& body : r.bodies) {
+                std::map<std::array<long long, 3>, int> ids;
+                std::map<std::pair<int, int>, int> edgeUse;
+                std::map<std::pair<int, int>, std::vector<const TopoDS_TShape*>> edgeFaces;
+                auto idOf = [&](const gp_Pnt& p) {
+                    const std::array<long long, 3> k{std::llround(p.X() / weld), std::llround(p.Y() / weld), std::llround(p.Z() / weld)};
+                    return ids.emplace(k, static_cast<int>(ids.size())).first->second;
+                };
+                for (TopExp_Explorer ex(body.shape, TopAbs_FACE); ex.More(); ex.Next()) {
+                    TopLoc_Location loc;
+                    const auto tri = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), loc);
+                    if (tri.IsNull()) continue;
+                    std::vector<int> map(static_cast<size_t>(tri->NbNodes()) + 1);
+                    for (int i = 1; i <= tri->NbNodes(); ++i) map[static_cast<size_t>(i)] = idOf(tri->Node(i).Transformed(loc.Transformation()));
+                    for (int t = 1; t <= tri->NbTriangles(); ++t) {
+                        int n1, n2, n3;
+                        tri->Triangle(t).Get(n1, n2, n3);
+                        const int v[3] = {map[static_cast<size_t>(n1)], map[static_cast<size_t>(n2)], map[static_cast<size_t>(n3)]};
+                        if (v[0] == v[1] || v[1] == v[2] || v[0] == v[2]) continue; // collapsed by the weld
+                        for (int k = 0; k < 3; ++k) {
+                            const std::pair<int, int> key{std::min(v[k], v[(k + 1) % 3]), std::max(v[k], v[(k + 1) % 3])};
+                            ++edgeUse[key];
+                            edgeFaces[key].push_back(ex.Current().TShape().get());
+                        }
+                    }
+                }
+                size_t open = 0, nonManifold = 0;
+                for (const auto& kv : edgeUse) { open += kv.second == 1; nonManifold += kv.second > 2; }
+                totalOpen += open; totalNonManifold += nonManifold;
+                if (const char* want = std::getenv("XT_MESH_OPEN_BODY"); want && std::atoll(want) == static_cast<long long>(body.index)) {
+                    std::map<const TopoDS_TShape*, std::pair<size_t, size_t>> perFace; // open, non-manifold
+                    for (const auto& kv : edgeUse)
+                        for (const TopoDS_TShape* f : edgeFaces[kv.first]) {
+                            if (kv.second == 1) ++perFace[f].first;
+                            if (kv.second > 2) ++perFace[f].second;
+                        }
+                    for (const auto& [node, o] : body.faceOutcomes) {
+                        const auto it = perFace.find(o.shape);
+                        if (it != perFace.end())
+                            std::printf("    face %lld %s %s open %zu nonmanifold %zu\n", static_cast<long long>(node), o.surface.c_str(), o.origin.c_str(), it->second.first, it->second.second);
+                    }
+                }
+                if (open) { ++bodiesOpen; rows.emplace_back(open, static_cast<long long>(body.index), nonManifold); }
+            }
+            std::sort(rows.rbegin(), rows.rend());
+            std::printf("mesh watertightness (weld %.4g): %zu of %zu bodies have open mesh edges, %zu open edges in total, %zu non-manifold\n", weld, bodiesOpen,
+                        r.bodies.size(), totalOpen, totalNonManifold);
+            for (size_t i = 0; i < rows.size() && i < 12; ++i)
+                std::printf("  body %lld: %zu open mesh edges (%zu non-manifold)\n", std::get<1>(rows[i]), std::get<0>(rows[i]), std::get<2>(rows[i]));
         }
         std::printf("mesh: %zu of %zu faces triangulated, %zu triangles, %.2f s\n", facesMeshed, facesTotal, tris,
                     std::chrono::duration<double>(std::chrono::steady_clock::now() - m0).count());
@@ -840,7 +950,13 @@ int main(int argc, char** argv) {
             std::set<std::tuple<double, double, double>> distinct;
             for (const auto& kv : colouredBody.faceColours) distinct.emplace(kv.second.r, kv.second.g, kv.second.b);
             size_t translucent = 0;
-            for (const auto& kv : colouredBody.faceColours) translucent += kv.second.a < 1.0 ? 1 : 0;
+            for (const auto& kv : colouredBody.faceColours) {
+                translucent += kv.second.a < 1.0 ? 1 : 0;
+                if (std::getenv("XT_PRINT_FIRST_COLOUR") && &kv == &*colouredBody.faceColours.begin())
+                    std::printf("  first face colour of %s: rgb(%.3f %.3f %.3f) opacity %.3f\n", inst.name.c_str(), kv.second.r, kv.second.g, kv.second.b, kv.second.a);
+                if (kv.second.a < 1.0 && std::getenv("XT_PRINT_TRANSLUCENT"))
+                    std::printf("  translucent face %lld rgb(%.3f %.3f %.3f) opacity %.3f\n", static_cast<long long>(kv.first), kv.second.r, kv.second.g, kv.second.b, kv.second.a);
+            }
             std::printf("%*s%s  body-colour=%s(%.2f %.2f %.2f) face-colours=%zu on %zu of %zu faces, translucent faces=%zu (body opacity %.2f)\n", static_cast<int>(2 * inst.path.size()), "",
                         inst.name.c_str(), colouredBody.hasBodyColour ? "" : "none", colouredBody.bodyColour.r, colouredBody.bodyColour.g,
                         colouredBody.bodyColour.b, distinct.size(), colouredBody.faceColours.size(), colouredBody.faceOutcomes.size(), translucent,
