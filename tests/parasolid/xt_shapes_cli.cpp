@@ -1126,6 +1126,18 @@ int main(int argc, char** argv) {
                         }
                         TopLoc_Location loc;
                         const auto tri = BRep_Tool::Triangulation(f, loc);
+                        if (!tri.IsNull() && std::getenv("XT_MESH_COVER")) {
+                            double meshArea = 0;
+                            for (int t = 1; t <= tri->NbTriangles(); ++t) {
+                                int n1, n2, n3;
+                                tri->Triangle(t).Get(n1, n2, n3);
+                                meshArea += 0.5 * gp_Vec(tri->Node(n1), tri->Node(n2)).Crossed(gp_Vec(tri->Node(n1), tri->Node(n3))).Magnitude();
+                            }
+                            GProp_GProps exact;
+                            BRepGProp::SurfaceProperties(f, exact);
+                            if (meshArea < 0.9 * exact.Mass())
+                                std::printf("  cover: body %lld face %lld mesh area %.4g of %.4g (%.0f%%)\n", static_cast<long long>(body.index), static_cast<long long>(node), meshArea, exact.Mass(), 100 * meshArea / exact.Mass());
+                        }
                         if (!tri.IsNull()) tris = static_cast<size_t>(tri->NbTriangles());
                         if (!tri.IsNull() && tri->NbTriangles() > 1) {
                             std::vector<gp_Vec> nrm(static_cast<size_t>(tri->NbTriangles()) + 1);

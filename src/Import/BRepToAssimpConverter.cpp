@@ -1442,8 +1442,15 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			}
 			else
 			{
-				qWarning().noquote() << QStringLiteral("[STEP import] mesh %1: a face's tessellation has holes and could not be rebuilt (%2)")
-					.arg(meshIndex).arg(QString::fromStdString(gapFailure));
+				Bnd_Box holedBox;
+				BRepBndLib::Add(face, holedBox);
+				double hx0 = 0, hy0 = 0, hz0 = 0, hx1 = 0, hy1 = 0, hz1 = 0;
+				if (!holedBox.IsVoid())
+					holedBox.Get(hx0, hy0, hz0, hx1, hy1, hz1);
+				qWarning().noquote() << QStringLiteral("[STEP import] mesh %1: a face's tessellation has holes and could not be rebuilt (%2) [surface type %3, centre (%4 %5 %6), size (%7 %8 %9)]")
+					.arg(meshIndex).arg(QString::fromStdString(gapFailure)).arg(static_cast<int>(BRepAdaptor_Surface(face, false).GetType()))
+					.arg((hx0 + hx1) / 2, 0, 'g', 6).arg((hy0 + hy1) / 2, 0, 'g', 6).arg((hz0 + hz1) / 2, 0, 'g', 6)
+					.arg(hx1 - hx0, 0, 'g', 4).arg(hy1 - hy0, 0, 'g', 4).arg(hz1 - hz0, 0, 'g', 4);
 			}
 		}
 

@@ -78,6 +78,7 @@
 #include <Precision.hxx>
 #include <ShapeAnalysis_Surface.hxx>
 #include <BRepTools.hxx>
+#include <BRepTools_WireExplorer.hxx>
 #include <ShapeFix.hxx>
 #include <ShapeFix_Edge.hxx>
 #include <ShapeBuild_ReShape.hxx>
@@ -4103,85 +4104,116 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
             }
         }
     }
-    if (si.kind == "TORUS" && wires == 1 && !seamFreeSphericalTrim && !std::getenv("XT_NO_POLE_CAP")) {
-        // An apple or lemon torus is a revolution of a meridian arc that meets the axis at both ends. A face bounded by a single
-        // parallel circle around the axis is a cap that ends in the pole: it needs the seam and the degenerate pole edge that
-        // XT does not store.
+    if ((si.kind == "TORUS" || si.kind == "CONE") && wires == 1 && !seamFreeSphericalTrim && !std::getenv("XT_NO_POLE_CAP")) {
+        // A face on a surface of revolution that is bounded by one loop running once around the axis and containing the pole (the
+        // end of a dome-shaped torus, the tip of a cone) needs the seam and the degenerate pole edge that XT does not store.
         try {
-            const auto revolution = Handle(Geom_SurfaceOfRevolution)::DownCast(BRep_Tool::Surface(f));
+            const Handle(Geom_Surface) surface = BRep_Tool::Surface(f);
+            const auto revolution = Handle(Geom_SurfaceOfRevolution)::DownCast(surface);
+            const auto cone = Handle(Geom_ConicalSurface)::DownCast(surface);
             TopoDS_Wire wire;
             for (TopExp_Explorer ew(f, TopAbs_WIRE); ew.More(); ew.Next())
                 wire = TopoDS::Wire(ew.Current());
-            int edgeCount = 0;
-            TopoDS_Edge circleEdge;
-            for (TopExp_Explorer ee(wire, TopAbs_EDGE); ee.More(); ee.Next()) {
-                circleEdge = TopoDS::Edge(ee.Current());
-                ++edgeCount;
+            struct Piece { TopoDS_Edge edge; double uStart, uEnd, v; };
+            std::vector<Piece> pieces;
+            bool usable = !wire.IsNull() && (!revolution.IsNull() || !cone.IsNull());
+            double vMinLoop = 1e300, vMaxLoop = -1e300;
+            if (usable) {
+                for (BRepTools_WireExplorer we(wire, f); we.More() && usable; we.Next()) {
+                    const TopoDS_Edge e = we.Current();
+                    double q0 = 0, q1 = 0;
+                    const Handle(Geom2d_Curve) pcx = BRep_Tool::Degenerated(e) ? Handle(Geom2d_Curve)() : BRep_Tool::CurveOnSurface(e, f, q0, q1);
+                    if (pcx.IsNull()) {
+                        usable = false;
+                        break;
+                    }
+                    gp_Pnt2d a = pcx->Value(q0), b = pcx->Value(q1);
+                    if (e.Orientation() == TopAbs_REVERSED)
+                        std::swap(a, b);
+                    pieces.push_back({e, a.X(), b.X(), 0.5 * (a.Y() + b.Y())});
+                    for (int k = 0; k <= 8; ++k) {
+                        const double y = pcx->Value(q0 + (q1 - q0) * k / 8).Y();
+                        vMinLoop = std::min(vMinLoop, y);
+                        vMaxLoop = std::max(vMaxLoop, y);
+                    }
+                }
             }
-            double p0 = 0, p1 = 0;
-            Handle(Geom2d_Curve) pc;
-            if (!revolution.IsNull() && edgeCount == 1 && !BRep_Tool::Degenerated(circleEdge))
-                pc = BRep_Tool::CurveOnSurface(circleEdge, f, p0, p1);
-            if (!pc.IsNull()) {
-                const gp_Pnt2d a = pc->Value(p0), b = pc->Value(p1);
-                const double turn = 2 * M_PI;
-                if (std::abs(std::abs(b.X() - a.X()) - turn) < 1e-6 && std::abs(b.Y() - a.Y()) < 1e-6) {
-                    double bu0, bu1, bv0, bv1;
-                    revolution->Bounds(bu0, bu1, bv0, bv1);
-                    const double vL = a.Y();
-                    // Moving along +u (as the edge sits in the wire), the face lies to the left, towards larger v.
-                    const double direction = (b.X() > a.X() ? 1.0 : -1.0) * (circleEdge.Orientation() == TopAbs_REVERSED ? -1.0 : 1.0);
-                    const double vP = direction > 0 ? bv1 : bv0;
-                    const double uLo = std::min(a.X(), b.X()), uHi = uLo + turn;
-                    const double vMin = std::min(vL, vP), vMax = std::max(vL, vP);
-                    const double tol = std::max(1e-5 * scale, BRep_Tool::Tolerance(circleEdge));
-                    if (vMax - vMin > 1e-6) {
-                        const TopoDS_Vertex circleVertex = TopExp::FirstVertex(circleEdge);
-                        TopoDS_Vertex pole;
-                        bb.MakeVertex(pole, revolution->Value(uLo, vP), tol);
-                        const Handle(Geom_Surface) surface = BRep_Tool::Surface(f);
-                        // Seam along the meridian at uLo, parameter v.
-                        TopoDS_Edge seam;
-                        bb.MakeEdge(seam, revolution->UIso(uLo), TopLoc_Location(), tol);
-                        bb.Range(seam, vMin, vMax);
-                        bb.Add(seam, (vL < vP ? circleVertex : pole).Oriented(TopAbs_FORWARD));
-                        bb.Add(seam, (vL < vP ? pole : circleVertex).Oriented(TopAbs_REVERSED));
-                        const Handle(Geom2d_Line) seamLo = new Geom2d_Line(gp_Pnt2d(uLo, 0), gp_Dir2d(0, 1));
-                        const Handle(Geom2d_Line) seamHi = new Geom2d_Line(gp_Pnt2d(uHi, 0), gp_Dir2d(0, 1));
-                        TopoDS_Face g;
-                        bb.MakeFace(g, surface, TopLoc_Location(), kXtTolerance * scale);
-                        bb.UpdateEdge(seam, seamHi, seamLo, g, tol);
-                        bb.Range(seam, g, vMin, vMax);
-                        bb.SameParameter(seam, true);
-                        bb.SameRange(seam, true);
-                        // Degenerate edge at the pole, along u.
-                        TopoDS_Edge degenerate;
-                        bb.MakeEdge(degenerate);
-                        bb.Degenerated(degenerate, true);
-                        bb.Add(degenerate, pole.Oriented(TopAbs_FORWARD));
-                        bb.Add(degenerate, pole.Oriented(TopAbs_REVERSED));
-                        bb.UpdateEdge(degenerate, new Geom2d_Line(gp_Pnt2d(uLo, vP), gp_Dir2d(1, 0)), g, tol);
-                        bb.Range(degenerate, g, uLo, uHi);
-                        TopoDS_Wire capWire;
-                        bb.MakeWire(capWire);
-                        if (direction > 0) {
-                            // bottom +u (the circle), right side up, top back along -u, left side down
-                            bb.Add(capWire, circleEdge);
-                            bb.Add(capWire, seam.Oriented(TopAbs_FORWARD));
-                            bb.Add(capWire, degenerate.Oriented(TopAbs_REVERSED));
-                            bb.Add(capWire, seam.Oriented(TopAbs_REVERSED));
-                        } else {
-                            // top -u (the circle), left side down, bottom +u at the pole, right side up
-                            bb.Add(capWire, circleEdge);
-                            bb.Add(capWire, seam.Oriented(TopAbs_REVERSED));
-                            bb.Add(capWire, degenerate.Oriented(TopAbs_FORWARD));
-                            bb.Add(capWire, seam.Oriented(TopAbs_FORWARD));
+            const double turn = 2 * M_PI;
+            if (usable && !pieces.empty()) {
+                for (size_t i = 0; i + 1 < pieces.size(); ++i)
+                    if (std::abs(pieces[i].uEnd - pieces[i + 1].uStart) > 1e-3)
+                        usable = false;
+                const double uFirst = pieces.front().uStart, uLast = pieces.back().uEnd;
+                const double winding = uLast - uFirst;
+                if (usable && std::abs(std::abs(winding) - turn) < 1e-3) {
+                    const double direction = winding > 0 ? 1.0 : -1.0; // the face lies to the left: larger v when u increases
+                    double vPole = 0;
+                    bool poleOnFaceSide = false;
+                    if (!revolution.IsNull()) {
+                        double bu0, bu1, bv0, bv1;
+                        revolution->Bounds(bu0, bu1, bv0, bv1);
+                        vPole = direction > 0 ? bv1 : bv0;
+                        poleOnFaceSide = true;
+                    } else if (std::abs(std::sin(cone->SemiAngle())) > 1e-9) {
+                        vPole = -cone->RefRadius() / std::sin(cone->SemiAngle());
+                        poleOnFaceSide = direction > 0 ? vPole > vMaxLoop : vPole < vMinLoop;
+                    }
+                    const double vStart = 0.5 * (vMinLoop + vMaxLoop);
+                    const TopoDS_Vertex startVertex = TopExp::FirstVertex(pieces.front().edge, true);
+                    const TopoDS_Vertex endVertex = TopExp::LastVertex(pieces.back().edge, true);
+                    if (poleOnFaceSide && startVertex.IsSame(endVertex) && std::abs(vPole - vStart) > 1e-6) {
+                        const double tol = std::max(1e-5 * scale, BRep_Tool::Tolerance(pieces.front().edge));
+                        const double uLo = std::min(uFirst, uLast), uHi = uLo + turn;
+                        // The seam leaves the loop at its first vertex, so the loop's v there is the seam's start.
+                        double r0 = 0, r1 = 0;
+                        const Handle(Geom2d_Curve) firstPc = BRep_Tool::CurveOnSurface(pieces.front().edge, f, r0, r1);
+                        const double vLoop = (pieces.front().edge.Orientation() == TopAbs_REVERSED ? firstPc->Value(r1) : firstPc->Value(r0)).Y();
+                        const double vMin = std::min(vLoop, vPole), vMax = std::max(vLoop, vPole);
+                        if (vMax - vMin > 1e-6 && (direction > 0 ? vPole > vLoop : vPole < vLoop)) {
+                            TopoDS_Vertex pole;
+                            bb.MakeVertex(pole, surface->Value(uLo, vPole), tol);
+                            TopoDS_Edge seam;
+                            bb.MakeEdge(seam, surface->UIso(uLo), TopLoc_Location(), tol);
+                            bb.Range(seam, vMin, vMax);
+                            bb.Add(seam, (vLoop < vPole ? startVertex : pole).Oriented(TopAbs_FORWARD));
+                            bb.Add(seam, (vLoop < vPole ? pole : startVertex).Oriented(TopAbs_REVERSED));
+                            const Handle(Geom2d_Line) seamLo = new Geom2d_Line(gp_Pnt2d(uLo, 0), gp_Dir2d(0, 1));
+                            const Handle(Geom2d_Line) seamHi = new Geom2d_Line(gp_Pnt2d(uHi, 0), gp_Dir2d(0, 1));
+                            TopoDS_Face g;
+                            bb.MakeFace(g, surface, TopLoc_Location(), kXtTolerance * scale);
+                            bb.UpdateEdge(seam, seamHi, seamLo, g, tol);
+                            bb.Range(seam, g, vMin, vMax);
+                            bb.SameParameter(seam, true);
+                            bb.SameRange(seam, true);
+                            TopoDS_Edge degenerate;
+                            bb.MakeEdge(degenerate);
+                            bb.Degenerated(degenerate, true);
+                            bb.Add(degenerate, pole.Oriented(TopAbs_FORWARD));
+                            bb.Add(degenerate, pole.Oriented(TopAbs_REVERSED));
+                            bb.UpdateEdge(degenerate, new Geom2d_Line(gp_Pnt2d(uLo, vPole), gp_Dir2d(1, 0)), g, tol);
+                            bb.Range(degenerate, g, uLo, uHi);
+                            TopoDS_Wire capWire;
+                            bb.MakeWire(capWire);
+                            for (const Piece& piece : pieces)
+                                bb.Add(capWire, piece.edge);
+                            if (direction > 0) {
+                                // loop along +u, right side up, pole edge back along -u, left side down
+                                bb.Add(capWire, seam.Oriented(TopAbs_FORWARD));
+                                bb.Add(capWire, degenerate.Oriented(TopAbs_REVERSED));
+                                bb.Add(capWire, seam.Oriented(TopAbs_REVERSED));
+                            } else {
+                                // loop along -u, left side down, pole edge along +u, right side up
+                                bb.Add(capWire, seam.Oriented(TopAbs_REVERSED));
+                                bb.Add(capWire, degenerate.Oriented(TopAbs_FORWARD));
+                                bb.Add(capWire, seam.Oriented(TopAbs_FORWARD));
+                            }
+                            bb.Add(g, capWire);
+                            if (std::getenv("XT_DEBUG_ORIENT"))
+                                std::fprintf(stderr, "pole cap face %lld: %s direction %g vLoop %g vPole %g u [%g %g] edges %zu\n", static_cast<long long>(face.index),
+                                             si.kind.c_str(), direction, vLoop, vPole, uLo, uHi, pieces.size());
+                            f = g;
+                            trace("pole-cap", face.index);
                         }
-                        bb.Add(g, capWire);
-                        if (std::getenv("XT_DEBUG_ORIENT"))
-                            std::fprintf(stderr, "pole cap face %lld: direction %g vL %g vP %g u [%g %g]\n", static_cast<long long>(face.index), direction, vL, vP, uLo, uHi);
-                        f = g;
-                        trace("torus-pole-cap", face.index);
                     }
                 }
             }
@@ -4222,7 +4254,13 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
             for (TopExp_Explorer ee(ew.Current(), TopAbs_EDGE); ee.More(); ee.Next()) {
                 double c0, c1;
                 const Handle(Geom_Curve) c = BRep_Tool::Curve(TopoDS::Edge(ee.Current()), c0, c1);
-                std::fprintf(stderr, "  edge %s [%g %g]\n", c.IsNull() ? "none" : c->DynamicType()->Name(), c0, c1);
+                const TopoDS_Edge ed = TopoDS::Edge(ee.Current());
+                double q0 = 0, q1 = 0;
+                const Handle(Geom2d_Curve) pcx = BRep_Tool::CurveOnSurface(ed, f, q0, q1);
+                const gp_Pnt P0 = c.IsNull() ? gp_Pnt() : c->Value(c0), P1 = c.IsNull() ? gp_Pnt() : c->Value(c1);
+                std::fprintf(stderr, "  edge %s [%g %g] ori %d (%.4g %.4g %.4g)->(%.4g %.4g %.4g) uv %s\n", c.IsNull() ? "none" : c->DynamicType()->Name(), c0, c1,
+                             static_cast<int>(ed.Orientation()), P0.X(), P0.Y(), P0.Z(), P1.X(), P1.Y(), P1.Z(),
+                             pcx.IsNull() ? "none" : (std::to_string(pcx->Value(q0).X()) + "," + std::to_string(pcx->Value(q0).Y()) + "->" + std::to_string(pcx->Value(q1).X()) + "," + std::to_string(pcx->Value(q1).Y())).c_str());
             }
         }
     }
