@@ -97,6 +97,7 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 	if (!allExtensions.contains("*.3dxml", Qt::CaseInsensitive)) allExtensions += " *.3dxml";
 	if (!allExtensions.contains("*.jt", Qt::CaseInsensitive)) allExtensions += " *.jt";
 	if (!allExtensions.contains("*.x_t", Qt::CaseInsensitive)) allExtensions += " *.x_t *.xmt_txt";
+	if (!allExtensions.contains("*.ipt", Qt::CaseInsensitive)) allExtensions += " *.ipt";
 
 	// 2. Manually add STEP/IGES extensions (if not in Assimp list)
 	if (!allExtensions.contains("*.step", Qt::CaseInsensitive)) {
@@ -131,6 +132,7 @@ void ModelViewerApplication::initializeSupportedImportExtensions()
 		"3DXML (*.3dxml)",
 		"JT (*.jt)",
 		"Parasolid (*.x_t *.xmt_txt)",
+		"Autodesk Inventor Part (*.ipt)",
 		"IGES (*.iges *.igs)",
 		"BREP (*.brep *.rle)",
 		"VRML (*.wrl *.vrml)",

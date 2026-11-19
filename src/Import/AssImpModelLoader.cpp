@@ -15,6 +15,7 @@
 #include <Standard_Failure.hxx>
 #include <new>
 #include "ThreeDXml/Importer.h"
+#include "InventorPartSolid.h"
 #include "Parasolid/XtSceneImporter.h"
 #include "Parasolid/XtImport.h"
 #include "MeshImportAdaptor.h"
@@ -1388,6 +1389,48 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_errorMessage = QString::fromUtf8(e.what());
 			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
 				_loadingCancelled = true; _errorMessage = "Model loading cancelled by user."; emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
+	}
+	else if (fi.suffix().compare("ipt", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			const auto cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			_importStage = "worker.inventor-read";
+			ImportDiagnostics::checkpoint(_importStage);
+			const auto solids = Inventor::readPartSolids(fi.absoluteFilePath(), cancelled);
+			BRepToAssimpConverter::clearColorCache();
+			_importStage = "worker.inventor-tessellate";
+			ImportDiagnostics::checkpoint(_importStage);
+			std::vector<ShapeWithNameAndTrsf> parts;
+			parts.reserve(solids.size());
+			const QString baseName = fi.completeBaseName();
+			const Quantity_Color color(0.7, 0.7, 0.7, Quantity_TOC_RGB);
+			for (std::size_t i = 0; i < solids.size(); ++i) {
+				if (cancelled())
+					throw std::runtime_error("Inventor import cancelled");
+				BRepToAssimpConverter::preTessellate(solids[i]);
+				const QString name = solids.size() == 1 ? baseName : QStringLiteral("%1 Body %2").arg(baseName).arg(i + 1);
+				parts.emplace_back(solids[i], name.toStdString(), TopLoc_Location(), color);
+			}
+			if (cancelled())
+				throw std::runtime_error("Inventor import cancelled");
+			_xcafScene.reset(BRepToAssimpConverter::convert(parts));
+			if (!_xcafScene || !_xcafScene->mRootNode || _xcafScene->mNumMeshes == 0 ||
+				_xcafScene->mRootNode->mNumChildren != solids.size())
+				throw std::runtime_error("Inventor part did not produce display geometry for every body");
+			_scene = _xcafScene.get();
+			_declaredLengthUnit = LengthUnit::Millimeter;
+			_importStage = "worker.inventor-read-complete";
+			ImportDiagnostics::checkpoint(_importStage, -1, _scene->mNumMeshes, 0);
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true;
+				_errorMessage = "Model loading cancelled by user.";
+				emit loadingCancelled();
 			}
 			emit loadingFinished(false, nullptr);
 			return;

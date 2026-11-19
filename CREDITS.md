@@ -25,6 +25,10 @@ When you add an asset whose licence needs attribution, add a row here and a cred
 
 ## Importer references
 
+- **Autodesk Inventor import research.** Jens M. Plonka's [InventorLoader](https://github.com/jmplonka/InventorLoader) was consulted for the documented import approach. Philippe Lagadec's [olefile 0.47](https://olefile.readthedocs.io/en/latest/License.html) is an external dependency of the research inventory tool. See the [Inventor research provenance](research/inventor/INVENTOR_IMPORT_FEASIBILITY.md#provenance-and-limits).
+- **Autodesk Inventor comparison and samples.** [CAD Convert by CNCaddict](https://github.com/CNCaddict/CAD-Convert/tree/a3cbe9f5f41acff810b5006d964d116e805e042b) supplies local Inventor 2026 controls and documents a reader and STEP writer for comparison. No CAD Convert code is incorporated. See the [Inventor research provenance](research/inventor/INVENTOR_IMPORT_FEASIBILITY.md#provenance-and-limits).
+- **Inventor compound storage.** Microsoft's public [MS-CFB specification](https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-cfb/53989ce4-7b05-4f8d-829b-d08d6148375b), revision 13.0, describes the container used by the native Inventor reader. See the [native reader and verification record](research/inventor/INVENTOR_IMPORT_FEASIBILITY.md#native-compound-file-reader-and-owner-verification).
+
 - **Parasolid XT blend comparison:** monozukuri-ai's parasolid-kit, [commit b91972a](https://github.com/monozukuri-ai/parasolid-kit/tree/b91972a1ff86d8c8b55b07516923f7c35bfedf77). The upstream distribution declares MIT AND Apache-2.0. See the [source comparison and provenance](research/parasolid/PARASOLID_PROVENANCE.md#parasolid-kit-geometry-comparison-17-november-2026).
 
 - **Parasolid XT topology reference:** Open CASCADE Technology 8.0.1, Copyright OPEN CASCADE SAS. The local STEP and IGES translator sources and public B-Rep APIs were consulted for edge, pcurve and wire construction. See the [source comparison and provenance](research/parasolid/PARASOLID_OCCT_TOPOLOGY_COMPARISON.md).
