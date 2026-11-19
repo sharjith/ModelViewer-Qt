@@ -15,7 +15,7 @@ These are counts from the saved records before the ASM history section. Unrefere
 | I04 | Two saved body records, eight planes, and one cone-family face. The paired report identifies two new-body extrusions. | Independent single-shell solids with overlapping volumes and separate viewer nodes. |
 | I05 | Seven planes, one cylinder encoded as a cone with zero slope, and two full circular boundaries. Their saved closure vertices lie on opposite meridians. All 14 referenced edges occur twice. | Planar inner loops and missing periodic seam repair. The feature report specifies a 5 mm drilled diameter. |
 | I02 | Eight planes, three cylinder faces and two edge records each referenced four times. Those two edges lie where the outer cut cylinder is tangent to the part's exterior planes. | An exterior and one cavity joined by retraced planar boundary segments in the saved topology. |
-| G01 | 53 planes, 30 cone-family faces, 15 tori and 110 ellipse-family edge records. | First paired STEP comparison after the small controls pass. |
+| G01 | 53 planes, 30 cone-family faces, 15 tori and 110 ellipse-family edge records. | First production part verified against its paired STEP. The owner accepted the displayed geometry and observed a color difference. |
 | G02 | 372 saved face records, including 10 spline surfaces and 56 intersection-curve edge records. | Spline surfaces and exact general edge curves are still required. |
 | G07 | Three body records. The inspected links show one face-bearing body and two wire-only bodies. The face records include 78 spline surfaces, and 238 edge records refer to intersection curves. | Useful production input for spline geometry and determining which native bodies the viewer should display. The supplied package contains no separate STEP export. |
 
@@ -101,7 +101,7 @@ $stage = Join-Path (Get-Location) 'out/inventor-research/viewer-tangent'
 cmake --install out/build/ninja_release_vcpkg --prefix $stage
 ```
 
-The Release build and staging succeeded. All nine repository GUI-free CTests passed in 169.57 seconds on the tangent-cut pass. The standalone probe exercises native Inventor reconstruction. G01 still fails OCCT validation, and G02 reaches an unsupported spline surface.
+The Release build and staging succeeded. All nine repository GUI-free CTests passed in 169.57 seconds on the tangent-cut pass. The standalone probe exercises native Inventor reconstruction. At that stage G01 failed OCCT validation, and G02 reached an unsupported spline surface.
 
 ```powershell
 $deps = (Resolve-Path -LiteralPath out/build/ninja_release_vcpkg/vcpkg_installed).Path
@@ -149,13 +149,11 @@ cl.exe /nologo /EHsc /std:c++17 /MD /DNOMINMAX "/I$qt/include/opencascade" "/Fo$
 & "$experiment/occt-tangent.exe" > "$experiment/occt-tangent.log"
 ```
 
-## Provenance
-
-### Production part comparison on 19 November 2026
+## Production part comparison on 19 November 2026
 
 G01 is the first complex paired part. IPT SHA-256 `29d751c48584f1138092b1d1d5c3622cd5476a0cb008277379daea916ecc011e`. STEP SHA-256 `c2e69a428390f13fed00b477f0cbf69fc0f73cd730baa83a57597b52db09fccb`. The STEP reference is a separate input to OCCT 8.0.1 for comparison. The IPT is read directly through the ModelViewer importer.
 
-The reference contains one valid solid with 98 faces and dimensions of 38.6 × 38.6 × 6.3 mm. The native reader still rejects G01 at solid validation. An experimental application of the existing bounded cavity repair to the whole body passed OCCT validity and produced the same face count and dimensions. With adaptive OCCT volume integration at requested relative error `1e-9`, it measured 3,002.314688 mm³ against the reference's 2,996.550841 mm³. After unwrapping rectangular trimmed surfaces, a comparison by surface type, face area and surface centroid matched all 53 planar and 30 cylindrical faces and 12 of 15 toroidal faces at `1e-5` mm² and `1e-5` mm, respectively. The remaining three toroidal faces had higher reconstructed areas. The measurements localize the discrepancy to those trims. They do not establish the cause of the discrepancy or equivalence of the surfaces that agreed on the measured properties. The experimental repair is local and was excluded from the staged viewer.
+The reference contains one valid solid with 98 faces and dimensions of 38.6 × 38.6 × 6.3 mm. The original reader rejected G01 at solid validation. An exploratory whole-body repair produced a valid solid with the same face count and dimensions, but its adaptive volume was 3,002.314688 mm³ against the reference's 2,996.550841 mm³. Its face areas and centroids isolated the mismatch to three toroidal bands with negative saved minor radii. These bands had been trimmed on the complementary meridian arc.
 
 Rerun the comparison using the local scratch sources and x64 Visual Studio developer shell. The two programs read the independent inputs and emit the face measurements to ignored logs.
 
@@ -170,6 +168,31 @@ cmake --build "$scratch/build"
 & "$scratch/build/inventor_compound_probe.exe" --part-solid '<local-G01-native>.ipt' > "$scratch/G01-ipt-metrics.json" 2> "$scratch/G01-ipt-areas.log"
 ```
 
-### Sources
+### Native wheel validation
+
+The importer now constructs toroidal bands that have two isolated, full circular boundaries. It checks that the circles are coaxial and on the saved torus, then uses the saved coedge directions and face sense to select the correct meridian interval, including intervals that cross a periodic boundary. Adjacent coaxial bands use the same physical meridian even when their axes point in opposite directions. For a solid whose toroidal faces all have explicit trims, the importer can repair remaining OCCT parameter-space curves and orientations with the existing tolerance limit, geometry and topology modification flags disabled for wires, and checks that the shell and face counts are preserved. The final OCCT solid must pass validation.
+
+G01 now imports as one solid with 98 faces and 257 edges. The wheel verification program checks absolute bounding-box corners against the separate STEP reference within `1e-6` mm and matches each of the 98 faces by surface type, area within `1e-5` mm² and centroid within `1e-5` mm. Fixed-order integration agrees within `1e-6` mm³. Adaptive integration at requested relative error `1e-9` differs by about `4.5e-5` mm³, or `1.5e-8` relative. All 98 faces tessellate with the viewer's default mesh settings. The standalone probe passed I01–I05 again. All nine repository CTests passed in 171.96 seconds. On 19 November 2026 the owner confirmed that G01 loads and looks correct compared with the STEP geometry. The native IPT view uses the loader's uniform gray material. The STEP view shows a yellow wheel and black rim. Native appearance mapping is outside the verified geometry scope.
+
+Run from the x64 Visual Studio developer shell. The optional comparison harness is configured locally under ignored `out/`. Import in the viewer uses the original IPT directly.
+
+```powershell
+$verify = 'out/inventor-research/wheel-verify'
+$qt = (Resolve-Path -LiteralPath out/build/ninja_release_vcpkg/vcpkg_installed/x64-windows).Path
+$env:PATH = "$(Join-Path $qt 'bin');$env:PATH"
+$env:LIB = "$(Join-Path $qt 'lib');$env:LIB"
+cmake --build out/inventor-research/compound-build
+& out/inventor-research/compound-build/inventor_compound_probe.exe --part-solid '<local-G01-native>.ipt' `
+    > out/inventor-research/gearbox-check/G01-native-wheel.json
+cmake --build "$verify/build"
+& "$verify/build/inventor_compound_probe.exe" '<local-G01-native>.ipt' '<local-G01-reference>.stp' `
+    > "$verify/G01-wheel-verification.log"
+cmake --build out/build/ninja_release_vcpkg --target ModelViewer --parallel 2
+$stage = Join-Path (Get-Location) 'out/inventor-research/viewer-wheel'
+cmake --install out/build/ninja_release_vcpkg --prefix $stage
+ctest --test-dir out/inventor-research/ctest-build --output-on-failure --output-log out/inventor-research/wheel-ctest.log
+```
+
+## Provenance
 
 This pass consulted CAD Convert at `a3cbe9f5f41acff810b5006d964d116e805e042b` (`Brep.cs`, `Step.cs`, `Assemblies.cs`, `Nodes.cs` and `Text.cs`), Inventor-generated control reports, the supplied sample bytes and the public OCCT API headers installed with OCCT 8.0.1. The upstream reader informed field-layout questions. ModelViewer constructs its own OCCT curves, surfaces and topology. Neither CAD Convert nor InventorLoader binaries were executed. No vendor SDK, private specification or disassembly was used. The owner retained visual verification. [Pinned research reference](https://github.com/CNCaddict/CAD-Convert/tree/a3cbe9f5f41acff810b5006d964d116e805e042b/tools/invre)
