@@ -40,6 +40,7 @@
 #include <BRepGProp.hxx>
 #include <BRepTools.hxx>
 #include <Bnd_Box.hxx>
+#include <BRepBuilderAPI_Sewing.hxx>
 #include <GProp_GProps.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
@@ -464,6 +465,21 @@ int main(int argc, char** argv) {
                 }
             }
         }
+        if (std::getenv("XT_SEW_TEST") && freeEdges > 0) {
+            for (const double tolerance : {0.05, 0.2, 0.5}) {
+                BRepBuilderAPI_Sewing sewing(tolerance, true, true, true, std::getenv("XT_SEW_NM") != nullptr);
+                for (TopExp_Explorer fx(body.shape, TopAbs_FACE); fx.More(); fx.Next()) sewing.Add(fx.Current());
+                sewing.Perform();
+                const TopoDS_Shape sewn = sewing.SewedShape();
+                NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher> em;
+                TopExp::MapShapesAndAncestors(sewn, TopAbs_EDGE, TopAbs_FACE, em);
+                size_t freeAfter = 0;
+                for (int i = 1; i <= em.Extent(); ++i)
+                    if (em.FindFromIndex(i).Extent() == 1 && !BRep_Tool::Degenerated(TopoDS::Edge(em.FindKey(i))) &&
+                        !BRep_Tool::IsClosed(TopoDS::Edge(em.FindKey(i)), TopoDS::Face(em.FindFromIndex(i).First()))) ++freeAfter;
+                std::printf("  sew test body %lld tol %.2f: free edges %zu -> %zu (sewing free edges %d)\n", static_cast<long long>(body.index), tolerance, static_cast<size_t>(freeEdges), freeAfter, sewing.NbFreeEdges());
+            }
+        }
         if (std::getenv("XT_FREE_PAIRS") && freeEdges > 0) {
             // Free edges that have a free partner nearby (a seam that was built twice) versus genuinely open boundaries.
             NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher> efm;
@@ -472,11 +488,23 @@ int main(int argc, char** argv) {
             std::vector<FreeEdge> fr;
             for (int i = 1; i <= efm.Extent(); ++i) {
                 const TopoDS_Edge e = TopoDS::Edge(efm.FindKey(i));
-                if (BRep_Tool::Degenerated(e) || efm.FindFromIndex(i).Size() != 1) continue;
+                if (BRep_Tool::Degenerated(e) || (efm.FindFromIndex(i).Size() != 1 && !(std::getenv("XT_FREE_LIST") && std::string(std::getenv("XT_FREE_LIST")) == "all"))) continue;
                 double c0, c1;
                 const Handle(Geom_Curve) c = BRep_Tool::Curve(e, c0, c1);
                 if (c.IsNull()) continue;
                 const gp_Pnt a = c->Value(c0), b = c->Value(c1), m = c->Value(0.5 * (c0 + c1));
+                if (std::getenv("XT_FREE_LIST")) {
+                    int64_t faceNode = 0;
+                    for (const auto& [n, o] : body.faceOutcomes) {
+                        if (!o.shape) continue;
+                        for (TopExp_Explorer fe(body.shape, TopAbs_FACE); fe.More(); fe.Next())
+                            if (fe.Current().TShape().get() == o.shape)
+                                for (TopExp_Explorer ee(fe.Current(), TopAbs_EDGE); ee.More(); ee.Next())
+                                    if (ee.Current().IsSame(e)) faceNode = n;
+                    }
+                    std::printf("  free edge faces=%d body %lld face %lld len %.4g curve %s tol %.3g from (%.4g %.4g %.4g) to (%.4g %.4g %.4g)\n", static_cast<int>(efm.FindFromIndex(i).Size()), static_cast<long long>(body.index), static_cast<long long>(faceNode),
+                                a.Distance(b), c->DynamicType()->Name(), BRep_Tool::Tolerance(e), a.X(), a.Y(), a.Z(), b.X(), b.Y(), b.Z());
+                }
                 fr.push_back({m, a, b, a.Distance(b)});
             }
             size_t paired = 0;

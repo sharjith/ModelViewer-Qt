@@ -108,6 +108,7 @@
 #include <gp_Vec2d.hxx>
 
 #include <algorithm>
+#include <set>
 #include <memory>
 #include <array>
 #include <atomic>
@@ -326,6 +327,7 @@ private:
     std::unordered_map<int64_t, TopoDS_Edge> m_edges; // null edge cached for failures
     BRep_Builder bb;
     Handle(ShapeBuild_ReShape) m_reshape = new ShapeBuild_ReShape; // shared by the repairs of one body
+    std::vector<TopoDS_Face> m_extraFaces; // further faces a repair split the last built face into (to be added beside it)
 };
 
 // ---- NURBS --------------------------------------------------------------------------
@@ -2313,6 +2315,63 @@ static Handle(Geom_SphericalSurface) sphericalTriangleChart(
     return new Geom_SphericalSurface(gp_Ax3(centre, gp_Dir(z), gp_Dir(x.Reversed())), radius);
 }
 
+// BRepCheck reports a self-intersecting wire from the pcurves' tolerances, which on long, narrow faces (a drill flute) is often
+// not a crossing at all. Sample the wire in (u, v), scaled to its own extent, and report whether the polygon really crosses itself.
+static bool uvWireIsSimple(const TopoDS_Face& face, const TopoDS_Wire& wire) {
+    std::vector<gp_Pnt2d> poly;
+    try {
+        for (BRepTools_WireExplorer we(wire, face); we.More(); we.Next()) {
+            const TopoDS_Edge e = we.Current();
+            if (BRep_Tool::Degenerated(e))
+                continue;
+            double a = 0, b = 0;
+            const Handle(Geom2d_Curve) pc = BRep_Tool::CurveOnSurface(e, face, a, b);
+            if (pc.IsNull())
+                return false;
+            std::vector<gp_Pnt2d> part;
+            for (int k = 0; k <= 48; ++k)
+                part.push_back(pc->Value(a + (b - a) * k / 48));
+            if (e.Orientation() == TopAbs_REVERSED)
+                std::reverse(part.begin(), part.end());
+            for (const gp_Pnt2d& q : part)
+                if (poly.empty() || poly.back().Distance(q) > 1e-12)
+                    poly.push_back(q);
+        }
+    } catch (const Standard_Failure&) {
+        return false;
+    }
+    if (poly.size() < 4)
+        return false;
+    double lo[2] = {1e300, 1e300}, hi[2] = {-1e300, -1e300};
+    for (const gp_Pnt2d& q : poly) {
+        lo[0] = std::min(lo[0], q.X()); hi[0] = std::max(hi[0], q.X());
+        lo[1] = std::min(lo[1], q.Y()); hi[1] = std::max(hi[1], q.Y());
+    }
+    const double su = hi[0] > lo[0] ? 1.0 / (hi[0] - lo[0]) : 1.0, sv = hi[1] > lo[1] ? 1.0 / (hi[1] - lo[1]) : 1.0;
+    std::vector<std::array<double, 2>> p;
+    for (const gp_Pnt2d& q : poly)
+        p.push_back({(q.X() - lo[0]) * su, (q.Y() - lo[1]) * sv});
+    const size_t n = p.size();
+    auto orient = [](const std::array<double, 2>& a, const std::array<double, 2>& b, const std::array<double, 2>& c) {
+        return (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    };
+    const double eps = 1e-9;
+    for (size_t i = 0; i < n; ++i) {
+        const auto& a = p[i];
+        const auto& b = p[(i + 1) % n];
+        for (size_t j = i + 2; j < n; ++j) {
+            if (i == 0 && j == n - 1)
+                continue;
+            const auto& c = p[j];
+            const auto& d = p[(j + 1) % n];
+            const double o1 = orient(a, b, c), o2 = orient(a, b, d), o3 = orient(c, d, a), o4 = orient(c, d, b);
+            if (((o1 > eps && o2 < -eps) || (o1 < -eps && o2 > eps)) && ((o3 > eps && o4 < -eps) || (o3 < -eps && o4 > eps)))
+                return false;
+        }
+    }
+    return true;
+}
+
 static bool circularRevolutionUV(const Geom_SurfaceOfRevolution& revolution, const Geom_Circle& circle,
                                  const gp_Pnt& point, double limit, gp_Pnt2d& uv) {
     const gp_Ax1 axis = revolution.Axis();
@@ -3543,6 +3602,7 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
     const bool authoredSplineOffset = si.kind == "OFFSET_SURF" && isSplineOffset(surfIndex);
     std::unordered_map<const TopoDS_TShape*, int> edgeUse;
     std::vector<EdgeUse> toFix;
+    std::vector<TopoDS_Face> splitFaces; // pieces a seam repair made of this face besides the one returned
     size_t wires = 0;
     TopoDS_Wire lastWire;
     for (const Node* loop : chain(node(ptr(face, "FACE", "loop")), "LOOP", "next")) {
@@ -3611,6 +3671,8 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
         bb.Add(f, wire);
         lastWire = wire;
         ++wires;
+        if (const char* dbg = std::getenv("XT_DEBUG_ORIENT"); dbg && std::atoll(dbg) == face.index)
+            std::fprintf(stderr, "built wire %zu of face %lld: %zu edges, closed %d\n", wires, static_cast<long long>(face.index), items.size(), wire.Closed() ? 1 : 0);
     }
     // A clamped but closed spline chart cannot represent a ring crossing the chart cut
     // as a continuous pcurve. A full ring can be paired with a multi-edge trim.
@@ -4086,6 +4148,20 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
                     sff.FixMissingSeamMode() = 1;
                     trace("repair-seam", face.index);
                     sff.Perform();
+                    if (const char* dbg = std::getenv("XT_DEBUG_ORIENT"); dbg && std::atoll(dbg) == face.index) {
+                        size_t resultFaces = 0;
+                        for (TopExp_Explorer ex(sff.Result(), TopAbs_FACE); ex.More(); ex.Next()) {
+                            double area = 0;
+                            GProp_GProps gp;
+                            BRepGProp::SurfaceProperties(ex.Current(), gp);
+                            area = gp.Mass();
+                            size_t nw = 0, ne = 0;
+                            for (TopExp_Explorer ew(ex.Current(), TopAbs_WIRE); ew.More(); ew.Next()) ++nw;
+                            for (TopExp_Explorer ee(ex.Current(), TopAbs_EDGE); ee.More(); ee.Next()) ++ne;
+                            std::fprintf(stderr, "seam repair face %lld: result face %zu has %zu wires, %zu edges, area %g\n", static_cast<long long>(face.index), resultFaces, nw, ne, area);
+                            ++resultFaces;
+                        }
+                    }
                     if (m_trace && si.kind == "BLENDED_EDGE" && faceSurface->IsUPeriodic()) {
                         size_t resultFaces = 0, resultWires = 0, selectedWires = 0;
                         for (TopExp_Explorer ex(sff.Result(), TopAbs_FACE); ex.More(); ex.Next())
@@ -4097,7 +4173,32 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
                         std::fprintf(stderr, "XT periodic seam face=%lld source-wires=%zu result-faces=%zu result-wires=%zu selected-wires=%zu\n",
                                      static_cast<long long>(face.index), wires, resultFaces, resultWires, selectedWires);
                     }
-                    f = sff.Face();
+                    {
+                        std::vector<TopoDS_Face> pieces;
+                        for (TopExp_Explorer ex(sff.Result(), TopAbs_FACE); ex.More(); ex.Next())
+                            pieces.push_back(TopoDS::Face(ex.Current()));
+                        if (pieces.size() > 1 && !std::getenv("XT_NO_SPLIT_KEEP")) {
+                            // The repair can cut one XT face into several disconnected pieces (a cylinder band between flutes);
+                            // keeping only one of them would lose the rest of the surface.
+                            size_t largest = 0;
+                            double largestArea = -1;
+                            for (size_t k = 0; k < pieces.size(); ++k) {
+                                GProp_GProps gp;
+                                BRepGProp::SurfaceProperties(pieces[k], gp);
+                                if (std::abs(gp.Mass()) > largestArea) {
+                                    largestArea = std::abs(gp.Mass());
+                                    largest = k;
+                                }
+                            }
+                            f = pieces[largest];
+                            for (size_t k = 0; k < pieces.size(); ++k)
+                                if (k != largest)
+                                    splitFaces.push_back(pieces[k]);
+                            ++res.stats.facesSkippedBySurface["  seam repair split kept " + si.kind];
+                        } else {
+                            f = sff.Face();
+                        }
+                    }
                     ++res.stats.seamRepairedFaces;
                 }
             } catch (const Standard_Failure&) {
@@ -4398,6 +4499,12 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
                 for (const BRepCheck_Status st : wr->Status())
                     if (st == BRepCheck_SelfIntersectingWire && !std::getenv("XT_KEEP_SI")
                         && (std::getenv("XT_FILTER_ALL_SI") || si.kind != "PLANE")) {
+                        if (!std::getenv("XT_NO_SI_SIMPLE_CHECK") && si.kind != "PLANE" && wires == 1 && uvWireIsSimple(f, TopoDS::Wire(ew.Current()))) {
+                            // The sampled outline in (u, v) does not cross itself: keep the face and its shared edges as built.
+                            trace("self-intersection-false-positive", face.index);
+                            ++res.stats.facesSkippedBySurface["  self-intersection false positive " + si.kind];
+                            goto selfIntersectionResolved;
+                        }
                         // OCCT's own STEP post-processing runs ShapeFix with self-intersection repair on every
                         // face; try the same on this one before giving it up.
                         if (!std::getenv("XT_NO_SI_REPAIR")) {
@@ -4455,6 +4562,11 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
 selfIntersectionResolved:
     if (faceReversed)
         f.Reverse();
+    for (TopoDS_Face piece : splitFaces) {
+        if (faceReversed)
+            piece.Reverse();
+        m_extraFaces.push_back(piece);
+    }
     ++res.stats.facesBuilt;
     return f;
 }
@@ -5000,6 +5112,7 @@ TopoDS_Face Builder::faceFor(const Node& face, TopAbs_Orientation use) {
     if (m_outcomes)
         countersBefore = res.stats.facesSkippedBySurface;
     m_fillKind.clear();
+    m_extraFaces.clear();
     bool fromFill = false;
     try {
         result = faceForImpl(face, use);
@@ -5104,6 +5217,10 @@ void Builder::buildBody(const Node& body) {
                 continue;
             bb.Add(shell, use == TopAbs_REVERSED ? face.Reversed() : face);
             tracedFaces.emplace_back(face, f->index);
+            for (const TopoDS_Face& extra : m_extraFaces) {
+                bb.Add(shell, use == TopAbs_REVERSED ? extra.Reversed() : static_cast<const TopoDS_Shape&>(extra));
+                tracedFaces.emplace_back(extra, f->index);
+            }
             ++built;
         }
     };
@@ -5155,6 +5272,10 @@ void Builder::buildBody(const Node& body) {
                             continue;
                         bb.Add(shell, face);
                         tracedFaces.emplace_back(face, f->index);
+                        for (const TopoDS_Face& extra : m_extraFaces) {
+                            bb.Add(shell, extra);
+                            tracedFaces.emplace_back(extra, f->index);
+                        }
                         ++built;
                     }
                 };
@@ -5182,6 +5303,35 @@ void Builder::buildBody(const Node& body) {
             ++res.stats.wireBodies;
     }
 
+    if (std::getenv("XT_FIN_DEBUG")) {
+        std::set<int64_t> built;
+        for (const auto& tf : tracedFaces)
+            built.insert(tf.second);
+        for (const auto& tf : tracedFaces) {
+            const Node* fn = node(tf.second);
+            if (!fn)
+                continue;
+            for (const Node* lp : chain(node(ptr(*fn, "FACE", "loop")), "LOOP", "next")) {
+                for (const Node* fin : chain(node(ptr(*lp, "LOOP", "fin")), "FIN", "forward")) {
+                    const Node* other = node(ptr(*fin, "FIN", "other"));
+                    const Node* otherLoop = other ? node(ptr(*other, "FIN", "loop")) : nullptr;
+                    const int64_t neighbour = otherLoop ? ptr(*otherLoop, "LOOP", "face") : 0;
+                    if (std::getenv("XT_FIN_DEBUG") && std::string(std::getenv("XT_FIN_DEBUG")) == "all") {
+                        const Node* xe = node(ptr(*fin, "FIN", "edge"));
+                        const Node* cv = node(ptr(*fin, "FIN", "curve"));
+                        const Node* ecv = xe ? node(ptr(*xe, "EDGE", "curve")) : nullptr;
+                        std::fprintf(stderr, "XT fin all: body %lld face %lld edge %lld other-face %lld fin-curve %s edge-curve %s tol %g\n", static_cast<long long>(body.index),
+                                     static_cast<long long>(tf.second), static_cast<long long>(ptr(*fin, "FIN", "edge")), static_cast<long long>(neighbour),
+                                     cv ? nameOf(*cv).c_str() : "-", ecv ? nameOf(*ecv).c_str() : "-", xe ? num(*xe, "EDGE", "tolerance") : -1.0);
+                    }
+                    if (!neighbour || !built.count(neighbour))
+                        std::fprintf(stderr, "XT fin: body %lld face %lld edge %lld neighbour face %lld (%s)\n", static_cast<long long>(body.index),
+                                     static_cast<long long>(tf.second), static_cast<long long>(ptr(*fin, "FIN", "edge")), static_cast<long long>(neighbour),
+                                     neighbour ? "not built in this body" : "none");
+                }
+            }
+        }
+    }
     if (cancelled())
         return;
     out.displayCandidates = std::move(m_displayCandidates);
@@ -5473,6 +5623,14 @@ void Builder::buildBody(const Node& body) {
                 // The inflated tolerance can come from a neighbour that shares the edge. Only a face whose own
                 // 3D curves and pcurves disagree is removed; the others keep their geometry.
                 const double residual = faceTrimResidual(face);
+                if (std::getenv("XT_DEBUG_BROKEN")) {
+                    const auto nd = nodeOfFace.find(face.TShape().get());
+                    double maxTol = 0;
+                    for (TopExp_Explorer ee(face, TopAbs_EDGE); ee.More(); ee.Next())
+                        maxTol = std::max(maxTol, BRep_Tool::Tolerance(TopoDS::Edge(ee.Current())));
+                    std::fprintf(stderr, "inflated face %lld: residual %g max edge tolerance %g limit %g -> %s\n", nd == nodeOfFace.end() ? 0LL : static_cast<long long>(nd->second),
+                                 residual, maxTol, limit, residual > limit ? "broken" : "kept");
+                }
                 if (residual > limit) {
                     broken.push_back(face);
                     continue;
