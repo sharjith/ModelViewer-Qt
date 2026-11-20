@@ -2036,6 +2036,19 @@ struct Builder {
                     const QString reference=QString::fromUtf16(reinterpret_cast<const char16_t*>(partition->FileName().ToExtString()));
                     if(styleSink)styleSink->unsupported=true; // the style-only pass does not open part files
                     else if(!reference.isEmpty()) {
+                        // An unreadable part file is skipped (unless strict): it is rolled back, recorded as a warning and as an
+                        // import issue on a placeholder node, and the rest of the assembly loads.
+                        const auto partitionIssue=[&](const QString& partReference,const QString& why) {
+                            auto issueNode=std::make_unique<aiNode>(QFileInfo(partReference).completeBaseName().toUtf8().constData());
+                            issueNode->mMetaData=aiMetadata::Alloc(2);
+                            issueNode->mMetaData->Set(0,"ModelViewer.ImportIssue.Severity",aiString("error"));
+                            issueNode->mMetaData->Set(1,"ModelViewer.ImportIssue.Message",
+                                aiString((QStringLiteral("The JT part file could not be read and was skipped: ")+why).toUtf8().constData()));
+                            result.warnings.append(label+": part file "+partReference+" skipped: "+why);
+                            return issueNode;
+                        };
+                        const auto savedPartition=checkpoint();
+                        try {
                         const QString origin=QString::fromUtf16(reinterpret_cast<const char16_t*>(partition->OriginFileName().ToExtString()));
                         const QString file=QFileInfo(QFileInfo(origin).dir().filePath(reference)).canonicalFilePath();
                         if(file.isEmpty() || !insideDirectory(file,rootDirectory) || activeFiles.count(fileKey(file))) throw std::runtime_error("Missing, cyclic or external JT partition");
@@ -2045,6 +2058,10 @@ struct Builder {
                         if(root.IsNull()) {Detail::beginUnit(options);Timed timed(openMs);++filesOpened;Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(file.utf16())));root=m->Init();}
                         MaterialSourceContext partContext;{Timed timed(sourceCtxMs);partContext=materialSourceContext(file,options);}
                         children.push_back(visit(root,style,hidden,transformLocked,world,palette,std::move(partContext)));
+                        } catch(const Cancelled&) {throw;}
+                          catch(const std::bad_alloc&) {throw;}
+                          catch(const Standard_Failure& e) {if(options.strict)throw;rollback(savedPartition);children.push_back(partitionIssue(reference,QString::fromUtf8(e.GetMessageString())));}
+                          catch(const std::exception& e) {if(options.strict)throw;rollback(savedPartition);children.push_back(partitionIssue(reference,QString::fromUtf8(e.what())));}
                     }
                 } else if(styleSink&&(!Handle(JtNode_LOD)::DownCast(object).IsNull()||!switchNode.IsNull())) {
                     styleSink->unsupported=true; // a nested LOD or Switch below an alternative is not matched by position

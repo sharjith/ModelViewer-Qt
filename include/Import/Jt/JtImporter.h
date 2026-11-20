@@ -30,6 +30,10 @@ struct Options {
     // Free physical memory in bytes; empty = ask the operating system. A test hook.
     std::function<size_t()> availableMemory;
     std::function<bool()> cancelled;
+    // false: a part file that cannot be read is skipped with a warning and recorded on its node as an import issue, and
+    // the rest of the assembly loads. true: it fails the whole import. Settings dialog (JT Importer, Strict) or
+    // MODELVIEWER_JT_STRICT=1 in fromEnvironment().
+    bool strict=false;
     std::function<void(const QString&,int,int)> progress;
     // Match the measured exporter profile (DM 10.8.0.1 / JT 10.5, 10.7-10.10) duplicate
     // fallback-material convention. False retains published list order.
@@ -72,6 +76,7 @@ struct Options {
         // Settings dialog (Import Export tab, JT Importer group) values first; an environment variable, when set, overrides them.
         QSettings settings;
         if(!settings.value(QStringLiteral("jtMergePartMeshes"),true).toBool())result.mergePartMeshes=false;
+        if(settings.value(QStringLiteral("jtStrict"),false).toBool() || qEnvironmentVariableIntValue("MODELVIEWER_JT_STRICT")!=0)result.strict=true;
         {const int threads=settings.value(QStringLiteral("jtDecodeThreads"),0).toInt();if(threads>=0)result.decodeThreads=unsigned(threads);}
         {const int gib=settings.value(QStringLiteral("jtBudgetGiB"),16).toInt();
          if(gib>=1&&gib<=256)result.decodedAllocationBudget=size_t(gib)*size_t(1024)*1024*1024;}
