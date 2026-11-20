@@ -1549,8 +1549,9 @@ SolidBuilder::Surface SolidBuilder::buildSurface(const Record& surface) const
         const gp_Pnt origin = point(surface.get<Triple>(3));
         const double major = std::abs(length(surface.number(5)));
         const double minor = length(surface.number(6));
-        if (std::abs(minor) <= Precision::Confusion() || major - std::abs(minor) <= Precision::Confusion())
-            fail("Unsupported Inventor torus radii");
+        // A minor radius larger than the major radius is a legal spindle torus; OCCT accepts it.
+        if (std::abs(minor) <= Precision::Confusion() || major <= Precision::Confusion())
+            throw std::runtime_error("Unsupported Inventor torus radii (major " + std::to_string(major) + " mm, minor " + std::to_string(minor) + " mm)");
         const gp_Ax3 axes(origin, direction(surface.get<Triple>(4)), direction(surface.get<Triple>(7)));
         return {new Geom_ToroidalSurface(axes, major, std::abs(minor)), minor < 0};
     }
