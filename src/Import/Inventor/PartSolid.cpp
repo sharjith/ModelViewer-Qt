@@ -166,11 +166,18 @@ public:
 
     std::vector<Record> read()
     {
+        // Older Inventor files save the same layout under the name of the original ACIS format.
         static const QByteArray magic("ASM BinaryFile4");
-        const qsizetype start = _bytes.indexOf(magic);
-        if (start < 0 || _bytes.indexOf(magic, start + magic.size()) >= 0)
+        static const QByteArray legacyMagic("ACIS BinaryFile");
+        QByteArray name = magic;
+        qsizetype start = _bytes.indexOf(name);
+        if (start < 0) {
+            name = legacyMagic;
+            start = _bytes.indexOf(name);
+        }
+        if (start < 0 || _bytes.indexOf(name, start + name.size()) >= 0)
             fail("Expected a single saved ASM model in Inventor part");
-        _offset = start + magic.size();
+        _offset = start + name.size();
 
         // BinaryFile4 header, followed by tagged program, kernel and timestamp strings.
         skip(16);
