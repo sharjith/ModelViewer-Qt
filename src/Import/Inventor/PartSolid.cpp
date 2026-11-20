@@ -3,6 +3,7 @@
 
 #include "InventorCompoundFile.h"
 #include "InventorPartSegment.h"
+#include "MemoryGuard.h"
 
 #include <BRepAlgoAPI_Cut.hxx>
 #include <BRepBuilderAPI_MakeEdge.hxx>
@@ -81,10 +82,12 @@
 namespace Inventor {
 namespace {
 
-constexpr qsizetype SegmentLimit = 64 * 1024 * 1024;
-constexpr std::size_t RecordLimit = 250'000;
+// Absolute ceilings that only stop malformed input; the free-memory guard (MemoryGuard.h) bounds real files.
+constexpr qsizetype SegmentLimit = qsizetype(4) * 1024 * 1024 * 1024;
+constexpr std::size_t RecordLimit = 100'000'000;
 constexpr std::size_t FieldLimit = 65'536;
-constexpr std::size_t TotalFieldLimit = 4'000'000;
+constexpr std::size_t TotalFieldLimit = 2'000'000'000;
+constexpr std::size_t MemoryCheckInterval = 65'536;
 constexpr double CheckToleranceMm = 1e-5;
 constexpr double MaxSplineToleranceMm = 0.05;
 constexpr double TwoPi = 6.2831853071795864769;
@@ -202,6 +205,8 @@ public:
                 break;
             if (records.size() == RecordLimit)
                 fail("Inventor ASM record limit exceeded");
+            if (records.size() % MemoryCheckInterval == 0)
+                Detail::requireFreeMemory("reading the saved model records");
 
             Record& record = records.emplace_back();
             record.type = std::move(type);
@@ -460,6 +465,7 @@ private:
     // the exterior and every other shell must lie inside it.
     TopoDS_Solid buildLump(const Record& lump, const SavedAppearance* saved, PartAppearance* appearance)
     {
+        Detail::requireFreeMemory("building a solid");
         std::vector<const Record*> shells;
         std::unordered_set<qint32> seen;
         for (qint32 id = lump.link(4); id != -1;) {

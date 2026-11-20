@@ -7,6 +7,8 @@
 #include <QtEndian>
 
 #include <zlib.h>
+#include "MemoryGuard.h"
+
 #include <zstd.h>
 
 #include <array>
@@ -50,6 +52,8 @@ QByteArray inflateSegment(QByteArrayView compressed, qsizetype maxBytes)
         if (written > maxBytes - output.size())
             throw std::runtime_error("Inventor B-rep segment exceeds the requested byte limit");
         output.append(buffer.data(), written);
+        if ((output.size() & ((qsizetype(64) << 20) - 1)) < written)
+            Detail::requireFreeMemory("decompressing the B-rep segment", static_cast<std::size_t>(output.size()) / 4);
     } while (status != Z_STREAM_END);
     return output;
 }
@@ -65,10 +69,38 @@ QByteArray decodeSegment(const QByteArray& bytes, qsizetype maxBytes)
         throw std::runtime_error("Unsupported Inventor segment compression");
 
     const auto size = ZSTD_getFrameContentSize(compressed.data(), compressed.size());
-    if (size == ZSTD_CONTENTSIZE_ERROR || size == ZSTD_CONTENTSIZE_UNKNOWN)
-        throw std::runtime_error("Inventor Zstandard frame has no valid declared size");
+    if (size == ZSTD_CONTENTSIZE_ERROR)
+        throw std::runtime_error("Inventor Zstandard frame is invalid");
+    if (size == ZSTD_CONTENTSIZE_UNKNOWN) {
+        // The writer did not record the decompressed size; decode in bounded steps.
+        struct Context {
+            ZSTD_DCtx* context = ZSTD_createDCtx();
+            ~Context() { ZSTD_freeDCtx(context); }
+        } decoder;
+        if (!decoder.context)
+            throw std::runtime_error("Could not initialize Inventor Zstandard decoder");
+        QByteArray output;
+        std::vector<char> buffer(1024 * 1024);
+        ZSTD_inBuffer input{compressed.data(), static_cast<size_t>(compressed.size()), 0};
+        size_t status = 1;
+        while (status != 0) {
+            ZSTD_outBuffer target{buffer.data(), buffer.size(), 0};
+            status = ZSTD_decompressStream(decoder.context, &target, &input);
+            if (ZSTD_isError(status))
+                throw std::runtime_error("Invalid or truncated Inventor Zstandard frame");
+            if (target.pos > static_cast<size_t>(maxBytes - output.size()))
+                throw std::runtime_error("Inventor B-rep segment exceeds the requested byte limit");
+            output.append(buffer.data(), static_cast<qsizetype>(target.pos));
+            if ((output.size() & ((qsizetype(64) << 20) - 1)) < static_cast<qsizetype>(target.pos))
+                Detail::requireFreeMemory("decompressing the B-rep segment", static_cast<std::size_t>(output.size()) / 4);
+            if (target.pos == 0 && input.pos == input.size && status != 0)
+                throw std::runtime_error("Truncated Inventor Zstandard frame");
+        }
+        return output;
+    }
     if (size > static_cast<quint64>(maxBytes))
         throw std::runtime_error("Inventor B-rep segment exceeds the requested byte limit");
+    Detail::requireFreeMemory("decompressing the B-rep segment", static_cast<std::size_t>(size));
     QByteArray output(static_cast<qsizetype>(size), Qt::Uninitialized);
     const auto written = ZSTD_decompress(output.data(), size, compressed.data(), compressed.size());
     if (ZSTD_isError(written) || written != size)
