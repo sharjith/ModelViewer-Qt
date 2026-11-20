@@ -209,3 +209,17 @@ Limits. The volume has no independent reference; the check is validity plus the 
 Still failing: one older-format part and the oversized assembly file (plus ten files with no solid body).
 
 Owner observation on the ball part, 20 November 2026: the sphere is correct but its shading is visibly faceted. Recorded with the fillet report above for the refinement phase (tessellation tolerance and normals), not investigated.
+
+## Older saved layout: "ACIS BinaryFile", 20 November 2026
+
+Method: stream listing and decompression of the B-rep segment of the one part the reader rejected with "Expected a single saved ASM model", then a probe run and a comparison with the part's paired STEP file (measured with a throwaway OCCT program under `out/`, `STEPControl_Reader`, volume and a tight bounding box).
+
+Observed.
+- The part's B-rep segment is a normal zlib-compressed stream, but its model header is named `ACIS BinaryFile` rather than `ASM BinaryFile4`. The header strings give the program `Inventor` and a kernel version string of the `ASM 218` series, whereas the other samples carry a newer kernel string.
+- The 16 header bytes after the name, the three tagged strings, the three scale reals and the record framing (tagged records, `ref` links, `Begin of ASM History Data` terminator) are identical to the layout the reader already handles. Only the name differed.
+
+Change. The reader accepts either name (still requiring exactly one occurrence of the one it finds). No other reader change was needed.
+
+Result. The part imports as one valid solid: 27 × 6 × 24 mm, 19 faces, 1251.553 mm³. The paired STEP measures 27 × 6 × 24 mm (tight bound), 19 faces, one valid solid, 1251.55 mm³ (printed to six figures). Volume agrees to the printed precision, with the same dimensions and face count. This is the first independent reference check for a part from this batch of fixes. Valid solids on the probe: 73 of 84; the other 11 are ten files with no solid body and the oversized snapshot assembly.
+
+Limits. One part, one older kernel string. Other older files may differ in record contents; none is in the local corpus.
