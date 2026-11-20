@@ -45,6 +45,8 @@
 #include <TColgp_HArray1OfPnt.hxx>
 #include <NCollection_Array2.hxx>
 #include <TopExp.hxx>
+#include <GProp_GProps.hxx>
+#include <BRepGProp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
@@ -387,7 +389,8 @@ public:
         for (const auto& record : _records) {
             if (record.type == "body" && !isWireOnlyBody(record)) {
                 checkCancellation(_cancelled);
-                solids.push_back(buildBody(record, saved, appearance));
+                for (auto& solid : buildBody(record, saved, appearance))
+                    solids.push_back(std::move(solid));
             }
         }
         if (solids.empty())
@@ -426,15 +429,85 @@ private:
                transform.get<Triple>(5) == Triple{0, 0, 0} && transform.number(6) == 1;
     }
 
-    TopoDS_Solid buildBody(const Record& body, const SavedAppearance* saved, PartAppearance* appearance)
+    // A body may hold several lumps; each lump is a separate solid.
+    std::vector<TopoDS_Solid> buildBody(const Record& body, const SavedAppearance* saved, PartAppearance* appearance)
     {
         if (body.link(4) != -1 || !hasIdentityTransform(body))
             fail("Unsupported Inventor body transform or wire geometry");
-        const Record& lump = get(body.link(3), "lump");
-        const Record& shell = get(lump.link(4), "shell");
-        if (lump.link(3) != -1 || shell.link(3) != -1 || shell.link(4) != -1 || shell.link(6) != -1)
-            fail("Inventor import currently supports one shell without wire geometry");
+        std::vector<TopoDS_Solid> result;
+        std::unordered_set<qint32> lumps;
+        for (qint32 id = body.link(3); id != -1;) {
+            if (!lumps.insert(id).second)
+                fail("Cyclic Inventor lump list");
+            const Record& lump = get(id, "lump");
+            result.push_back(buildLump(lump, saved, appearance));
+            id = lump.link(3);
+        }
+        if (result.empty())
+            fail("Inventor body has no lumps");
+        return result;
+    }
 
+    // A lump with several shells is one solid with internal voids: the shell enclosing the largest volume is
+    // the exterior and every other shell must lie inside it.
+    TopoDS_Solid buildLump(const Record& lump, const SavedAppearance* saved, PartAppearance* appearance)
+    {
+        std::vector<const Record*> shells;
+        std::unordered_set<qint32> seen;
+        for (qint32 id = lump.link(4); id != -1;) {
+            if (!seen.insert(id).second)
+                fail("Cyclic Inventor shell list");
+            const Record& shell = get(id, "shell");
+            if (shell.link(4) != -1 || shell.link(6) != -1)
+                fail("Inventor import currently supports one shell without wire geometry");
+            shells.push_back(&shell);
+            id = shell.link(3);
+        }
+        if (shells.empty())
+            fail("Inventor lump has no shells");
+        if (shells.size() == 1)
+            return buildShell(*shells.front(), saved, appearance, false);
+
+        std::vector<TopoDS_Solid> parts;
+        for (const Record* shell : shells)
+            parts.push_back(buildShell(*shell, nullptr, nullptr, true));
+        std::size_t outerIndex = 0;
+        double outerVolume = -1;
+        for (std::size_t i = 0; i < parts.size(); ++i) {
+            GProp_GProps properties;
+            BRepGProp::VolumeProperties(parts[i], properties);
+            if (properties.Mass() > outerVolume) {
+                outerVolume = properties.Mass();
+                outerIndex = i;
+            }
+        }
+        BRepBuilderAPI_MakeSolid builder(TopoDS::Shell(TopoDS_Iterator(parts[outerIndex]).Value()));
+        for (std::size_t i = 0; i < parts.size(); ++i) {
+            if (i == outerIndex)
+                continue;
+            NCollection_List<TopoDS_Shape> arguments, tools;
+            arguments.Append(parts[i]);
+            tools.Append(parts[outerIndex]);
+            BRepAlgoAPI_Cut remainder;
+            remainder.SetArguments(arguments);
+            remainder.SetTools(tools);
+            remainder.SetNonDestructive(true);
+            checkCancellation(_cancelled);
+            remainder.Build();
+            checkCancellation(_cancelled);
+            if (!remainder.IsDone() || remainder.HasErrors() || remainder.Shape().IsNull() ||
+                TopExp_Explorer(remainder.Shape(), TopAbs_SOLID).More())
+                fail("Inventor void shell is not contained by its exterior shell");
+            builder.Add(TopoDS::Shell(TopoDS_Iterator(parts[i]).Value().Reversed()));
+        }
+        const TopoDS_Solid solid = builder.Solid();
+        validateSolid(solid);
+        return solid;
+    }
+
+    TopoDS_Solid buildShell(const Record& shell, const SavedAppearance* saved, PartAppearance* appearance,
+                            bool repairCavity)
+    {
         std::vector<qint32> faces;
         std::unordered_set<qint32> visited;
         for (qint32 id = shell.link(5); id != -1;) {
@@ -449,8 +522,8 @@ private:
         const TangentCut cut = findTangentCut(faces);
         if (cut.cavity.empty()) {
             if (saved && matchesAppearance(faces, *saved))
-                return sewSolid(faces, cut.omittedLoops, false, saved, appearance);
-            return sewSolid(faces, cut.omittedLoops, false);
+                return sewSolid(faces, cut.omittedLoops, repairCavity, saved, appearance);
+            return sewSolid(faces, cut.omittedLoops, repairCavity);
         }
 
         const TopoDS_Solid outside = sewSolid(cut.outside, cut.omittedLoops, false);
@@ -538,7 +611,14 @@ private:
         }
 
         sewing.Perform();
-        const TopoDS_Shape& sewn = sewing.SewedShape();
+        TopoDS_Shape sewn = sewing.SewedShape();
+        if (faces.size() == 1 && !sewn.IsNull() && sewn.ShapeType() == TopAbs_FACE) {
+            // One face that closes on itself (a full torus or sphere) sews to the face, not to a shell.
+            TopoDS_Shell single;
+            BRep_Builder().MakeShell(single);
+            BRep_Builder().Add(single, sewn);
+            sewn = single;
+        }
         if (sewn.IsNull() || sewn.ShapeType() != TopAbs_SHELL ||
             sewing.NbFreeEdges() != 0 || sewing.NbMultipleEdges() != 0)
             fail("Inventor faces did not form one closed OCCT shell");
@@ -748,6 +828,20 @@ private:
 
     TopoDS_Face buildFace(const Record& face, qint32 faceId, const std::unordered_set<qint32>& omittedLoops)
     {
+        if (face.link(4) < 0 && !face.get<bool>(9)) {
+            // A face with no loop at all covers a complete closed surface (a full torus or sphere).
+            const Surface whole = buildSurface(get(face.link(7)));
+            if (!Handle(Geom_ToroidalSurface)::DownCast(whole.geometry).IsNull() ||
+                !Handle(Geom_SphericalSurface)::DownCast(whole.geometry).IsNull()) {
+                BRepBuilderAPI_MakeFace closed(whole.geometry, Precision::Confusion());
+                if (!closed.IsDone())
+                    fail("Could not build a complete closed Inventor surface");
+                TopoDS_Face closedFace = closed.Face();
+                if (face.get<bool>(8) != whole.inverted)
+                    closedFace.Reverse();
+                return closedFace;
+            }
+        }
         if (face.get<bool>(9) || face.link(4) < 0)
             fail("Inventor face uses unsupported unbounded or sheet geometry");
         const Surface support = buildSurface(get(face.link(7)));
@@ -815,8 +909,10 @@ private:
             for (const auto& item : edges) {
                 double first, last;
                 const Handle(Geom_Curve) curve = BRep_Tool::Curve(item.second.shape, first, last);
+                // Tolerant vertices carry their own saved tolerance, which the edge inherits.
+                const double planeTolerance = std::max(CheckToleranceMm, BRep_Tool::Tolerance(item.second.shape));
                 for (const double fraction : {0.0, 0.25, 0.5, 0.75, 1.0}) {
-                    if (!(plane->Pln().Distance(curve->Value(first + fraction * (last - first))) <= CheckToleranceMm))
+                    if (!(plane->Pln().Distance(curve->Value(first + fraction * (last - first))) <= planeTolerance))
                         fail("Inventor edge does not lie on its saved planar face");
                 }
             }
@@ -886,6 +982,10 @@ private:
             const Record& coedge = get(id, "coedge");
             if (coedge.link(8) != loopId)
                 fail("Inventor coedge belongs to a different loop");
+            if (_spikeCoedges.count(id) != 0) {
+                id = coedge.link(3);
+                continue;
+            }
             const qint32 edgeId = coedge.link(6);
             const Record& edge = get(edgeId, "edge");
             const bool reversed = coedge.get<bool>(7);
@@ -896,7 +996,7 @@ private:
             use |= sense;
 
             const qint32 startVertex = edge.link(reversed ? 5 : 3);
-            if (id == first)
+            if (initialVertex == -1)
                 initialVertex = startVertex;
             else if (endVertex != startVertex)
                 fail("Inventor face boundary has disconnected edges");
@@ -929,6 +1029,7 @@ private:
     double _scale;
     const std::function<bool()>& _cancelled;
     std::unordered_map<qint32, unsigned> _edgeUses;
+    mutable std::unordered_set<qint32> _spikeCoedges;
     std::unordered_map<qint32, CircularBand> _circularBands;
     std::unordered_map<qint32, gp_Dir> _circleSeams;
     std::vector<std::pair<const Record*, std::size_t>> _splineBlocks;
@@ -1568,8 +1669,26 @@ SolidBuilder::TangentCut SolidBuilder::findTangentCut(const std::vector<qint32>&
             return first.link(3) == b.coedge && second.link(3) == a.coedge &&
                    first.get<bool>(7) != second.get<bool>(7);
         });
-        if (slit == uses.end())
-            fail(unsupported);
+        if (slit == uses.end()) {
+            // A planar face whose boundary runs out along an edge and straight back (a zero-width spike)
+            // uses that edge on both sides. The spike encloses no area; the two other uses are the real
+            // manifold pair, so the spike coedges are left out of the boundary.
+            const auto spike = std::adjacent_find(uses.begin(), uses.end(), [&](const Use& a, const Use& b) {
+                if (a.loop != b.loop || a.face != b.face)
+                    return false;
+                const Record& first = get(a.coedge, "coedge");
+                const Record& second = get(b.coedge, "coedge");
+                return first.link(3) == b.coedge && first.get<bool>(7) != second.get<bool>(7) &&
+                       second.link(3) != a.coedge;
+            });
+            if (spike == uses.end() ||
+                get(get(spike->face, "face").link(7)).type != "plane-surface")
+                fail(unsupported);
+            _spikeCoedges.insert(spike->coedge);
+            _spikeCoedges.insert((spike + 1)->coedge);
+            uses.erase(spike, spike + 2);
+            continue;
+        }
         const Use retraced = *slit;
         uses.erase(slit, slit + 2);
         if (isToroidalContact(retraced.face, edgeId, uses[0].face, uses[1].face)) {
@@ -1888,8 +2007,13 @@ TopoDS_Vertex SolidBuilder::vertex(qint32 id, std::unordered_map<qint32, TopoDS_
         found->second = BRepBuilderAPI_MakeVertex(point(record.get<Triple>(3))).Vertex();
         if (vertexRecord.type == "tvertex-vertex") {
             // A saved tolerance of -1 (file units) marks a vertex without a stored tolerance.
-            if (vertexRecord.number(7) != -1.0) {
-                const double tolerance = length(vertexRecord.number(7));
+            // Some vertices leave that field at -1 and keep the value in the next field; the gap between such
+            // a vertex and its curve equals that value.
+            std::size_t toleranceField = 7;
+            if (vertexRecord.number(7) == -1.0 && vertexRecord.fields.size() > 8 && vertexRecord.number(8) > 0)
+                toleranceField = 8;
+            if (vertexRecord.number(toleranceField) != -1.0) {
+                const double tolerance = length(vertexRecord.number(toleranceField));
                 if (tolerance < 0 || tolerance > MaxSplineToleranceMm)
                     throw std::runtime_error("Unsupported Inventor vertex tolerance " + std::to_string(tolerance) + " mm");
                 BRep_Builder().UpdateVertex(found->second, tolerance);
