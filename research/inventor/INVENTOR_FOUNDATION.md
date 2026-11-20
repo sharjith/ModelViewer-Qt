@@ -223,3 +223,18 @@ Change. The reader accepts either name (still requiring exactly one occurrence o
 Result. The part imports as one valid solid: 27 × 6 × 24 mm, 19 faces, 1251.553 mm³. The paired STEP measures 27 × 6 × 24 mm (tight bound), 19 faces, one valid solid, 1251.55 mm³ (printed to six figures). Volume agrees to the printed precision, with the same dimensions and face count. This is the first independent reference check for a part from this batch of fixes. Valid solids on the probe: 73 of 84; the other 11 are ten files with no solid body and the oversized snapshot assembly.
 
 Limits. One part, one older kernel string. Other older files may differ in record contents; none is in the local corpus.
+
+## Large part files: size limits and the free-memory guard, 20 November 2026
+
+Method: stream listing of the largest local part (311 MB on disk), a throwaway streaming Zstandard decoder (ctypes, `out/inventor-research/snapshot_measure.py`) to size the three large streams, then the probe with temporary diagnostics (removed) for record and body counts. Comparison point: the JT importer's handling, recorded in `src/ThirdParty/occt-jt/MODIFICATIONS.md` (budget raised on 26 October, budget restarted per unit of work on 2 November, free-memory guard in `src/Import/Jt/JtMemoryGuard.h`).
+
+Observed.
+- The file's three large B streams are 213.8, 68.6 and 25.8 MB compressed and 855.5, 216.9 and 110.6 MB decompressed (about 8 s to decompress the largest). The Zstandard frame of at least the largest does not declare its decompressed size, so the previous decoder, which required a declared size, could not read it at all, independent of the byte limits. The earlier compound-file limit error came first only because the 64 MB cap was checked before decoding.
+- The saved model has 1,806,040 records (426 k coedges, 314 k attribute records, 212 k edges, 139 k vertices, 105 k loops, 86 k faces) in two bodies. Marker counts over the raw bytes overstate this because attribute payloads contain the same text.
+- With the limits lifted the whole model reads in about 10 s with a peak working set of 2.1 GB.
+
+Change (limits). Fixed constants (64 MB segment, 250 000 records, 4 million fields) are replaced by high absolute ceilings that only stop malformed input (4 GiB segment, 100 million records, 2 billion fields) plus a free-memory guard modelled on the JT one (`src/Import/Inventor/MemoryGuard.h`). It stops with a clear message when free physical memory, less the allocation about to be made, is below a 1 GiB floor (the JT default). It is checked while decompressing a segment (every 64 MB), every 65 536 records, and before each solid is built; a platform that cannot report free memory is never stopped. Zstandard frames without a declared size are now decoded in bounded steps under the same byte ceiling.
+
+Result. Valid solids on the probe stay at 73 of 84 and no other file changed. The large part now gets as far as building solids and fails on geometry: body 1 with a tangent-contact configuration the current rules do not cover, body 2 with a saved vertex tolerance of 0.126 mm against the reader's 0.05 mm safety cap. Neither has been examined.
+
+Limits. The guard has not been exercised under low memory (only normal and 8 GB-free runs). The 1 GiB floor is a constant and not yet an import setting; JT exposes its floor as an option and the owner has planned a settings-dialog entry. Whether to raise the 0.05 mm tolerance cap is a separate decision.
