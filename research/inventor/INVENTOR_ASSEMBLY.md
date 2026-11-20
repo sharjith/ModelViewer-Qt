@@ -47,3 +47,13 @@ Design, implemented for Inventor parts (bodies) and reusable by the future assem
 - Test hook. `MODELVIEWER_INVENTOR_SIMULATE_FAILED_BODY=n` makes the n-th body of a part with several bodies count as failed. It exists only so the tree item can be exercised on a corpus part that otherwise loads; it has no effect when unset.
 
 Status. The viewer sources were not built or run by the agent; the headless probe still reports 73 of 84 corpus parts valid in strict mode and no volume changed. Pending owner check: tree item, tooltip (including in the detached overlay tree), check-box behaviour of the parent, save and reopen as MVF, and the settings entry.
+
+### Extension to the JT and 3DXML importers (MOD-16), 20 November 2026
+
+The same mechanism is used by the other two assembly importers, through the same node metadata keys, so the scene graph and the tree needed no further change.
+- 3DXML. A representation that cannot be read was already skipped (unless strict) with a warning, leaving its occurrences without geometry. The scene builder now remembers why each skipped representation failed, and the node of every reference that uses it records the reason as an import issue ("The 3D representation could not be read and was skipped: ..."). Strict behaviour and the settings entry are unchanged. Test hook: `MODELVIEWER_3DXML_SIMULATE_FAILED_REPRESENTATION=n` makes the n-th representation count as unreadable; it has no effect when unset.
+- JT. Before this change an unreadable, missing or cyclic external part file failed the whole import and the JT importer had no skip option (the skip-or-fail setting for JT was decided in October but not built). A part file that cannot be read is now rolled back with the builder's existing checkpoint, a placeholder node carries the reason, and a warning is added; the rest of the assembly loads. `Options::strict` (default false) restores the old all-or-nothing behaviour; it is set from Settings, Import Export, JT Importer, "Strict" (`jtStrict`) and `MODELVIEWER_JT_STRICT=1`. Cancellation and out-of-memory are never skipped. Failures inside a loaded part (rejected LOD alternatives, rejected exact geometry) keep their existing handling and are not new error nodes.
+
+Behaviour change to note: a JT assembly with an unreadable part file used to fail to open and now opens without that part, with the error item and a warning, unless Strict is on.
+
+Status: unbuilt. Pending owner check on a JT assembly with one part file temporarily renamed, on 3DXML with the test hook, and on files that load normally.
