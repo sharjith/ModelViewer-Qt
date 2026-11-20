@@ -17,6 +17,8 @@
 #include <BRepLib.hxx>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
+#include <GeomAPI_ProjectPointOnSurf.hxx>
+#include <GeomLProp_SLProps.hxx>
 #include <GeomAPI_Interpolate.hxx>
 #include <GeomFill.hxx>
 #include <Geom_BSplineCurve.hxx>
@@ -404,6 +406,9 @@ public:
                 checkCancellation(_cancelled);
                 for (auto& solid : buildBody(record, saved, appearance))
                     solids.push_back(std::move(solid));
+                for (auto& solid : _extraSolids)
+                    solids.push_back(std::move(solid));
+                _extraSolids.clear();
             }
         }
         if (solids.empty())
@@ -533,7 +538,25 @@ private:
         }
         if (faces.empty())
             fail("Inventor shell has no faces");
-        const TangentCut cut = findTangentCut(faces);
+        TangentCut cut = findTangentCut(faces);
+        if (!cut.omittedFaces.empty()) {
+            faces.erase(std::remove_if(faces.begin(), faces.end(),
+                                       [&](qint32 id) { return cut.omittedFaces.count(id) != 0; }),
+                        faces.end());
+            cut = findTangentCut(faces);
+        }
+        if (!cut.pieces.empty()) {
+            // Separate solids that touch along an edge. The first is returned; the others are collected by build().
+            TopoDS_Solid first;
+            for (const auto& piece : cut.pieces) {
+                TopoDS_Solid solid = sewSolid(piece, cut.omittedLoops, repairCavity);
+                if (first.IsNull())
+                    first = solid;
+                else
+                    _extraSolids.push_back(solid);
+            }
+            return first;
+        }
         if (cut.cavity.empty()) {
             if (saved && matchesAppearance(faces, *saved))
                 return sewSolid(faces, cut.omittedLoops, repairCavity, saved, appearance);
@@ -566,6 +589,10 @@ private:
 
     struct TangentCut {
         std::unordered_set<qint32> omittedLoops;
+        // Faces whose whole boundary is one edge traced out and back; they enclose nothing and are dropped.
+        std::unordered_set<qint32> omittedFaces;
+        // Closed shells that touch one another along pinch edges; each is a separate solid.
+        std::vector<std::vector<qint32>> pieces;
         std::vector<qint32> outside;
         std::vector<qint32> cavity;
     };
@@ -1125,6 +1152,7 @@ private:
     const std::function<bool()>& _cancelled;
     std::unordered_map<qint32, unsigned> _edgeUses;
     mutable std::unordered_set<qint32> _spikeCoedges;
+    std::vector<TopoDS_Solid> _extraSolids;
     std::unordered_map<qint32, CircularBand> _circularBands;
     std::unordered_map<qint32, gp_Dir> _circleSeams;
     std::vector<std::pair<const Record*, std::size_t>> _splineBlocks;
@@ -1204,7 +1232,7 @@ Handle(Geom_BSplineSurface) SolidBuilder::buildSplineSurface(const Record& recor
     fields.skipText();
     const int uForm = fields.integer();
     const int vForm = fields.integer();
-    if (uForm != 0 || (vForm != 0 && vForm != 2))
+    if ((uForm != 0 && uForm != 2) || (vForm != 0 && vForm != 2))
         fail("Unsupported Inventor spline surface form");
     fields.integer(); // Saved pole classifications. The explicit grid is used below.
     fields.integer();
@@ -1231,6 +1259,11 @@ Handle(Geom_BSplineSurface) SolidBuilder::buildSplineSurface(const Record& recor
         result = new Geom_BSplineSurface(poles, weights, u.knots, v.knots, u.multiplicities, v.multiplicities, u.degree, v.degree);
     else
         result = new Geom_BSplineSurface(poles, u.knots, v.knots, u.multiplicities, v.multiplicities, u.degree, v.degree);
+    if (uForm == 2) {
+        if (!result->IsUClosed())
+            fail("Saved Inventor periodic surface does not close");
+        result->SetUPeriodic();
+    }
     if (vForm == 2) {
         if (!result->IsVClosed())
             fail("Saved Inventor periodic surface does not close");
@@ -1747,6 +1780,7 @@ SolidBuilder::TangentCut SolidBuilder::findTangentCut(const std::vector<qint32>&
     }
 
     TangentCut cut;
+    std::vector<qint32> pinched;
     std::vector<std::pair<qint32, qint32>> contacts;
     qint32 toroidalContactFace = -1;
     constexpr auto unsupported = "Unsupported Inventor non-manifold edge at tangent contact";
@@ -1765,7 +1799,7 @@ SolidBuilder::TangentCut SolidBuilder::findTangentCut(const std::vector<qint32>&
                    first.get<bool>(7) != second.get<bool>(7);
         });
         if (slit == uses.end()) {
-            // A planar face whose boundary runs out along an edge and straight back (a zero-width spike)
+            // A face whose boundary runs out along an edge and straight back (a zero-width spike)
             // uses that edge on both sides. The spike encloses no area; the two other uses are the real
             // manifold pair, so the spike coedges are left out of the boundary.
             const auto spike = std::adjacent_find(uses.begin(), uses.end(), [&](const Use& a, const Use& b) {
@@ -1776,9 +1810,12 @@ SolidBuilder::TangentCut SolidBuilder::findTangentCut(const std::vector<qint32>&
                 return first.link(3) == b.coedge && first.get<bool>(7) != second.get<bool>(7) &&
                        second.link(3) != a.coedge;
             });
-            if (spike == uses.end() ||
-                get(get(spike->face, "face").link(7)).type != "plane-surface")
-                fail(unsupported);
+            if (spike == uses.end()) {
+                // Four faces meet along the edge and no face doubles back on itself: the saved shell touches
+                // itself along this edge (for example a ridge of a pin that fits exactly into its bore).
+                pinched.push_back(edgeId);
+                continue;
+            }
             _spikeCoedges.insert(spike->coedge);
             _spikeCoedges.insert((spike + 1)->coedge);
             uses.erase(spike, spike + 2);
@@ -1793,12 +1830,151 @@ SolidBuilder::TangentCut SolidBuilder::findTangentCut(const std::vector<qint32>&
         }
         const qint32 support = get(uses[0].face, "face").link(7);
         if (uses[0].face == uses[1].face || support != get(uses[1].face, "face").link(7) ||
-            !isTangentContact(retraced.face, edgeId, support))
-            fail(unsupported);
+            !isTangentContact(retraced.face, edgeId, support)) {
+            // Not the cavity-forming tangent contact. The retraced loop encloses no area, so it is left out
+            // (or the face is dropped when it has no other loop); the other two uses are the manifold pair.
+            const Record& retracedFace = get(retraced.face, "face");
+            if (retracedFace.link(4) == retraced.loop && get(retraced.loop, "loop").link(3) == -1)
+                cut.omittedFaces.insert(retraced.face);
+            else
+                cut.omittedLoops.insert(retraced.loop);
+            continue;
+        }
         cut.omittedLoops.insert(retraced.loop);
         contacts.emplace_back(retraced.face, uses[0].face);
     }
-    if (cut.omittedLoops.empty())
+    if (!pinched.empty()) {
+        if (!contacts.empty() || toroidalContactFace >= 0)
+            fail(unsupported);
+        // Split the faces into the pieces that stay connected without the pinch edges; every other edge must
+        // be paired. Each pinch edge must then give exactly two of its uses to every piece it touches.
+        std::unordered_map<qint32, std::vector<qint32>> links;
+        const std::unordered_set<qint32> pinchSet(pinched.begin(), pinched.end());
+        for (const auto& [edgeId, uses] : edgeUses) {
+            if (pinchSet.count(edgeId) != 0)
+                continue;
+            const Record& usedEdge = get(edgeId, "edge");
+            if (usedEdge.link(8) < 0 && usedEdge.link(3) == usedEdge.link(5))
+                continue; // Degenerate edge at a singular point; it has no partner.
+            if (uses.size() != 2)
+                fail("Inventor shell has an unpaired or non-manifold edge");
+            links[uses[0].face].push_back(uses[1].face);
+            links[uses[1].face].push_back(uses[0].face);
+        }
+        std::unordered_map<qint32, int> pieceOf;
+        for (const qint32 root : faces) {
+            if (pieceOf.count(root) != 0 || cut.omittedFaces.count(root) != 0)
+                continue;
+            const int index = static_cast<int>(cut.pieces.size());
+            cut.pieces.emplace_back();
+            std::vector<qint32> pending{root};
+            pieceOf[root] = index;
+            while (!pending.empty()) {
+                checkCancellation(_cancelled);
+                const qint32 face = pending.back();
+                pending.pop_back();
+                cut.pieces[index].push_back(face);
+                for (const qint32 neighbor : links[face]) {
+                    if (pieceOf.emplace(neighbor, index).second)
+                        pending.push_back(neighbor);
+                }
+            }
+        }
+        // Around a pinch edge the material wedges alternate with voids. For each of the four faces take the
+        // direction pointing into it (in the plane normal to the edge) and the side its material lies on; the
+        // partner is the nearest face in that direction, and the pairing must be mutual. Paired faces are
+        // joined, which reconnects the pieces that make up each solid.
+        std::vector<int> group(cut.pieces.size());
+        for (std::size_t i = 0; i < group.size(); ++i)
+            group[i] = static_cast<int>(i);
+        const std::function<int(int)> root = [&](int i) { return group[i] == i ? i : group[i] = root(group[i]); };
+        for (const qint32 edgeId : pinched) {
+            const auto& uses = edgeUses.at(edgeId);
+            if (uses.size() != 4)
+                fail(unsupported);
+            std::unordered_map<qint32, TopoDS_Vertex> edgeVertices;
+            const TopoDS_Edge edge = buildEdge(edgeId, edgeVertices);
+            double first, last;
+            const Handle(Geom_Curve) curve = BRep_Tool::Curve(edge, first, last);
+            gp_Pnt middle;
+            gp_Vec tangent;
+            curve->D1(0.5 * (first + last), middle, tangent);
+            if (tangent.Magnitude() <= Precision::Confusion())
+                fail(unsupported);
+            tangent.Normalize();
+            std::array<gp_Vec, 4> inward, material;
+            std::array<double, 4> bend{};
+            for (std::size_t i = 0; i < 4; ++i) {
+                const Record& face = get(uses[i].face, "face");
+                const Surface support = buildSurface(get(face.link(7)));
+                GeomAPI_ProjectPointOnSurf projection(middle, support.geometry);
+                if (projection.NbPoints() == 0)
+                    fail(unsupported);
+                double u, v;
+                projection.LowerDistanceParameters(u, v);
+                GeomLProp_SLProps properties(support.geometry, u, v, 1, 1e-9);
+                if (!properties.IsNormalDefined())
+                    fail(unsupported);
+                gp_Vec normal(properties.Normal());
+                if (face.get<bool>(8) != support.inverted)
+                    normal.Reverse();
+                const gp_Vec travel = get(uses[i].coedge, "coedge").get<bool>(7) ? tangent.Reversed() : tangent;
+                inward[i] = normal.Crossed(travel).Normalized();
+                material[i] = normal.Reversed();
+                // Faces that touch tangentially leave the edge in the same direction. Which one curves to which
+                // side decides their order; measure it a short step along the face.
+                constexpr double step = 1e-3;
+                const gp_Pnt probe = middle.Translated(inward[i] * step);
+                GeomAPI_ProjectPointOnSurf onFace(probe, support.geometry);
+                if (onFace.NbPoints() > 0)
+                    bend[i] = std::atan2(gp_Vec(probe, onFace.NearestPoint()).Dot(tangent.Crossed(inward[i])), step);
+            }
+            const gp_Vec e1 = inward[0], e2 = tangent.Crossed(e1);
+            std::array<double, 4> angle;
+            for (std::size_t i = 0; i < 4; ++i)
+                angle[i] = std::atan2(inward[i].Dot(e2), inward[i].Dot(e1)) + bend[i];
+            std::array<int, 4> partner;
+            for (std::size_t i = 0; i < 4; ++i) {
+                const double side = material[i].Dot(tangent.Crossed(inward[i]));
+                if (std::abs(side) < 1e-9)
+                    fail(unsupported);
+                const double direction = side > 0 ? 1.0 : -1.0;
+                double best = TwoPi + 1;
+                partner[i] = -1;
+                for (std::size_t k = 0; k < 4; ++k) {
+                    if (k == i)
+                        continue;
+                    double delta = std::fmod(direction * (angle[k] - angle[i]), TwoPi);
+                    if (delta < 0)
+                        delta += TwoPi;
+                    if (delta < 1e-9)
+                        fail(unsupported);
+                    if (delta < best) {
+                        best = delta;
+                        partner[i] = static_cast<int>(k);
+                    }
+                }
+            }
+            for (std::size_t i = 0; i < 4; ++i) {
+                if (partner[i] < 0 || partner[partner[i]] != static_cast<int>(i))
+                    fail("Inventor shell pinch has no consistent pairing of its four faces");
+                group[root(pieceOf.at(uses[i].face))] = root(pieceOf.at(uses[partner[i]].face));
+            }
+        }
+        std::unordered_map<int, std::size_t> merged;
+        std::vector<std::vector<qint32>> solids;
+        for (std::size_t i = 0; i < cut.pieces.size(); ++i) {
+            const auto [found, inserted] = merged.try_emplace(root(static_cast<int>(i)), solids.size());
+            if (inserted)
+                solids.emplace_back();
+            solids[found->second].insert(solids[found->second].end(), cut.pieces[i].begin(), cut.pieces[i].end());
+        }
+        cut.pieces = std::move(solids);
+        if (cut.pieces.size() < 2)
+            fail(unsupported);
+        return cut;
+    }
+    if (contacts.empty() && toroidalContactFace < 0)
         return cut;
 
     std::unordered_map<qint32, std::vector<qint32>> neighbors;
