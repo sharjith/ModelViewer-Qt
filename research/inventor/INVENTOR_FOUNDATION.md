@@ -128,3 +128,30 @@ Observations.
 Results. Valid solids rose from 47 to 53 of 84 (counted by the probe, which includes template and skeleton files with no solid). All eleven earlier controls re-measure identical except a 0.13 mm³ change on the pump (1.2 L) and 0.007 mm³ on the wheel assembly part, both from exact cone bands replacing approximated ones. Paired STEP comparisons were not re-run in this pass.
 
 Still failing and not understood: G13's toroidal fillets bounded by one circle and one arc-plus-intersection-curve loop (a band that winds in U with a notch, which needs a seam), helical surfaces (previous section), tangent-contact non-manifold edges, two parts whose faces do not close into one shell, and sheet geometry.
+
+## Failure classes examined and left open, 20 November 2026
+
+Observations only; no production change came from this pass.
+- Two parts fail with three free edges after sewing: one closed spline edge plus two pieces of it cut at a point. Every saved edge is paired (both coedges present), the shared edge joins two cone faces, and each cone face has one closed loop of that edge. The sewer cuts the closed edge in one face and not the other. Retrying without cutting leaves 24 free edges; building one shared edge object per saved edge did not change the result. A cone face bounded by a single closed intersection curve needs a seam and an apex treatment that `ShapeFix_Face` places inconsistently. Not solved.
+- One sphere face carries an outer loop made of two short circle arcs and short intersection curves, plus two full circles (bore openings 60° apart in latitude). The loops do not nest as an OCCT face expects (`InvalidImbricationOfWires`). Enabling the natural-bound repair changed nothing. The face region (patch or complement) is not established.
+- One older part has no `ASM BinaryFile4` marker in its B-rep stream at all (the probe reports no header offset), so it is a different saved layout or version, not a failure of the reader's trim logic. A paired STEP exists for it.
+- Valid solids stay at 53 of 84 on the probe; the committed code is unchanged by these experiments.
+
+## Helical surfaces and winding boundaries, 20 November 2026
+
+Method: headless probe on the local 84-file corpus, plus a read-only record dump of the AX parts. Observations, then the change they justified.
+
+Observed.
+- The `helix_spl_line` surface and `helix_int_cur` curve appear either inline or as a block that other records reference by index (`ref N`); the reader must follow the reference before looking for the helix name.
+- The surface generator is a unit vector `d(u) = a·M(u) + b·N(u) + c·A`, with `M(u) = M cos u + N sin u`, `N(u) = −M sin u + N cos u`, `(a, b, c)` the stored three-vector after the helix block and `A` the stored axis. The coefficient `a` is the radial component divided by the helix radius (−2.165 × 0.40 = −0.866); `c` is the component along `A` (−0.5). So the flank is a 30° line from the radial direction, turning with the helix. `S(u, v) = X(u) + v·d(u)`, with v in the saved length unit.
+- Evidence: the stored straight edge at u = 0 has direction (0, −0.866, 0.5), equal to `d(0)`; the second helix edge of the same face has radius 0.3375 against the spine radius 0.40, i.e. offset 0.0625 = 0.866 × 0.0722 at the face's maximum v, and axial offset 0.0361 = 0.5 × 0.0722; neighbouring edges then lie on the reconstructed surface within OCCT's check tolerance for every thread face that now validates.
+- Reconstructed threaded parts come out with round dimensions (a stud of 10.000 × 10.000 × 80.000 mm and a handle of 8.000 × 8.000 × 76.500 mm), which supports the radial scale.
+- The reconstructed ruled surface needed the opposite sense flag to the saved one to validate. The reason is not established; it held for every helical face in the corpus.
+- A face bounded by two loops that wind once around a periodic surface (a band whose edges include intersection curves), or by one loop around a pole or apex, has no seam in the saved data. `ShapeFix_Face` discarded the pcurves of these faces. Building the seam explicitly from the boundary vertices, as a straight parameter-space segment that crosses no boundary, produced valid faces; the segment may have to end at a vertex in a neighbouring period because the boundary sags past a straight seam.
+- Between two parallels of a surface that is not periodic across them, the face can only be the band, whatever sense the loops carry, so the lower loop is oriented to travel in the positive direction.
+- Pcurves of neighbouring edges meet only to about 1e-4, so winding and seam-crossing tests need a tolerance near 1e-3.
+- Planar faces with several loops also need their wires oriented for the plane; leaving it to `ShapeFix_Face` produced `BadOrientationOfSubshape`.
+
+Result. Helices are built by cubic Hermite interpolation of the analytic point and derivative, 48 samples per turn (a few 1e-6 mm for these radii), as a ruled B-spline surface between the two bounding rails. Valid solids on the probe: 65 of 84 (the other 19 include 10 files with no solid body). Eleven earlier controls re-measure within 1e-6 relative (largest: 0.17 mm³ in 1.2 L, from the seam change). Paired STEP comparisons and CTest were not re-run. The helical geometry has no independent reference beyond the dimension and edge-on-surface evidence above; an owner visual check is required.
+
+Still failing: two non-manifold tangent-contact parts, two with wire geometry, one sheet part, one older-format part, one sphere face with an unclear region, one planar face with an edge off its plane, and one oversized assembly file.
