@@ -1861,7 +1861,13 @@ void SceneTreeWidget::buildSubtree(QTreeWidgetItem* parentItem,
             return;
         }
         for (const QUuid& uuid : node->meshUuids)
-            parentItem->addChild(makeMeshLeaf(uuid));
+        {
+            // The node is not shown on its own here, so a warning recorded on it (a body that was built but is incomplete)
+            // has to be carried by its mesh leaf, or it would never be visible.
+            QTreeWidgetItem* leaf = makeMeshLeaf(uuid);
+            applyIssue(leaf, node);
+            parentItem->addChild(leaf);
+        }
         return;
     }
 
@@ -1927,7 +1933,12 @@ void SceneTreeWidget::processRebuildBatch()
             if (!attachParent)
                 continue;
             for (const QUuid& uuid : node->meshUuids)
-                attachParent->addChild(makeMeshLeaf(uuid));
+            {
+                // Same as buildSubtree(): the node itself is not shown, so its issue goes on the mesh leaf.
+                QTreeWidgetItem* leaf = makeMeshLeaf(uuid);
+                applyIssue(leaf, node);
+                attachParent->addChild(leaf);
+            }
             continue;
         }
 
