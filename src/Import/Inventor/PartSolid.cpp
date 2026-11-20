@@ -74,7 +74,7 @@ constexpr std::size_t RecordLimit = 250'000;
 constexpr std::size_t FieldLimit = 65'536;
 constexpr std::size_t TotalFieldLimit = 4'000'000;
 constexpr double CheckToleranceMm = 1e-5;
-constexpr double MaxSplineToleranceMm = 0.011;
+constexpr double MaxSplineToleranceMm = 0.05;
 constexpr double TwoPi = 6.2831853071795864769;
 
 [[noreturn]] void fail(const char* message)
@@ -309,6 +309,16 @@ public:
     qint32 integer() { return _record.get<qint32>(_offset++); }
     double real() { return _record.number(_offset++); }
     Triple xyz() { return {real(), real(), real()}; }
+
+    // Skips one saved text enumeration (for example the rationality word `both` of an exact spline surface).
+    bool skipText()
+    {
+        if (_offset < _record.fields.size() && std::holds_alternative<std::monostate>(_record.fields[_offset])) {
+            ++_offset;
+            return true;
+        }
+        return false;
+    }
 
 private:
     const Record& _record;
@@ -736,6 +746,17 @@ private:
         }
         const Handle(Geom_Plane) plane = Handle(Geom_Plane)::DownCast(support.geometry);
         if (plane.IsNull()) {
+            const bool toroidalJoin = !Handle(Geom_ToroidalSurface)::DownCast(support.geometry).IsNull() && loopCount == 3;
+            if (face.get<bool>(8) != support.inverted && !toroidalJoin) {
+                // The saved loops run counter-clockwise about the outward normal, which is opposite to the
+                // surface normal here. Orient the wires for the surface now instead of leaving the choice to
+                // ShapeFix_Face, which guesses wrongly for wires that span most of a periodic parameter.
+                TopoDS_Face oriented;
+                builder.MakeFace(oriented, support.geometry, Precision::Confusion());
+                for (TopoDS_Iterator w(result, false); w.More(); w.Next())
+                    builder.Add(oriented, w.Value().Reversed());
+                result = oriented;
+            }
             ShapeFix_Edge edgeFix;
             for (const auto& item : edges) {
                 const FaceEdge& edge = item.second;
@@ -912,7 +933,7 @@ Handle(Geom_BSplineCurve) SolidBuilder::buildSplineCurve(const Record& record, d
     }
     const double savedTolerance = length(fields.real());
     if (savedTolerance < 0 || savedTolerance > MaxSplineToleranceMm)
-        fail("Unsupported Inventor intersection curve tolerance");
+        throw std::runtime_error("Unsupported Inventor intersection curve tolerance " + std::to_string(savedTolerance) + " mm");
     tolerance = std::max(CheckToleranceMm, savedTolerance);
     if (payload.rational)
         return new Geom_BSplineCurve(poles, weights, axis.knots, axis.multiplicities, degree);
@@ -925,6 +946,7 @@ Handle(Geom_BSplineSurface) SolidBuilder::buildSplineSurface(const Record& recor
     SplineFields fields(payload.record, payload.fields);
     const int uDegree = fields.integer();
     const int vDegree = fields.integer();
+    fields.skipText();
     const int uForm = fields.integer();
     const int vForm = fields.integer();
     if (uForm != 0 || (vForm != 0 && vForm != 2))
@@ -1273,11 +1295,14 @@ void SolidBuilder::findCircularBands()
 {
     std::unordered_map<qint32, unsigned> vertexEdges;
     std::unordered_map<qint32, unsigned> closedLoops;
+    std::unordered_map<qint32, unsigned> edgeCoedges;
     for (const Record& record : _records) {
         if (record.type == "edge" || record.type == "tedge-edge") {
             ++vertexEdges[record.link(3)];
             if (record.link(3) != record.link(5))
                 ++vertexEdges[record.link(5)];
+        } else if (record.type == "coedge" || record.type == "tcoedge-coedge") {
+            ++edgeCoedges[record.link(6)];
         } else if (record.type == "loop" && record.link(4) >= 0) {
             const Record& coedge = get(record.link(4));
             if ((coedge.type == "coedge" || coedge.type == "tcoedge-coedge") && coedge.link(3) == record.link(4))
@@ -1292,10 +1317,12 @@ void SolidBuilder::findCircularBands()
             continue;
         const Record& support = get(face.link(7));
         const bool toroidal = support.type == "torus-surface";
-        const bool cylindrical = support.type == "cone-surface" && std::abs(support.number(9)) <= 1e-12 &&
-                                 std::abs(support.number(6) - 1.0) <= 1e-9;
-        if (!toroidal && !cylindrical)
+        const bool circularCone = support.type == "cone-surface" && std::abs(support.number(6) - 1.0) <= 1e-9;
+        const bool cylindrical = circularCone && std::abs(support.number(9)) <= 1e-12;
+        const bool conical = circularCone && !cylindrical && std::abs(support.number(10)) > 1e-12;
+        if (!toroidal && !cylindrical && !conical)
             continue;
+        const double semiAngle = conical ? std::atan(support.number(9) / support.number(10)) : 0.0;
         const Record& lower = get(face.link(4), "loop");
         if (lower.link(3) < 0)
             continue;
@@ -1307,8 +1334,8 @@ void SolidBuilder::findCircularBands()
         const gp_Dir axis = direction(support.get<Triple>(4));
         const double radius = toroidal ? std::abs(length(support.number(5))) : vector(support.get<Triple>(5)).Magnitude();
         const double tubeRadius = toroidal ? length(support.number(6)) : 0.0;
-        if (toroidal && (std::abs(tubeRadius) <= Precision::Confusion() ||
-                         radius - std::abs(tubeRadius) <= Precision::Confusion()))
+        // A spindle torus (tube larger than the major radius) is allowed; its meridian circle crosses the axis.
+        if (toroidal && (std::abs(tubeRadius) <= Precision::Confusion() || radius <= Precision::Confusion()))
             continue;
         // Adjacent bands can store opposite axes. Pick the same physical
         // meridian for both so their shared circles can be sewn.
@@ -1319,18 +1346,36 @@ void SolidBuilder::findCircularBands()
         qint32 edgeIds[2];
         double parameters[2];
         bool lowerBoundary[2];
+        bool singleEdge[2] = {false, false};
         bool usable = true;
         for (unsigned i = 0; i < 2; ++i) {
             const Record& loop = i == 0 ? lower : upper;
             const Record& coedge = get(loop.link(4), "coedge");
             const qint32 edgeId = coedge.link(6);
-            if (coedge.link(3) != loop.link(4) || closedLoops[edgeId] != 2) {
+            // A boundary is either one closed circle edge or a ring of arcs that together close one circle.
+            std::vector<const Record*> ring;
+            qint32 walk = loop.link(4);
+            do {
+                const Record& item = get(walk, "coedge");
+                ring.push_back(&item);
+                walk = item.link(3);
+            } while (walk != loop.link(4) && ring.size() <= 64);
+            if (walk != loop.link(4)) {
+                usable = false;
+                break;
+            }
+            const bool single = ring.size() == 1;
+            if (single && closedLoops[edgeId] != 2) {
                 usable = false;
                 break;
             }
             const Record& edge = get(edgeId, "edge");
-            if (edge.link(8) < 0 || edge.link(3) != edge.link(5) || vertexEdges[edge.link(3)] != 1 ||
-                std::abs(edge.number(6) - edge.number(4) - TwoPi) > Precision::PConfusion()) {
+            if (single && (edge.link(8) < 0 || edge.link(3) != edge.link(5) || vertexEdges[edge.link(3)] != 1 ||
+                           std::abs(edge.number(6) - edge.number(4) - TwoPi) > Precision::PConfusion())) {
+                usable = false;
+                break;
+            }
+            if (edge.link(8) < 0) {
                 usable = false;
                 break;
             }
@@ -1340,22 +1385,63 @@ void SolidBuilder::findCircularBands()
                 usable = false;
                 break;
             }
+            bool senseOfFirst = false;
+            if (!single) {
+                double span = 0.0;
+                for (std::size_t k = 0; k < ring.size() && usable; ++k) {
+                    const Record& arcEdge = get(ring[k]->link(6), "edge");
+                    if (edgeCoedges[ring[k]->link(6)] != 2 || arcEdge.link(8) < 0) {
+                        usable = false;
+                        break;
+                    }
+                    const Record& arcCircle = get(arcEdge.link(8));
+                    if (arcCircle.type != "ellipse-curve" || arcCircle.number(6) != 1.0 ||
+                        (point(arcCircle.get<Triple>(3)).Distance(point(circle.get<Triple>(3))) > CheckToleranceMm) ||
+                        std::abs(vector(arcCircle.get<Triple>(5)).Magnitude() - vector(circle.get<Triple>(5)).Magnitude()) > CheckToleranceMm ||
+                        !direction(arcCircle.get<Triple>(4)).IsParallel(direction(circle.get<Triple>(4)), Precision::Angular())) {
+                        usable = false;
+                        break;
+                    }
+                    const bool arcSense = (axis.Dot(direction(arcCircle.get<Triple>(4))) < 0) ^ arcEdge.get<bool>(9) ^
+                                          ring[k]->get<bool>(7);
+                    if (k == 0)
+                        senseOfFirst = arcSense;
+                    else if (arcSense != senseOfFirst)
+                        usable = false;
+                    span += std::abs(arcEdge.number(6) - arcEdge.number(4));
+                }
+                if (!usable || std::abs(span - TwoPi) > 1e-6) {
+                    usable = false;
+                    break;
+                }
+            }
             const auto prior = _circleSeams.find(edgeId);
-            if (prior != _circleSeams.end() && !seam.IsEqual(prior->second, Precision::Angular())) {
+            if (single && prior != _circleSeams.end() && !seam.IsEqual(prior->second, Precision::Angular())) {
                 usable = false;
                 break;
             }
+            singleEdge[i] = single;
             const gp_Vec offset(origin, point(circle.get<Triple>(3)));
             const double axial = offset.Dot(gp_Vec(axis));
-            const double radial = vector(circle.get<Triple>(5)).Magnitude() - radius;
+            const double circleRadius = vector(circle.get<Triple>(5)).Magnitude();
+            double radial = circleRadius - radius;
+            if (toroidal) {
+                // The parallel may lie on the far side of the axis of a spindle torus (negative distance).
+                const double farRadial = -circleRadius - radius;
+                if (std::abs(std::hypot(farRadial, axial) - std::abs(tubeRadius)) <
+                    std::abs(std::hypot(radial, axial) - std::abs(tubeRadius)))
+                    radial = farRadial;
+            }
+            // On a cone the parallel radius grows linearly with the axial offset.
             const double radialError = toroidal ? std::abs(std::hypot(radial, axial) - std::abs(tubeRadius))
+                                     : conical  ? std::abs(circleRadius - (radius + axial * std::tan(semiAngle)))
                                                 : std::abs(radial);
             if (radialError > CheckToleranceMm || (offset - gp_Vec(axis) * axial).Magnitude() > CheckToleranceMm) {
                 usable = false;
                 break;
             }
             edgeIds[i] = edgeId;
-            parameters[i] = toroidal ? std::atan2(axial, radial) : axial;
+            parameters[i] = toroidal ? std::atan2(axial, radial) : conical ? axial / std::cos(semiAngle) : axial;
             const bool reversed = axis.Dot(direction(circle.get<Triple>(4))) < 0;
             lowerBoundary[i] = !(reversed ^ edge.get<bool>(9) ^ coedge.get<bool>(7) ^
                                  face.get<bool>(8) ^ (tubeRadius < 0));
@@ -1380,12 +1466,16 @@ void SolidBuilder::findCircularBands()
             continue;
         // These two trims are whole circles. Moving their closure vertices to
         // the same meridian preserves geometry and gives OCCT a valid seam.
-        _circleSeams.emplace(edgeIds[0], seam);
-        _circleSeams.emplace(edgeIds[1], seam);
+        if (singleEdge[0])
+            _circleSeams.emplace(edgeIds[0], seam);
+        if (singleEdge[1])
+            _circleSeams.emplace(edgeIds[1], seam);
         const gp_Ax3 axes(origin, axis, seam);
         Handle(Geom_Surface) surface;
         if (toroidal)
             surface = new Geom_ToroidalSurface(axes, radius, std::abs(tubeRadius));
+        else if (conical)
+            surface = new Geom_ConicalSurface(axes, semiAngle, radius);
         else
             surface = new Geom_CylindricalSurface(axes, radius);
         _circularBands.emplace(static_cast<qint32>(faceId), CircularBand{surface, firstV, lastV});
@@ -1400,10 +1490,13 @@ TopoDS_Vertex SolidBuilder::vertex(qint32 id, std::unordered_map<qint32, TopoDS_
         const Record& record = get(vertexRecord.link(5), "point");
         found->second = BRepBuilderAPI_MakeVertex(point(record.get<Triple>(3))).Vertex();
         if (vertexRecord.type == "tvertex-vertex") {
-            const double tolerance = length(vertexRecord.number(7));
-            if (tolerance < 0 || tolerance > MaxSplineToleranceMm)
-                fail("Unsupported Inventor vertex tolerance");
-            BRep_Builder().UpdateVertex(found->second, tolerance);
+            // A saved tolerance of -1 (file units) marks a vertex without a stored tolerance.
+            if (vertexRecord.number(7) != -1.0) {
+                const double tolerance = length(vertexRecord.number(7));
+                if (tolerance < 0 || tolerance > MaxSplineToleranceMm)
+                    throw std::runtime_error("Unsupported Inventor vertex tolerance " + std::to_string(tolerance) + " mm");
+                BRep_Builder().UpdateVertex(found->second, tolerance);
+            }
         }
     }
     return found->second;
@@ -1466,7 +1559,7 @@ TopoDS_Edge SolidBuilder::buildEdge(qint32 id, std::unordered_map<qint32, TopoDS
     if (edge.type == "tedge-edge") {
         const double savedTolerance = length(edge.number(11));
         if (savedTolerance < 0 || savedTolerance > MaxSplineToleranceMm)
-            fail("Unsupported Inventor edge tolerance");
+            throw std::runtime_error("Unsupported Inventor edge tolerance " + std::to_string(savedTolerance) + " mm");
         tolerance = std::max(tolerance, savedTolerance);
     }
     if (curve.type != "intcurve-curve" && edge.get<bool>(9))
