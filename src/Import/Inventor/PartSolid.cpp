@@ -387,10 +387,10 @@ class SolidBuilder
 {
 public:
     SolidBuilder(const std::vector<Record>& records, double scale,
-                 const std::function<bool()>& cancelled)
-        : _records(records), _scale(scale), _cancelled(cancelled) {}
+                 const std::function<bool()>& cancelled, bool strict = true)
+        : _records(records), _scale(scale), _cancelled(cancelled), _strict(strict) {}
 
-    std::vector<TopoDS_Solid> build(const SavedAppearance* saved = nullptr, PartAppearance* appearance = nullptr)
+    std::vector<BodyOutcome> build(const SavedAppearance* saved = nullptr, PartAppearance* appearance = nullptr)
     {
         for (const auto& record : _records) {
             checkCancellation(_cancelled);
@@ -400,22 +400,35 @@ public:
             }
         }
         findCircularBands();
-        std::vector<TopoDS_Solid> solids;
+        std::vector<BodyOutcome> outcomes;
         for (const auto& record : _records) {
             if (record.type == "body" && !isWireOnlyBody(record)) {
                 checkCancellation(_cancelled);
-                for (auto& solid : buildBody(record, saved, appearance))
-                    solids.push_back(std::move(solid));
-                for (auto& solid : _extraSolids)
-                    solids.push_back(std::move(solid));
-                _extraSolids.clear();
+                try {
+                    for (auto& outcome : buildBody(record, saved, appearance))
+                        outcomes.push_back(std::move(outcome));
+                } catch (const Detail::ResourceError&) {
+                    throw;
+                } catch (const std::exception& error) {
+                    if (_strict || (_cancelled && _cancelled()))
+                        throw;
+                    _extraSolids.clear();
+                    outcomes.push_back({TopoDS_Solid(), QString::fromUtf8(error.what())});
+                }
             }
         }
-        if (solids.empty())
-            fail("Inventor part has no saved solid bodies");
-        if (appearance && solids.size() != 1)
+        const bool anySolid = std::any_of(outcomes.begin(), outcomes.end(),
+                                          [](const BodyOutcome& outcome) { return !outcome.solid.IsNull(); });
+        if (!anySolid) {
+            if (outcomes.empty())
+                fail("Inventor part has no saved solid bodies");
+            throw std::runtime_error(outcomes.front().error.toStdString());
+        }
+        const bool anyFailure = std::any_of(outcomes.begin(), outcomes.end(),
+                                            [](const BodyOutcome& outcome) { return !outcome.error.isEmpty(); });
+        if (appearance && (outcomes.size() != 1 || anyFailure))
             *appearance = {};
-        return solids;
+        return outcomes;
     }
 
 private:
@@ -447,18 +460,31 @@ private:
                transform.get<Triple>(5) == Triple{0, 0, 0} && transform.number(6) == 1;
     }
 
-    // A body may hold several lumps; each lump is a separate solid.
-    std::vector<TopoDS_Solid> buildBody(const Record& body, const SavedAppearance* saved, PartAppearance* appearance)
+    // A body may hold several lumps; each lump is a separate solid. When not strict, a lump that cannot be
+    // built is reported in its place and the other lumps are still built.
+    std::vector<BodyOutcome> buildBody(const Record& body, const SavedAppearance* saved, PartAppearance* appearance)
     {
         if (body.link(4) != -1 || !hasIdentityTransform(body))
             fail("Unsupported Inventor body transform or wire geometry");
-        std::vector<TopoDS_Solid> result;
+        std::vector<BodyOutcome> result;
         std::unordered_set<qint32> lumps;
         for (qint32 id = body.link(3); id != -1;) {
             if (!lumps.insert(id).second)
                 fail("Cyclic Inventor lump list");
             const Record& lump = get(id, "lump");
-            result.push_back(buildLump(lump, saved, appearance));
+            try {
+                result.push_back({buildLump(lump, saved, appearance), QString()});
+                for (auto& solid : _extraSolids)
+                    result.push_back({std::move(solid), QString()});
+                _extraSolids.clear();
+            } catch (const Detail::ResourceError&) {
+                throw;
+            } catch (const std::exception& error) {
+                if (_strict || (_cancelled && _cancelled()))
+                    throw;
+                _extraSolids.clear();
+                result.push_back({TopoDS_Solid(), QString::fromUtf8(error.what())});
+            }
             id = lump.link(3);
         }
         if (result.empty())
@@ -1151,6 +1177,7 @@ private:
     double _scale;
     const std::function<bool()>& _cancelled;
     std::unordered_map<qint32, unsigned> _edgeUses;
+    bool _strict = true;
     mutable std::unordered_set<qint32> _spikeCoedges;
     std::vector<TopoDS_Solid> _extraSolids;
     std::unordered_map<qint32, CircularBand> _circularBands;
@@ -2461,8 +2488,8 @@ SolidBuilder::Surface SolidBuilder::buildSurface(const Record& surface) const
 
 } // namespace
 
-std::vector<TopoDS_Solid> readPartSolids(const QString& path, const std::function<bool()>& cancelled,
-                                       PartAppearance* appearance)
+std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function<bool()>& cancelled,
+                                        PartAppearance* appearance, bool strict)
 {
     checkCancellation(cancelled);
     CompoundFile container(path);
@@ -2476,7 +2503,16 @@ std::vector<TopoDS_Solid> readPartSolids(const QString& path, const std::functio
             saved = readPartAppearance(container);
         checkCancellation(cancelled);
     }
-    return SolidBuilder(records, reader.millimeters, cancelled).build(saved ? &*saved : nullptr, appearance);
+    return SolidBuilder(records, reader.millimeters, cancelled, strict).build(saved ? &*saved : nullptr, appearance);
+}
+
+std::vector<TopoDS_Solid> readPartSolids(const QString& path, const std::function<bool()>& cancelled,
+                                       PartAppearance* appearance)
+{
+    std::vector<TopoDS_Solid> solids;
+    for (auto& outcome : readPartBodies(path, cancelled, appearance, true))
+        solids.push_back(std::move(outcome.solid));
+    return solids;
 }
 
 } // namespace Inventor

@@ -422,7 +422,7 @@ private:
 	std::deque<AssImpMeshDataBatch> _readyBatches;
 	bool _sceneReleased = false;     // the native scene was handed to the viewer (releaseNativeScene())
 	QStringList _releasedWarnings;
-	QStringList _xtWarnings; // warnings of the Parasolid X_T importer for the file just read
+	QStringList _xtWarnings; // warnings of the Parasolid X_T and Inventor importers for the file just read
 	ThreeDXml::ImportResult _threeDXml; // Owns custom aiScene independently of Assimp::Importer.
 	std::unique_ptr<aiScene> _xcafScene; // Owns the scene an OCC document processor built (STEP, IGES, BREP, VRML).
 	Jt::ImportResult _jt;

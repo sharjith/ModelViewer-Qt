@@ -488,6 +488,7 @@ void SettingsDialog::applySettings()
     settings.setValue("threeDxmlStrict", ui->threeDxmlStrictCheckBox->isChecked());
     settings.setValue("threeDxmlThreads", ui->threeDxmlThreadsSpinBox->value());
     settings.setValue("threeDxmlParallelMin", ui->threeDxmlParallelMinSpinBox->value());
+    settings.setValue("inventorStrict", ui->inventorStrictCheckBox->isChecked());
     settings.setValue("xtSchemaDir", ui->xtSchemaDirLineEdit->text().trimmed());
 
     if (general_showTutorialLauncher)
@@ -679,6 +680,7 @@ void SettingsDialog::setDefaultValues()
     ui->threeDxmlStrictCheckBox->setChecked(false);
     ui->threeDxmlThreadsSpinBox->setValue(0);
     ui->threeDxmlParallelMinSpinBox->setValue(8);
+    ui->inventorStrictCheckBox->setChecked(false);
     ui->xtSchemaDirLineEdit->clear();
     ui->xtSchemaDirStatusLabel->setText(xtSchemaStatusText(QString()));
 }
@@ -1072,6 +1074,7 @@ void SettingsDialog::loadSettings()
     ui->threeDxmlStrictCheckBox->setChecked(settings.value("threeDxmlStrict", false).toBool());
     ui->threeDxmlThreadsSpinBox->setValue(settings.value("threeDxmlThreads", 0).toInt());
     ui->threeDxmlParallelMinSpinBox->setValue(settings.value("threeDxmlParallelMin", 8).toInt());
+    ui->inventorStrictCheckBox->setChecked(settings.value("inventorStrict", false).toBool());
     ui->xtSchemaDirLineEdit->setText(settings.value("xtSchemaDir").toString());
     ui->xtSchemaDirStatusLabel->setText(xtSchemaStatusText(ui->xtSchemaDirLineEdit->text()));
 
@@ -1170,7 +1173,7 @@ void SettingsDialog::restoreDefaults()
         ui->importDiagnosticsCheckBox, ui->importDiagnosticsMaxMbSpinBox, ui->interactionFastPathMbSpinBox,
         ui->smallPartCullSpinBox, ui->batchedDrawingCheckBox, ui->batchMinMeshesSpinBox, ui->lodMinTrianglesSpinBox, ui->jtMergePartMeshesCheckBox, ui->jtDecodeThreadsSpinBox,
         ui->jtBudgetGibSpinBox, ui->jtPrefetchMinSpinBox, ui->jtDetailLevelComboBox, ui->jtLodMaterialVariantsCheckBox, ui->threeDxmlStrictCheckBox,
-        ui->threeDxmlThreadsSpinBox, ui->threeDxmlParallelMinSpinBox,
+        ui->threeDxmlThreadsSpinBox, ui->threeDxmlParallelMinSpinBox, ui->inventorStrictCheckBox,
         ui->clearCacheButton
     };
 

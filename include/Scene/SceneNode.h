@@ -20,6 +20,19 @@
 // their allocation and deletion.  Raw pointers are used intentionally because
 // the tree is fully managed by SceneGraph — callers must not delete nodes.
 // ---------------------------------------------------------------------------
+// A problem the importer met while building a part of the model. A node that carries one is shown in the
+// navigation tree with a warning or error symbol and the message as its tooltip, even when it holds no meshes
+// (for example a part that could not be read and was skipped).
+struct ImportIssue
+{
+    enum class Severity { None = 0, Warning = 1, Error = 2 };
+
+    Severity severity = Severity::None;
+    QString  message;
+
+    bool isSet() const { return severity != Severity::None; }
+};
+
 struct SceneNode
 {
     // Stable identity for this structural node (distinct from mesh UUIDs).
@@ -68,6 +81,9 @@ struct SceneNode
     // Tree links — managed exclusively by SceneGraph.
     SceneNode*        parent   = nullptr;
     QList<SceneNode*> children;
+
+    // Set by the importer when this part of the model could not be loaded completely. Persisted with the scene.
+    ImportIssue importIssue;
 
     // Ordered list of SceneMesh UUIDs that belong to this node.
     // Leaf nodes (those with meshes) carry entries here; pure assembly nodes

@@ -51,6 +51,11 @@ inline std::size_t systemAvailableMemory()
 // Free memory that must remain after the next step, the same floor the JT importer uses by default.
 constexpr std::size_t MinFreeMemoryBytes = std::size_t(1) * 1024 * 1024 * 1024;
 
+// Thrown when the machine is out of memory: this is never a problem with one body, so it stops the whole import.
+struct ResourceError : std::runtime_error {
+    using std::runtime_error::runtime_error;
+};
+
 // Stops with a clear message when the free memory, less `upcoming` bytes about to be allocated, is below the floor.
 inline void requireFreeMemory(const char* step, std::size_t upcoming = 0)
 {
@@ -58,7 +63,7 @@ inline void requireFreeMemory(const char* step, std::size_t upcoming = 0)
     if (available == 0)
         return;
     if (available < MinFreeMemoryBytes + upcoming)
-        throw std::runtime_error(std::string("Not enough free memory to continue reading this Inventor file (") + step +
+        throw ResourceError(std::string("Not enough free memory to continue reading this Inventor file (") + step +
                                  "): " + std::to_string(available / (1024 * 1024)) + " MiB free, at least " +
                                  std::to_string((MinFreeMemoryBytes + upcoming) / (1024 * 1024)) +
                                  " MiB are needed. Close other programs and try again.");

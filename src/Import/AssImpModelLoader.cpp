@@ -1402,20 +1402,46 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_importStage = "worker.inventor-read";
 			ImportDiagnostics::checkpoint(_importStage);
 			Inventor::PartAppearance appearance;
-			const auto solids = Inventor::readPartSolids(fi.absoluteFilePath(), cancelled, &appearance);
+			// By default a body that cannot be built is skipped and shown in the tree with the reason; the strict
+			// setting (or MODELVIEWER_INVENTOR_STRICT=1) restores all-or-nothing. If no body can be built the
+			// first error is thrown either way.
+			const bool strict = QSettings().value(QStringLiteral("inventorStrict"), false).toBool()
+				|| qEnvironmentVariableIntValue("MODELVIEWER_INVENTOR_STRICT") != 0;
+			auto outcomes = Inventor::readPartBodies(fi.absoluteFilePath(), cancelled, &appearance, strict);
+			// Test hook: MODELVIEWER_INVENTOR_SIMULATE_FAILED_BODY=n makes the n-th (1-based) body of a part with several
+			// bodies count as unbuildable, to exercise the error item in the model tree. Has no effect when unset.
+			{
+				bool ok = false;
+				const int simulated = qEnvironmentVariableIntValue("MODELVIEWER_INVENTOR_SIMULATE_FAILED_BODY", &ok);
+				if (ok && outcomes.size() > 1 && simulated >= 1 && static_cast<std::size_t>(simulated) <= outcomes.size()) {
+					outcomes[simulated - 1].solid = TopoDS_Solid();
+					outcomes[simulated - 1].error = QStringLiteral("Simulated failure for testing (MODELVIEWER_INVENTOR_SIMULATE_FAILED_BODY).");
+				}
+			}
 			BRepToAssimpConverter::clearColorCache();
 			_importStage = "worker.inventor-tessellate";
 			ImportDiagnostics::checkpoint(_importStage);
+			const QString baseName = fi.completeBaseName();
+			std::vector<TopoDS_Solid> solids;
+			std::vector<QString> solidNames;
+			std::vector<std::pair<QString, QString>> failedBodies; // display name, reason
+			for (std::size_t i = 0; i < outcomes.size(); ++i) {
+				const QString name = outcomes.size() == 1 ? baseName : QStringLiteral("%1 Body %2").arg(baseName).arg(i + 1);
+				if (outcomes[i].solid.IsNull()) {
+					failedBodies.emplace_back(name, outcomes[i].error);
+				} else {
+					solids.push_back(outcomes[i].solid);
+					solidNames.push_back(name);
+				}
+			}
 			std::vector<ShapeWithNameAndTrsf> parts;
 			parts.reserve(solids.size());
-			const QString baseName = fi.completeBaseName();
 			const Quantity_Color color(0.7, 0.7, 0.7, Quantity_TOC_RGB);
 			for (std::size_t i = 0; i < solids.size(); ++i) {
 				if (cancelled())
 					throw std::runtime_error("Inventor import cancelled");
 				BRepToAssimpConverter::preTessellate(solids[i]);
-				const QString name = solids.size() == 1 ? baseName : QStringLiteral("%1 Body %2").arg(baseName).arg(i + 1);
-				parts.emplace_back(solids[i], name.toStdString(), TopLoc_Location(), color);
+				parts.emplace_back(solids[i], solidNames[i].toStdString(), TopLoc_Location(), color);
 			}
 			if (cancelled())
 				throw std::runtime_error("Inventor import cancelled");
@@ -1448,6 +1474,29 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			if (!_xcafScene || !_xcafScene->mRootNode || _xcafScene->mNumMeshes == 0 ||
 				_xcafScene->mRootNode->mNumChildren != solids.size())
 				throw std::runtime_error("Inventor part did not produce display geometry for every body");
+			if (!failedBodies.empty()) {
+				// One empty node per body that could not be built. It carries the reason as node metadata, which
+				// the scene graph turns into an import issue: the tree shows the node with an error symbol.
+				aiNode* sceneRoot = _xcafScene->mRootNode;
+				const unsigned oldCount = sceneRoot->mNumChildren;
+				aiNode** children = new aiNode*[oldCount + failedBodies.size()];
+				for (unsigned i = 0; i < oldCount; ++i)
+					children[i] = sceneRoot->mChildren[i];
+				for (std::size_t i = 0; i < failedBodies.size(); ++i) {
+					aiNode* placeholder = new aiNode(failedBodies[i].first.toStdString());
+					placeholder->mParent = sceneRoot;
+					placeholder->mMetaData = aiMetadata::Alloc(2);
+					placeholder->mMetaData->Set(0, "ModelViewer.ImportIssue.Severity", aiString("error"));
+					placeholder->mMetaData->Set(1, "ModelViewer.ImportIssue.Message",
+						aiString(failedBodies[i].second.toStdString()));
+					children[oldCount + i] = placeholder;
+					_xtWarnings.append(QStringLiteral("%1 could not be loaded and is shown as an error node: %2")
+						.arg(failedBodies[i].first, failedBodies[i].second));
+				}
+				delete[] sceneRoot->mChildren;
+				sceneRoot->mChildren = children;
+				sceneRoot->mNumChildren = oldCount + static_cast<unsigned>(failedBodies.size());
+			}
 			_scene = _xcafScene.get();
 			_declaredLengthUnit = LengthUnit::Millimeter;
 			_importStage = "worker.inventor-read-complete";
