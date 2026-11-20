@@ -1422,16 +1422,28 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_importStage = "worker.inventor-tessellate";
 			ImportDiagnostics::checkpoint(_importStage);
 			const QString baseName = fi.completeBaseName();
-			std::vector<TopoDS_Solid> solids;
+			std::vector<TopoDS_Shape> solids; // solids, plus incomplete surfaces (see incompleteParts)
 			std::vector<QString> solidNames;
 			std::vector<std::pair<QString, QString>> failedBodies; // display name, reason
+			std::vector<std::pair<std::size_t, QString>> incompleteParts; // index in solids, what is missing
+			std::size_t openSurfaces = 0; // sheet bodies: open surfaces without volume
 			for (std::size_t i = 0; i < outcomes.size(); ++i) {
 				const QString name = outcomes.size() == 1 ? baseName : QStringLiteral("%1 Body %2").arg(baseName).arg(i + 1);
-				if (outcomes[i].solid.IsNull()) {
-					failedBodies.emplace_back(name, outcomes[i].error);
-				} else {
+				if (!outcomes[i].solid.IsNull()) {
 					solids.push_back(outcomes[i].solid);
 					solidNames.push_back(name);
+				} else if (!outcomes[i].incompleteShape.IsNull()) {
+					if (outcomes[i].isSurface) {
+						// A sheet body: every face built, the faces just do not enclose a volume. Shown like any part.
+						++openSurfaces;
+					} else {
+						// Faces that could be built but not closed into a solid: shown, marked with a warning.
+						incompleteParts.emplace_back(solids.size(), outcomes[i].error);
+					}
+					solids.push_back(outcomes[i].incompleteShape);
+					solidNames.push_back(name);
+				} else {
+					failedBodies.emplace_back(name, outcomes[i].error);
 				}
 			}
 			std::vector<ShapeWithNameAndTrsf> parts;
@@ -1474,6 +1486,19 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			if (!_xcafScene || !_xcafScene->mRootNode || _xcafScene->mNumMeshes == 0 ||
 				_xcafScene->mRootNode->mNumChildren != solids.size())
 				throw std::runtime_error("Inventor part did not produce display geometry for every body");
+			if (openSurfaces != 0)
+				_xtWarnings.append(QStringLiteral("%1 of %2 bodies are open surfaces (sheet bodies) and have no volume.")
+					.arg(openSurfaces).arg(outcomes.size()));
+			for (const auto& [partIndex, what] : incompleteParts) {
+				// The part is shown but has no volume: record a warning on its node (the tree marks it and shows the reason).
+				aiNode* partNode = _xcafScene->mRootNode->mChildren[partIndex];
+				if (!partNode->mMetaData) {
+					partNode->mMetaData = aiMetadata::Alloc(2);
+					partNode->mMetaData->Set(0, "ModelViewer.ImportIssue.Severity", aiString("warning"));
+					partNode->mMetaData->Set(1, "ModelViewer.ImportIssue.Message", aiString(what.toStdString()));
+				}
+				_xtWarnings.append(QStringLiteral("%1 is incomplete: %2").arg(QString::fromStdString(partNode->mName.C_Str()), what));
+			}
 			if (!failedBodies.empty()) {
 				// One empty node per body that could not be built. It carries the reason as node metadata, which
 				// the scene graph turns into an import issue: the tree shows the node with an error symbol.

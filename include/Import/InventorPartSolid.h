@@ -4,6 +4,7 @@
 #include <QString>
 #include <Quantity_Color.hxx>
 #include <TopoDS_Face.hxx>
+#include <TopoDS_Shape.hxx>
 #include <TopoDS_Solid.hxx>
 
 #include <functional>
@@ -21,7 +22,13 @@ struct PartAppearance {
 // One saved solid, or the reason it could not be built.
 struct BodyOutcome {
     TopoDS_Solid solid;
-    QString error; // Non-empty when the body (or one of its lumps) could not be built; solid is then null.
+    QString error; // Non-empty when the body (or one of its lumps) could not be built as a solid; solid is then null.
+    // Set when the faces that could be built are still available: a compound of faces, not a solid and without volume.
+    // error then says what is missing. Null when nothing could be built.
+    TopoDS_Shape incompleteShape;
+    // True when incompleteShape is an open surface (a sheet body) rather than a solid that failed to build: every face
+    // was built and the faces simply do not enclose a volume. error is then empty; there is nothing to warn about.
+    bool isSurface = false;
 };
 
 // Read the saved bodies in record order. With strict set the first body that fails to build throws, which is

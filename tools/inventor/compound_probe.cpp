@@ -69,15 +69,18 @@ int main(int argc, char* argv[])
     const QCommandLineOption hashStreams(QStringLiteral("hash-streams"), QStringLiteral("Also hash stream payloads"));
     const QCommandLineOption partBrep(QStringLiteral("part-brep"), QStringLiteral("Inspect the saved part B-rep segment"));
     const QCommandLineOption partSolid(QStringLiteral("part-solid"), QStringLiteral("Measure the reconstructed OCCT solids"));
+    const QCommandLineOption partBodies(QStringLiteral("part-bodies"),
+        QStringLiteral("Report every body (solid, incomplete surface or error) without stopping at the first failure"));
     const QCommandLineOption partAppearance(QStringLiteral("part-appearance"), QStringLiteral("Report saved colors mapped to the reconstructed part"));
     parser.addOption(hashStreams);
     parser.addOption(partBrep);
     parser.addOption(partSolid);
+    parser.addOption(partBodies);
     parser.addOption(partAppearance);
     parser.process(app);
     const auto arguments = parser.positionalArguments();
     if (arguments.size() != 1 || parser.isSet(hashStreams) + parser.isSet(partBrep) +
-        parser.isSet(partSolid) + parser.isSet(partAppearance) > 1)
+        parser.isSet(partSolid) + parser.isSet(partBodies) + parser.isSet(partAppearance) > 1)
         parser.showHelp(1);
 
     try {
@@ -101,6 +104,28 @@ int main(int argc, char* argv[])
             }
             report.insert(QStringLiteral("face_overrides"), faces);
             return printJson(report);
+        }
+        if (parser.isSet(partBodies)) {
+            QJsonArray bodies;
+            int index = 0;
+            for (const auto& outcome : Inventor::readPartBodies(arguments.front(), {}, nullptr, false)) {
+                QJsonObject row{{QStringLiteral("index"), ++index}};
+                if (!outcome.solid.IsNull()) {
+                    row.insert(QStringLiteral("kind"), QStringLiteral("solid"));
+                    row.insert(QStringLiteral("measure"), measure(outcome.solid));
+                } else if (!outcome.incompleteShape.IsNull()) {
+                    QJsonObject shape = measure(outcome.incompleteShape);
+                    shape.remove(QStringLiteral("volume_mm3")); // An open surface has no volume.
+                    row.insert(QStringLiteral("kind"), outcome.isSurface ? QStringLiteral("surface") : QStringLiteral("incomplete"));
+                    row.insert(QStringLiteral("measure"), shape);
+                    row.insert(QStringLiteral("message"), outcome.error);
+                } else {
+                    row.insert(QStringLiteral("kind"), QStringLiteral("failed"));
+                    row.insert(QStringLiteral("message"), outcome.error);
+                }
+                bodies.append(row);
+            }
+            return printJson({{QStringLiteral("bodies"), bodies}});
         }
         if (parser.isSet(partSolid)) {
             const auto solids = Inventor::readPartSolids(arguments.front());

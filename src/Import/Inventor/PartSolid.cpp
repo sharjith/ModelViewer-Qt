@@ -48,11 +48,15 @@
 #include <TColgp_HArray1OfPnt.hxx>
 #include <NCollection_Array2.hxx>
 #include <TopExp.hxx>
+#include <BRepBndLib.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
+#include <Bnd_Box.hxx>
 #include <GProp_GProps.hxx>
 #include <BRepGProp.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
+#include <TopoDS_Compound.hxx>
 #include <TopoDS_Face.hxx>
 #include <TopoDS_Iterator.hxx>
 #include <TopoDS_Shell.hxx>
@@ -93,6 +97,17 @@ constexpr std::size_t MemoryCheckInterval = 65'536;
 constexpr double CheckToleranceMm = 1e-5;
 constexpr double MaxSplineToleranceMm = 0.05;
 constexpr double TwoPi = 6.2831853071795864769;
+
+// Raised (only when not strict) by the plain single-shell path when a shell cannot become a solid but some of its faces
+// were built. It carries those faces so the caller can still show them, marked incomplete.
+struct IncompleteShell : std::runtime_error
+{
+    IncompleteShell(const TopoDS_Shape& faces, const QString& description, bool openSurface = false)
+        : std::runtime_error(description.toStdString()), shape(faces), message(description), surface(openSurface) {}
+    TopoDS_Shape shape;
+    QString message;
+    bool surface; // every face was built; the faces just do not enclose a volume (a sheet body)
+};
 
 [[noreturn]] void fail(const char* message)
 {
@@ -412,13 +427,14 @@ public:
                 } catch (const std::exception& error) {
                     if (_strict || (_cancelled && _cancelled()))
                         throw;
-                    _extraSolids.clear();
-                    outcomes.push_back({TopoDS_Solid(), QString::fromUtf8(error.what())});
+                    clearExtras();
+                    outcomes.push_back({TopoDS_Solid(), QString::fromUtf8(error.what()), TopoDS_Shape()});
                 }
             }
         }
-        const bool anySolid = std::any_of(outcomes.begin(), outcomes.end(),
-                                          [](const BodyOutcome& outcome) { return !outcome.solid.IsNull(); });
+        const bool anySolid = std::any_of(outcomes.begin(), outcomes.end(), [](const BodyOutcome& outcome) {
+            return !outcome.solid.IsNull() || !outcome.incompleteShape.IsNull();
+        });
         if (!anySolid) {
             if (outcomes.empty())
                 fail("Inventor part has no saved solid bodies");
@@ -476,14 +492,21 @@ private:
                 result.push_back({buildLump(lump, saved, appearance), QString()});
                 for (auto& solid : _extraSolids)
                     result.push_back({std::move(solid), QString()});
-                _extraSolids.clear();
+                for (auto& outcome : _extraFailures)
+                    result.push_back(std::move(outcome));
+                clearExtras();
             } catch (const Detail::ResourceError&) {
                 throw;
+            } catch (const IncompleteShell& incomplete) {
+                if (_strict || (_cancelled && _cancelled()))
+                    throw;
+                clearExtras();
+                result.push_back({TopoDS_Solid(), incomplete.message, incomplete.shape, incomplete.surface});
             } catch (const std::exception& error) {
                 if (_strict || (_cancelled && _cancelled()))
                     throw;
-                _extraSolids.clear();
-                result.push_back({TopoDS_Solid(), QString::fromUtf8(error.what())});
+                clearExtras();
+                result.push_back({TopoDS_Solid(), QString::fromUtf8(error.what()), TopoDS_Shape()});
             }
             id = lump.link(3);
         }
@@ -513,41 +536,113 @@ private:
         if (shells.size() == 1)
             return buildShell(*shells.front(), saved, appearance, false);
 
-        std::vector<TopoDS_Solid> parts;
-        for (const Record* shell : shells)
-            parts.push_back(buildShell(*shell, nullptr, nullptr, true));
-        std::size_t outerIndex = 0;
-        double outerVolume = -1;
-        for (std::size_t i = 0; i < parts.size(); ++i) {
-            GProp_GProps properties;
-            BRepGProp::VolumeProperties(parts[i], properties);
-            if (properties.Mass() > outerVolume) {
-                outerVolume = properties.Mass();
-                outerIndex = i;
+        // Several shells in one lump: a shell whose saved face senses enclose a positive volume is an independent solid
+        // (a lump may hold hundreds of separate parts); a shell with a negative volume has its normals pointing into
+        // a cavity and is a void of the solid that contains it.
+        std::vector<TopoDS_Solid> outers;
+        std::vector<TopoDS_Solid> voids;
+        std::vector<QString> voidFailures;
+        for (const Record* shell : shells) {
+            _plainShellSign = 1.0;
+            try {
+                const TopoDS_Solid built = buildShell(*shell, nullptr, nullptr, false);
+                (_plainShellSign < 0 ? voids : outers).push_back(built);
+            } catch (const Detail::ResourceError&) {
+                throw;
+            } catch (const IncompleteShell& incomplete) {
+                if (_strict || (_cancelled && _cancelled()))
+                    throw;
+                if (_plainShellSign < 0 && !incomplete.surface)
+                    voidFailures.push_back(incomplete.message);
+                else if (_plainShellSign < 0)
+                    _extraFailures.push_back({TopoDS_Solid(), QString(), incomplete.shape, true});
+                else
+                    _extraFailures.push_back({TopoDS_Solid(), incomplete.message, incomplete.shape, incomplete.surface});
+            } catch (const std::exception& error) {
+                if (_strict || (_cancelled && _cancelled()))
+                    throw;
+                if (_plainShellSign < 0)
+                    voidFailures.push_back(QString::fromUtf8(error.what()));
+                else
+                    _extraFailures.push_back({TopoDS_Solid(), QString::fromUtf8(error.what()), TopoDS_Shape()});
             }
         }
-        BRepBuilderAPI_MakeSolid builder(TopoDS::Shell(TopoDS_Iterator(parts[outerIndex]).Value()));
-        for (std::size_t i = 0; i < parts.size(); ++i) {
-            if (i == outerIndex)
-                continue;
-            NCollection_List<TopoDS_Shape> arguments, tools;
-            arguments.Append(parts[i]);
-            tools.Append(parts[outerIndex]);
-            BRepAlgoAPI_Cut remainder;
-            remainder.SetArguments(arguments);
-            remainder.SetTools(tools);
-            remainder.SetNonDestructive(true);
-            checkCancellation(_cancelled);
-            remainder.Build();
-            checkCancellation(_cancelled);
-            if (!remainder.IsDone() || remainder.HasErrors() || remainder.Shape().IsNull() ||
-                TopExp_Explorer(remainder.Shape(), TopAbs_SOLID).More())
-                fail("Inventor void shell is not contained by its exterior shell");
-            builder.Add(TopoDS::Shell(TopoDS_Iterator(parts[i]).Value().Reversed()));
+        if (outers.empty()) {
+            if (!_extraFailures.empty()) {
+                // Every outer shell failed: report the first as the lump's failure.
+                const BodyOutcome first = _extraFailures.front();
+                _extraFailures.clear();
+                throw std::runtime_error(first.error.toStdString());
+            }
+            fail("Inventor lump has only void shells");
         }
-        const TopoDS_Solid solid = builder.Solid();
-        validateSolid(solid);
-        return solid;
+        std::vector<Bnd_Box> boxes(outers.size());
+        std::vector<GProp_GProps> volumes(outers.size());
+        for (std::size_t i = 0; i < outers.size(); ++i) {
+            BRepBndLib::Add(outers[i], boxes[i]);
+            BRepGProp::VolumeProperties(outers[i], volumes[i]);
+        }
+        std::vector<std::vector<std::size_t>> voidsOf(outers.size());
+        std::vector<TopoDS_Solid> standalone;
+        for (std::size_t v = 0; v < voids.size(); ++v) {
+            checkCancellation(_cancelled);
+            Bnd_Box voidBox;
+            BRepBndLib::Add(voids[v], voidBox);
+            const TopExp_Explorer vertex(voids[v], TopAbs_VERTEX);
+            if (!vertex.More()) {
+                voidFailures.push_back(QStringLiteral("a void shell has no vertices"));
+                continue;
+            }
+            const gp_Pnt probe = BRep_Tool::Pnt(TopoDS::Vertex(vertex.Current()));
+            // The smallest solid whose bounding box holds the void and which really contains it.
+            std::size_t best = outers.size();
+            double bestVolume = 0;
+            for (std::size_t o = 0; o < outers.size(); ++o) {
+                if (boxes[o].IsOut(voidBox) || boxes[o].IsOut(probe))
+                    continue;
+                if (best != outers.size() && volumes[o].Mass() >= bestVolume)
+                    continue;
+                BRepClass3d_SolidClassifier classifier(outers[o], probe, Precision::Confusion());
+                if (classifier.State() != TopAbs_IN)
+                    continue;
+                best = o;
+                bestVolume = volumes[o].Mass();
+            }
+            if (best == outers.size())
+                standalone.push_back(voids[v]); // Negative sense but inside nothing: an independent part, already oriented outward.
+            else
+                voidsOf[best].push_back(v);
+        }
+        std::vector<TopoDS_Solid> finished;
+        for (std::size_t o = 0; o < outers.size(); ++o) {
+            if (voidsOf[o].empty()) {
+                finished.push_back(outers[o]);
+                continue;
+            }
+            BRepBuilderAPI_MakeSolid builder(TopoDS::Shell(TopoDS_Iterator(outers[o]).Value()));
+            for (const std::size_t v : voidsOf[o])
+                builder.Add(TopoDS::Shell(TopoDS_Iterator(voids[v]).Value().Reversed()));
+            const TopoDS_Solid withVoids = builder.Solid();
+            try {
+                validateSolid(withVoids);
+                finished.push_back(withVoids);
+            } catch (const std::exception& error) {
+                if (_strict)
+                    throw;
+                finished.push_back(outers[o]);
+                voidFailures.push_back(QString::fromUtf8(error.what()));
+            }
+        }
+        for (const TopoDS_Solid& solid : standalone)
+            finished.push_back(solid);
+        for (const QString& why : voidFailures) {
+            if (_strict)
+                throw std::runtime_error(why.toStdString());
+            _extraFailures.push_back({TopoDS_Solid(), QStringLiteral("A void of this part could not be applied: %1").arg(why), TopoDS_Shape()});
+        }
+        for (std::size_t i = 1; i < finished.size(); ++i)
+            _extraSolids.push_back(finished[i]);
+        return finished.front();
     }
 
     TopoDS_Solid buildShell(const Record& shell, const SavedAppearance* saved, PartAppearance* appearance,
@@ -564,7 +659,18 @@ private:
         }
         if (faces.empty())
             fail("Inventor shell has no faces");
-        TangentCut cut = findTangentCut(faces);
+        TangentCut cut;
+        try {
+            cut = findTangentCut(faces);
+        } catch (const Detail::ResourceError&) {
+            throw;
+        } catch (const std::exception&) {
+            // The edges of this shell are shared in a way the solid rules do not cover (a sheet body, or a contact the
+            // rules do not know). When not strict, build the faces on their own and show them as an open surface.
+            if (_strict || (_cancelled && _cancelled()))
+                throw;
+            return sewSolidOrIncomplete(faces, {}, repairCavity, nullptr, nullptr);
+        }
         if (!cut.omittedFaces.empty()) {
             faces.erase(std::remove_if(faces.begin(), faces.end(),
                                        [&](qint32 id) { return cut.omittedFaces.count(id) != 0; }),
@@ -573,20 +679,46 @@ private:
         }
         if (!cut.pieces.empty()) {
             // Separate solids that touch along an edge. The first is returned; the others are collected by build().
+            // Each piece stands on its own: when not strict, a piece that cannot be built is reported in its place (as an
+            // incomplete surface when some of its faces built) and the other pieces are still returned.
             TopoDS_Solid first;
+            std::vector<BodyOutcome> failures;
             for (const auto& piece : cut.pieces) {
-                TopoDS_Solid solid = sewSolid(piece, cut.omittedLoops, repairCavity);
-                if (first.IsNull())
-                    first = solid;
-                else
-                    _extraSolids.push_back(solid);
+                checkCancellation(_cancelled);
+                try {
+                    TopoDS_Solid solid = sewSolidOrIncomplete(piece, cut.omittedLoops, repairCavity, nullptr, nullptr);
+                    if (first.IsNull())
+                        first = solid;
+                    else
+                        _extraSolids.push_back(solid);
+                } catch (const Detail::ResourceError&) {
+                    throw;
+                } catch (const IncompleteShell& incomplete) {
+                    if (_strict || (_cancelled && _cancelled()))
+                        throw;
+                    failures.push_back({TopoDS_Solid(), incomplete.message, incomplete.shape, incomplete.surface});
+                } catch (const std::exception& error) {
+                    if (_strict || (_cancelled && _cancelled()))
+                        throw;
+                    failures.push_back({TopoDS_Solid(), QString::fromUtf8(error.what()), TopoDS_Shape()});
+                }
             }
+            if (first.IsNull()) {
+                // Nothing was built as a solid: the first failure stands for the whole shell.
+                if (failures.empty())
+                    fail("Inventor shell has no pieces");
+                if (!failures.front().incompleteShape.IsNull())
+                    throw IncompleteShell(failures.front().incompleteShape, failures.front().error, failures.front().isSurface);
+                throw std::runtime_error(failures.front().error.toStdString());
+            }
+            for (auto& failure : failures)
+                _extraFailures.push_back(std::move(failure));
             return first;
         }
         if (cut.cavity.empty()) {
             if (saved && matchesAppearance(faces, *saved))
-                return sewSolid(faces, cut.omittedLoops, repairCavity, saved, appearance);
-            return sewSolid(faces, cut.omittedLoops, repairCavity);
+                return sewSolidOrIncomplete(faces, cut.omittedLoops, repairCavity, saved, appearance);
+            return sewSolidOrIncomplete(faces, cut.omittedLoops, repairCavity, nullptr, nullptr);
         }
 
         const TopoDS_Solid outside = sewSolid(cut.outside, cut.omittedLoops, false);
@@ -648,6 +780,7 @@ private:
     {
         _edgeUses.clear();
         BRepBuilderAPI_Sewing sewing(CheckToleranceMm);
+        std::vector<TopoDS_Face> measuredFaces;
         PartAppearance colors;
         const auto quantity = [](const DiffuseColor& c) {
             return Quantity_Color(c[0], c[1], c[2], Quantity_TOC_RGB);
@@ -660,15 +793,41 @@ private:
                 const Record& record = get(id, "face");
                 const auto face = buildFace(record, id, omittedLoops);
                 sewing.Add(face);
+                if (_collectFaces)
+                    _builtFaces.push_back(face);
+                if (_measureSignedVolume)
+                    measuredFaces.push_back(face);
                 if (saved) {
                     const auto& color = saved->faces.at(static_cast<quint32>(record.get<qint32>(1)));
                     if (color)
                         colors.faces.emplace_back(face, quantity(*color));
                 }
+            } catch (const Detail::ResourceError&) {
+                throw;
             } catch (const std::exception& error) {
+                if (_collectFaces && !(_cancelled && _cancelled())) {
+                    // Keep going: the faces that can be built are still worth showing.
+                    if (_failedFaces == 0)
+                        _firstFaceFailure = QStringLiteral("face %1: %2").arg(id).arg(QString::fromUtf8(error.what()));
+                    ++_failedFaces;
+                    continue;
+                }
                 throw std::runtime_error("Inventor ASM face " + std::to_string(id) + ": " + error.what());
             }
         }
+        if (_measureSignedVolume && !measuredFaces.empty()) {
+            // Integrate over the faces with their saved senses (no sewing involved): the sign says outer or void.
+            BRep_Builder compoundBuilder;
+            TopoDS_Compound compound;
+            compoundBuilder.MakeCompound(compound);
+            for (const TopoDS_Face& face : measuredFaces)
+                compoundBuilder.Add(compound, face);
+            GProp_GProps properties;
+            BRepGProp::VolumeProperties(compound, properties);
+            _lastSignedVolume = properties.Mass();
+        }
+        if (_collectFaces && _failedFaces != 0)
+            fail("Some Inventor faces could not be built");
         for (const auto& use : _edgeUses) {
             const Record& usedEdge = get(use.first, "edge");
             if (usedEdge.link(8) < 0 && usedEdge.link(3) == usedEdge.link(5))
@@ -755,6 +914,55 @@ private:
                 *appearance = std::move(colors);
         }
         return solid;
+    }
+
+    // sewSolid for a plain shell. When not strict and the shell cannot become a solid but some faces were built, the
+    // faces are returned in an IncompleteShell instead of being thrown away.
+    TopoDS_Solid sewSolidOrIncomplete(const std::vector<qint32>& faces, const std::unordered_set<qint32>& omittedLoops,
+                                      bool repairCavity, const SavedAppearance* saved, PartAppearance* appearance)
+    {
+        _lastSignedVolume = 0;
+        _measureSignedVolume = true;
+        struct MeasureReset {
+            bool& flag;
+            double& volume;
+            double& sign;
+            ~MeasureReset()
+            {
+                flag = false;
+                sign = volume != 0 ? volume : 1.0;
+            }
+        } measureReset{_measureSignedVolume, _lastSignedVolume, _plainShellSign};
+        if (_strict)
+            return sewSolid(faces, omittedLoops, repairCavity, saved, appearance);
+        _builtFaces.clear();
+        _failedFaces = 0;
+        _firstFaceFailure.clear();
+        _collectFaces = true;
+        struct Reset {
+            bool& flag;
+            ~Reset() { flag = false; }
+        } reset{_collectFaces};
+        try {
+            return sewSolid(faces, omittedLoops, repairCavity, saved, appearance);
+        } catch (const Detail::ResourceError&) {
+            throw;
+        } catch (const std::exception& error) {
+            if (_builtFaces.empty() || (_cancelled && _cancelled()))
+                throw;
+            BRep_Builder builder;
+            TopoDS_Compound compound;
+            builder.MakeCompound(compound);
+            for (const TopoDS_Face& face : _builtFaces)
+                builder.Add(compound, face);
+            const QString message = _failedFaces != 0
+                ? QStringLiteral("%1 of %2 faces could not be built (first: %3). The other faces are shown as an open "
+                                 "surface; it has no volume.")
+                      .arg(_failedFaces).arg(faces.size()).arg(_firstFaceFailure)
+                : QStringLiteral("The faces could not be closed into a solid (%1). They are shown as an open surface; "
+                                 "it has no volume.").arg(QString::fromUtf8(error.what()));
+            throw IncompleteShell(compound, _failedFaces != 0 ? message : QString(), _failedFaces == 0);
+        }
     }
 
     bool hasExplicitToroidalTrims(const std::vector<qint32>& faces) const
@@ -1139,7 +1347,9 @@ private:
             const bool reversed = coedge.get<bool>(7);
             const unsigned sense = reversed ? 2 : 1;
             unsigned& use = _edgeUses[edgeId];
-            if ((use & sense) != 0)
+            // A solid traverses every edge once in each direction. In the lenient path the faces may belong to a sheet
+            // body, where neighbouring faces can legitimately run the same way; the shell is then simply open.
+            if ((use & sense) != 0 && !_collectFaces)
                 fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
             use |= sense;
 
@@ -1177,7 +1387,24 @@ private:
     double _scale;
     const std::function<bool()>& _cancelled;
     std::unordered_map<qint32, unsigned> _edgeUses;
+    void clearExtras()
+    {
+        _extraSolids.clear();
+        _extraFailures.clear();
+    }
+
     bool _strict = true;
+    // Faces built by the plain-shell path, kept so an incomplete shell can still be shown (see sewSolidOrIncomplete).
+    bool _collectFaces = false;
+    // Signed volume of the faces of the shell last built by sewSolidOrIncomplete, from the saved face senses: positive
+    // for an outer shell, negative for a void whose normals point into the cavity (see buildLump).
+    bool _measureSignedVolume = false;
+    double _lastSignedVolume = 0;
+    double _plainShellSign = 1;
+    std::vector<BodyOutcome> _extraFailures; // other shells of the lump that could not be built or are incomplete
+    std::vector<TopoDS_Face> _builtFaces;
+    std::size_t _failedFaces = 0;
+    QString _firstFaceFailure;
     mutable std::unordered_set<qint32> _spikeCoedges;
     std::vector<TopoDS_Solid> _extraSolids;
     std::unordered_map<qint32, CircularBand> _circularBands;
