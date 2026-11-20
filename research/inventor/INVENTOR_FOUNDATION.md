@@ -191,3 +191,21 @@ Observed and changed.
 Limits. The part with a void shell and the part with two lumps have no independent reference; dimensions are round and the solids validate, and the owner's visual check is the qualification. The vertex-tolerance inference rests on one file.
 
 Still failing: one sphere face with an unclear region, one older-format part, and the oversized assembly file (plus the ten files with no solid body).
+
+## Sphere face with a notch and bore holes, 20 November 2026
+
+Method: read-only record dump and a temporary orientation diagnostic in the probe build (removed). Observations, then the change.
+
+Observed.
+- The part is a ball (radius 10 mm) with a through-bore of radius 5 mm along one axis and a notch between two parallel planes 4 mm apart, with a cylindrical floor. The sphere face has three loops: the notch boundary (two circle arcs and four intersection-curve edges) and the two bore circles. The face is the whole sphere minus those three regions.
+- All three loops are clockwise about the outward normal, so each is a hole. There is no counter-clockwise outer loop; the outer boundary is the whole sphere and is not saved.
+- The notch loop straddles the saved seam meridian of the sphere's parameterisation. The earlier report that the region was unclear was this: with no outer loop and a seam crossing, `ShapeFix_Face` neither added the natural bound nor kept the notch loop in one piece.
+- My first diagnostic reported one bore circle as counter-clockwise; that was the diagnostic's own reading of a reversed single-edge wire (the wire explorer's orientation), not the data. The saved coedge senses are consistent: the two circles carry opposite senses on the sphere and on the bore wall, as a manifold requires.
+
+Change. For a sphere face with two or more loops, the sphere is turned about its axis so the seam runs through the widest gap between boundary samples. If every loop is then clockwise in parameter space, the whole-sphere natural bound is added as the outer boundary before `ShapeFix_Face`. The face validates and the solid is 20 × 20 × 20 mm, 2651.92 mm³ (5 faces). Valid solids on the probe: 72 of 84. One other part with a sphere face (a valve) re-measures identical to 1e-14 relative.
+
+Limits. The volume has no independent reference; the check is validity plus the round dimensions, so the owner's visual check qualifies it. The loop-direction test assumes the parameter-space sign convention of the sphere used here.
+
+Still failing: one older-format part and the oversized assembly file (plus ten files with no solid body).
+
+Owner observation on the ball part, 20 November 2026: the sphere is correct but its shading is visibly faceted. Recorded with the fillet report above for the refinement phase (tessellation tolerance and normals), not investigated.
