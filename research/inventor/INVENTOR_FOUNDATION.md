@@ -238,3 +238,21 @@ Change (limits). Fixed constants (64 MB segment, 250 000 records, 4 million fiel
 Result. Valid solids on the probe stay at 73 of 84 and no other file changed. The large part now gets as far as building solids and fails on geometry: body 1 with a tangent-contact configuration the current rules do not cover, body 2 with a saved vertex tolerance of 0.126 mm against the reader's 0.05 mm safety cap. Neither has been examined.
 
 Limits. The guard has not been exercised under low memory (only normal and 8 GB-free runs). The 1 GiB floor is a constant and not yet an import setting; JT exposes its floor as an option and the owner has planned a settings-dialog entry. Whether to raise the 0.05 mm tolerance cap is a separate decision.
+
+## The oversized part: pinched shells, slits and what still fails, 20 November 2026
+
+Method: temporary probe diagnostics (removed) that logged every rejected edge or face and tallied them by class, on the 311 MB part measured in the previous section (two bodies, 86 thousand faces). Observations, then the changes they justified. The part has no independent reference.
+
+Observed (edges, previously a single "tangent contact" rejection).
+- 384 edges are used by four faces and no face doubles back on itself. Each is a circle where a ridge (two cone faces) touches a bore (two coaxial cylinder faces of the same radius): the saved shell touches itself along the circle. Removing all such edges shatters the shell into 551 fragments, and at most edges the four uses fall in four different fragments, so connectivity alone cannot say which faces belong together.
+- About 1,060 further rejections were zero-area retraces the old rule did not cover: a slit loop on a cone or cylinder face whose other two uses are coplanar planes (887), a spike on a cone face (166), and a handful of slit/plane combinations. A retraced loop encloses no area, so leaving it out never changes a face's region.
+
+Changes.
+- Any slit loop or spike that is not the cavity-forming tangent contact is omitted from its face (or the face is dropped if the slit is its whole boundary). The cavity path is unchanged.
+- Pinch edges are paired geometrically. Around such an edge material wedges alternate with voids: for each face take the direction pointing into the face and the side its material lies on; its partner is the nearest face in that direction, and the pairing must be mutual. Faces that touch tangentially leave the edge in the same direction, so each direction is corrected by how far the surface curves away a short step (1 mm per 1000) along the face. Paired faces are joined and every resulting group is built as its own solid; a group with fewer than two pieces or an inconsistent pairing is rejected.
+- Degenerate edges at singular points are exempt from the pairing check in the pinch pass, as they already were in the normal one.
+- Spline surfaces periodic in u (form 2) are accepted, matching the existing v handling.
+
+Result. Valid solids on the probe stay at 73 of 84 and no other file's volume changed. The large part now passes every topology check and fails later, while building faces. A tally over its 86 thousand faces, counting every error instead of stopping at the first, shows more than 2,000 failing faces in these classes (largest first): edge endpoints disagreeing with saved trim parameters; "unsupported conical surface profile"; edge not on its planar face (about 115); intersection curve tolerance above 0.05 mm (and vertex tolerance 0.126 mm in the other body); reversed helix edges (a few); and orientation errors that look like consequences of the others. None has been examined.
+
+Limits. The pinch pairing is validated only through the part's own pieces passing the topology checks; no solid from it has been built and compared with anything. The slit and spike generalisation changes behaviour only for files that were previously rejected, but the owner's visual check on the small spike parts (the bridge studs and spindle) is the regression test for it.
