@@ -155,3 +155,39 @@ Observed.
 Result. Helices are built by cubic Hermite interpolation of the analytic point and derivative, 48 samples per turn (a few 1e-6 mm for these radii), as a ruled B-spline surface between the two bounding rails. Valid solids on the probe: 65 of 84 (the other 19 include 10 files with no solid body). Eleven earlier controls re-measure within 1e-6 relative (largest: 0.17 mm³ in 1.2 L, from the seam change). Paired STEP comparisons and CTest were not re-run. The helical geometry has no independent reference beyond the dimension and edge-on-surface evidence above; an owner visual check is required.
 
 Still failing: two non-manifold tangent-contact parts, two with wire geometry, one sheet part, one older-format part, one sphere face with an unclear region, one planar face with an edge off its plane, and one oversized assembly file.
+
+## Zero-width spikes in planar boundaries, 20 November 2026
+
+Method: headless probe on the local corpus plus a read-only record dump of the two failing parts. Observation, then the change it justified.
+
+Observed.
+- The two parts rejected as "non-manifold edge at tangent contact" are not cone or tangent-cylinder cases. In each, one straight edge has four coedge uses: the helical thread face, the planar thread run-out face, and a third planar face that uses the edge twice, consecutively and in opposite senses, inside a longer loop (for example ellipse arc, edge, same edge reversed, ellipse arc).
+- The doubled uses enclose no area: the loop leaves a vertex along the edge and comes straight back. The two other uses already form a normal manifold pair.
+- The earlier tangent-contact logic only recognised a retraced pair that is a whole two-coedge loop, so these were rejected.
+
+Change. A retraced pair inside a longer loop of a planar face is treated as a spike: both coedges are left out of the boundary and the edge keeps its two real uses. Both parts then sew and validate (dimensions 75 × 53 × 165 mm and 370.5 × 30 × 30 mm). Valid solids on the probe: 67 of 84; every other file's volume is unchanged.
+
+Limits. The spike must be on a planar face and the loop must remain connected through the skipped pair. There is no paired STEP for either part, so the owner's visual check is the qualification.
+
+Correction. The note "Failure classes examined" above attributed the three-free-edge sewing failure to a cone face with a single closed loop. That attribution was not confirmed for these two parts and the cone hypothesis remains unverified; no corpus part is currently known to show it.
+
+## Owner-reported visual discrepancies on fillet surfaces, 20 November 2026
+
+Observation by the owner in the viewer (screenshot kept locally, not tracked), on the G13 flange part: along the rim fillet where the grille ring meets the outer wall, several local patches show shading steps or small dents, at four places around the circumference, while the rest of the fillet is smooth. The same kind of discrepancy was reported for fillet surfaces on some other meshes.
+
+Status: observation only. No cause is established. Hypotheses to test, not conclusions: (a) the fillet is a spline surface whose Hermite or sampled approximation is coarser than the analytic one; (b) the tessellation tolerance is too coarse where the fillet is narrow; (c) normals are interpolated across a seam or a face boundary; (d) a face is built from a complement or patch with a slightly different surface. Next step is to identify which saved face types cover those patches and compare the viewer tessellation against the paired STEP, which exists for this part, with output under `out/`.
+
+## Multiple lumps, void shells, tolerant vertices and a full torus, 20 November 2026
+
+Method: headless probe on the local corpus plus read-only record dumps of the failing parts. Observations, then the changes they justified. Valid solids on the probe rose from 67 to 71 of 84; no other file's volume changed.
+
+Observed and changed.
+- One part has one body with two lumps, each a closed shell of 56 and 54 faces. Each lump is a separate solid, so the reader now builds one solid per lump (the two come out as a mirrored pair of about 3275 and 3273 mm³).
+- One part has one lump with two shells: a 92-face shell and a 5-face shell. The smaller shell is an internal void. A lump with several shells is now built as one solid: the shell with the largest volume is the exterior, every other shell must lie inside it (checked with a boolean cut), and the inner shells are added reversed. The result validates (25 × 24.7 × 70 mm).
+- One part's planar face has an edge about 2e-4 mm off its plane. The edge ends at tolerant vertices whose saved tolerance is 2e-4 mm (2e-5 file units). The planar check used a fixed 1e-5 mm; it now allows the edge's own tolerance.
+- The same part has a vertex whose tolerance field holds -1 while the next field holds 2.14e-4 file units; the measured gap between that vertex and its curve is 2.1e-3 mm, equal to that value. When the first field is -1 and the next is positive, the next field is now read as the vertex tolerance. This is an inference from one file's data, supported by the matching gap; it is not confirmed by a format document.
+- One part is a single face with no loops or edges on a full torus (3 mm major, 1 mm minor radius). A loop-less face on a torus or sphere is now built with the surface's natural bounds, and a single self-closing face sewn alone is wrapped into a shell. The volume is 59.2176 mm³, equal to the analytic 2π²Rr² for these radii.
+
+Limits. The part with a void shell and the part with two lumps have no independent reference; dimensions are round and the solids validate, and the owner's visual check is the qualification. The vertex-tolerance inference rests on one file.
+
+Still failing: one sphere face with an unclear region, one older-format part, and the oversized assembly file (plus the ten files with no solid body).
