@@ -65,6 +65,7 @@
 
 #include <array>
 #include <algorithm>
+#include <BRepTools_WireExplorer.hxx>
 #include <cmath>
 #include <cstring>
 #include <functional>
@@ -844,7 +845,7 @@ private:
         }
         if (face.get<bool>(9) || face.link(4) < 0)
             fail("Inventor face uses unsupported unbounded or sheet geometry");
-        const Surface support = buildSurface(get(face.link(7)));
+        Surface support = buildSurface(get(face.link(7)));
         BRep_Builder builder;
         TopoDS_Face result;
         builder.MakeFace(result, support.geometry, Precision::Confusion());
@@ -883,6 +884,44 @@ private:
             if (face.get<bool>(8) != support.inverted)
                 result.Reverse();
             return result;
+        }
+        if (const auto sphere = Handle(Geom_SphericalSurface)::DownCast(support.geometry);
+            !sphere.IsNull() && loopCount >= 2) {
+            // Loops that straddle the saved seam meridian cannot bound a face in parameter space. Turn the
+            // sphere about its axis so the seam runs through the widest gap between boundary points.
+            std::vector<double> azimuths;
+            const gp_Ax3 position = sphere->Position();
+            for (const auto& item : edges) {
+                double first, last;
+                const Handle(Geom_Curve) curve = BRep_Tool::Curve(item.second.shape, first, last);
+                if (curve.IsNull())
+                    continue;
+                for (int i = 0; i <= 48; ++i) {
+                    const gp_Vec offset(position.Location(), curve->Value(first + (last - first) * i / 48.0));
+                    const double x = offset.Dot(gp_Vec(position.XDirection()));
+                    const double y = offset.Dot(gp_Vec(position.YDirection()));
+                    if (std::hypot(x, y) > 1e-3 * sphere->Radius())
+                        azimuths.push_back(std::atan2(y, x));
+                }
+            }
+            if (azimuths.size() > 1) {
+                std::sort(azimuths.begin(), azimuths.end());
+                double bestGap = azimuths.front() + TwoPi - azimuths.back();
+                double seam = azimuths.back() + bestGap / 2;
+                for (std::size_t i = 1; i < azimuths.size(); ++i) {
+                    if (azimuths[i] - azimuths[i - 1] > bestGap) {
+                        bestGap = azimuths[i] - azimuths[i - 1];
+                        seam = azimuths[i - 1] + bestGap / 2;
+                    }
+                }
+                const gp_Ax3 turned = position.Rotated(gp_Ax1(position.Location(), position.Direction()), seam);
+                support.geometry = new Geom_SphericalSurface(turned, sphere->Radius());
+                TopoDS_Face reseamed;
+                builder.MakeFace(reseamed, support.geometry, Precision::Confusion());
+                for (TopoDS_Iterator w(result, false); w.More(); w.Next())
+                    builder.Add(reseamed, w.Value());
+                result = reseamed;
+            }
         }
         const Handle(Geom_Plane) plane = Handle(Geom_Plane)::DownCast(support.geometry);
         if (plane.IsNull()) {
@@ -935,6 +974,48 @@ private:
             }
         }
 
+        if (!Handle(Geom_SphericalSurface)::DownCast(support.geometry).IsNull() && loopCount >= 2) {
+            // Every loop that runs clockwise in parameter space is a hole. When there is no counter-clockwise
+            // loop, the face is the whole sphere minus those holes, so the whole sphere is its outer boundary.
+            bool allHoles = true;
+            for (TopoDS_Iterator w(result, false); w.More() && allHoles; w.Next()) {
+                double area = 0;
+                gp_Pnt2d previous;
+                bool havePrevious = false;
+                const TopoDS_Wire wire = TopoDS::Wire(w.Value());
+                const auto accumulate = [&](const TopoDS_Edge& edge, bool reversedEdge) {
+                    double f0, f1;
+                    const auto pcurve = BRep_Tool::CurveOnSurface(edge, result, f0, f1);
+                    if (pcurve.IsNull())
+                        return;
+                    for (int i = 0; i <= 40; ++i) {
+                        const double s = reversedEdge ? f1 - (f1 - f0) * i / 40.0 : f0 + (f1 - f0) * i / 40.0;
+                        const gp_Pnt2d q = pcurve->Value(s);
+                        if (havePrevious)
+                            area += 0.5 * (previous.X() * q.Y() - q.X() * previous.Y());
+                        previous = q;
+                        havePrevious = true;
+                    }
+                };
+                if (wire.NbChildren() == 1) {
+                    const TopoDS_Edge edge = TopoDS::Edge(TopoDS_Iterator(wire, false).Value());
+                    accumulate(edge, edge.Orientation() == TopAbs_REVERSED);
+                } else {
+                    for (BRepTools_WireExplorer explorer(wire, result); explorer.More(); explorer.Next())
+                        accumulate(explorer.Current(), explorer.Orientation() == TopAbs_REVERSED);
+                }
+                allHoles = area < 0;
+            }
+            if (allHoles) {
+                BRepBuilderAPI_MakeFace whole(support.geometry, 0.0, TwoPi, -M_PI / 2, M_PI / 2, Precision::Confusion());
+                if (whole.IsDone()) {
+                    TopoDS_Face withHoles = whole.Face();
+                    for (TopoDS_Iterator w(result, false); w.More(); w.Next())
+                        builder.Add(withHoles, w.Value());
+                    result = withHoles;
+                }
+            }
+        }
         const auto torus = Handle(Geom_ToroidalSurface)::DownCast(support.geometry);
         if (!torus.IsNull() && loopCount == 3) {
             const auto joined = joinToroidalBoundaries(result, *torus, face.get<bool>(8) != support.inverted);
@@ -949,6 +1030,7 @@ private:
         ShapeFix_Face faceFix(result);
         faceFix.SetPrecision(CheckToleranceMm);
         faceFix.SetMaxTolerance(CheckToleranceMm);
+        // A sphere face whose loops all enclose holes needs the whole sphere as its outer boundary.
         faceFix.FixAddNaturalBoundMode() = 0;
         faceFix.FixSmallAreaWireMode() = 0;
         faceFix.FixIntersectingWiresMode() = 0;
