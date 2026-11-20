@@ -1088,6 +1088,24 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	delete _annotationController;
 	_annotationController = nullptr;
 
+	// The remaining controllers are QObject children of this widget that inherit QOpenGLFunctions_4_5_Core. If they were left
+	// for ~QWidget's child deletion they would be destroyed after ~QOpenGLWidget has already torn down the QOpenGLContext that
+	// owns the shared function tables, and the debug-only assert in ~QOpenGLFunctions_4_5_Core
+	// (refs must stay non-zero) fires when a document is closed. Deleted here, while the context is still current.
+	const auto deleteController = [this](auto*& controller)
+	{
+		_gpuResourceRegistry.remove(controller);
+		delete controller;
+		controller = nullptr;
+	};
+	deleteController(_seamMarkingController);
+	deleteController(_fillHolesController);
+	deleteController(_simulationGlyphController);
+	deleteController(_simulationTensorGlyphController);
+	deleteController(_simulationVolumeController);
+	deleteController(_simulationSliceController);
+	deleteController(_simulationStreamlineController);
+
 	// &_renderCtrl is never delete'd here - it's a plain value member of
 	// this widget, destroyed automatically as part of ~ViewportWidget()'s
 	// own member destruction, same as before this refactor.
