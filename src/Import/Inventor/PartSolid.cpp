@@ -16,10 +16,14 @@
 #include <BRepLib.hxx>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
+#include <GeomAPI_Interpolate.hxx>
+#include <GeomFill.hxx>
 #include <Geom_BSplineCurve.hxx>
 #include <Geom_BSplineSurface.hxx>
 #include <Geom2d_Curve.hxx>
+#include <Geom2dAPI_InterCurveCurve.hxx>
 #include <Geom2d_Line.hxx>
+#include <Geom2d_TrimmedCurve.hxx>
 #include <Geom_Circle.hxx>
 #include <Geom_CylindricalSurface.hxx>
 #include <Geom_ConicalSurface.hxx>
@@ -35,6 +39,10 @@
 #include <ShapeFix_Wire.hxx>
 #include <ShapeBuild_ReShape.hxx>
 #include <NCollection_Array1.hxx>
+#include <TColStd_HArray1OfBoolean.hxx>
+#include <TColStd_HArray1OfReal.hxx>
+#include <TColgp_Array1OfVec.hxx>
+#include <TColgp_HArray1OfPnt.hxx>
 #include <NCollection_Array2.hxx>
 #include <TopExp.hxx>
 #include <TopExp_Explorer.hxx>
@@ -57,6 +65,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <functional>
 #include <stdexcept>
 #include <sstream>
 #include <string>
@@ -116,7 +125,7 @@ std::string validationErrors(const TopoDS_Shape& shape, const BRepCheck_Analyzer
 }
 
 struct Link { qint32 index; };
-enum class SplineToken { Open, Close, Reference, Polynomial, Rational };
+enum class SplineToken { Open, Close, Reference, Polynomial, Rational, HelixCurve, HelixSurface };
 using Triple = std::array<double, 3>;
 using Field = std::variant<std::monostate, Link, Triple, bool, qint32, double, SplineToken>;
 
@@ -272,6 +281,8 @@ private:
             if (text == "ref") return SplineToken::Reference;
             if (text == "nubs") return SplineToken::Polynomial;
             if (text == "nurbs") return SplineToken::Rational;
+            if (text == "helix_int_cur") return SplineToken::HelixCurve;
+            if (text == "helix_spl_line") return SplineToken::HelixSurface;
             break;
         }
         case 0x08: skip(integer<quint16>()); break;
@@ -682,6 +693,40 @@ private:
     Handle(Geom_BSplineCurve) buildSplineCurve(const Record& record, double& tolerance) const;
     Handle(Geom_BSplineSurface) buildSplineSurface(const Record& record) const;
 
+    // Procedural helix: X(u) = C + M cos u + N sin u + P u / (2 pi), lengths in millimetres.
+    struct Helix {
+        gp_Pnt center;
+        gp_Vec major, minor, pitch;
+        gp_Pnt at(double u) const
+        {
+            return center.Translated(major * std::cos(u) + minor * std::sin(u) + pitch * (u / TwoPi));
+        }
+        gp_Vec tangent(double u) const { return major * -std::sin(u) + minor * std::cos(u) + pitch * (1.0 / TwoPi); }
+    };
+    Helix readHelix(const Record& record, std::size_t first) const
+    {
+        return {point(record.get<Triple>(first)), vector(record.get<Triple>(first + 1)),
+                vector(record.get<Triple>(first + 2)), vector(record.get<Triple>(first + 3))};
+    }
+    Handle(Geom_BSplineCurve) interpolateCurve(const std::function<gp_Pnt(double)>& position,
+                                               const std::function<gp_Vec(double)>& derivative,
+                                               double first, double last) const;
+    Handle(Geom_Surface) buildHelixSurface(const Record& record, std::size_t start) const;
+    // The block that defines a spline: the record itself, or the earlier block it refers to.
+    std::pair<const Record*, std::size_t> resolveBlock(const Record& record) const
+    {
+        const Record* block = &record;
+        std::size_t start = 4;
+        if (tokenAt(record, start, SplineToken::Open) && tokenAt(record, start + 1, SplineToken::Reference)) {
+            const auto index = record.get<qint32>(start + 2);
+            if (index < 0 || static_cast<std::size_t>(index) >= _splineBlocks.size())
+                fail("Invalid Inventor spline definition reference");
+            block = _splineBlocks[index].first;
+            start = _splineBlocks[index].second;
+        }
+        return {block, start};
+    }
+
     struct Surface {
         Handle(Geom_Surface) geometry;
         bool inverted = false;
@@ -697,6 +742,7 @@ private:
     };
     Surface buildSurface(const Record& surface) const;
     void findCircularBands();
+    TopoDS_Face joinWindingBoundaries(const TopoDS_Face& face, const Handle(Geom_Surface)& surface) const;
     TopoDS_Face joinToroidalBoundaries(const TopoDS_Face& face, const Geom_ToroidalSurface& torus,
                                       bool reverseWires) const;
 
@@ -783,11 +829,24 @@ private:
                     result.Reverse();
                 return result;
             }
+            if (face.get<bool>(8) != support.inverted) {
+                // Orient the wires for the plane now; see the note for the other surfaces above.
+                TopoDS_Face oriented;
+                builder.MakeFace(oriented, support.geometry, Precision::Confusion());
+                for (TopoDS_Iterator w(result, false); w.More(); w.Next())
+                    builder.Add(oriented, w.Value().Reversed());
+                result = oriented;
+            }
         }
 
         const auto torus = Handle(Geom_ToroidalSurface)::DownCast(support.geometry);
         if (!torus.IsNull() && loopCount == 3) {
             const auto joined = joinToroidalBoundaries(result, *torus, face.get<bool>(8) != support.inverted);
+            if (!joined.IsNull())
+                result = joined;
+        }
+        if (!(!torus.IsNull() && loopCount == 3) && loopCount <= 2) {
+            const auto joined = joinWindingBoundaries(result, support.geometry);
             if (!joined.IsNull())
                 result = joined;
         }
@@ -981,6 +1040,344 @@ Handle(Geom_BSplineSurface) SolidBuilder::buildSplineSurface(const Record& recor
             fail("Saved Inventor periodic surface does not close");
         result->SetVPeriodic();
     }
+    return result;
+}
+
+Handle(Geom_BSplineCurve) SolidBuilder::interpolateCurve(const std::function<gp_Pnt(double)>& position,
+                                                         const std::function<gp_Vec(double)>& derivative,
+                                                         double first, double last) const
+{
+    // A cubic Hermite interpolant with 48 samples per turn stays within a few 1e-6 mm for helices of radius 10 mm.
+    const double span = last - first;
+    if (!(span > 0) || span > 2000.0)
+        fail("Unsupported Inventor helix parameter range");
+    const int count = std::max(8, static_cast<int>(std::ceil(span / TwoPi * 48.0)) + 1);
+    Handle(TColgp_HArray1OfPnt) points = new TColgp_HArray1OfPnt(1, count);
+    Handle(TColStd_HArray1OfReal) parameters = new TColStd_HArray1OfReal(1, count);
+    TColgp_Array1OfVec tangents(1, count);
+    Handle(TColStd_HArray1OfBoolean) flags = new TColStd_HArray1OfBoolean(1, count);
+    for (int i = 1; i <= count; ++i) {
+        const double u = i == count ? last : first + span * (i - 1) / (count - 1);
+        points->SetValue(i, position(u));
+        parameters->SetValue(i, u);
+        tangents(i) = derivative(u);
+        flags->SetValue(i, true);
+    }
+    GeomAPI_Interpolate interpolate(points, parameters, false, 1e-9);
+    interpolate.Load(tangents, flags, false);
+    interpolate.Perform();
+    if (!interpolate.IsDone())
+        fail("Could not interpolate an Inventor helix");
+    return interpolate.Curve();
+}
+
+Handle(Geom_Surface) SolidBuilder::buildHelixSurface(const Record& record, std::size_t start) const
+{
+    // The generator is a unit vector d = a M(u) + b N(u) + c A that turns with the helix frame.
+    const double v0 = record.number(start + 4) * _scale, v1 = record.number(start + 6) * _scale;
+    const double u0 = record.number(start + 8), u1 = record.number(start + 10);
+    if (!(v1 > v0) || !(u1 > u0))
+        fail("Unsupported Inventor helix surface ranges");
+    const Helix helix = readHelix(record, start + 15);
+    const Triple majorRaw = record.get<Triple>(start + 16), minorRaw = record.get<Triple>(start + 17),
+                 axisRaw = record.get<Triple>(start + 20);
+    const Triple coefficients = record.get<Triple>(start + 25);
+    const auto combine = [&](double cm, double cn) {
+        // cm * M + cn * N, in model units.
+        return gp_Vec(majorRaw[0] * cm + minorRaw[0] * cn, majorRaw[1] * cm + minorRaw[1] * cn,
+                      majorRaw[2] * cm + minorRaw[2] * cn);
+    };
+    const auto generator = [&](double u) {
+        const gp_Vec radial = combine(std::cos(u), std::sin(u)), tangential = combine(-std::sin(u), std::cos(u));
+        return radial * coefficients[0] + tangential * coefficients[1] +
+               gp_Vec(axisRaw[0], axisRaw[1], axisRaw[2]) * coefficients[2];
+    };
+    const auto generatorRate = [&](double u) {
+        const gp_Vec radial = combine(-std::sin(u), std::cos(u)), tangential = combine(-std::cos(u), -std::sin(u));
+        return radial * coefficients[0] + tangential * coefficients[1];
+    };
+    const auto rail = [&](double v) {
+        return interpolateCurve([&](double u) { return helix.at(u).Translated(generator(u) * v); },
+                                [&](double u) { return helix.tangent(u) + generatorRate(u) * v; }, u0, u1);
+    };
+    return GeomFill::Surface(rail(v0), rail(v1));
+}
+
+TopoDS_Face SolidBuilder::joinWindingBoundaries(const TopoDS_Face& face, const Handle(Geom_Surface)& surface) const
+{
+    // Faces on a periodic surface whose boundaries wind once around it (a band, or a cap around a pole or
+    // apex) need a seam edge that OCCT cannot infer. Build it here, joining the boundaries along a straight
+    // parameter-space segment, and close the wire.
+    struct Use {
+        TopoDS_Edge edge;
+        Handle(Geom2d_Curve) curve;
+        double first, last;
+        gp_Pnt2d start() const { return curve->Value(edge.Orientation() == TopAbs_REVERSED ? last : first); }
+        gp_Pnt2d end() const { return curve->Value(edge.Orientation() == TopAbs_REVERSED ? first : last); }
+    };
+    using Ring = std::vector<Use>;
+    const auto place = [](Ring& ring, gp_Pnt2d near) {
+        for (auto& use : ring) {
+            const auto start = use.start();
+            use.curve->Translate(gp_Vec2d(std::round((near.X() - start.X()) / TwoPi) * TwoPi,
+                                          std::round((near.Y() - start.Y()) / TwoPi) * TwoPi));
+            near = use.end();
+        }
+    };
+    constexpr double tolerance = 1e-3; // pcurves of neighbouring edges are only matched to about 1e-4
+    struct Winding {
+        Ring ring;
+        int axis = -1;
+        int sign = 0;
+    };
+    std::vector<Winding> windings;
+    for (TopoDS_Iterator w(face); w.More(); w.Next()) {
+        Winding item;
+        for (TopoDS_Iterator e(w.Value()); e.More(); e.Next()) {
+            if (item.ring.size() == 4096)
+                return {};
+            const auto edge = TopoDS::Edge(e.Value());
+            double first, last;
+            const auto curve = BRep_Tool::CurveOnSurface(edge, face, first, last);
+            if (curve.IsNull())
+                return {};
+            item.ring.push_back({edge, Handle(Geom2d_Curve)::DownCast(curve->Copy()), first, last});
+        }
+        if (item.ring.empty())
+            return {};
+        if (w.Value().Orientation() == TopAbs_REVERSED)
+            std::reverse(item.ring.begin(), item.ring.end());
+        place(item.ring, item.ring.front().start());
+        const gp_Vec2d winding(item.ring.front().start(), item.ring.back().end());
+        for (int axis = 0; axis < 2; ++axis) {
+            const double along = axis == 0 ? winding.X() : winding.Y();
+            const double across = axis == 0 ? winding.Y() : winding.X();
+            if (std::abs(across) <= tolerance && std::abs(std::abs(along) - TwoPi) <= tolerance &&
+                (axis == 0 ? surface->IsUPeriodic() : surface->IsVPeriodic())) {
+                item.axis = axis;
+                item.sign = along > 0 ? 1 : -1;
+            }
+        }
+        if (item.axis < 0)
+            return {};
+        windings.push_back(std::move(item));
+    }
+    if (windings.empty() || windings.size() > 2)
+        return {};
+    const int axis = windings.front().axis;
+    // Parameter-space helpers: "along" is the periodic direction, "across" the other one.
+    const auto cross = [&](const gp_Pnt2d& p, double shift) {
+        return axis == 0 ? gp_Pnt2d(p.X() + shift, p.Y()) : gp_Pnt2d(p.X(), p.Y() + shift);
+    };
+    const auto along = [&](const gp_Pnt2d& p) { return axis == 0 ? p.X() : p.Y(); };
+    const auto across = [&](const gp_Pnt2d& p) { return axis == 0 ? p.Y() : p.X(); };
+    if (windings.size() == 2 && (windings[1].axis != axis || windings[0].sign == windings[1].sign))
+        return {};
+    if (windings.size() == 1 && axis != 0)
+        return {};
+
+    BRep_Builder builder;
+    if (windings.size() == 2 && !(axis == 0 ? surface->IsVPeriodic() : surface->IsUPeriodic())) {
+        // Between two parallels of a surface that is not periodic across them, the face can only be the band.
+        // Make the lower ring travel in the positive direction, whatever sense the saved loops carry.
+        const auto meanAcross = [&](const Winding& item) {
+            double sum = 0;
+            for (const auto& use : item.ring)
+                sum += across(use.start());
+            return sum / static_cast<double>(item.ring.size());
+        };
+        const Winding& lowest = meanAcross(windings[0]) < meanAcross(windings[1]) ? windings[0] : windings[1];
+        if (lowest.sign < 0) {
+            for (auto& item : windings) {
+                std::reverse(item.ring.begin(), item.ring.end());
+                for (auto& use : item.ring)
+                    use.edge.Reverse();
+                place(item.ring, item.ring.front().start());
+                item.sign = -item.sign;
+            }
+        }
+    }
+    // The ring that travels in the positive direction is the lower boundary; the region lies on its left.
+    Winding* lowerWinding = nullptr;
+    Winding* upperWinding = nullptr;
+    for (auto& item : windings)
+        (item.sign > 0 ? lowerWinding : upperWinding) = &item;
+
+    // Pole (or apex) standing in for the missing boundary of a cap.
+    TopoDS_Vertex poleVertex;
+    double poleParameter = 0;
+    if (windings.size() == 1) {
+        gp_Pnt polePoint;
+        const Handle(Geom_SphericalSurface) sphere = Handle(Geom_SphericalSurface)::DownCast(surface);
+        const Handle(Geom_ConicalSurface) cone = Handle(Geom_ConicalSurface)::DownCast(surface);
+        double ringParameter = 0;
+        for (const auto& use : windings.front().ring)
+            ringParameter += across(use.start());
+        ringParameter /= static_cast<double>(windings.front().ring.size());
+        const bool poleAbove = lowerWinding != nullptr;
+        if (sphere) {
+            poleParameter = poleAbove ? M_PI / 2 : -M_PI / 2;
+            polePoint = sphere->Value(0, poleParameter);
+        } else if (cone) {
+            poleParameter = -cone->RefRadius() / std::sin(cone->SemiAngle());
+            if (poleAbove ? !(poleParameter > ringParameter) : !(poleParameter < ringParameter))
+                return {};
+            polePoint = cone->Apex();
+        } else {
+            return {};
+        }
+        poleVertex = BRepBuilderAPI_MakeVertex(polePoint).Vertex();
+    }
+
+    // Seam end points: a vertex of the lower boundary and a vertex of the upper boundary.
+    Ring lowerRing, upperRing;
+    if (lowerWinding)
+        lowerRing = lowerWinding->ring;
+    if (upperWinding)
+        upperRing = upperWinding->ring;
+    std::size_t lowerIndex = 0, upperIndex = 0;
+    gp_Pnt2d lowerStart, upperStart;
+    TopoDS_Vertex lowerVertex, upperVertex;
+    const auto startVertex = [](const Use& use) {
+        TopoDS_Vertex first, last;
+        TopExp::Vertices(use.edge, first, last, true);
+        return first;
+    };
+    if (windings.size() == 2) {
+        double bestLength = 1e300;
+        bool found = false;
+        gp_Pnt2d bestUpper;
+        for (std::size_t i = 0; i < lowerRing.size(); ++i) {
+            checkCancellation(_cancelled);
+            const gp_Pnt2d a = lowerRing[i].start();
+            for (std::size_t j = 0; j < upperRing.size() * 5; ++j) {
+                // Try the upper vertex in neighbouring periods too: the boundary may sag past a straight seam.
+                const gp_Pnt2d b0 = upperRing[j / 5].start();
+                const int period = static_cast<int>(std::lround((along(a) - along(b0)) / TwoPi)) + static_cast<int>(j % 5) - 2;
+                const gp_Pnt2d b = cross(b0, period * TwoPi);
+                const double length = a.Distance(b);
+                if (!(across(b) > across(a)) || length >= bestLength || length < 1e-9)
+                    continue;
+                // The segment must not touch any boundary except at its end points.
+                const Handle(Geom2d_Line) line = new Geom2d_Line(a, gp_Dir2d(gp_Vec2d(a, b)));
+                const Handle(Geom2d_TrimmedCurve) segment = new Geom2d_TrimmedCurve(line, 0.0, length);
+                bool clear = true;
+                for (const Ring* ring : {&lowerRing, &upperRing}) {
+                    for (const auto& use : *ring) {
+                        for (const int k : {-2, -1, 0, 1, 2}) {
+                            Handle(Geom2d_Curve) moved = Handle(Geom2d_Curve)::DownCast(use.curve->Copy());
+                            moved->Translate(axis == 0 ? gp_Vec2d(k * TwoPi, 0) : gp_Vec2d(0, k * TwoPi));
+                            const Handle(Geom2d_TrimmedCurve) trimmed = new Geom2d_TrimmedCurve(moved, use.first, use.last);
+                            Geom2dAPI_InterCurveCurve intersection(segment, trimmed, 1e-7);
+                            for (int n = 1; n <= intersection.NbPoints() && clear; ++n) {
+                                const gp_Pnt2d hit = intersection.Point(n);
+                                if (hit.Distance(a) > tolerance && hit.Distance(b) > tolerance) {
+                                    clear = false;
+                                }
+                            }
+                            if (!clear)
+                                break;
+                        }
+                        if (!clear)
+                            break;
+                    }
+                    if (!clear)
+                        break;
+                }
+                if (!clear)
+                    continue;
+                bestLength = length;
+                lowerIndex = i;
+                upperIndex = j / 5;
+                bestUpper = b;
+                found = true;
+            }
+        }
+        if (!found)
+            return {};
+        lowerStart = lowerRing[lowerIndex].start();
+        upperStart = bestUpper;
+        lowerVertex = startVertex(lowerRing[lowerIndex]);
+        upperVertex = startVertex(upperRing[upperIndex]);
+    } else if (lowerWinding) {
+        lowerStart = lowerRing[0].start();
+        lowerVertex = startVertex(lowerRing[0]);
+        upperStart = gp_Pnt2d(lowerStart.X(), poleParameter);
+        upperVertex = poleVertex;
+    } else {
+        upperStart = upperRing[0].start();
+        upperVertex = startVertex(upperRing[0]);
+        lowerStart = gp_Pnt2d(upperStart.X(), poleParameter);
+        lowerVertex = poleVertex;
+    }
+
+    const double seamLength = lowerStart.Distance(upperStart);
+    if (!(seamLength > 1e-9))
+        return {};
+    const gp_Dir2d seamDirection(gp_Vec2d(lowerStart, upperStart));
+    const int samples = std::max(8, static_cast<int>(std::ceil(seamLength * 8.0)) + 1);
+    Handle(TColgp_HArray1OfPnt) seamPoints = new TColgp_HArray1OfPnt(1, samples);
+    Handle(TColStd_HArray1OfReal) seamParameters = new TColStd_HArray1OfReal(1, samples);
+    for (int i = 1; i <= samples; ++i) {
+        const double s = seamLength * (i - 1) / (samples - 1);
+        seamPoints->SetValue(i, surface->Value(lowerStart.X() + seamDirection.X() * s,
+                                               lowerStart.Y() + seamDirection.Y() * s));
+        seamParameters->SetValue(i, s);
+    }
+    GeomAPI_Interpolate interpolate(seamPoints, seamParameters, false, 1e-9);
+    interpolate.Perform();
+    if (!interpolate.IsDone())
+        return {};
+    const Handle(Geom_Curve) seamCurve = interpolate.Curve();
+    const double seamTolerance = 1e-4;
+
+    auto result = TopoDS::Face(face.EmptyCopied());
+    TopoDS_Edge seam;
+    builder.MakeEdge(seam, seamCurve, seamTolerance);
+    builder.Add(seam, lowerVertex.Oriented(TopAbs_FORWARD));
+    builder.Add(seam, upperVertex.Oriented(TopAbs_REVERSED));
+    builder.UpdateVertex(lowerVertex, 0.0, seam, seamTolerance);
+    builder.UpdateVertex(upperVertex, seamLength, seam, seamTolerance);
+    builder.Range(seam, 0.0, seamLength);
+    const Handle(Geom2d_Curve) nearCurve = new Geom2d_Line(lowerStart, seamDirection);
+    const Handle(Geom2d_Curve) farCurve = new Geom2d_Line(cross(lowerStart, TwoPi), seamDirection);
+    builder.UpdateEdge(seam, farCurve, nearCurve, result, seamTolerance);
+    builder.Range(seam, result, 0.0, seamLength);
+
+    const auto addRing = [&](TopoDS_Wire& wire, Ring& ring, std::size_t index, gp_Pnt2d startAt) {
+        std::rotate(ring.begin(), ring.begin() + static_cast<std::ptrdiff_t>(index), ring.end());
+        place(ring, startAt);
+        for (const auto& use : ring) {
+            builder.UpdateEdge(use.edge, use.curve, result, BRep_Tool::Tolerance(use.edge));
+            builder.Range(use.edge, result, use.first, use.last);
+            builder.Add(wire, use.edge);
+        }
+    };
+    const auto addPole = [&](TopoDS_Wire& wire, bool forward) {
+        TopoDS_Edge degenerate;
+        builder.MakeEdge(degenerate);
+        builder.Degenerated(degenerate, true);
+        builder.Add(degenerate, poleVertex.Oriented(TopAbs_FORWARD));
+        builder.Add(degenerate, poleVertex.Oriented(TopAbs_REVERSED));
+        const Handle(Geom2d_Curve) around = new Geom2d_Line(gp_Pnt2d(lowerStart.X(), poleParameter), gp_Dir2d(1, 0));
+        builder.UpdateEdge(degenerate, around, result, seamTolerance);
+        builder.Range(degenerate, result, 0.0, TwoPi);
+        builder.Add(wire, forward ? degenerate : degenerate.Reversed());
+    };
+    TopoDS_Wire outer;
+    builder.MakeWire(outer);
+    if (lowerWinding)
+        addRing(outer, lowerRing, lowerIndex, lowerStart);
+    else
+        addPole(outer, true);
+    builder.Add(outer, seam);
+    if (upperWinding)
+        addRing(outer, upperRing, upperIndex, cross(upperStart, TwoPi));
+    else
+        addPole(outer, false);
+    builder.Add(outer, seam.Reversed());
+    outer.Closed(true);
+    builder.Add(result, outer);
     return result;
 }
 
@@ -1534,6 +1931,17 @@ TopoDS_Edge SolidBuilder::buildEdge(qint32 id, std::unordered_map<qint32, TopoDS
             geometry = new Geom_Circle(axes, major);
         else
             geometry = new Geom_Ellipse(axes, major, minor);
+    } else if (curve.type == "intcurve-curve" && tokenAt(*resolveBlock(curve).first, resolveBlock(curve).second + 1, SplineToken::HelixCurve)) {
+        const auto [block, start] = resolveBlock(curve);
+        if (edge.get<bool>(9) != curve.get<bool>(3))
+            fail("Unsupported reversed Inventor helix edge");
+        if (first < block->number(start + 4) - Precision::PConfusion() ||
+            last > block->number(start + 6) + Precision::PConfusion())
+            fail("Inventor helix trim is outside the saved curve domain");
+        const Helix helix = readHelix(*block, start + 7);
+        geometry = interpolateCurve([&](double u) { return helix.at(u); },
+                                    [&](double u) { return helix.tangent(u); }, first, last);
+        tolerance = std::max(tolerance, 1e-4);
     } else if (curve.type == "intcurve-curve") {
         const auto spline = buildSplineCurve(curve, tolerance);
         const bool reverse = edge.get<bool>(9) != curve.get<bool>(3);
@@ -1608,6 +2016,11 @@ TopoDS_Edge SolidBuilder::buildEdge(qint32 id, std::unordered_map<qint32, TopoDS
 
 SolidBuilder::Surface SolidBuilder::buildSurface(const Record& surface) const
 {
+    if (surface.type == "spline-surface") {
+        const auto [block, start] = resolveBlock(surface);
+        if (tokenAt(*block, start + 1, SplineToken::HelixSurface))
+            return {buildHelixSurface(*block, start), !surface.get<bool>(3)};
+    }
     if (surface.type == "spline-surface")
         return {buildSplineSurface(surface), surface.get<bool>(3)};
     if (surface.type == "plane-surface") {
