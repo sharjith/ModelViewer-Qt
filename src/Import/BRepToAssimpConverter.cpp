@@ -1282,6 +1282,10 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	// localNormals(nNodes) pattern which created O(nNodes) heap objects per face.
 	std::vector<aiVector3D> normalAccum;
 	std::vector<int>        normalCount;
+	// Normals of the tiny triangles left out of the averages above. Used only for a vertex that no ordinary triangle
+	// reaches (a face made of nothing but slivers), which would otherwise get a constant normal unrelated to its surface.
+	std::vector<aiVector3D> sliverAccum;
+	std::vector<int>        sliverCount;
 
 	// Per-topological-face analytic axis data (Cylindrical/Conical Diameter
 	// measurement tool) - see OccFaceData's doc comment. bounds[f] is
@@ -1519,6 +1523,8 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		// eliminating per-face heap allocations entirely after the first iteration.
 		normalAccum.assign(nNodes, aiVector3D(0.0f, 0.0f, 0.0f));
 		normalCount.assign(nNodes, 0);
+		sliverAccum.assign(nNodes, aiVector3D(0.0f, 0.0f, 0.0f));
+		sliverCount.assign(nNodes, 0);
 
 		// OPTIMIZATION 5: Batch vertex transformation
 		for (int i = 1; i <= nNodes; ++i)
@@ -1593,6 +1599,20 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			else
 			{
 				++sliverTriangles;
+				const aiVector3D sliverEdge1 = v1 - v0;
+				const aiVector3D sliverEdge2 = v2 - v0;
+				aiVector3D sliverNormal = sliverEdge1 ^ sliverEdge2;
+				const float sliverLengthSq = sliverNormal.SquareLength();
+				if (sliverLengthSq > 0.0f)
+				{
+					sliverNormal /= sqrtf(sliverLengthSq);
+					sliverAccum[n1] += sliverNormal;
+					sliverAccum[n2] += sliverNormal;
+					sliverAccum[n3] += sliverNormal;
+					++sliverCount[n1];
+					++sliverCount[n2];
+					++sliverCount[n3];
+				}
 			}
 
 			// OPTIMIZATION 8: Direct face creation (no intermediate copies)
@@ -1630,6 +1650,16 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 				{
 					smoothedNormal = aiVector3D(0.0f, 0.0f, 1.0f);
 				}
+			}
+			else if (sliverCount[i] > 0)
+			{
+				// Only tiny triangles reach this vertex: their direction is still the surface's.
+				smoothedNormal = sliverAccum[i] / static_cast<float>(sliverCount[i]);
+				const float length = smoothedNormal.Length();
+				if (length > 1e-6f)
+					smoothedNormal /= length;
+				else
+					smoothedNormal = aiVector3D(0.0f, 0.0f, 1.0f);
 			}
 			else
 			{
