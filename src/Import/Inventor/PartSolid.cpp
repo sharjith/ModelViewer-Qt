@@ -2680,6 +2680,15 @@ TopoDS_Edge SolidBuilder::buildEdge(qint32 id, std::unordered_map<qint32, TopoDS
     }
     if (curve.type != "intcurve-curve" && edge.get<bool>(9))
         geometry->Reverse();
+    // A periodic spline is cut to the part the edge uses: the same curve over [first, last], but not periodic. Sewing cuts and
+    // bounds the edge curves again and again, and OCCT 8.0.1 writes past a knot array while it does that to a periodic spline
+    // whose knots are double (the heap check reports it; a hex nut with a thread crashed the importer).
+    if (const Handle(Geom_BSplineCurve) periodic = Handle(Geom_BSplineCurve)::DownCast(geometry);
+        !periodic.IsNull() && periodic->IsPeriodic() && first < last && last - first <= periodic->Period() + Precision::PConfusion()) {
+        const Handle(Geom_BSplineCurve) trimmed = Handle(Geom_BSplineCurve)::DownCast(periodic->Copy());
+        trimmed->Segment(first, last);
+        geometry = trimmed;
+    }
     if (!(first < last) || (geometry->IsPeriodic() && last - first > geometry->Period() + Precision::PConfusion()) ||
         !(geometry->Value(first).Distance(startPoint) <= std::max(tolerance, BRep_Tool::Tolerance(start))) ||
         !(geometry->Value(last).Distance(endPoint) <= std::max(tolerance, BRep_Tool::Tolerance(finish))))
@@ -2788,8 +2797,19 @@ std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function
         *appearance = {};
         if (std::count_if(records.begin(), records.end(), [](const Record& row) { return row.type == "body"; }) == 1)
             saved = readPartAppearance(container);
-        else
-            colorTable = readPartColorTable(container); // several bodies: the graphics hang from several shells
+        // Several bodies: the graphics hang from several shells. A single body whose strict reading finds no face colour at
+        // all, while the faces of the part do carry some (they hang from another shell node than the body's), takes the
+        // colours the same way as a part with several bodies. A strict reading that found face colours is kept as it was.
+        const bool strictHasFaceColours = saved && std::any_of(saved->faces.begin(), saved->faces.end(),
+                                                               [](const auto& item) { return item.second.has_value(); });
+        if (!strictHasFaceColours) {
+            colorTable = readPartColorTable(container);
+            if (saved && colorTable && !colorTable->faces.empty()) {
+                saved.reset();
+            } else if (saved) {
+                colorTable.reset();
+            }
+        }
         checkCancellation(cancelled);
     }
     SolidBuilder builder(records, reader.millimeters, cancelled, strict);
