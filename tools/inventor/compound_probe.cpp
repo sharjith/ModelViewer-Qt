@@ -1,4 +1,5 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
+#include "Inventor/Assembly.h"
 #include "Inventor/CompoundFile.h"
 #include "Inventor/PartSegment.h"
 #include "Inventor/PartSolid.h"
@@ -14,6 +15,7 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Face.hxx>
 #include <gp_Pnt2d.hxx>
+#include <gp_Trsf.hxx>
 #include <gp_Vec.hxx>
 #include <cmath>
 #include <vector>
@@ -31,6 +33,7 @@
 #include <QCryptographicHash>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <QFileInfo>
 #include <QJsonObject>
 #include <QMap>
 
@@ -67,10 +70,60 @@ QJsonObject measure(const TopoDS_Shape& shape)
     TopExp::MapShapes(shape, TopAbs_EDGE, edges);
     return {
         {QStringLiteral("dimensions_mm"), QJsonArray{xmax - xmin, ymax - ymin, zmax - zmin}},
+        {QStringLiteral("bbox_min"), QJsonArray{xmin, ymin, zmin}},
+        {QStringLiteral("bbox_max"), QJsonArray{xmax, ymax, zmax}},
         {QStringLiteral("volume_mm3"), volume.Mass()},
         {QStringLiteral("faces"), faces.Extent()},
         {QStringLiteral("edges"), edges.Extent()},
     };
+}
+
+
+// The occurrences of an assembly and, recursively, of its sub-assemblies, with the placement of each relative to its parent
+// and composed in the root frame (millimetres). A component that cannot be found or an assembly that cannot be read is listed
+// with the reason, and the walk goes on.
+QJsonArray matrixRows(const gp_Trsf& transform)
+{
+    QJsonArray rows;
+    for (int row = 1; row <= 3; ++row)
+        rows.append(QJsonArray{transform.Value(row, 1), transform.Value(row, 2), transform.Value(row, 3), transform.Value(row, 4)});
+    return rows;
+}
+
+void walkAssembly(const QString& file, const gp_Trsf& parentWorld, const QString& parentPath, int depth, QJsonArray& out)
+{
+    std::vector<Inventor::AssemblyOccurrence> occurrences;
+    QString savedPath;
+    try {
+        occurrences = Inventor::readAssemblyOccurrences(file, {}, &savedPath);
+    } catch (const std::exception& error) {
+        out.append(QJsonObject{{QStringLiteral("path"), parentPath}, {QStringLiteral("depth"), depth - 1},
+                               {QStringLiteral("assembly_error"), QString::fromUtf8(error.what())}});
+        return;
+    }
+    for (const auto& occurrence : occurrences) {
+        const gp_Trsf world = parentWorld * occurrence.placement;
+        const QString path = parentPath.isEmpty() ? occurrence.name : parentPath + QStringLiteral(" / ") + occurrence.name;
+        const auto resolved = Inventor::resolveAssemblyComponent(file, savedPath, occurrence.reference);
+        const bool isAssembly = occurrence.reference.endsWith(QStringLiteral(".iam"), Qt::CaseInsensitive);
+        QJsonObject row{
+            {QStringLiteral("path"), path},
+            {QStringLiteral("instance"), occurrence.name},
+            {QStringLiteral("reference"), QFileInfo(occurrence.reference).fileName()},
+            {QStringLiteral("saved_reference"), occurrence.reference},
+            {QStringLiteral("depth"), depth},
+            {QStringLiteral("is_assembly"), isAssembly},
+            {QStringLiteral("visible"), occurrence.visible},
+            {QStringLiteral("suppressed"), occurrence.suppressed},
+            {QStringLiteral("local"), matrixRows(occurrence.placement)},
+            {QStringLiteral("world"), matrixRows(world)},
+        };
+        if (resolved.path.isEmpty())
+            row.insert(QStringLiteral("unresolved"), resolved.problem);
+        out.append(row);
+        if (isAssembly && !resolved.path.isEmpty())
+            walkAssembly(resolved.path, world, path, depth + 1, out);
+    }
 }
 
 } // namespace
@@ -91,6 +144,9 @@ int main(int argc, char* argv[])
     const QCommandLineOption partGraphics(QStringLiteral("part-graphics"),
         QStringLiteral("Report the saved colours of every graphics body (multi-body parts)"));
     parser.addOption(partGraphics);
+    const QCommandLineOption assembly(QStringLiteral("assembly"),
+        QStringLiteral("List the occurrences of an assembly (.iam) and its sub-assemblies with their composed placements"));
+    parser.addOption(assembly);
     const QCommandLineOption partNormals(QStringLiteral("part-normals"),
         QStringLiteral("Tessellate body <n> (1-based) and check the vertex normals the converter would produce"),
         QStringLiteral("n"));
@@ -107,6 +163,11 @@ int main(int argc, char* argv[])
         parser.showHelp(1);
 
     try {
+        if (parser.isSet(assembly)) {
+            QJsonArray rows;
+            walkAssembly(QFileInfo(arguments.front()).absoluteFilePath(), gp_Trsf(), QString(), 1, rows);
+            return printJson({{QStringLiteral("occurrences"), rows}});
+        }
         if (parser.isSet(partGraphics)) {
             Inventor::CompoundFile file(arguments.front());
             const auto table = Inventor::readPartColorTable(file);
