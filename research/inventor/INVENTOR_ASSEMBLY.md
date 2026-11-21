@@ -92,3 +92,38 @@ Consequences and changes.
 - Result (lenient, headless): 1 080 bodies in 331 s at a 2.7 GB peak: 1 049 solids (8 721 faces), 29 open surfaces (11 366 faces), 2 incomplete bodies (64 726 faces, with the two known face problems: a saved vertex tolerance of 0.126 mm and an edge whose endpoints disagree with the saved trim), and no failed bodies. Strict-mode corpus: unchanged, 73 of 84.
 
 Still different from Autodesk's viewer: colours (MOD-21), the component structure (two nodes), body visibility (the 4.4 m doughnut-shaped body), and the two incomplete bodies (MOD-5 and MOD-6).
+
+### Colours and shading of a multi-body part, 21 November 2026
+
+Sample 7821 (the oversized part, 1 080 bodies). Observations are measurements on the local sample; owner acceptance is stated separately.
+
+**The colours are saved per face, and the reader could not see them.** The graphics segment (`PmGraphicsSegment`) holds one graphics face per B-rep face with a style colour. Four limits tuned for small parts hid it:
+- The metadata stream is 170 594 bytes; the segment lookup skipped any metadata stream above 64 KiB, so the segment was "not found".
+- The data stream is 68.6 MB, above the 64 MiB read limit.
+- The node table of this segment is Zstandard-compressed (packing byte 2, frame magic `28 b5 2f fd`); the decoder accepted only zlib (byte 1).
+- The decoder accepted exactly one body node whose faces hang from that body's shell.
+
+Graphics layout of this sample: 875 146 nodes (217 MB unpacked); 6 body nodes (one large, four of 164 bytes, one of 57 KB), 1 385 shell nodes, 298 676 face nodes whose parents are 5 shell nodes. 86 943 face nodes carry a style colour (28 distinct colours: reds, blacks, greys, whites) and 211 733 carry none; 298 050 distinct face keys, 626 keys shared by two nodes, none with conflicting colours. Body nodes carry no colour of their own; the part node gives the default (light grey, 0.75).
+
+**Result.** A part-wide table (persistent face key to colour; a key shared with different colours is dropped) gives 86 259 coloured keys. Mapped onto the built faces: 84 606 of 84 813 (99.8%); the vehicle body 63 238 of 63 406, the engine 1 320 of 1 320, the large sheet body 10 538 of 10 538, the 9-face body 9 of 9; 1 041 of 1 049 solids fully coloured; 2 bodies with no coloured face. The converter makes one mesh per body with vertex colours on a white material (the mechanism the STEP path already used), so the tree keeps one item per body.
+
+**Shading.** The converter built each vertex normal from the triangles at that vertex, leaving out triangles below its size threshold and giving a vertex with no remaining triangle the constant normal (0, 0, 1). Measured with the probe (same rules, tessellation at 0.05% of the body diagonal):
+
+| Body | Triangle normals agreeing with OCC's outward direction | Faces wholly opposing | Vertices with the constant normal |
+|---|---|---|---|
+| Vehicle (63 406 faces) | 1 420 731 of 1 422 032 | 0 | 93 860 of 1 311 021 (7.2%) |
+| Engine (1 320 faces) | 36 173 of 36 175 | 0 | 159 of 34 097 |
+| Ordinary solid (8 faces) | 6 646 of 6 646 | 0 | 0 |
+
+So face orientation and the winding rule are right. The defect was the constant normal: it lights a vertex by how the model is turned, and it is interpolated across every large triangle that shares the vertex, so whole panels faded to black at some angles. Using the tiny triangles' own normal for such a vertex brings the count to 2 288 (0.17%, degenerate triangles with no direction). A vertex with any ordinary triangle keeps its normal unchanged.
+
+**Hypotheses that were wrong, recorded so they are not repeated.** An inside-out shell (signed volume: vehicle +83 L, engine +32 L, outward), inconsistent orientation (644 same-direction edge uses of 156 984; too few to matter) and the lighting model (the shader lights both sides) were each considered and are not the cause. Eight ordinary solids have a negative signed volume after orientation (bodies 8, 82, 89, 185, 251, 985, 995, 1005); not investigated, no visible effect.
+
+**Owner acceptance (21 November 2026).** In the viewer the colours match the Autodesk viewer and the shading is correct from all angles; other CAD formats using the converter show no regression. Still open (MOD-21): the two-node structure (solid body and derived surface), body names, and the 4.4 m body that Autodesk's viewer does not show.
+
+Regenerate (output under `out/`; the probe is built from `tools/inventor`, `<sample>` is the local sample 7821):
+```
+inventor_compound_probe --part-graphics <sample>      > out/inventor-research/colours.json
+inventor_compound_probe --part-bodies   <sample>      > out/inventor-research/bodies.json
+inventor_compound_probe --part-normals 1011 <sample>  > out/inventor-research/normals_1011.json
+```
