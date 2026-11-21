@@ -73,6 +73,13 @@ QJsonObject measure(const TopoDS_Shape& shape)
     bounds.Get(xmin, ymin, zmin, xmax, ymax, zmax);
     GProp_GProps volume;
     BRepGProp::VolumeProperties(shape, volume);
+    // Adaptive integration to 1e-7 relative (an independent check of the fixed-order value above), only for modest shapes.
+    GProp_GProps adaptive;
+    double adaptiveVolume = 0;
+    if (qEnvironmentVariableIsSet("MV_PROBE_ADAPTIVE_VOLUME")) {
+        BRepGProp::VolumeProperties(shape, adaptive, 1e-7, false);
+        adaptiveVolume = adaptive.Mass();
+    }
     NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> faces;
     NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> edges;
     TopExp::MapShapes(shape, TopAbs_FACE, faces);
@@ -82,6 +89,7 @@ QJsonObject measure(const TopoDS_Shape& shape)
         {QStringLiteral("bbox_min"), QJsonArray{xmin, ymin, zmin}},
         {QStringLiteral("bbox_max"), QJsonArray{xmax, ymax, zmax}},
         {QStringLiteral("volume_mm3"), volume.Mass()},
+        {QStringLiteral("volume_adaptive_mm3"), adaptiveVolume},
         {QStringLiteral("faces"), faces.Extent()},
         {QStringLiteral("edges"), edges.Extent()},
     };

@@ -44,7 +44,7 @@ IP004	ipt	d28be3c50bdfde6ea4450957d581f6fb0c2001f251c2e12db298d8b1b9662cbc	77824
 IP005	ipt	ec36a2fc5bd6926376462adb64cfe88705ec323a89f6f3c0ca41914e47191389	75776	colour=0.750,0.750,0.750;faces=8;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=3901.82523
 IP006	ipt	20f61dbdff67b6acca1a0fc455398384cbf95d8d18bd0d06c8bcd9f420e800d0	3209216	colour=0.750,0.750,0.750;faces=824;failed=0;incomplete=0;overrides=824;solids=5;surfaces=0;volume=653081.5691
 IP007	ipt	5854e7fb8054a1c38cb746d227b81eddfde3a8b0615b1aabe34421d6950753c9	1049088	colour=0.020,0.020,0.020;faces=192;failed=0;incomplete=0;overrides=7;solids=1;surfaces=0;volume=17074.32555
-IP008	ipt	166a7c518d3eb636be6a08c880d74fb3a35b705dcfe99cad2ae43f950f5fa78b	114176	colour=0.750,0.750,0.750;faces=6;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=707.6449497
+IP008	ipt	166a7c518d3eb636be6a08c880d74fb3a35b705dcfe99cad2ae43f950f5fa78b	114176	colour=0.750,0.750,0.750;faces=6;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=707.6498905
 IP009	ipt	40c26fb25501813986c80dcece3b998fc7ef6ded98b3e9e55a56e29f4d246391	553472	colour=0.020,0.020,0.020;faces=174;failed=0;incomplete=0;overrides=7;solids=1;surfaces=0;volume=43645.10551
 IP010	ipt	4028f1b3054f6d78f776376b370499c9dc7a129c65f0b6dbd442c1f917d358ce	140800	colour=0.184,0.184,0.184;faces=26;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=1675.526393
 IP011	ipt	83bf5e50d271cbabbaa0c761a7b102d261f9877f9ec9c7d9acfcf0ef03219cf2	504320	colour=0.184,0.184,0.184;faces=44;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=15193.16361
@@ -63,7 +63,7 @@ IP023	ipt	35729e62471b643e3c4a167addd6f6bd9cc8176a49a7b5bce879824f8b2bd1a2	13516
 IP024	ipt	9a7c706d8aaae753740b0f86686cb19379a25fe7cdbfef05f83199c94948059b	186880	colour=0.745,0.737,0.729;faces=25;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=26917.82631
 IP025	ipt	babc65ccd4691a6cb71147d9f71aad461fe19c51df4363bb8de79cf367b94d79	232448	colour=0.745,0.737,0.729;faces=51;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=110651.7567
 IP026	ipt	a43900e7646359c958ee72d5a9ea324a0ccfc90be6c2c25f04790d4a7da5e5a9	214016	colour=0.745,0.737,0.729;faces=55;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=186037.3924
-IP027	ipt	8b4c07997fb242fd590a2acb061b02d0fba65cdf39292f86df22a4b142004799	271872	colour=0.878,0.875,0.859;faces=61;failed=0;incomplete=0;overrides=61;solids=1;surfaces=0;volume=874261.7389
+IP027	ipt	8b4c07997fb242fd590a2acb061b02d0fba65cdf39292f86df22a4b142004799	271872	colour=0.878,0.875,0.859;faces=61;failed=0;incomplete=0;overrides=61;solids=1;surfaces=0;volume=874260.6831
 IP028	ipt	59dda1f9e7c4244aec8ebd31136965b44da445d841f200e1c9e9811db7df68ad	93696	colour=0.745,0.737,0.729;faces=5;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=16782.1887
 IP029	ipt	7f895e94b19872f19c19d59bd469d37b284093b92fb5d8055b1c172847d536b4	217088	colour=0.745,0.737,0.729;faces=33;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=8400.24162
 IP030	ipt	1a9ebf24816a594e4acf8c93df6e01914b3d5d169fc174af6f7e79b900663a3e	120832	colour=0.745,0.737,0.729;faces=12;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=4795.247962
@@ -74,7 +74,7 @@ IP034	ipt	de8f2202a9e86ec42099e123ff5aaac9944775f3f5f3c3fb29af9a1440b48a4b	26214
 IP035	ipt	179a4dc2a44ea6857f5255e8661872f10e1891d249f998a18ea773a0ced2856a	138240	colour=none;faces=20;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=1625.133744
 IP036	ipt	a2b12105d0b23d76907822fc7bdad2529cdaba2f93b753dbd421512c836bf738	1131008	colour=0.247,0.247,0.247;faces=750;failed=0;incomplete=0;overrides=3;solids=35;surfaces=0;volume=32566.46135
 IP037	ipt	6037185c54612076cd738af6732963d4709359d2c7e6cb208f6b1fff43445fcf	229888	colour=0.647,0.620,0.584;faces=86;failed=0;incomplete=0;overrides=56;solids=1;surfaces=0;volume=24086.80397
-IP038	ipt	63d38a3c458cb48a28dca5746200b39a93722d293a17d02680199489fc1d4647	2589184	colour=none;faces=518;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=10155.04091
+IP038	ipt	63d38a3c458cb48a28dca5746200b39a93722d293a17d02680199489fc1d4647	2589184	colour=none;faces=518;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=10154.67101
 IP039	ipt	58bed3421f8628863d90deeefb06201b79dc0942fdd95345df6f7999358aec0b	271360	colour=0.750,0.750,0.750;faces=11;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=3790.593336
 IP040	ipt	96592c1053c2184a150b81a3424ffe1139ab50c8b75c78be27ba236f8b1bdcc0	374784	colour=0.750,0.750,0.750;faces=55;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=9387.287681
 IP041	ipt	6365abe8ea0b868ecaf940347e94f1f67da647e003c3395f445611e8b0a17ec3	227840	colour=0.750,0.750,0.750;faces=55;failed=0;incomplete=0;overrides=55;solids=1;surfaces=0;volume=136540.2575
@@ -120,15 +120,15 @@ IP080	ipt	8ba236ca2c69f6ab121e5e4a7af36448bd64231a92bf578cf23e793c72176a93	95744
 IP081	ipt	42e2ec13f807006f6a6d5c5c7b33478c593f39d84c161f1dd550b93c558f71c3	158208	colour=0.750,0.750,0.750;faces=25;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=1485148.878
 IP082	ipt	6d932e4ad6785eda0bc74ea348b4c3210d449488ab7a3d1fabe8e9e743ece161	90112	colour=0.750,0.750,0.750;faces=3;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=15691.13735
 IP083	ipt	08039b7f08eaba976ddd674b91f48eafb9ae8277903e61123805b0981a3a4df6	112128	colour=0.750,0.750,0.750;faces=15;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=119095.8596
-IP084	ipt	4ec1b8a7a91a2d99dfbb66761d462fa66f74ec5a749cd80214465a8265cb6dce	451584	colour=0.750,0.750,0.750;faces=73;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=549126.7313
-IP085	ipt	e3a6460868758fc08b27d17e89f960c13c44c5510d8cf6d79d42364ae1819c99	343552	colour=0.750,0.750,0.750;faces=55;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=4818769.583
+IP084	ipt	4ec1b8a7a91a2d99dfbb66761d462fa66f74ec5a749cd80214465a8265cb6dce	451584	colour=0.750,0.750,0.750;faces=73;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=549127.5124
+IP085	ipt	e3a6460868758fc08b27d17e89f960c13c44c5510d8cf6d79d42364ae1819c99	343552	colour=0.750,0.750,0.750;faces=55;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=4818790.347
 IP086	ipt	74ed257229275c20e1b48c045ebb53a05ee8a158f1bb98704b6fc21665d4edc6	555520	colour=0.750,0.750,0.750;faces=25;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=263450.3265
 IP087	ipt	6bab4d10c57b3237e66baa9db608fe9843f57a13ebd19f5d914e4d56ca7bd79f	156672	colour=0.750,0.750,0.750;faces=26;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=179760.6758
 IP088	ipt	32c4003467ce72313a11085dbe025a5fbed158eb80e7006c1cd80d5c9353444b	205312	colour=0.750,0.750,0.750;faces=32;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=245380.1914
 IP089	ipt	f91baaeb1d537306366cd63353f4f2722a537c1a98de49e5f03b8784c974f82e	58368	error=Inventor part has no saved solid bodies
-IP090	ipt	22d13bad76e431563321268b6448d29071d8341c97f2ce2a62fdd3e46d11d74f	2658304	colour=0.750,0.750,0.750;faces=540;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=7950401.235
+IP090	ipt	22d13bad76e431563321268b6448d29071d8341c97f2ce2a62fdd3e46d11d74f	2658304	colour=0.750,0.750,0.750;faces=540;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=7950413.686
 IP091	ipt	859310c94058261109c6789c935762a5669ca676a318536ed10481e101020a3a	119296	colour=0.886,0.863,0.165;faces=24;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=120878.271
-IP092	ipt	e66e8b7b61c5cc7c8d5e70457d5cccbb4bf6bd644d1af7babe2bbad41a01646b	313344	colour=0.750,0.750,0.750;faces=91;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=180280.8566
+IP092	ipt	e66e8b7b61c5cc7c8d5e70457d5cccbb4bf6bd644d1af7babe2bbad41a01646b	313344	colour=0.750,0.750,0.750;faces=91;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=180182.5908
 IP093	ipt	81871ea8539f8ab8ab9acc22bac3083e6005760fc0ba7f81aad9944f5206ea81	185856	colour=0.750,0.750,0.750;faces=48;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=210180.0575
 IP094	ipt	7b9a46dfca58e5cddaddacbd1e02ba5ce449eadc4ae6b5fac0dc9746f2025533	196096	colour=0.750,0.750,0.750;faces=48;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=210180.0176
 IP095	ipt	30faedb7ec309271d3a84e882de4c47362a284ac54df8bf144eeed30c52bb616	135680	colour=0.745,0.737,0.729;faces=14;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=167534.0781
@@ -142,7 +142,7 @@ IP102	ipt	c12325a868f8e45ab415a70dc147eb8cdffa96cbec50f3c2832a0a757e403b3f	73216
 IP103	ipt	3e4245b4d60ade026d6f4efd8b4e877b76b6f27ff7ffd0bbfe273295f429c5fe	110080	colour=0.320,0.550,0.770;faces=22;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=147065.4703
 IP104	ipt	89b90f6adde3e2705ca94096529634433112826ddf4879a69ecd648da4c45ca3	153600	colour=0.745,0.737,0.729;faces=28;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=25808.915
 IP105	ipt	ad8612e282d44c4bfe0796cde96bab3af9af4e1db8cbaa11a9820f217227dc77	1049088	colour=0.320,0.550,0.770;faces=252;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=1216326.312
-IP106	ipt	5a4666a152aa698f8930d3c7de543f2d7c968fa6a8e75424f45c84991cfb3a0e	1959936	colour=0.320,0.550,0.770;faces=349;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=1202452.299
+IP106	ipt	5a4666a152aa698f8930d3c7de543f2d7c968fa6a8e75424f45c84991cfb3a0e	1959936	colour=0.320,0.550,0.770;faces=349;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=1202442.551
 IP107	ipt	7c089b08ada49d9677cb40c5e26d7e04481b033b3a1277dee1f63ff5d7bdfd4c	57856	error=Inventor part has no saved solid bodies
 IP108	ipt	1f6d9036c8de3f61e36270ecbff682d3557658270d99534c564ca700d52d4eaf	121856	colour=0.792,0.820,0.933;faces=17;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=133582.9009
 IP109	ipt	c7ab543086d8c4290098b2c4642857ead44d600eb1bbb722bdf81db083c13e06	122368	colour=0.792,0.820,0.933;faces=17;failed=0;incomplete=0;overrides=0;solids=1;surfaces=0;volume=131302.2048

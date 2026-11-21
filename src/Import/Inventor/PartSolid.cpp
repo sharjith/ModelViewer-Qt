@@ -17,6 +17,7 @@
 #include <BRepLib.hxx>
 #include <BRep_Builder.hxx>
 #include <BRep_Tool.hxx>
+
 #include <GeomAPI_ProjectPointOnSurf.hxx>
 #include <GeomLProp_SLProps.hxx>
 #include <GeomAPI_Interpolate.hxx>
@@ -69,7 +70,12 @@
 #include <gp_Vec.hxx>
 #include <QtEndian>
 
+#include <QtGlobal>
+
 #include <array>
+#include <chrono>
+#include <cstdio>
+#include <map>
 #include <algorithm>
 #include <BRepTools_WireExplorer.hxx>
 #include <cmath>
@@ -112,6 +118,30 @@ struct IncompleteShell : std::runtime_error
     TopoDS_Shape shape;
     QString message;
     bool surface; // every face was built; the faces just do not enclose a volume (a sheet body)
+};
+
+// Optional phase timing for performance work (set MODELVIEWER_INVENTOR_TIMING=1; printed to stderr by readPartBodies).
+struct PhaseTimes
+{
+    std::map<std::string, std::pair<double, long>> totals;
+    std::vector<std::pair<double, std::string>> bodies;
+    static PhaseTimes& get() { static PhaseTimes times; return times; }
+    static bool enabled() { static const bool on = qEnvironmentVariableIsSet("MODELVIEWER_INVENTOR_TIMING"); return on; }
+};
+struct PhaseTimer
+{
+    explicit PhaseTimer(const char* phase)
+        : name(phase), begin(std::chrono::steady_clock::now()) {}
+    ~PhaseTimer()
+    {
+        if (!PhaseTimes::enabled())
+            return;
+        auto& entry = PhaseTimes::get().totals[name];
+        entry.first += std::chrono::duration<double>(std::chrono::steady_clock::now() - begin).count();
+        ++entry.second;
+    }
+    const char* name;
+    std::chrono::steady_clock::time_point begin;
 };
 
 [[noreturn]] void fail(const char* message)
@@ -423,7 +453,10 @@ public:
                     _splineBlocks.emplace_back(&record, i);
             }
         }
-        findCircularBands();
+        {
+            PhaseTimer timer("findCircularBands");
+            findCircularBands();
+        }
         std::vector<BodyOutcome> outcomes;
         int bodyRecord = 0;
         for (const auto& record : _records) {
@@ -431,6 +464,7 @@ public:
                 checkCancellation(_cancelled);
                 const std::size_t firstOfBody = outcomes.size();
                 _bodyFaceCounts.push_back(countFaces(record));
+                const auto bodyBegin = std::chrono::steady_clock::now();
                 try {
                     for (auto& outcome : buildBody(record, saved, appearance))
                         outcomes.push_back(std::move(outcome));
@@ -442,6 +476,9 @@ public:
                     clearExtras();
                     outcomes.push_back({TopoDS_Solid(), QString::fromUtf8(error.what()), TopoDS_Shape()});
                 }
+                if (PhaseTimes::enabled())
+                    PhaseTimes::get().bodies.emplace_back(std::chrono::duration<double>(std::chrono::steady_clock::now() - bodyBegin).count(),
+                                                          "body " + std::to_string(bodyRecord) + " faces " + std::to_string(_bodyFaceCounts.back()));
                 for (std::size_t i = firstOfBody; i < outcomes.size(); ++i)
                     outcomes[i].bodyRecord = bodyRecord;
                 ++bodyRecord;
@@ -827,6 +864,13 @@ private:
     {
         _edgeUses.clear();
         _pendingColours.clear();
+        _sharedEdges.clear();
+        _sharedVertices.clear();
+        _sharing = !qEnvironmentVariableIsSet("MODELVIEWER_INVENTOR_NO_SHARED_EDGES"); // escape hatch for comparisons
+        struct SharingEnd {
+            bool& flag;
+            ~SharingEnd() { flag = false; }
+        } sharingEnd{_sharing};
         BRepBuilderAPI_Sewing sewing(CheckToleranceMm);
         std::vector<TopoDS_Face> measuredFaces;
         PartAppearance colors;
@@ -839,6 +883,7 @@ private:
             checkCancellation(_cancelled);
             try {
                 const Record& record = get(id, "face");
+                PhaseTimer timer("buildFace");
                 const auto face = buildFace(record, id, omittedLoops);
                 sewing.Add(face);
                 if (_collectFaces)
@@ -890,7 +935,10 @@ private:
                 fail("Inventor shell has an unpaired or non-manifold edge");
         }
 
-        sewing.Perform();
+        {
+            PhaseTimer timer("sewing.Perform");
+            sewing.Perform();
+        }
         TopoDS_Shape sewn = sewing.SewedShape();
         if (faces.size() == 1 && !sewn.IsNull() && sewn.ShapeType() == TopAbs_FACE) {
             // One face that closes on itself (a full torus or sphere) sews to the face, not to a shell.
@@ -911,7 +959,10 @@ private:
             item.first = !replacement.IsNull() && replacement.ShapeType() == TopAbs_FACE
                 ? TopoDS::Face(replacement) : TopoDS_Face();
         }
-        BRepLib::SameParameter(sewn, CheckToleranceMm, true);
+        {
+            PhaseTimer timer("SameParameter");
+            BRepLib::SameParameter(sewn, CheckToleranceMm, true);
+        }
         TopoDS_Solid solid = BRepBuilderAPI_MakeSolid(TopoDS::Shell(sewn)).Solid();
         if (solid.IsNull() || !BRepLib::OrientClosedSolid(solid))
             fail("Inventor shape could not be oriented as an OCCT solid");
@@ -938,7 +989,10 @@ private:
                 fix.FixFaceTool()->FixSplitFaceMode() = 0;
                 fix.FixFaceTool()->FixLoopWiresMode() = 0;
             }
-            fix.Perform();
+            {
+                PhaseTimer timer("ShapeFix_Shape");
+                fix.Perform();
+            }
             for (auto& item : colors.faces) {
                 if (item.first.IsNull())
                     continue;
@@ -1013,6 +1067,8 @@ private:
         } catch (const std::exception& error) {
             if (_builtFaces.empty() || (_cancelled && _cancelled()))
                 throw;
+            if (PhaseTimes::enabled())
+                std::fprintf(stderr, "TIMING open-surface fallback, %zu faces: %s%c", faces.size(), error.what(), 10);
             BRep_Builder builder;
             TopoDS_Compound compound;
             builder.MakeCompound(compound);
@@ -1045,8 +1101,9 @@ private:
     void validateSolid(const TopoDS_Solid& solid) const
     {
         const BRepCheck_Analyzer checker(solid);
-        if (!checker.IsValid())
+        if (!checker.IsValid()) {
             throw std::runtime_error("Inventor shape failed OCCT solid validation" + validationErrors(solid, checker));
+        }
     }
 
     const Record& get(qint32 id) const
@@ -1223,7 +1280,8 @@ private:
         BRep_Builder builder;
         TopoDS_Face result;
         builder.MakeFace(result, support.geometry, Precision::Confusion());
-        std::unordered_map<qint32, TopoDS_Vertex> vertices;
+        std::unordered_map<qint32, TopoDS_Vertex> localVertices;
+        std::unordered_map<qint32, TopoDS_Vertex>& vertices = _sharing ? _sharedVertices : localVertices;
         std::unordered_map<qint32, FaceEdge> edges;
         std::unordered_set<qint32> visited;
         unsigned loopCount = 0;
@@ -1489,8 +1547,20 @@ private:
             if (edge.link(8) >= 0 || edge.link(3) != edge.link(5)) {
                 auto [found, inserted] = edges.try_emplace(edgeId);
                 FaceEdge& local = found->second;
-                if (inserted)
-                    local.shape = buildEdge(edgeId, vertices);
+                if (inserted) {
+                    // With sharing, the faces of one shell hold the same edge object, so the shell is connected as built.
+                    // Only an edge the file gives exactly two coedges is shared. An edge with more (two coincident rings saved
+                    // as one edge) is left to sewing, which pairs the copies by geometry.
+                    const bool shareable = _sharing && coedgeCount(edgeId) == 2;
+                    const auto cached = shareable ? _sharedEdges.find(edgeId) : _sharedEdges.end();
+                    if (cached != _sharedEdges.end()) {
+                        local.shape = cached->second;
+                    } else {
+                        local.shape = buildEdge(edgeId, vertices);
+                        if (shareable)
+                            _sharedEdges.emplace(edgeId, local.shape);
+                    }
+                }
                 ++local.uses;
                 builder.Add(wire, local.shape.Oriented(reversed ? TopAbs_REVERSED : TopAbs_FORWARD));
                 ++wireEdges;
@@ -1510,6 +1580,22 @@ private:
     double _scale;
     const std::function<bool()>& _cancelled;
     std::unordered_map<qint32, unsigned> _edgeUses;
+    bool _sharing = false;
+    std::unordered_map<qint32, unsigned> _coedgeCounts;
+    unsigned coedgeCount(qint32 edgeId)
+    {
+        if (_coedgeCounts.empty()) {
+            for (const Record& record : _records) {
+                if ((record.type == "coedge" || record.type == "tcoedge-coedge") && record.fields.size() > 6)
+                    ++_coedgeCounts[record.link(6)];
+            }
+            _coedgeCounts[-1] = 0; // never empty again
+        }
+        const auto found = _coedgeCounts.find(edgeId);
+        return found == _coedgeCounts.end() ? 0 : found->second;
+    }
+    std::unordered_map<qint32, TopoDS_Edge> _sharedEdges;
+    std::unordered_map<qint32, TopoDS_Vertex> _sharedVertices;
     void clearExtras()
     {
         _extraSolids.clear();
@@ -2994,10 +3080,21 @@ std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function
                                         PartAppearance* appearance, bool strict)
 {
     checkCancellation(cancelled);
-    CompoundFile container(path);
-    const QByteArray bytes = readPartBRepSegment(container, SegmentLimit);
+    const auto overallBegin = std::chrono::steady_clock::now();
+    std::optional<CompoundFile> containerStorage;
+    QByteArray bytes;
+    {
+        PhaseTimer timer("open+unpack segment");
+        containerStorage.emplace(path);
+        bytes = readPartBRepSegment(*containerStorage, SegmentLimit);
+    }
+    CompoundFile& container = *containerStorage;
     SavedBodyReader reader(bytes, cancelled);
-    const auto records = reader.read();
+    std::vector<Record> records;
+    {
+        PhaseTimer timer("parse records");
+        records = reader.read();
+    }
     std::optional<SavedAppearance> saved;
     std::optional<PartColorTable> colorTable;
     if (appearance) {
@@ -3023,6 +3120,15 @@ std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function
     if (colorTable)
         builder.useColorTable(&*colorTable);
     auto outcomes = builder.build(saved ? &*saved : nullptr, appearance);
+    if (PhaseTimes::enabled()) {
+        auto& times = PhaseTimes::get();
+        std::fprintf(stderr, "TIMING total %.1f s%c", std::chrono::duration<double>(std::chrono::steady_clock::now() - overallBegin).count(), 10);
+        for (const auto& [name, entry] : times.totals)
+            std::fprintf(stderr, "TIMING %-24s %9.2f s  (%ld calls)%c", name.c_str(), entry.first, entry.second, 10);
+        std::sort(times.bodies.begin(), times.bodies.end(), [](const auto& a, const auto& b) { return a.first > b.first; });
+        for (std::size_t i = 0; i < std::min<std::size_t>(10, times.bodies.size()); ++i)
+            std::fprintf(stderr, "TIMING slowest %.2f s  %s%c", times.bodies[i].first, times.bodies[i].second.c_str(), 10);
+    }
     // A part whose graphics save no colour has the appearance its own colour style names (Inventor shows that colour, and its
     // STEP export carries it): the part's default, below any colour a face or the graphics body gives.
     if (appearance && !appearance->body) {
