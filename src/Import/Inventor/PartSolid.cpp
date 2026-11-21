@@ -607,7 +607,11 @@ private:
                 // Every outer shell failed: report the first as the lump's failure.
                 const BodyOutcome first = _extraFailures.front();
                 _extraFailures.clear();
-                throw std::runtime_error(first.error.toStdString());
+                // An open surface has no error text; its faces are kept as the lump's outcome, not refused with an empty message.
+                if (!first.incompleteShape.IsNull())
+                    throw IncompleteShell(first.incompleteShape, first.error, first.isSurface);
+                throw std::runtime_error(first.error.isEmpty() ? std::string("Inventor lump has no shell that could be built")
+                                                               : first.error.toStdString());
             }
             fail("Inventor lump has only void shells");
         }
