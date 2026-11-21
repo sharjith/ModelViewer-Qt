@@ -106,8 +106,14 @@ QStringList assemblyReferencePaths(CompoundFile& file, QString* savedAssemblyPat
                 continue;
             if (std::any_of(name.begin(), name.end(), [](QChar c) { return c.unicode() < 32; }))
                 continue;
-            paths.append(std::move(name));
             offset += 3 + 2 * count;
+            // Some assemblies (a frame generated from a skeleton) list a component again as its bare file name right after its
+            // full pathname; that entry is the same reference, not another component.
+            if (!paths.isEmpty() && !name.contains(QLatin1Char('\\')) && !name.contains(QLatin1Char('/')) &&
+                (paths.back().endsWith(QLatin1Char('\\') + name, Qt::CaseInsensitive) ||
+                 paths.back().endsWith(QLatin1Char('/') + name, Qt::CaseInsensitive)))
+                continue;
+            paths.append(std::move(name));
         }
         if (paths.empty() || !paths.front().endsWith(QStringLiteral(".iam"), Qt::CaseInsensitive))
             unsupportedAssembly("missing document reference table");
@@ -326,7 +332,8 @@ std::vector<AssemblyOccurrence> readAssemblyOccurrences(const QString& path, con
         }
     }
     if (!root || rows.size() != static_cast<std::size_t>(paths.size()))
-        unsupportedAssembly("occurrence root and file references could not be associated");
+        unsupportedAssembly(QStringLiteral("occurrence root and file references could not be associated (%1 table rows, %2 saved paths%3)")
+                                .arg(rows.size()).arg(paths.size()).arg(root ? QString() : QStringLiteral(", no root")).toUtf8().constData());
     std::vector<QString> rowNames;
     rowNames.reserve(rows.size());
     for (const auto& row : rows)
