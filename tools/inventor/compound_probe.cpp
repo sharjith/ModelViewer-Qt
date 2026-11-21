@@ -312,7 +312,8 @@ int main(int argc, char* argv[])
                 return count;
             };
             for (const auto& outcome : outcomes) {
-                QJsonObject row{{QStringLiteral("index"), ++index}};
+                QJsonObject row{{QStringLiteral("index"), ++index}, {QStringLiteral("record"), outcome.bodyRecord},
+                                {QStringLiteral("name"), outcome.bodyName}, {QStringLiteral("feature"), outcome.featureName}};
                 if (!outcome.solid.IsNull()) {
                     row.insert(QStringLiteral("kind"), QStringLiteral("solid"));
                     row.insert(QStringLiteral("measure"), measure(outcome.solid));

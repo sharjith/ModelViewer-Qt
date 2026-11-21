@@ -2,6 +2,7 @@
 #pragma once
 
 #include <QByteArray>
+#include <QString>
 #include <array>
 #include <optional>
 #include <unordered_map>
@@ -33,5 +34,18 @@ struct PartColorTable {
 };
 
 std::optional<PartColorTable> readPartColorTable(CompoundFile& file);
+
+// The bodies of the part as its model browser names them, in the order of its graphics bodies. A part made from an
+// assembly keeps a solid body ("Твердое тело1") and the surface bodies of derived-surface features ("SRF5", owned by the
+// feature "SRF1::Производный"); the saved B-rep has one record per body that holds geometry. faceCounts lists the face
+// counts of the graphics shells of the body, which is how a B-rep record is matched to its body (a record's face count
+// equals one of them exactly). Empty when the layout is not the one recognised; names are then not used.
+struct PartBodyInfo {
+    QString name;
+    QString feature; // empty for a plain body
+    std::vector<std::size_t> faceCounts;
+};
+
+std::vector<PartBodyInfo> readPartBodyInfo(CompoundFile& file);
 
 } // namespace Inventor

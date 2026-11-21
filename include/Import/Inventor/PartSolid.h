@@ -29,6 +29,14 @@ struct BodyOutcome {
     // True when incompleteShape is an open surface (a sheet body) rather than a solid that failed to build: every face
     // was built and the faces simply do not enclose a volume. error is then empty; there is nothing to warn about.
     bool isSurface = false;
+    // The saved body record this outcome came from (0-based, among the part's bodies). A part keeps one record per body of
+    // its browser (a solid body, the surface bodies of derived surfaces), and one record holds many lumps and shells.
+    int bodyRecord = 0;
+    // The body as the part's model browser names it ("Твердое тело1", "SRF5") and the derived-surface feature that owns it
+    // ("SRF1::Производный"), when the browser lists exactly the bodies the file holds and this one matches by size. Empty
+    // otherwise; the importer then falls back to numbered names.
+    QString bodyName;
+    QString featureName;
 };
 
 // Read the saved bodies in record order. With strict set the first body that fails to build throws, which is

@@ -420,9 +420,12 @@ public:
         }
         findCircularBands();
         std::vector<BodyOutcome> outcomes;
+        int bodyRecord = 0;
         for (const auto& record : _records) {
             if (record.type == "body" && !isWireOnlyBody(record)) {
                 checkCancellation(_cancelled);
+                const std::size_t firstOfBody = outcomes.size();
+                _bodyFaceCounts.push_back(countFaces(record));
                 try {
                     for (auto& outcome : buildBody(record, saved, appearance))
                         outcomes.push_back(std::move(outcome));
@@ -434,6 +437,9 @@ public:
                     clearExtras();
                     outcomes.push_back({TopoDS_Solid(), QString::fromUtf8(error.what()), TopoDS_Shape()});
                 }
+                for (std::size_t i = firstOfBody; i < outcomes.size(); ++i)
+                    outcomes[i].bodyRecord = bodyRecord;
+                ++bodyRecord;
             }
         }
         const bool anySolid = std::any_of(outcomes.begin(), outcomes.end(), [](const BodyOutcome& outcome) {
@@ -459,6 +465,27 @@ public:
     }
 
 private:
+    // Face counts of the saved bodies that hold geometry, in record order (see BodyOutcome::bodyRecord).
+public:
+    const std::vector<std::size_t>& bodyFaceCounts() const { return _bodyFaceCounts; }
+
+private:
+    std::size_t countFaces(const Record& body) const
+    {
+        std::size_t faces = 0;
+        try {
+            for (qint32 id = body.link(3); id != -1; id = get(id, "lump").link(3)) {
+                for (qint32 shellId = get(id, "lump").link(4); shellId != -1; shellId = get(shellId, "shell").link(3)) {
+                    for (qint32 faceId = get(shellId, "shell").link(5); faceId != -1; faceId = get(faceId, "face").link(3))
+                        ++faces;
+                }
+            }
+        } catch (const std::exception&) {
+            return 0;
+        }
+        return faces;
+    }
+
     bool isWireOnlyBody(const Record& body) const
     {
         std::unordered_set<qint32> visited;
@@ -1440,6 +1467,7 @@ private:
     const PartColorTable* _colorTable = nullptr;
     std::vector<std::pair<TopoDS_Face, Quantity_Color>> _pendingColours;
     std::vector<std::pair<TopoDS_Face, Quantity_Color>> _tableColours;
+    std::vector<std::size_t> _bodyFaceCounts;
     std::unordered_map<qint32, CircularBand> _circularBands;
     std::unordered_map<qint32, gp_Dir> _circleSeams;
     std::vector<std::pair<const Record*, std::size_t>> _splineBlocks;
@@ -2769,7 +2797,34 @@ std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function
     SolidBuilder builder(records, reader.millimeters, cancelled, strict);
     if (colorTable)
         builder.useColorTable(&*colorTable);
-    return builder.build(saved ? &*saved : nullptr, appearance);
+    auto outcomes = builder.build(saved ? &*saved : nullptr, appearance);
+
+    // A part with several bodies: name them as the model browser does. A saved body is matched to its browser body by its
+    // face count, which must equal a graphics shell of exactly one browser body; anything less certain keeps the numbered
+    // names.
+    if (builder.bodyFaceCounts().size() > 1) {
+        const auto infos = readPartBodyInfo(container);
+        for (std::size_t record = 0; record < builder.bodyFaceCounts().size(); ++record) {
+            const std::size_t faces = builder.bodyFaceCounts()[record];
+            const PartBodyInfo* match = nullptr;
+            bool unique = faces != 0;
+            for (const auto& info : infos) {
+                if (std::find(info.faceCounts.begin(), info.faceCounts.end(), faces) == info.faceCounts.end())
+                    continue;
+                unique = unique && !match;
+                match = &info;
+            }
+            if (!match || !unique)
+                continue;
+            for (auto& outcome : outcomes) {
+                if (outcome.bodyRecord == static_cast<int>(record)) {
+                    outcome.bodyName = match->name;
+                    outcome.featureName = match->feature;
+                }
+            }
+        }
+    }
+    return outcomes;
 }
 
 std::vector<TopoDS_Solid> readPartSolids(const QString& path, const std::function<bool()>& cancelled,

@@ -11,6 +11,7 @@
 
 #include <zstd.h>
 
+#include <algorithm>
 #include <array>
 #include <cmath>
 #include <cstring>
@@ -484,6 +485,101 @@ std::optional<PartColorTable> readPartColorTable(CompoundFile& file)
         return decodeColorTable(readGraphicsNodes(metadata, graphics));
     } catch (const std::runtime_error&) {
         return std::nullopt;
+    }
+}
+
+
+std::vector<PartBodyInfo> readPartBodyInfo(CompoundFile& file)
+{
+    try {
+        // The names live in the model browser segment, stored as records "tag, count, UTF-16 text": tag 0x0109 is a
+        // feature, tag 0x010a a body. A derived-surface feature record is followed directly by the body it owns.
+        static const QByteArray browserLabel("\x10\0\0\0P\0m\0" "B\0r\0o\0w\0s\0e\0r\0" "S\0e\0g\0m\0e\0n\0t\0", 36);
+        const auto browserIndex = findSegmentMetadata(file, browserLabel);
+        if (!browserIndex)
+            return {};
+        const QByteArray browser = readPartner(file, *browserIndex, qsizetype(256) * 1024 * 1024);
+
+        struct Entry {
+            qsizetype offset;
+            qsizetype end;
+            QString text;
+        };
+        std::vector<Entry> features;
+        std::vector<Entry> bodies;
+        qsizetype acceptedEnd = 0;
+        for (qsizetype i = 0; i + 8 <= browser.size(); ++i) {
+            const auto tag = static_cast<unsigned char>(browser[i]);
+            if ((tag != 0x09 && tag != 0x0a) || browser[i + 1] != 1 || browser[i + 2] != 0 || browser[i + 3] != 0 || i < acceptedEnd)
+                continue;
+            const auto count = qFromLittleEndian<quint32>(browser.constData() + i + 4);
+            if (count < 2 || count > 256 || i + 8 + qsizetype(count) * 2 > browser.size())
+                continue;
+            QString text(static_cast<qsizetype>(count), Qt::Uninitialized);
+            std::memcpy(text.data(), browser.constData() + i + 8, static_cast<std::size_t>(count) * 2);
+            if (!std::all_of(text.begin(), text.end(), [](QChar c) { return c.isPrint() && !c.isSurrogate(); }))
+                continue;
+            const qsizetype end = i + 8 + qsizetype(count) * 2;
+            (tag == 0x09 ? features : bodies).push_back({i, end, text});
+            acceptedEnd = end;
+        }
+
+        // The owning feature is the one saved just before the body.
+        std::vector<PartBodyInfo> plain;
+        std::vector<PartBodyInfo> derived;
+        for (const auto& body : bodies) {
+            PartBodyInfo info;
+            info.name = body.text;
+            for (const auto& feature : features) {
+                if (feature.end <= body.offset && body.offset - feature.end < 400)
+                    info.feature = feature.text;
+            }
+            (info.feature.isEmpty() ? plain : derived).push_back(std::move(info));
+        }
+        // The graphics lists the plain bodies first, then the bodies of derived features in the order they were saved.
+        std::vector<PartBodyInfo> named = std::move(plain);
+        for (auto& info : derived)
+            named.push_back(std::move(info));
+
+        static const QByteArray graphicsLabel("\x11\0\0\0P\0m\0" "G\0r\0a\0p\0h\0i\0c\0s\0" "S\0e\0g\0m\0e\0n\0t\0", 38);
+        const auto graphicsIndex = findSegmentMetadata(file, graphicsLabel);
+        if (!graphicsIndex)
+            return {};
+        const auto metadata = file.readStream(*graphicsIndex, MetadataLimit);
+        const auto graphics = readPartner(file, *graphicsIndex, GraphicsDataLimit);
+        const auto nodes = readGraphicsNodes(metadata, graphics);
+        const GraphicsReader reader(nodes);
+
+        std::unordered_map<quint32, std::size_t> facesOfShell;
+        for (const auto& candidate : nodes) {
+            if (candidate.type != GraphicsFaceNode)
+                continue;
+            quint32 shell = 0;
+            reader.faceColor(candidate, shell);
+            ++facesOfShell[shell];
+        }
+        // A graphics body owns the shells saved just before its own shell node (its display and its full representation).
+        std::vector<std::vector<std::size_t>> shellFaceCounts;
+        for (const auto& candidate : nodes) {
+            if (candidate.type != GraphicsBodyNode)
+                continue;
+            quint32 bodyShell = 0;
+            reader.bodyColor(candidate, bodyShell);
+            std::vector<std::size_t> counts;
+            for (quint32 shell = bodyShell > 3 ? bodyShell - 3 : 1; shell < bodyShell; ++shell) {
+                const auto found = facesOfShell.find(shell);
+                if (found != facesOfShell.end())
+                    counts.push_back(found->second);
+            }
+            shellFaceCounts.push_back(std::move(counts));
+        }
+        if (shellFaceCounts.size() != named.size())
+            return {}; // the browser and the graphics do not list the same bodies: names are not used
+        for (std::size_t i = 0; i < named.size(); ++i)
+            named[i].faceCounts = std::move(shellFaceCounts[i]);
+        return named;
+    } catch (const std::runtime_error&) {
+        return {};
     }
 }
 

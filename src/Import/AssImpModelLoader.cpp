@@ -8,6 +8,7 @@
 #include "Logger.h"
 #include <QSettings>
 #include <algorithm>
+#include <map>
 #include <atomic>
 #include <functional>
 #include <chrono>
@@ -1424,14 +1425,24 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			const QString baseName = fi.completeBaseName();
 			std::vector<TopoDS_Shape> solids; // solids, plus incomplete surfaces (see incompleteParts)
 			std::vector<QString> solidNames;
+			std::vector<int> solidRecords;  // the saved body record of each entry of solids
+			std::vector<int> failedRecords; // the saved body record of each entry of failedBodies
 			std::vector<std::pair<QString, QString>> failedBodies; // display name, reason
 			std::vector<std::pair<std::size_t, QString>> incompleteParts; // index in solids, what is missing
 			std::size_t openSurfaces = 0; // sheet bodies: open surfaces without volume
+			std::map<int, std::size_t> outcomesOfRecord;
+			for (const auto& outcome : outcomes)
+				++outcomesOfRecord[outcome.bodyRecord];
 			for (std::size_t i = 0; i < outcomes.size(); ++i) {
-				const QString name = outcomes.size() == 1 ? baseName : QStringLiteral("%1 Body %2").arg(baseName).arg(i + 1);
+				// A body the model browser names, alone in its record, is shown under that name.
+				const QString name = outcomes.size() == 1 ? baseName
+					: (!outcomes[i].bodyName.isEmpty() && outcomesOfRecord[outcomes[i].bodyRecord] == 1)
+						? outcomes[i].bodyName
+						: QStringLiteral("%1 Body %2").arg(baseName).arg(i + 1);
 				if (!outcomes[i].solid.IsNull()) {
 					solids.push_back(outcomes[i].solid);
 					solidNames.push_back(name);
+					solidRecords.push_back(outcomes[i].bodyRecord);
 				} else if (!outcomes[i].incompleteShape.IsNull()) {
 					if (outcomes[i].isSurface) {
 						// A sheet body: every face built, the faces just do not enclose a volume. Shown like any part.
@@ -1442,8 +1453,10 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 					}
 					solids.push_back(outcomes[i].incompleteShape);
 					solidNames.push_back(name);
+					solidRecords.push_back(outcomes[i].bodyRecord);
 				} else {
 					failedBodies.emplace_back(name, outcomes[i].error);
+					failedRecords.push_back(outcomes[i].bodyRecord);
 				}
 			}
 			std::vector<ShapeWithNameAndTrsf> parts;
@@ -1534,6 +1547,56 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 				delete[] sceneRoot->mChildren;
 				sceneRoot->mChildren = children;
 				sceneRoot->mNumChildren = oldCount + static_cast<unsigned>(failedBodies.size());
+			}
+			// A part with several saved bodies keeps them as nodes, as the model browser shows them: the solid body holding its
+			// parts, and a derived-surface feature holding its surface body. The meshes and their issue marks are unchanged;
+			// they are only moved under named nodes. Without names the groups are numbered, and a part with one saved body
+			// stays flat.
+			if (outcomesOfRecord.size() > 1) {
+				aiNode* sceneRoot = _xcafScene->mRootNode;
+				std::map<int, std::vector<aiNode*>> membersOfRecord;
+				for (unsigned i = 0; i < sceneRoot->mNumChildren; ++i) {
+					const int record = i < solidRecords.size() ? solidRecords[i] : failedRecords[i - solidRecords.size()];
+					membersOfRecord[record].push_back(sceneRoot->mChildren[i]);
+				}
+				std::vector<aiNode*> topLevel;
+				for (auto& [record, members] : membersOfRecord) {
+					QString bodyName, featureName;
+					for (const auto& outcome : outcomes) {
+						if (outcome.bodyRecord == record) {
+							bodyName = outcome.bodyName;
+							featureName = outcome.featureName;
+							break;
+						}
+					}
+					aiNode* top = nullptr; // the node that goes under the root for this record
+					if (members.size() == 1) {
+						top = members.front(); // already named after the body when the browser names it
+					} else {
+						const QString groupName = !bodyName.isEmpty() ? bodyName
+							: QStringLiteral("%1 (body %2)").arg(baseName).arg(record + 1);
+						top = new aiNode(groupName.toStdString());
+						top->mNumChildren = static_cast<unsigned>(members.size());
+						top->mChildren = new aiNode*[members.size()];
+						for (std::size_t m = 0; m < members.size(); ++m) {
+							top->mChildren[m] = members[m];
+							members[m]->mParent = top;
+						}
+					}
+					if (!featureName.isEmpty()) {
+						aiNode* feature = new aiNode(featureName.toStdString());
+						feature->mNumChildren = 1;
+						feature->mChildren = new aiNode*[1]{top};
+						top->mParent = feature;
+						top = feature;
+					}
+					top->mParent = sceneRoot;
+					topLevel.push_back(top);
+				}
+				delete[] sceneRoot->mChildren;
+				sceneRoot->mNumChildren = static_cast<unsigned>(topLevel.size());
+				sceneRoot->mChildren = new aiNode*[topLevel.size()];
+				std::copy(topLevel.begin(), topLevel.end(), sceneRoot->mChildren);
 			}
 			_scene = _xcafScene.get();
 			_declaredLengthUnit = LengthUnit::Millimeter;
