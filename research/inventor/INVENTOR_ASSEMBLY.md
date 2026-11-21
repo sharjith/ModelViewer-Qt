@@ -146,3 +146,14 @@ Regenerate (output under `out/`; `<sample>` is the local sample 7821):
 ```
 inventor_compound_probe --part-bodies <sample> > out/inventor-research/bodies.json   (record, name and feature per body)
 ```
+
+### The 4.4 m body that Autodesk's viewer does not show: no rule found, 21 November 2026
+
+Sample 7821. The 9-face body (4.4 m across, the pinched doughnut) is in the viewer's tree but not in Autodesk's. Looked for a visibility flag at every level the reader can see; none found. Observations only; nothing was changed in the importer.
+
+- **B-rep.** The body is lump 20 (its own lump; the first body record holds 40 lumps) with one shell of 9 faces. The lump and the shell carry no attributes. One of its faces is on a torus surface with major radius -90.04 and minor radius -130.11 in the file's centimetres (a tube larger than the ring: a self-intersecting, "spindle" torus); whether all nine faces share that surface was not checked. The face carries the usual custom attribute (persistent keys) and nothing else.
+- **Graphics.** The nine face nodes (keys 84475 to 84483) are 111 bytes each, the same size and field layout as every other face node (298 676 nodes, size 111 to 115, median 111). Their colours are decoded like any other face.
+- **Record types.** The B-rep has 29 record types. The only invalid-geometry marker, `illegal_geometry-sys-attrib` (one record), is attached to a face of the 1 345-face engine shell, which Autodesk's viewer does show, so it does not explain the torus. `name_attrib-gen-attrib` (24) and `vertedge-sys-attrib` (12) sit on edges and vertices.
+- **Not tried.** Whether the display tessellation in the graphics segment has triangles for these faces (the face nodes only hold references); whether Autodesk's translator drops a body it cannot tessellate. No second sample shows the behaviour.
+
+**Decision (owner, 21 November 2026): no rule.** A hide or warn rule keyed on a spindle torus would be built from one example and would misfire: the same sample has small spindle tori (for instance major 1.05, minor 1.90) in ordinary bodies. The body stays visible; hiding it by hand is the workaround. Revisit only if more samples show a body that Autodesk's viewer omits and a common property can be tested.
