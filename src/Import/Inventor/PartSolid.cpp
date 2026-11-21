@@ -73,9 +73,12 @@
 #include <QtGlobal>
 
 #include <array>
+#include <atomic>
 #include <chrono>
+#include <exception>
 #include <cstdio>
 #include <map>
+#include <mutex>
 #include <algorithm>
 #include <BRepTools_WireExplorer.hxx>
 #include <cmath>
@@ -85,6 +88,7 @@
 #include <stdexcept>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <unordered_map>
 #include <unordered_set>
 #include <utility>
@@ -143,6 +147,18 @@ struct PhaseTimer
     const char* name;
     std::chrono::steady_clock::time_point begin;
 };
+
+// State that one thread building faces writes while it works: the edge-use counts of the shell and the edges and vertices
+// shared by the faces it builds. The main thread uses SolidBuilder::_main; a worker building a chunk of a large shell uses
+// its own (see sewSolid), so no two threads write the same container or the same edge.
+struct BuildContext
+{
+    std::unordered_map<qint32, unsigned> edgeUses;
+    std::unordered_map<qint32, TopoDS_Edge> sharedEdges;
+    std::unordered_map<qint32, TopoDS_Vertex> sharedVertices;
+    int chunk = -1; // >= 0 while this thread builds one chunk of a large shell: only edges inside the chunk are shared
+};
+thread_local BuildContext* t_context = nullptr;
 
 [[noreturn]] void fail(const char* message)
 {
@@ -859,13 +875,29 @@ private:
         return true;
     }
 
+    // Threads for building the faces of one shell: only for a large shell whose edges are shared (see sewSolid).
+    // MODELVIEWER_INVENTOR_THREADS=<n> overrides (1 = serial), for comparisons.
+    std::size_t parallelWorkers(std::size_t faceCount) const
+    {
+        constexpr std::size_t MinFacesPerWorker = 1000;
+        constexpr std::size_t MinParallelFaces = 4000;
+        if (!_sharing || faceCount < MinParallelFaces)
+            return 1;
+        std::size_t workers = std::thread::hardware_concurrency();
+        workers = workers > 3 ? workers - 1 : workers; // leave a core for the interface
+        if (const QByteArray forced = qgetenv("MODELVIEWER_INVENTOR_THREADS"); !forced.isEmpty())
+            workers = static_cast<std::size_t>(std::max(1, forced.toInt()));
+        return std::max<std::size_t>(1, std::min({workers, std::size_t(16), faceCount / MinFacesPerWorker}));
+    }
+
     TopoDS_Solid sewSolid(const std::vector<qint32>& faces, const std::unordered_set<qint32>& omittedLoops,
                           bool repairCavity, const SavedAppearance* saved = nullptr, PartAppearance* appearance = nullptr)
     {
-        _edgeUses.clear();
+        _main.edgeUses.clear();
         _pendingColours.clear();
-        _sharedEdges.clear();
-        _sharedVertices.clear();
+        _main.sharedEdges.clear();
+        _main.sharedVertices.clear();
+        indexCoedges();
         _sharing = !qEnvironmentVariableIsSet("MODELVIEWER_INVENTOR_NO_SHARED_EDGES"); // escape hatch for comparisons
         struct SharingEnd {
             bool& flag;
@@ -879,12 +911,77 @@ private:
         };
         if (saved && saved->body)
             colors.body = quantity(*saved->body);
-        for (const qint32 id : faces) {
+        // A large shell is built in parallel: its faces are cut into contiguous chunks, one thread each. Edges are shared only
+        // inside a chunk (see sharedInsideChunk); the few edges between two chunks are built twice and joined by sewing, which
+        // is cheap when almost every edge is already shared. The faces are then taken in their saved order, so the result and the
+        // error handling are those of the serial loop below.
+        std::vector<TopoDS_Face> prebuilt;
+        std::vector<std::exception_ptr> prebuiltErrors;
+        const std::size_t workerCount = parallelWorkers(faces.size());
+        if (workerCount >= 2) {
+            PhaseTimer timer("buildFace (parallel)");
+            prebuilt.resize(faces.size());
+            prebuiltErrors.resize(faces.size());
+            _faceChunk.clear();
+            for (std::size_t i = 0; i < faces.size(); ++i)
+                _faceChunk[faces[i]] = static_cast<int>(i * workerCount / faces.size());
+            std::vector<BuildContext> contexts(workerCount);
+            std::atomic<bool> stop{false};
+            std::exception_ptr stopReason;
+            std::mutex stopLock;
+            const auto work = [&](std::size_t chunk) {
+                BuildContext& mine = contexts[chunk];
+                mine.chunk = static_cast<int>(chunk);
+                t_context = &mine;
+                struct Release { ~Release() { t_context = nullptr; } } release;
+                const std::size_t begin = chunk * faces.size() / workerCount;
+                const std::size_t end = (chunk + 1) * faces.size() / workerCount;
+                for (std::size_t i = begin; i < end; ++i) {
+                    if (stop.load()) {
+                        std::lock_guard<std::mutex> guard(stopLock);
+                        prebuiltErrors[i] = stopReason;
+                        continue;
+                    }
+                    try {
+                        checkCancellation(_cancelled);
+                        prebuilt[i] = buildFace(get(faces[i], "face"), faces[i], omittedLoops);
+                    } catch (const Detail::ResourceError&) {
+                        // Out of memory: stop every thread and report it for the first face that reaches it.
+                        std::lock_guard<std::mutex> guard(stopLock);
+                        if (!stopReason)
+                            stopReason = std::current_exception();
+                        prebuiltErrors[i] = std::current_exception();
+                        stop = true;
+                    } catch (...) {
+                        prebuiltErrors[i] = std::current_exception();
+                    }
+                }
+            };
+            std::vector<std::thread> workers;
+            for (std::size_t chunk = 1; chunk < workerCount; ++chunk)
+                workers.emplace_back(work, chunk);
+            work(0);
+            for (std::thread& worker : workers)
+                worker.join();
+            _faceChunk.clear();
+            for (const BuildContext& finished : contexts) {
+                for (const auto& use : finished.edgeUses) {
+                    unsigned& merged = _main.edgeUses[use.first];
+                    if ((merged & use.second) != 0 && !_collectFaces)
+                        fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
+                    merged |= use.second;
+                }
+            }
+        }
+        for (std::size_t faceIndex = 0; faceIndex < faces.size(); ++faceIndex) {
+            const qint32 id = faces[faceIndex];
             checkCancellation(_cancelled);
             try {
                 const Record& record = get(id, "face");
                 PhaseTimer timer("buildFace");
-                const auto face = buildFace(record, id, omittedLoops);
+                if (!prebuilt.empty() && prebuiltErrors[faceIndex])
+                    std::rethrow_exception(prebuiltErrors[faceIndex]);
+                const TopoDS_Face face = prebuilt.empty() ? buildFace(record, id, omittedLoops) : prebuilt[faceIndex];
                 sewing.Add(face);
                 if (_collectFaces)
                     _builtFaces.push_back(face);
@@ -927,7 +1024,7 @@ private:
         }
         if (_collectFaces && _failedFaces != 0)
             fail("Some Inventor faces could not be built");
-        for (const auto& use : _edgeUses) {
+        for (const auto& use : _main.edgeUses) {
             const Record& usedEdge = get(use.first, "edge");
             if (usedEdge.link(8) < 0 && usedEdge.link(3) == usedEdge.link(5))
                 continue; // Degenerate edge at a singular point; it has no partner.
@@ -1281,7 +1378,7 @@ private:
         TopoDS_Face result;
         builder.MakeFace(result, support.geometry, Precision::Confusion());
         std::unordered_map<qint32, TopoDS_Vertex> localVertices;
-        std::unordered_map<qint32, TopoDS_Vertex>& vertices = _sharing ? _sharedVertices : localVertices;
+        std::unordered_map<qint32, TopoDS_Vertex>& vertices = _sharing ? context().sharedVertices : localVertices;
         std::unordered_map<qint32, FaceEdge> edges;
         std::unordered_set<qint32> visited;
         unsigned loopCount = 0;
@@ -1527,7 +1624,7 @@ private:
             const Record& edge = get(edgeId, "edge");
             const bool reversed = coedge.get<bool>(7);
             const unsigned sense = reversed ? 2 : 1;
-            unsigned& use = _edgeUses[edgeId];
+            unsigned& use = context().edgeUses[edgeId];
             // A solid traverses every edge once in each direction. In the lenient path the faces may belong to a sheet
             // body, where neighbouring faces can legitimately run the same way; the shell is then simply open.
             if ((use & sense) != 0 && !_collectFaces)
@@ -1551,14 +1648,15 @@ private:
                     // With sharing, the faces of one shell hold the same edge object, so the shell is connected as built.
                     // Only an edge the file gives exactly two coedges is shared. An edge with more (two coincident rings saved
                     // as one edge) is left to sewing, which pairs the copies by geometry.
-                    const bool shareable = _sharing && coedgeCount(edgeId) == 2;
-                    const auto cached = shareable ? _sharedEdges.find(edgeId) : _sharedEdges.end();
-                    if (cached != _sharedEdges.end()) {
+                    const bool shareable = _sharing && coedgeCount(edgeId) == 2 && sharedInsideChunk(edgeId);
+                    auto& sharedEdges = context().sharedEdges;
+                    const auto cached = shareable ? sharedEdges.find(edgeId) : sharedEdges.end();
+                    if (cached != sharedEdges.end()) {
                         local.shape = cached->second;
                     } else {
                         local.shape = buildEdge(edgeId, vertices);
                         if (shareable)
-                            _sharedEdges.emplace(edgeId, local.shape);
+                            sharedEdges.emplace(edgeId, local.shape);
                     }
                 }
                 ++local.uses;
@@ -1579,23 +1677,50 @@ private:
     const std::vector<Record>& _records;
     double _scale;
     const std::function<bool()>& _cancelled;
-    std::unordered_map<qint32, unsigned> _edgeUses;
+    BuildContext _main;
+    BuildContext& context() { return t_context ? *t_context : _main; }
     bool _sharing = false;
+    // Coedges of every edge (the first two), indexed once: an edge is shared between faces only when it has exactly two.
     std::unordered_map<qint32, unsigned> _coedgeCounts;
-    unsigned coedgeCount(qint32 edgeId)
+    std::unordered_map<qint32, std::array<qint32, 2>> _edgeCoedges;
+    std::unordered_map<qint32, int> _faceChunk; // face -> chunk, while a large shell is built in parallel
+    void indexCoedges()
     {
-        if (_coedgeCounts.empty()) {
-            for (const Record& record : _records) {
-                if ((record.type == "coedge" || record.type == "tcoedge-coedge") && record.fields.size() > 6)
-                    ++_coedgeCounts[record.link(6)];
+        if (!_coedgeCounts.empty())
+            return;
+        for (std::size_t id = 0; id < _records.size(); ++id) {
+            const Record& record = _records[id];
+            if ((record.type == "coedge" || record.type == "tcoedge-coedge") && record.fields.size() > 6) {
+                const qint32 edgeId = record.link(6);
+                unsigned& count = _coedgeCounts[edgeId];
+                if (count < 2)
+                    _edgeCoedges[edgeId][count] = static_cast<qint32>(id);
+                ++count;
             }
-            _coedgeCounts[-1] = 0; // never empty again
         }
+        _coedgeCounts[-1] = 0; // never empty again
+    }
+    unsigned coedgeCount(qint32 edgeId) const
+    {
         const auto found = _coedgeCounts.find(edgeId);
         return found == _coedgeCounts.end() ? 0 : found->second;
     }
-    std::unordered_map<qint32, TopoDS_Edge> _sharedEdges;
-    std::unordered_map<qint32, TopoDS_Vertex> _sharedVertices;
+    // True when both coedges of the edge belong to faces of the chunk this thread builds (always true outside a chunk).
+    bool sharedInsideChunk(qint32 edgeId) const
+    {
+        if (!t_context || t_context->chunk < 0)
+            return true;
+        const auto pair = _edgeCoedges.find(edgeId);
+        if (pair == _edgeCoedges.end())
+            return false;
+        for (const qint32 coedge : pair->second) {
+            const qint32 face = get(get(coedge).link(8)).link(5);
+            const auto found = _faceChunk.find(face);
+            if (found == _faceChunk.end() || found->second != t_context->chunk)
+                return false;
+        }
+        return true;
+    }
     void clearExtras()
     {
         _extraSolids.clear();
@@ -2945,7 +3070,7 @@ std::optional<std::pair<double, double>> SolidBuilder::coneHeightRange(const Rec
                                                                        const std::unordered_set<qint32>& omittedLoops,
                                                                        const EllipticCone& cone)
 {
-    const auto savedUses = _edgeUses;
+    const auto savedUses = context().edgeUses;
     std::unordered_map<qint32, FaceEdge> edges;
     std::unordered_map<qint32, TopoDS_Vertex> vertices;
     std::unordered_set<qint32> visited;
@@ -2961,10 +3086,10 @@ std::optional<std::pair<double, double>> SolidBuilder::coneHeightRange(const Rec
             loopId = loop.link(3);
         }
     } catch (...) {
-        _edgeUses = savedUses;
+        context().edgeUses = savedUses;
         throw;
     }
-    _edgeUses = savedUses;
+    context().edgeUses = savedUses;
     double low = std::numeric_limits<double>::max();
     double high = std::numeric_limits<double>::lowest();
     for (const auto& item : edges) {
