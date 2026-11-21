@@ -17,13 +17,19 @@
 #include <limits>
 #include <optional>
 #include <stdexcept>
+#include <unordered_set>
 #include <vector>
 
 namespace Inventor {
 namespace {
 
 constexpr qsizetype HeaderBytes = 18;
-constexpr qsizetype MetadataLimit = 64 * 1024;
+// A segment's metadata grows with the part (the graphics metadata of a 90 000-face part is about 170 KB), so the limit has
+// to leave room for it; the stream is only read and searched, never trusted.
+constexpr qsizetype MetadataLimit = 16 * 1024 * 1024;
+// The graphics data of a large multi-body part is tens of megabytes compressed and several times that unpacked.
+constexpr qsizetype GraphicsDataLimit = qsizetype(1024) * 1024 * 1024;
+constexpr quint32 MaxGraphicsNodes = 8000000;
 
 QByteArray inflateSegment(QByteArrayView compressed, qsizetype maxBytes)
 {
@@ -58,6 +64,8 @@ QByteArray inflateSegment(QByteArrayView compressed, qsizetype maxBytes)
     return output;
 }
 
+QByteArray decodeZstdFrame(QByteArrayView compressed, qsizetype maxBytes);
+
 QByteArray decodeSegment(const QByteArray& bytes, qsizetype maxBytes)
 {
     if (bytes.size() <= HeaderBytes || bytes[16] != 4)
@@ -67,7 +75,11 @@ QByteArray decodeSegment(const QByteArray& bytes, qsizetype maxBytes)
         return inflateSegment(compressed, maxBytes);
     if (bytes[17] != 2)
         throw std::runtime_error("Unsupported Inventor segment compression");
+    return decodeZstdFrame(compressed, maxBytes);
+}
 
+QByteArray decodeZstdFrame(QByteArrayView compressed, qsizetype maxBytes)
+{
     const auto size = ZSTD_getFrameContentSize(compressed.data(), compressed.size());
     if (size == ZSTD_CONTENTSIZE_ERROR)
         throw std::runtime_error("Inventor Zstandard frame is invalid");
@@ -188,13 +200,17 @@ std::vector<GraphicsNode> readGraphicsNodes(QByteArrayView metadata, QByteArrayV
     header.skip(28); // Segment identifier and flags.
     header.skipList(1);
     header.skipList(1);
-    if (header.read<quint8>() != 1)
+    // How the node table is stored: 1 = zlib (small parts), 2 = Zstandard (larger parts).
+    const quint8 packing = header.read<quint8>();
+    if (packing != 1 && packing != 2)
         unsupportedGraphics();
-    const QByteArray unpacked = inflateSegment(header.rest(), 8 * 1024 * 1024);
+    constexpr qsizetype TableLimit = qsizetype(256) * 1024 * 1024;
+    const QByteArray unpacked = packing == 1 ? inflateSegment(header.rest(), TableLimit)
+                                              : decodeZstdFrame(header.rest(), TableLimit);
     GraphicsCursor table(unpacked);
     table.skip(14);
     const auto sizeCount = table.read<quint32>();
-    if (sizeCount > 200000)
+    if (sizeCount > MaxGraphicsNodes)
         unsupportedGraphics();
     std::vector<quint32> sizes;
     sizes.reserve(sizeCount);
@@ -250,22 +266,31 @@ std::optional<DiffuseColor> diffuse(GraphicsCursor cursor)
     return rgb;
 }
 
-SavedAppearance decodeAppearance(const std::vector<GraphicsNode>& nodes)
+constexpr quint32 GraphicsBodyNode = 0x9A676A50;
+constexpr quint32 GraphicsPartNode = 0xCA7163A3;
+constexpr quint32 GraphicsShellNode = 0xA79EACCF;
+constexpr quint32 GraphicsFaceNode = 0x5194E9A3;
+constexpr quint32 GraphicsAttributeList = 0x120284EF;
+constexpr quint32 GraphicsDrawColor = 0x022AC1B5;
+constexpr quint32 GraphicsStyleList = 0x48EB8607;
+constexpr quint32 GraphicsPrimaryColor = 0xAF48560F;
+
+// Reads colours out of a decoded graphics node table.
+class GraphicsReader
 {
-    constexpr quint32 PartNode = 0xCA7163A3;
-    constexpr quint32 BodyNode = 0x9A676A50;
-    constexpr quint32 ShellNode = 0xA79EACCF;
-    constexpr quint32 FaceNode = 0x5194E9A3;
-    constexpr quint32 AttributeList = 0x120284EF;
-    constexpr quint32 DrawColor = 0x022AC1B5;
-    constexpr quint32 StyleList = 0x48EB8607;
-    constexpr quint32 PrimaryColor = 0xAF48560F;
-    const auto node = [&](quint32 ref, quint32 type) {
-        if (ref >= nodes.size() || nodes[ref].type != type)
+public:
+    explicit GraphicsReader(const std::vector<GraphicsNode>& nodes) : _nodes(nodes) {}
+
+    GraphicsCursor node(quint32 ref, quint32 type) const
+    {
+        if (ref >= _nodes.size() || _nodes[ref].type != type)
             unsupportedGraphics();
-        return GraphicsCursor(nodes[ref].data);
-    };
-    const auto firstColor = [&](GraphicsCursor refs, quint32 type) -> std::optional<DiffuseColor> {
+        return GraphicsCursor(_nodes[ref].data);
+    }
+
+    // The first colour of the given kind in a list of node references.
+    std::optional<DiffuseColor> firstColor(GraphicsCursor refs, quint32 type) const
+    {
         if (refs.read<quint32>() != ReferenceList)
             unsupportedGraphics();
         const auto count = refs.read<quint32>();
@@ -276,12 +301,12 @@ SavedAppearance decodeAppearance(const std::vector<GraphicsNode>& nodes)
             unsupportedGraphics();
         for (quint32 i = 0; i < count; ++i) {
             const auto ref = refs.ref();
-            if (ref >= nodes.size())
+            if (ref >= _nodes.size())
                 unsupportedGraphics();
-            if (nodes[ref].type != type)
+            if (_nodes[ref].type != type)
                 continue;
-            GraphicsCursor value(nodes[ref].data);
-            if (type == DrawColor) {
+            GraphicsCursor value(_nodes[ref].data);
+            if (type == GraphicsDrawColor) {
                 value.skip(9);
                 if (value.read<quint32>() != ReferenceList)
                     unsupportedGraphics();
@@ -293,18 +318,67 @@ SavedAppearance decodeAppearance(const std::vector<GraphicsNode>& nodes)
             return diffuse(value);
         }
         return std::nullopt;
-    };
-    const auto attributeColor = [&](quint32 ref) {
-        if (ref == 0)
-            return std::optional<DiffuseColor>{};
-        auto attributes = node(ref, AttributeList);
-        attributes.skip(5);
-        return firstColor(attributes, DrawColor);
-    };
+    }
 
+    std::optional<DiffuseColor> attributeColor(quint32 ref) const
+    {
+        if (ref == 0)
+            return std::nullopt;
+        auto attributes = node(ref, GraphicsAttributeList);
+        attributes.skip(5);
+        return firstColor(attributes, GraphicsDrawColor);
+    }
+
+    // The colour of a graphics body: its own, else its part's. shellRef receives the body's shell node.
+    std::optional<DiffuseColor> bodyColor(const GraphicsNode& body, quint32& shellRef) const
+    {
+        GraphicsCursor fields(body.data);
+        fields.skip(10);
+        auto color = attributeColor(fields.ref());
+        fields.skip(1);
+        auto part = node(fields.ref(), GraphicsPartNode);
+        if (!color) {
+            part.skip(10);
+            color = attributeColor(part.ref());
+        }
+        fields.skip(27);
+        shellRef = fields.ref();
+        node(shellRef, GraphicsShellNode);
+        return color;
+    }
+
+    // The persistent key of a graphics face, held in the final three-word trailer.
+    static quint32 faceKey(const GraphicsNode& face)
+    {
+        if (face.data.size() < 34)
+            unsupportedGraphics();
+        GraphicsCursor trailer(face.data.last(12));
+        return trailer.read<quint32>();
+    }
+
+    // The colour override of a graphics face node, if it has one; shellRef receives the shell the face belongs to.
+    std::optional<DiffuseColor> faceColor(const GraphicsNode& face, quint32& shellRef) const
+    {
+        GraphicsCursor fields(face.data);
+        fields.skip(10);
+        const auto stylesRef = fields.ref();
+        fields.skip(4);
+        shellRef = fields.ref();
+        if (stylesRef == 0)
+            return std::nullopt;
+        return firstColor(node(stylesRef, GraphicsStyleList), GraphicsPrimaryColor);
+    }
+
+private:
+    const std::vector<GraphicsNode>& _nodes;
+};
+
+// The appearance of the one graphics body of a single-body part: the body colour and each face's override.
+SavedAppearance decodeAppearance(const std::vector<GraphicsNode>& nodes)
+{
     const GraphicsNode* body = nullptr;
     for (const auto& candidate : nodes) {
-        if (candidate.type == BodyNode) {
+        if (candidate.type == GraphicsBodyNode) {
             if (body)
                 unsupportedGraphics();
             body = &candidate;
@@ -312,43 +386,61 @@ SavedAppearance decodeAppearance(const std::vector<GraphicsNode>& nodes)
     }
     if (!body)
         unsupportedGraphics();
-    GraphicsCursor bodyFields(body->data);
-    bodyFields.skip(10);
-    auto color = attributeColor(bodyFields.ref());
-    bodyFields.skip(1);
-    auto part = node(bodyFields.ref(), PartNode);
-    if (!color) {
-        part.skip(10);
-        color = attributeColor(part.ref());
-    }
-    bodyFields.skip(27);
-    const auto shellRef = bodyFields.ref();
-    node(shellRef, ShellNode);
-
+    const GraphicsReader reader(nodes);
+    quint32 shellRef = 0;
     SavedAppearance appearance;
-    appearance.body = color;
+    appearance.body = reader.bodyColor(*body, shellRef);
     for (const auto& candidate : nodes) {
-        if (candidate.type != FaceNode)
+        if (candidate.type != GraphicsFaceNode)
             continue;
-        GraphicsCursor face(candidate.data);
-        face.skip(10);
-        const auto stylesRef = face.ref();
-        face.skip(4);
-        if (face.ref() != shellRef)
+        quint32 faceShell = 0;
+        const auto override = reader.faceColor(candidate, faceShell);
+        if (faceShell != shellRef)
             continue;
-        // The qualified graphics face profile has its persistent key in the
-        // final three-word trailer. Require a full key match in the B-rep.
-        if (candidate.data.size() < 34)
-            unsupportedGraphics();
-        GraphicsCursor trailer(candidate.data.last(12));
-        const auto key = trailer.read<quint32>();
-        std::optional<DiffuseColor> override;
-        if (stylesRef != 0)
-            override = firstColor(node(stylesRef, StyleList), PrimaryColor);
-        if (!appearance.faces.emplace(key, override).second)
+        // The qualified graphics face profile has its persistent key in the final three-word trailer. Require a full key
+        // match in the B-rep.
+        if (!appearance.faces.emplace(GraphicsReader::faceKey(candidate), override).second)
             unsupportedGraphics();
     }
     return appearance;
+}
+
+// Every graphics face of a part with several bodies, whichever shell it hangs from. A key that two faces share with
+// different colours is ambiguous and is left out, so a face is only coloured when the file says so unambiguously.
+PartColorTable decodeColorTable(const std::vector<GraphicsNode>& nodes)
+{
+    const GraphicsReader reader(nodes);
+    const GraphicsNode* body = nullptr;
+    for (const auto& candidate : nodes) {
+        if (candidate.type == GraphicsBodyNode) {
+            body = &candidate;
+            break;
+        }
+    }
+    if (!body)
+        unsupportedGraphics();
+    PartColorTable table;
+    quint32 shellRef = 0;
+    table.defaultColor = reader.bodyColor(*body, shellRef);
+
+    std::unordered_map<quint32, std::optional<DiffuseColor>> seen;
+    std::unordered_set<quint32> conflicted;
+    for (const auto& candidate : nodes) {
+        if (candidate.type != GraphicsFaceNode)
+            continue;
+        quint32 faceShell = 0;
+        const auto color = reader.faceColor(candidate, faceShell);
+        const auto key = GraphicsReader::faceKey(candidate);
+        const auto [position, inserted] = seen.emplace(key, color);
+        if (!inserted && position->second != color)
+            conflicted.insert(key);
+    }
+    for (const auto& [key, color] : seen) {
+        if (color && conflicted.count(key) == 0)
+            table.faces.emplace(key, *color);
+    }
+    table.conflicts = conflicted.size();
+    return table;
 }
 
 } // namespace
@@ -373,8 +465,23 @@ std::optional<SavedAppearance> readPartAppearance(CompoundFile& file)
         if (!index)
             return std::nullopt;
         const auto metadata = file.readStream(*index, MetadataLimit);
-        const auto graphics = readPartner(file, *index, 64 * 1024 * 1024);
+        const auto graphics = readPartner(file, *index, GraphicsDataLimit);
         return decodeAppearance(readGraphicsNodes(metadata, graphics));
+    } catch (const std::runtime_error&) {
+        return std::nullopt;
+    }
+}
+
+std::optional<PartColorTable> readPartColorTable(CompoundFile& file)
+{
+    try {
+        static const QByteArray label("\x11\0\0\0P\0m\0" "G\0r\0a\0p\0h\0i\0c\0s\0" "S\0e\0g\0m\0e\0n\0t\0", 38);
+        const auto index = findSegmentMetadata(file, label);
+        if (!index)
+            return std::nullopt;
+        const auto metadata = file.readStream(*index, MetadataLimit);
+        const auto graphics = readPartner(file, *index, GraphicsDataLimit);
+        return decodeColorTable(readGraphicsNodes(metadata, graphics));
     } catch (const std::runtime_error&) {
         return std::nullopt;
     }

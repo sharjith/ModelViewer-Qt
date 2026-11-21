@@ -405,6 +405,10 @@ public:
                  const std::function<bool()>& cancelled, bool strict = true)
         : _records(records), _scale(scale), _cancelled(cancelled), _strict(strict) {}
 
+    // Colour the built faces from this table (the saved colours of a multi-body part). Without it only a single-body part
+    // gets colours, through build()'s SavedAppearance.
+    void useColorTable(const PartColorTable* table) { _colorTable = table; }
+
     std::vector<BodyOutcome> build(const SavedAppearance* saved = nullptr, PartAppearance* appearance = nullptr)
     {
         for (const auto& record : _records) {
@@ -442,8 +446,15 @@ public:
         }
         const bool anyFailure = std::any_of(outcomes.begin(), outcomes.end(),
                                             [](const BodyOutcome& outcome) { return !outcome.error.isEmpty(); });
-        if (appearance && (outcomes.size() != 1 || anyFailure))
+        if (appearance && _colorTable) {
+            if (_colorTable->defaultColor) {
+                const auto& c = *_colorTable->defaultColor;
+                appearance->body = Quantity_Color(c[0], c[1], c[2], Quantity_TOC_RGB);
+            }
+            appearance->faces = std::move(_tableColours);
+        } else if (appearance && (outcomes.size() != 1 || anyFailure)) {
             *appearance = {};
+        }
         return outcomes;
     }
 
@@ -779,6 +790,7 @@ private:
                           bool repairCavity, const SavedAppearance* saved = nullptr, PartAppearance* appearance = nullptr)
     {
         _edgeUses.clear();
+        _pendingColours.clear();
         BRepBuilderAPI_Sewing sewing(CheckToleranceMm);
         std::vector<TopoDS_Face> measuredFaces;
         PartAppearance colors;
@@ -801,6 +813,12 @@ private:
                     const auto& color = saved->faces.at(static_cast<quint32>(record.get<qint32>(1)));
                     if (color)
                         colors.faces.emplace_back(face, quantity(*color));
+                } else if (_colorTable) {
+                    const auto found = _colorTable->faces.find(static_cast<quint32>(record.get<qint32>(1)));
+                    if (found != _colorTable->faces.end()) {
+                        colors.faces.emplace_back(face, quantity(found->second));
+                        _pendingColours.emplace_back(face, quantity(found->second));
+                    }
                 }
             } catch (const Detail::ResourceError&) {
                 throw;
@@ -913,6 +931,15 @@ private:
             if (unmapped == colors.faces.end())
                 *appearance = std::move(colors);
         }
+        if (_colorTable) {
+            // The faces were replaced by sewing and repair; keep the colour of every face that is still in the solid.
+            NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> finalFaces;
+            TopExp::MapShapes(solid, TopAbs_FACE, finalFaces);
+            for (const auto& item : colors.faces) {
+                if (!item.first.IsNull() && finalFaces.Contains(item.first))
+                    _tableColours.push_back(item);
+            }
+        }
         return solid;
     }
 
@@ -961,6 +988,7 @@ private:
                       .arg(_failedFaces).arg(faces.size()).arg(_firstFaceFailure)
                 : QStringLiteral("The faces could not be closed into a solid (%1). They are shown as an open surface; "
                                  "it has no volume.").arg(QString::fromUtf8(error.what()));
+            _tableColours.insert(_tableColours.end(), _pendingColours.begin(), _pendingColours.end());
             throw IncompleteShell(compound, _failedFaces != 0 ? message : QString(), _failedFaces == 0);
         }
     }
@@ -1407,6 +1435,11 @@ private:
     QString _firstFaceFailure;
     mutable std::unordered_set<qint32> _spikeCoedges;
     std::vector<TopoDS_Solid> _extraSolids;
+    // Colours of a part with several bodies (see useColorTable). _pendingColours holds the coloured faces of the shell being
+    // built; they move to _tableColours once that shell is final (mapped to its final faces) or shown as an incomplete shell.
+    const PartColorTable* _colorTable = nullptr;
+    std::vector<std::pair<TopoDS_Face, Quantity_Color>> _pendingColours;
+    std::vector<std::pair<TopoDS_Face, Quantity_Color>> _tableColours;
     std::unordered_map<qint32, CircularBand> _circularBands;
     std::unordered_map<qint32, gp_Dir> _circleSeams;
     std::vector<std::pair<const Record*, std::size_t>> _splineBlocks;
@@ -2724,13 +2757,19 @@ std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function
     SavedBodyReader reader(bytes, cancelled);
     const auto records = reader.read();
     std::optional<SavedAppearance> saved;
+    std::optional<PartColorTable> colorTable;
     if (appearance) {
         *appearance = {};
         if (std::count_if(records.begin(), records.end(), [](const Record& row) { return row.type == "body"; }) == 1)
             saved = readPartAppearance(container);
+        else
+            colorTable = readPartColorTable(container); // several bodies: the graphics hang from several shells
         checkCancellation(cancelled);
     }
-    return SolidBuilder(records, reader.millimeters, cancelled, strict).build(saved ? &*saved : nullptr, appearance);
+    SolidBuilder builder(records, reader.millimeters, cancelled, strict);
+    if (colorTable)
+        builder.useColorTable(&*colorTable);
+    return builder.build(saved ? &*saved : nullptr, appearance);
 }
 
 std::vector<TopoDS_Solid> readPartSolids(const QString& path, const std::function<bool()>& cancelled,

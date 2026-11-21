@@ -54,6 +54,7 @@
 
 // Per-document STEP colour map (populated by XCAFSTEPProcessor::buildStepColorMap).
 BRepToAssimpConverter::StepColorMap BRepToAssimpConverter::s_stepColorMap;
+BRepToAssimpConverter::StepColorMap BRepToAssimpConverter::s_faceColourOverrides;
 
 // Per-document B-Rep edge data, keyed by aiMesh* produced during this load.
 std::unordered_map<const aiMesh*, BRepToAssimpConverter::OccEdgeData>
@@ -302,8 +303,10 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 					// Set color only if no texture
 					if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
 					{
-						// Diffuse color (from STEP model)
-						aiColor3D diffuseColor(color.Red(), color.Green(), color.Blue());
+						// Diffuse color (from STEP model). A mesh that carries its own vertex colours (per-face colours) gets a
+						// white material, so albedo x vertex colour shows the vertex colours unchanged.
+						aiColor3D diffuseColor = mesh->HasVertexColors(0) ? aiColor3D(1.0f, 1.0f, 1.0f)
+							: aiColor3D(color.Red(), color.Green(), color.Blue());
 						material->AddProperty(&diffuseColor, 1, AI_MATKEY_COLOR_DIFFUSE);
 
 						// Ambient color: dimmed diffuse (30%)
@@ -390,6 +393,33 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
 	// Vectors to hold generated meshes
 	std::vector<aiMesh*> meshes;
 
+	// One colour per face of a group when any face of it has an override (the rest take `color`), else empty.
+	const auto overrideColours = [&color](const TopTools_IndexedMapOfShape& group) {
+		std::vector<aiColor4D> colours;
+		if (s_faceColourOverrides.empty())
+			return colours;
+		colours.reserve(static_cast<size_t>(group.Extent()));
+		bool any = false;
+		for (int f = 1; f <= group.Extent(); ++f)
+		{
+			const auto found = s_faceColourOverrides.find(group(f));
+			if (found != s_faceColourOverrides.end())
+			{
+				any = true;
+				colours.emplace_back(static_cast<float>(found->second.Red()), static_cast<float>(found->second.Green()),
+					static_cast<float>(found->second.Blue()), 1.0f);
+			}
+			else
+			{
+				colours.emplace_back(static_cast<float>(color.Red()), static_cast<float>(color.Green()),
+					static_cast<float>(color.Blue()), 1.0f);
+			}
+		}
+		if (!any)
+			colours.clear();
+		return colours;
+	};
+
 	// Explorer to find solids within the shape
 	TopExp_Explorer solidExplorer(shape, TopAbs_SOLID);
 	if (!solidExplorer.More())
@@ -407,7 +437,8 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
 		}
 
 		// Convert the collected faces into a single mesh
-		aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
+		const std::vector<aiColor4D> faceColours = overrideColours(faceGroup);
+		aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex, false, faceColours.empty() ? nullptr : &faceColours);
 		if (mesh)
 		{
 			// Add the mesh to the list
@@ -440,7 +471,8 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
 
 			// Convert the collected faces into a mesh
 			t_groupIsSolid = true;
-			aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
+			const std::vector<aiColor4D> faceColours = overrideColours(faceGroup);
+			aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex, false, faceColours.empty() ? nullptr : &faceColours);
 			t_groupIsSolid = false;
 			if (mesh)
 			{
@@ -644,6 +676,7 @@ void BRepToAssimpConverter::clearColorCache()
 {
 	s_definitionFaceColours.clear();
 	s_stepColorMap.clear();
+	s_faceColourOverrides.clear();
 	clearEdgeCache();
 }
 
@@ -768,6 +801,11 @@ BRepToAssimpConverter::extractEdgesFromFaceGroup(
 void BRepToAssimpConverter::setStepColorMap(const StepColorMap& map)
 {
 	s_stepColorMap = map;
+}
+
+void BRepToAssimpConverter::setFaceColourOverrides(StepColorMap map)
+{
+	s_faceColourOverrides = std::move(map);
 }
 
 // Converts a group of faces to Assimp meshes, grouping by colour.

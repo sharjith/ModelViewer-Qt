@@ -1449,15 +1449,19 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			std::vector<ShapeWithNameAndTrsf> parts;
 			parts.reserve(solids.size());
 			const Quantity_Color color(0.7, 0.7, 0.7, Quantity_TOC_RGB);
+			// A part with several bodies has no single appearance; the colour the file gives the part is the default of
+			// every face that has no colour of its own.
+			const bool singleBody = outcomes.size() == 1;
+			const Quantity_Color partColor = !singleBody && appearance.body ? *appearance.body : color;
 			for (std::size_t i = 0; i < solids.size(); ++i) {
 				if (cancelled())
 					throw std::runtime_error("Inventor import cancelled");
 				BRepToAssimpConverter::preTessellate(solids[i]);
-				parts.emplace_back(solids[i], solidNames[i].toStdString(), TopLoc_Location(), color);
+				parts.emplace_back(solids[i], solidNames[i].toStdString(), TopLoc_Location(), partColor);
 			}
 			if (cancelled())
 				throw std::runtime_error("Inventor import cancelled");
-			if (appearance.body || !appearance.faces.empty()) {
+			if (singleBody && (appearance.body || !appearance.faces.empty())) {
 				Handle(TDocStd_Document) document = new TDocStd_Document("BinOcaf");
 				const auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->Main());
 				const auto colorTool = XCAFDoc_DocumentTool::ColorTool(document->Main());
@@ -1481,7 +1485,16 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 					_xcafScene->mRootNode = root.release();
 				}
 			} else {
+				if (!appearance.faces.empty()) {
+					// The saved colour of each face of a part with several bodies: one mesh per body with vertex colours.
+					BRepToAssimpConverter::StepColorMap overrides;
+					overrides.reserve(appearance.faces.size());
+					for (const auto& [face, faceColor] : appearance.faces)
+						overrides.emplace(face, faceColor);
+					BRepToAssimpConverter::setFaceColourOverrides(std::move(overrides));
+				}
 				_xcafScene.reset(BRepToAssimpConverter::convert(parts));
+				BRepToAssimpConverter::setFaceColourOverrides({});
 			}
 			if (!_xcafScene || !_xcafScene->mRootNode || _xcafScene->mNumMeshes == 0 ||
 				_xcafScene->mRootNode->mNumChildren != solids.size())

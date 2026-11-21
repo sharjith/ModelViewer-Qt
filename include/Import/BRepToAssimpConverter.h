@@ -198,6 +198,11 @@ public:
 	// Must be called after reader.Transfer() and before any convert() call.
 	static void setStepColorMap(const StepColorMap& map);
 
+	// Per-face colours for the tuple overload of convert(): a body whose faces appear in this map becomes one mesh with those
+	// colours as vertex colours (faces not in the map take the tuple's colour). Used for parts that save one colour per face
+	// across several bodies (Inventor). Empty by default and cleared with the other per-document caches.
+	static void setFaceColourOverrides(StepColorMap map);
+
 	// Returns the deflection fraction (0.0–1.0) to use for STEP tessellation.
 	// Reads the "linearDeflectionSpinBox" QSettings key written by SettingsDialog.
 	// Used by both the parallel pre-tessellation pass (XCAFSTEPProcessor) and the
@@ -221,6 +226,9 @@ private:
 	// Per-document STEP colour map: populated from raw STEP StyledItem entities,
 	// bypassing the broken XCAFDoc_ColorTool::SetColor(TopoDS_Shape) → FindShape() path.
 	static StepColorMap s_stepColorMap;
+
+	// Face colours for the tuple overload of convert() (see setFaceColourOverrides).
+	static StepColorMap s_faceColourOverrides;
 
 	// Per-document B-Rep edge data keyed by the aiMesh* they belong to.
 	// Cleared by clearEdgeCache() (called via clearColorCache()) before each load.
