@@ -127,3 +127,22 @@ inventor_compound_probe --part-graphics <sample>      > out/inventor-research/co
 inventor_compound_probe --part-bodies   <sample>      > out/inventor-research/bodies.json
 inventor_compound_probe --part-normals 1011 <sample>  > out/inventor-research/normals_1011.json
 ```
+
+### Body structure and names of a multi-body part, 21 November 2026
+
+Sample 7821 (the oversized part). The two nodes Autodesk's viewer shows ("solid body", and a derived-surface feature holding "SRF5") are in the model browser segment (`PmBrowserSegment`: metadata 75 KB packed, 745 KB unpacked, zlib).
+
+**Records.** Text records are stored as `tag (u16), 0 (u16), count (u32), UTF-16LE text`: tag `0x0109` a feature ("SRF1::Производный"), `0x010a` a body, `0x0104`/`0x0105` source-component occurrence paths (1 521 and 1 523 records, e.g. "<assembly>.iam:1::<part>.ipt:1"), `0x0106` sketches, `0x0107` 3D sketches, `0x0108` work planes, `0x010c` origin, `0x010e` the source assembly ("... .iam"). The part is a derived part of that assembly; the component paths are kept but are not bodies of this part.
+
+Bodies (tag `0x010a`), in saved order: SRF1, SRF2, SRF3, SRF4, SRF5, "Твердое тело1" (six). Derived features (tag `0x0109`): SRF3, SRF4, SRF5, SRF6 and SRF1 "::Производный". A derived-feature record is followed directly (within about 130 bytes) by the body it owns; "Твердое тело1" follows no feature. The graphics segment has six body nodes too (one of 3.3 MB, four of 164 bytes, one of 57 KB).
+
+**Linking to the B-rep.** The saved B-rep has two body records holding geometry: record 0 with 40 lumps, 1 066 shells and 85 121 faces; record 1 with 1 lump, 1 shell and 1 345 faces. The graphics shells have exactly those counts (85 121 and 1 345; three further shells of 208 018, 3 566 and 626 faces are other representations). The reader matches a B-rep record to the browser body whose graphics shell has the same face count, and uses the name only when exactly one body matches; the graphics order is the plain bodies first, then the derived bodies in saved order. Result: record 0 "Твердое тело1" (1 079 outcomes: 1 049 solids, the vehicle shell, 29 sheets), record 1 "SRF5" owned by "SRF1::Производный" (the engine). The four empty bodies (SRF1 to SRF4) have no B-rep record.
+
+**Display.** The loader builds `Root` > "Твердое тело1" (the 1 079 bodies) and "SRF1::Производный" > "SRF5". The viewer's automatic "purge redundant nodes" (Settings, General; on by default) then collapses a wrapper whose single child is a leaf with one mesh and renames the mesh after the wrapper, so by default the engine shows as one item "SRF1::Производный". With the setting off the two levels show. Owner decision: not a concern.
+
+**Owner acceptance (21 November 2026).** The two groups show correctly in the viewer. Still open (MOD-21): the 4.4 m body that Autodesk's viewer does not show (hidden by hand for now) and names for the individual bodies from the source-component paths (not attempted).
+
+Regenerate (output under `out/`; `<sample>` is the local sample 7821):
+```
+inventor_compound_probe --part-bodies <sample> > out/inventor-research/bodies.json   (record, name and feature per body)
+```
