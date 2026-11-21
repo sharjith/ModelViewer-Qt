@@ -1,5 +1,5 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-#include "InventorCompoundFile.h"
+#include "Inventor/CompoundFile.h"
 
 #include <QSet>
 #include <QtEndian>

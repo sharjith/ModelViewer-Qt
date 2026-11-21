@@ -1,8 +1,8 @@
 // Copyright (C) 2026 ModelViewer-Qt contributors. SPDX-License-Identifier: GPL-3.0-only
-#include "InventorPartSolid.h"
+#include "Inventor/PartSolid.h"
 
-#include "InventorCompoundFile.h"
-#include "InventorPartSegment.h"
+#include "Inventor/CompoundFile.h"
+#include "Inventor/PartSegment.h"
 #include "MemoryGuard.h"
 
 #include <BRepAlgoAPI_Cut.hxx>

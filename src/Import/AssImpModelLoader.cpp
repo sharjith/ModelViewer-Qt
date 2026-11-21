@@ -15,7 +15,7 @@
 #include <Standard_Failure.hxx>
 #include <new>
 #include "ThreeDXml/Importer.h"
-#include "InventorPartSolid.h"
+#include "Inventor/PartSolid.h"
 #include "Parasolid/XtSceneImporter.h"
 #include "Parasolid/XtImport.h"
 #include "MeshImportAdaptor.h"
