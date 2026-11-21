@@ -2,10 +2,12 @@
 #include "Inventor/AssemblyScene.h"
 
 #include "BRepToAssimpConverter.h"
+#include "ImportMetadata.h"
 #include "Inventor/Assembly.h"
 #include "Inventor/PartSolid.h"
 
 #include <QFileInfo>
+#include <QtGlobal>
 
 #include <Quantity_Color.hxx>
 #include <TopLoc_Location.hxx>
@@ -44,6 +46,7 @@ struct Instance {
     std::vector<QString> path; // names of the groups above the leaf, outermost first
     QString name;
     QString warning;
+    bool hidden = false; // the occurrence, or an assembly above it, is hidden in the saved design view
     int order = 0;
 };
 
@@ -84,11 +87,25 @@ aiNode* materialize(const TreeGroup& group, aiNode* parent)
     return node;
 }
 
+// The metadata the viewer reads from a node: an import issue (severity and message), and the flag that the node starts hidden.
+void setNodeMetadata(aiNode* node, const char* severity, const QString& message, bool hidden)
+{
+    const unsigned count = (severity ? 2u : 0u) + (hidden ? 1u : 0u);
+    if (count == 0)
+        return;
+    node->mMetaData = aiMetadata::Alloc(count);
+    unsigned index = 0;
+    if (severity) {
+        node->mMetaData->Set(index++, "ModelViewer.ImportIssue.Severity", aiString(severity));
+        node->mMetaData->Set(index++, "ModelViewer.ImportIssue.Message", aiString(message.toStdString()));
+    }
+    if (hidden)
+        node->mMetaData->Set(index++, ImportMetadata::InitiallyHidden, true);
+}
+
 void setIssue(aiNode* node, const char* severity, const QString& message)
 {
-    node->mMetaData = aiMetadata::Alloc(2);
-    node->mMetaData->Set(0, "ModelViewer.ImportIssue.Severity", aiString(severity));
-    node->mMetaData->Set(1, "ModelViewer.ImportIssue.Message", aiString(message.toStdString()));
+    setNodeMetadata(node, severity, message, false);
 }
 
 class SceneBuilder
@@ -100,7 +117,7 @@ public:
     {
         std::vector<QString> groups;
         std::vector<QString> stack;
-        walk(QFileInfo(assemblyPath).absoluteFilePath(), gp_Trsf(), groups, stack);
+        walk(QFileInfo(assemblyPath).absoluteFilePath(), gp_Trsf(), groups, stack, false);
         if (_tuples.empty()) {
             throw std::runtime_error(_firstProblem.isEmpty() ? std::string("The Inventor assembly contains no components that can be shown")
                                                               : _firstProblem.toStdString());
@@ -109,7 +126,7 @@ public:
             _warnings.append(QStringLiteral("%1 suppressed component(s) were not loaded.").arg(_suppressed));
         }
         if (_hidden != 0) {
-            _warnings.append(QStringLiteral("%1 component(s) hidden in the saved design view were not loaded.").arg(_hidden));
+            _warnings.append(QStringLiteral("%1 component(s) are hidden in the saved design view; they are loaded hidden.").arg(_hidden));
         }
 
         // Faces carry the colour the part saves for them; the placed copies share the faces, so the colours still match.
@@ -189,7 +206,9 @@ private:
         return data;
     }
 
-    void walk(const QString& file, const gp_Trsf& parentWorld, std::vector<QString>& groups, std::vector<QString>& stack)
+    // hiddenAbove: an assembly above this one is hidden, so everything in it is.
+    void walk(const QString& file, const gp_Trsf& parentWorld, std::vector<QString>& groups, std::vector<QString>& stack,
+              bool hiddenAbove)
     {
         checkCancelled();
         QString savedPath;
@@ -210,10 +229,15 @@ private:
                 ++_suppressed;
                 continue;
             }
-            if (!occurrence.visible) {
+            // Hidden occurrences are loaded and flagged: the viewer shows them unchecked, and the user can turn them on.
+            // Test hook: MODELVIEWER_INVENTOR_SIMULATE_HIDDEN=text treats every occurrence whose name contains the text as
+            // hidden in the saved design view (no local sample has one). No effect when unset.
+            static const QString simulateHidden = qEnvironmentVariable("MODELVIEWER_INVENTOR_SIMULATE_HIDDEN"); // Unicode, not the ANSI form
+            const bool savedHidden = !occurrence.visible ||
+                                     (!simulateHidden.isEmpty() && occurrence.name.contains(simulateHidden, Qt::CaseInsensitive));
+            const bool hidden = hiddenAbove || savedHidden;
+            if (savedHidden && !hiddenAbove)
                 ++_hidden;
-                continue;
-            }
             const gp_Trsf world = parentWorld * occurrence.placement;
             const ComponentFile resolved = resolveAssemblyComponent(file, savedPath, occurrence.reference);
             if (resolved.path.isEmpty()) {
@@ -226,16 +250,17 @@ private:
                     continue;
                 }
                 groups.push_back(occurrence.name);
-                walk(resolved.path, world, groups, stack);
+                walk(resolved.path, world, groups, stack, hidden);
                 groups.pop_back();
             } else {
-                place(resolved.path, occurrence, world, groups);
+                place(resolved.path, occurrence, world, groups, hidden);
             }
         }
         stack.pop_back();
     }
 
-    void place(const QString& file, const AssemblyOccurrence& occurrence, const gp_Trsf& world, const std::vector<QString>& groups)
+    void place(const QString& file, const AssemblyOccurrence& occurrence, const gp_Trsf& world, const std::vector<QString>& groups,
+               bool hidden)
     {
         const PartData& data = part(file);
         if (!data.error.isEmpty()) {
@@ -253,6 +278,7 @@ private:
             instance.path = path;
             instance.name = several ? data.shapeNames[i] : occurrence.name;
             instance.warning = data.shapeWarnings[i];
+            instance.hidden = hidden;
             instance.order = _order++;
             const std::string tagged = instance.name.toStdString() + kInstanceTag + std::to_string(_instances.size());
             // Moved, not copied: the placed body shares the faces (and their triangulation) of the part.
@@ -283,8 +309,8 @@ private:
             if (index >= _instances.size())
                 continue;
             leaf->mName = aiString(name.substr(0, tag));
-            if (!_instances[index].warning.isEmpty())
-                setIssue(leaf, "warning", _instances[index].warning);
+            const bool warned = !_instances[index].warning.isEmpty();
+            setNodeMetadata(leaf, warned ? "warning" : nullptr, _instances[index].warning, _instances[index].hidden);
             items.push_back({_instances[index].order, {&_instances[index].path, leaf}});
         }
         for (const auto& placeholder : _placeholders) {

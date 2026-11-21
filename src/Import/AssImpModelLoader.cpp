@@ -3,6 +3,7 @@
 
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
+#include "ImportMetadata.h"
 #include <QElapsedTimer>
 #include <QUuid>
 #include "Logger.h"
@@ -2119,6 +2120,17 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		std::vector<const aiNode*>& path;
 		~PathPop() { path.pop_back(); }
 	} pathPop{ _nodePath };
+	// A node, or one of its ancestors, flagged by its importer as hidden in the file (ImportMetadata::InitiallyHidden).
+	bool flaggedHidden = false;
+	for (const aiNode* ancestor : _nodePath)
+	{
+		bool hidden = false;
+		if (ancestor->mMetaData && ancestor->mMetaData->Get(ImportMetadata::InitiallyHidden, hidden) && hidden)
+		{
+			flaggedHidden = true;
+			break;
+		}
+	}
 	NodePropertyChainPtr nodeProperties;
 	DeclaredMass declaredMass;
 	DeclaredMaterial declaredMaterial;
@@ -2162,7 +2174,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 			myMesh.declaredMaterialSource = declaredMaterial.sourceKey;
 		}
 
-		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
+		myMesh.initiallyVisible = !flaggedHidden && !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
 		_importStage = "worker.mesh-stage";
 		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 		_preservesNodeTransforms = _preservesNodeTransforms || myMesh.preserveNodeTransform;
