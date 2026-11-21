@@ -102,7 +102,7 @@ public:
         std::vector<QString> stack;
         walk(QFileInfo(assemblyPath).absoluteFilePath(), gp_Trsf(), groups, stack);
         if (_tuples.empty()) {
-            throw std::runtime_error(_firstProblem.isEmpty() ? std::string("Inventor assembly has no loadable component")
+            throw std::runtime_error(_firstProblem.isEmpty() ? std::string("The Inventor assembly contains no components that can be shown")
                                                               : _firstProblem.toStdString());
         }
         if (_suppressed != 0) {

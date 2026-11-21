@@ -331,6 +331,10 @@ std::vector<AssemblyOccurrence> readAssemblyOccurrences(const QString& path, con
             rows.push_back(std::move(row));
         }
     }
+    // An assembly without any component file (an empty template, or a weldment template whose only occurrence is the
+    // weldment's own feature record) has nothing to place.
+    if (root && occurrences.empty() && rows.empty() && paths.isEmpty())
+        return {};
     if (!root || rows.size() != static_cast<std::size_t>(paths.size()))
         unsupportedAssembly(QStringLiteral("occurrence root and file references could not be associated (%1 table rows, %2 saved paths%3)")
                                 .arg(rows.size()).arg(paths.size()).arg(root ? QString() : QStringLiteral(", no root")).toUtf8().constData());
