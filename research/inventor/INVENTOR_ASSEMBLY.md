@@ -228,3 +228,50 @@ Owner decision: components hidden in the saved design view are loaded and start 
 - **Inventor.** A hidden occurrence is read and placed like any other and its leaf node carries the flag; a hidden sub-assembly hides everything in it (the flag is set on every leaf below, so it also holds if the tree is regrouped). The import warning now reads "N component(s) are hidden in the saved design view; they are loaded hidden.". Suppressed occurrences are still skipped (Inventor does not compute them).
 - **Qualification.** None of the 33 local assemblies has a hidden occurrence (the reader found 0), so there is no real file to test with. The hook `MODELVIEWER_INVENTOR_SIMULATE_HIDDEN=<text>` treats every occurrence whose name contains the text as hidden, to exercise the path from the viewer. Not verified against Inventor: which design view Inventor applies when a file saves several.
 
+### Oversized part: the face failure classes (MOD-5, MOD-6), 21 November 2026
+
+Method: the lenient probe run (`inventor_compound_probe --part-bodies <part>`, about 6 to 10 minutes and 3 GB) plus a temporary, environment-gated count of every face failure by message and a few one-off diagnostics (a per-edge geometry print, a search of the spline block table, a stack sampling of the running probe). The diagnostics were removed again and are not in the repository. Before: 1 049 solids, 29 open surfaces and 2 incomplete bodies (64 726 faces and 1 320 of 1 345 faces built); 1 653 of the part's 86 466 faces failed, by class:
+
+| Faces | Message | Cause found |
+|---|---|---|
+| 1 058 | edge endpoints disagree with the saved trim parameters | 1 042: a helix curve with a radial term the reader ignored; 16: fitted intersection splines whose ends miss the vertices by 0.01 mm |
+| 493 | unsupported conical surface profile | cones whose radius ratio is not 1: 276 are circular up to rounding, 217 are real ellipses |
+| 60 | unsupported reversed helix edge | an edge against its curve was refused |
+| 23 | unsupported vertex tolerance | saved vertex tolerances of 0.087 to 0.41 mm against a 0.05 mm cap |
+| 13 | edge does not lie on its saved planar face | rounding: the distance equals the edge tolerance to 8 digits |
+| 6 | unsupported intersection curve tolerance | saved tolerance 0.0676 mm against the 0.05 mm cap |
+
+**Endpoints, the largest class (observation).** Every one of the 1 042 helix edges had the start at the curve start and the end vertex millimetres off (4.9, 17.6, 23.6 mm), and the curve evaluated at the saved end parameter was 4.9 to 23.6 mm from the end vertex. For the first failing edge the vertices lie 110.47 mm and 94.37 mm from the helix axis. The saved helix record holds, after centre, two radial vectors (118.0 mm) and the pitch vector, one more number (-348.08). The radius factor 1 + d u / 2 pi at the saved trim parameters (0.00115218 and 0.00361429) is 0.93617 and 0.79977, which gives 110.47 mm and 94.37 mm: the helix spirals in. The reader now multiplies the radial vectors by that factor (derivative included). Check: the end-vertex check stays strict for helix curves and no helix edge of the part fails with it; the bodies built are the same set.
+
+**Fitted splines.** 16 edges of ordinary fitted intersection splines (saved fit tolerance 0.0036 mm) have their last pole 0.0095 mm from the end vertex. A residual of a fitted spline is now accepted up to the existing 0.05 mm safety cap and carried into the edge and vertex tolerances; residuals of a millimetre or more still fail (those were the helix errors above). Analytic curves and helices keep the strict rule.
+
+**Reversed helices.** An edge that runs against its curve has its trim in the reversed curve, as for a spline; the helix is evaluated at the negated parameter. All 64 edges pass the end-vertex check with it, which confirms the sign.
+
+**Saved tolerances.** A separate limit of 0.5 mm now applies to tolerances the file itself saves (vertex, edge, fitted curve). The largest on this part is 0.41 mm. The 0.05 mm cap stays for measured residuals and for the repair tolerance. This is a safety decision: a saved tolerance above the old cap means a loose join in the file, not a reader error. Reconsider if a model shows false joins.
+
+**Planar faces.** The comparison now allows the 1e-7 mm confusion margin: a tolerance taken from the residual of the edge's own vertex failed by rounding.
+
+**Cones.** Observed radius ratios (minor over major): 0.99986 (208 faces), 0.9985 (56), 0.9992 (12), 0.9675 (about 212 in four groups), 0.8186 (4) and 0.87 (1). A cone or cylinder whose two radii differ by at most 0.01 mm (276 faces) is built circular with the mean radius (at most 0.005 mm off the ellipse). The 217 with differences of 0.2 to 5 mm are elliptic. OCCT has no elliptic cone, so each such face gets a ruled B-spline surface between the elliptical sections at the two ends of the heights its own edges reach (exact: the sections are similar and the generators straight), periodic in u like a saved spline surface. The sense flag is taken from the saved cosine as for circular cones; that this is also right for the ruled surface follows from the parameter directions (u counterclockwise about the axis, v from low to high along the axis) but has not been measured: the owner's visual check qualifies the 217 faces.
+
+**Result.** All 86 466 faces build: 1 049 solids and 31 open surfaces, no incomplete and no failed body. The 147-entry corpus of tests/inventor is unchanged (213 checks pass).
+
+**Cost (measured).** The run takes about 585 s with 3.3 GB peak, against 337 s and 3.1 GB for the committed code. The face building itself is not the cost (the 217 elliptic faces take 1.9 s in all). The 65 034-face body used to fail at the face stage and skip sewing; now all its faces build, the saved topology says the shell is closed, and sewing it takes 223 s, after which OCCT leaves free edges: it is shown as an open surface (no warning mark, as for the other open surfaces). Not done: a time budget or a cancel check for the sewing step, which is not interruptible today; whether the shell should be sewn at all is a decision for the owner.
+
+Regenerate: `inventor_compound_probe --part-bodies <part>` for the body counts; `inventor_tests` for the corpus (see INVENTOR_TESTS.md). The per-class count needs the temporary diagnostic described above.
+
+
+### Spindle torus: the wrong side of a band (pump motor shown as a huge dish), 21 November 2026
+
+Observed by the owner: in a pump assembly the motor appeared as a large smooth dish (a torus) instead of a motor. Sample IP055 (13 MB part, one open-surface body of 1 879 faces; expectation in the corpus manifest unchanged).
+
+**Method.** `inventor_compound_probe --part-faces 1 <part>` (new option: the 20 largest faces with surface type, parameter bounds and torus data; the free-edge count) plus temporary diagnostics in the face builder, removed again. One face was built on a torus with a bounding box of 1 461 mm against about 400 mm for the rest of the motor, and with the parameter bounds of the whole torus (0..2 pi in both directions).
+
+**Observation.** The face lies on a spindle torus: saved major radius -26.545 cm (negative), minor radius 46.5 cm, so the tube is larger than the major radius. It has two boundaries that wind once around the axis, at v = 3.317 (ten arcs, intersection curves) and v = 3.55, so it is a narrow band. Both circles are on the inner (lemon) part of the surface, where major + minor cos v is negative. The saved face sense equals the saved surface sense, and the face had been built as the complement of the band: the rest of the torus, 1 461 mm across.
+
+**Cause (derived, not found in a document).** The surface normal of the OCCT parametrisation (dS/du x dS/dv) carries the sign of the distance from the axis, major + minor cos v. On the lemon part that sign is negative, so the normal points the opposite way to the saved outward normal, and the saved face sense has to be read the other way round there. The reader used the saved sense unchanged. The part of the surface is told from one boundary point (the sign that makes the tube equation hold is the sign of the distance from the axis). The circular-band route (`findCircularBands`) does not take this face because its boundaries are intersection curves, not circle records; it was not changed and has the same sign question for lemon faces whose boundaries are circles. No sample is known for that case.
+
+**Result.** The face is now the band: the motor measures 503 x 528 x 728 mm (was 1 461 x 1 461 x 996 mm) and no face is larger than 566 mm across. Corpus: 147 entries compared, 0 differ, 213 checks pass. Not verified: that the band faces the right way in the viewer (the owner's visual check).
+
+Regenerate: `inventor_compound_probe --part-faces 1 <part>` and `--part-bodies <part>`; `inventor_tests` for the corpus.
+
+**Same cause in the oversized part (circular bands).** A scan of every spindle-torus face of the multi-body part (`inventor_compound_probe --part-faces 0 <part>`, about 10 minutes) showed one body (a closed 9-face body) whose two toroidal faces were as large as 7 002 mm, i.e. built as the complement of a band. Observation: both faces are circular bands between two circle loops 10 mm apart on the lemon part of a spindle torus (saved major radius negative, tube 130 cm). They take the circular-band route (`findCircularBands`), which bypasses the face-sense correction above. The band route now flips the choice of arc and the final face sense for a boundary on the lemon part (the parallel found on the far side of the axis). Result: the body measures 98 mm across, no free edges (9 faces), the band parameter span is 0.009 (was 6.28); corpus unchanged (147 compared, 0 differ). Not verified visually: whether this body is the torus the owner saw in the oversized part.

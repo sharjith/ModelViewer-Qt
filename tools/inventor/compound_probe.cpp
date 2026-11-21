@@ -9,6 +9,11 @@
 #include <BRepGProp_Face.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
+#include <BRepTools.hxx>
+#include <TopoDS_Edge.hxx>
+#include <NCollection_IndexedDataMap.hxx>
+#include <TopTools_ListOfShape.hxx>
+#include <Geom_ToroidalSurface.hxx>
 #include <Poly_Triangulation.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopLoc_Location.hxx>
@@ -155,6 +160,10 @@ int main(int argc, char* argv[])
         QStringLiteral("Tessellate body <n> (1-based) and check the vertex normals the converter would produce"),
         QStringLiteral("n"));
     parser.addOption(partNormals);
+    const QCommandLineOption partFaces(QStringLiteral("part-faces"),
+        QStringLiteral("List the 20 largest faces of body <n> (1-based) with surface type and bounding box"),
+        QStringLiteral("n"));
+    parser.addOption(partFaces);
     const QCommandLineOption dumpSegments(QStringLiteral("dump-segments"),
         QStringLiteral("Write every stream of the file, and the unpacked data of every segment, into <dir> (for string searches)"),
         QStringLiteral("dir"));
@@ -251,6 +260,117 @@ int main(int argc, char* argv[])
             }
             report.insert(QStringLiteral("face_overrides"), faces);
             return printJson(report);
+        }
+        if (parser.isSet(partFaces)) {
+            // The largest faces of body <n> (1-based) by bounding-box diagonal, with the surface type, to find a face that
+            // was built far larger than its neighbours.
+            const int wanted = parser.value(partFaces).toInt();
+            const auto outcomes = Inventor::readPartBodies(arguments.front(), {}, nullptr, false);
+            if (wanted == 0) {
+                // Every spindle-torus face (tube radius larger than the major radius) of every body, with its size next to the body's.
+                QJsonArray found;
+                for (std::size_t b = 0; b < outcomes.size(); ++b) {
+                    const TopoDS_Shape bodyShape = !outcomes[b].solid.IsNull() ? TopoDS_Shape(outcomes[b].solid) : outcomes[b].incompleteShape;
+                    if (bodyShape.IsNull())
+                        continue;
+                    Bnd_Box bodyBox;
+                    BRepBndLib::AddOptimal(bodyShape, bodyBox, false, false);
+                    double a0, b0, c0, a1, b1, c1;
+                    bodyBox.Get(a0, b0, c0, a1, b1, c1);
+                    const double bodyDiagonal = std::sqrt((a1 - a0) * (a1 - a0) + (b1 - b0) * (b1 - b0) + (c1 - c0) * (c1 - c0));
+                    for (TopExp_Explorer explorer(bodyShape, TopAbs_FACE); explorer.More(); explorer.Next()) {
+                        const TopoDS_Face face = TopoDS::Face(explorer.Current());
+                        TopLoc_Location location;
+                        const auto torus = Handle(Geom_ToroidalSurface)::DownCast(BRep_Tool::Surface(face, location));
+                        if (torus.IsNull() || !(torus->MinorRadius() > torus->MajorRadius()))
+                            continue;
+                        Bnd_Box box;
+                        BRepBndLib::AddOptimal(face, box, false, false);
+                        double x0, y0, z0, x1, y1, z1;
+                        box.Get(x0, y0, z0, x1, y1, z1);
+                        found.append(QJsonObject{
+                            {QStringLiteral("body"), static_cast<int>(b + 1)},
+                            {QStringLiteral("face_diagonal_mm"), std::sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) + (z1 - z0) * (z1 - z0))},
+                            {QStringLiteral("body_diagonal_mm"), bodyDiagonal},
+                            {QStringLiteral("major"), torus->MajorRadius()},
+                            {QStringLiteral("minor"), torus->MinorRadius()},
+                        });
+                    }
+                }
+                return printJson({{QStringLiteral("spindle_torus_faces"), found}});
+            }
+            if (wanted < 1 || static_cast<std::size_t>(wanted) > outcomes.size())
+                return printJson({{QStringLiteral("error"), QStringLiteral("body index out of range")}});
+            const auto& outcome = outcomes[static_cast<std::size_t>(wanted - 1)];
+            const TopoDS_Shape shape = !outcome.solid.IsNull() ? TopoDS_Shape(outcome.solid) : outcome.incompleteShape;
+            if (shape.IsNull())
+                return printJson({{QStringLiteral("error"), QStringLiteral("body has no shape")}});
+            struct FaceRow { double diagonal; QJsonObject row; };
+            std::vector<FaceRow> rows;
+            TopTools_IndexedMapOfShape faceMap;
+            for (TopExp_Explorer explorer(shape, TopAbs_FACE); explorer.More(); explorer.Next())
+                faceMap.Add(explorer.Current());
+            for (int f = 1; f <= faceMap.Extent(); ++f) {
+                const TopoDS_Face face = TopoDS::Face(faceMap(f));
+                Bnd_Box box;
+                BRepBndLib::AddOptimal(face, box, false, false);
+                double x0, y0, z0, x1, y1, z1;
+                box.Get(x0, y0, z0, x1, y1, z1);
+                const double diagonal = std::sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0) + (z1 - z0) * (z1 - z0));
+                TopLoc_Location location;
+                const auto surface = BRep_Tool::Surface(face, location);
+                QJsonObject row{
+                    {QStringLiteral("face"), f},
+                    {QStringLiteral("surface"), QString::fromLatin1(surface.IsNull() ? "none" : surface->DynamicType()->Name())},
+                    {QStringLiteral("reversed"), face.Orientation() == TopAbs_REVERSED},
+                    {QStringLiteral("diagonal_mm"), diagonal},
+                    {QStringLiteral("bbox_min"), QJsonArray{x0, y0, z0}},
+                    {QStringLiteral("bbox_max"), QJsonArray{x1, y1, z1}},
+                };
+                double u0, u1, v0, v1;
+                BRepTools::UVBounds(face, u0, u1, v0, v1);
+                row.insert(QStringLiteral("uv"), QJsonArray{u0, u1, v0, v1});
+                if (const auto torus = Handle(Geom_ToroidalSurface)::DownCast(surface)) {
+                    const gp_Ax3 position = torus->Position();
+                    row.insert(QStringLiteral("torus"), QJsonObject{
+                        {QStringLiteral("major"), torus->MajorRadius()},
+                        {QStringLiteral("minor"), torus->MinorRadius()},
+                        {QStringLiteral("origin"), QJsonArray{position.Location().X(), position.Location().Y(), position.Location().Z()}},
+                        {QStringLiteral("axis"), QJsonArray{position.Direction().X(), position.Direction().Y(), position.Direction().Z()}},
+                    });
+                }
+                rows.push_back({diagonal, row});
+            }
+            std::sort(rows.begin(), rows.end(), [](const FaceRow& a, const FaceRow& b) { return a.diagonal > b.diagonal; });
+            QJsonArray out;
+            for (std::size_t i = 0; i < rows.size() && i < 20; ++i)
+                out.append(rows[i].row);
+            // Free edges (used by one face): where an open surface fails to close.
+            NCollection_IndexedDataMap<TopoDS_Shape, TopTools_ListOfShape, TopTools_ShapeMapHasher> edgeFaces;
+            TopExp::MapShapesAndAncestors(shape, TopAbs_EDGE, TopAbs_FACE, edgeFaces);
+            QJsonArray freeEdges;
+            int freeCount = 0;
+            for (int e = 1; e <= edgeFaces.Extent(); ++e) {
+                const TopoDS_Edge edge = TopoDS::Edge(edgeFaces.FindKey(e));
+                if (BRep_Tool::Degenerated(edge) || edgeFaces(e).Extent() != 1)
+                    continue;
+                ++freeCount;
+                if (freeEdges.size() >= 15)
+                    continue;
+                double first, last;
+                const auto curve = BRep_Tool::Curve(edge, first, last);
+                const gp_Pnt mid = curve.IsNull() ? gp_Pnt() : curve->Value((first + last) / 2);
+                const TopoDS_Face owner = TopoDS::Face(edgeFaces(e).First());
+                TopLoc_Location location;
+                const auto surface = BRep_Tool::Surface(owner, location);
+                freeEdges.append(QJsonObject{
+                    {QStringLiteral("mid"), QJsonArray{mid.X(), mid.Y(), mid.Z()}},
+                    {QStringLiteral("face_surface"), QString::fromLatin1(surface.IsNull() ? "none" : surface->DynamicType()->Name())},
+                    {QStringLiteral("face_index"), faceMap.FindIndex(owner)},
+                });
+            }
+            return printJson({{QStringLiteral("faces"), static_cast<int>(rows.size())}, {QStringLiteral("largest"), out},
+                              {QStringLiteral("free_edge_count"), freeCount}, {QStringLiteral("free_edges"), freeEdges}});
         }
         if (parser.isSet(partNormals)) {
             const int wanted = parser.value(partNormals).toInt();

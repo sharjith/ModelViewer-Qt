@@ -20,7 +20,9 @@
 #include <GeomAPI_ProjectPointOnSurf.hxx>
 #include <GeomLProp_SLProps.hxx>
 #include <GeomAPI_Interpolate.hxx>
+#include <GeomConvert.hxx>
 #include <GeomFill.hxx>
+#include <Standard_Failure.hxx>
 #include <Geom_BSplineCurve.hxx>
 #include <Geom_BSplineSurface.hxx>
 #include <Geom2d_Curve.hxx>
@@ -71,6 +73,7 @@
 #include <algorithm>
 #include <BRepTools_WireExplorer.hxx>
 #include <cmath>
+#include <limits>
 #include <cstring>
 #include <functional>
 #include <stdexcept>
@@ -93,6 +96,11 @@ constexpr std::size_t TotalFieldLimit = 2'000'000'000;
 constexpr std::size_t MemoryCheckInterval = 65'536;
 constexpr double CheckToleranceMm = 1e-5;
 constexpr double MaxSplineToleranceMm = 0.05;
+// Upper limit for a tolerance the file itself saves (vertex, edge, intersection curve): the largest on the oversized part is
+// 0.41 mm. A measured residual of a fitted curve still has to stay within MaxSplineToleranceMm.
+constexpr double MaxSavedToleranceMm = 0.5;
+// A saved cone or cylinder whose two radii differ by no more than this is built as a circular one (see buildSurface).
+constexpr double MaxCircularApproximationMm = 0.01;
 constexpr double TwoPi = 6.2831853071795864769;
 
 // Raised (only when not strict) by the plain single-shell path when a shell cannot become a solid but some of its faces
@@ -1101,23 +1109,39 @@ private:
         bool rational;
     };
     SplinePayload splinePayload(const Record& record, bool surface) const;
+    SplinePayload splinePayloadAt(const Record* record, std::size_t start, bool surface) const;
     Handle(Geom_BSplineCurve) buildSplineCurve(const Record& record, double& tolerance) const;
+    Handle(Geom_BSplineCurve) splineCurveFrom(const SplinePayload& payload, double& tolerance) const;
     Handle(Geom_BSplineSurface) buildSplineSurface(const Record& record) const;
 
     // Procedural helix: X(u) = C + M cos u + N sin u + P u / (2 pi), lengths in millimetres.
+    // A helix curve may also spiral in or out: its radius is the saved one times (1 + radial * u / 2 pi), where radial is the
+    // fraction of the radius gained per turn (0 for a plain helix). Found in a helix edge whose end vertex lies on a smaller
+    // radius than its start: the saved radial term reproduces both radii to 5 digits.
     struct Helix {
         gp_Pnt center;
         gp_Vec major, minor, pitch;
+        double radial = 0.0;
         gp_Pnt at(double u) const
         {
-            return center.Translated(major * std::cos(u) + minor * std::sin(u) + pitch * (u / TwoPi));
+            return center.Translated((major * std::cos(u) + minor * std::sin(u)) * (1.0 + radial * u / TwoPi) + pitch * (u / TwoPi));
         }
-        gp_Vec tangent(double u) const { return major * -std::sin(u) + minor * std::cos(u) + pitch * (1.0 / TwoPi); }
+        gp_Vec tangent(double u) const
+        {
+            return (major * -std::sin(u) + minor * std::cos(u)) * (1.0 + radial * u / TwoPi) +
+                   (major * std::cos(u) + minor * std::sin(u)) * (radial / TwoPi) + pitch * (1.0 / TwoPi);
+        }
     };
-    Helix readHelix(const Record& record, std::size_t first) const
+    // radialField: the field after the pitch vector holds the radial term (helix curves; not yet checked for helix surfaces).
+    Helix readHelix(const Record& record, std::size_t first, bool radialField = false) const
     {
-        return {point(record.get<Triple>(first)), vector(record.get<Triple>(first + 1)),
-                vector(record.get<Triple>(first + 2)), vector(record.get<Triple>(first + 3))};
+        Helix helix{point(record.get<Triple>(first)), vector(record.get<Triple>(first + 1)),
+                    vector(record.get<Triple>(first + 2)), vector(record.get<Triple>(first + 3))};
+        if (radialField && first + 4 < record.fields.size()) {
+            if (const double* radial = std::get_if<double>(&record.fields[first + 4]); radial && std::isfinite(*radial))
+                helix.radial = *radial;
+        }
+        return helix;
     }
     Handle(Geom_BSplineCurve) interpolateCurve(const std::function<gp_Pnt(double)>& position,
                                                const std::function<gp_Vec(double)>& derivative,
@@ -1151,7 +1175,23 @@ private:
         double firstV;
         double lastV;
     };
-    Surface buildSurface(const Record& surface) const;
+    // coneHeights: for an elliptic cone, the range of heights along its axis that the face under construction needs.
+    Surface buildSurface(const Record& surface, const std::pair<double, double>* coneHeights = nullptr) const;
+    // A cone whose cross-section is an ellipse too eccentric to be taken as a circle (OCCT has no surface for it).
+    struct EllipticCone {
+        gp_Pnt origin;
+        gp_Dir axis;
+        gp_Dir major;
+        double radius;   // major radius at the origin
+        double ratio;    // minor / major
+        double tangent;  // growth of the radii per unit height, relative to the major radius at the origin
+        bool inverted;
+    };
+    bool ellipticCone(const Record& surface, EllipticCone& cone) const;
+    std::optional<std::pair<double, double>> coneHeightRange(const Record& face, qint32 faceId,
+                                                             const std::unordered_set<qint32>& omittedLoops,
+                                                             const EllipticCone& cone);
+    Handle(Geom_Surface) ellipticConeSurface(const EllipticCone& cone, double low, double high) const;
     void findCircularBands();
     TopoDS_Face joinWindingBoundaries(const TopoDS_Face& face, const Handle(Geom_Surface)& surface) const;
     TopoDS_Face joinToroidalBoundaries(const TopoDS_Face& face, const Geom_ToroidalSurface& torus,
@@ -1175,7 +1215,11 @@ private:
         }
         if (face.get<bool>(9) || face.link(4) < 0)
             fail("Inventor face uses unsupported unbounded or sheet geometry");
-        Surface support = buildSurface(get(face.link(7)));
+        const Record& supportRecord = get(face.link(7));
+        std::optional<std::pair<double, double>> coneHeights;
+        if (EllipticCone elliptic; ellipticCone(supportRecord, elliptic))
+            coneHeights = coneHeightRange(face, faceId, omittedLoops, elliptic);
+        Surface support = buildSurface(supportRecord, coneHeights ? &*coneHeights : nullptr);
         BRep_Builder builder;
         TopoDS_Face result;
         builder.MakeFace(result, support.geometry, Precision::Confusion());
@@ -1205,13 +1249,34 @@ private:
         }
         if (firstWire.IsNull())
             fail("Inventor face has no remaining boundary");
+        // On the inner (lemon) part of a spindle torus, where major + minor * cos v is negative, the surface normal of the
+        // parametrisation (dS/du x dS/dv) points the opposite way to the saved outward normal, so the saved face sense has
+        // to be read the other way round there. The part is told from a point of the boundary: it lies on the tube circle
+        // at a signed distance from the axis, and the sign that makes the tube equation hold is the sign of the distance.
+        bool lemon = false;
+        if (const auto spindle = Handle(Geom_ToroidalSurface)::DownCast(support.geometry);
+            !spindle.IsNull() && spindle->MinorRadius() > spindle->MajorRadius() && !edges.empty()) {
+            double first, last;
+            const Handle(Geom_Curve) curve = BRep_Tool::Curve(edges.begin()->second.shape, first, last);
+            if (!curve.IsNull()) {
+                const gp_Vec offset(spindle->Location(), curve->Value((first + last) / 2));
+                const gp_Vec axisVector(spindle->Axis().Direction());
+                const double axial = offset.Dot(axisVector);
+                const double radial = (offset - axisVector * axial).Magnitude();
+                const auto miss = [&](double signedRadial) {
+                    return std::abs(std::hypot(signedRadial - spindle->MajorRadius(), axial) - spindle->MinorRadius());
+                };
+                lemon = radial > Precision::Confusion() && miss(-radial) < miss(radial);
+            }
+        }
+        const bool senseFlipped = face.get<bool>(8) != (support.inverted != lemon);
         if (const auto found = _circularBands.find(faceId); found != _circularBands.end()) {
             const CircularBand& band = found->second;
             BRepBuilderAPI_MakeFace faceBuilder(band.surface, 0.0, TwoPi, band.firstV, band.lastV, CheckToleranceMm);
             if (!faceBuilder.IsDone())
                 fail("Could not add the seam of a closed Inventor circular band");
             result = faceBuilder.Face();
-            if (face.get<bool>(8) != support.inverted)
+            if (senseFlipped)
                 result.Reverse();
             return result;
         }
@@ -1256,7 +1321,7 @@ private:
         const Handle(Geom_Plane) plane = Handle(Geom_Plane)::DownCast(support.geometry);
         if (plane.IsNull()) {
             const bool toroidalJoin = !Handle(Geom_ToroidalSurface)::DownCast(support.geometry).IsNull() && loopCount == 3;
-            if (face.get<bool>(8) != support.inverted && !toroidalJoin) {
+            if (senseFlipped && !toroidalJoin) {
                 // The saved loops run counter-clockwise about the outward normal, which is opposite to the
                 // surface normal here. Orient the wires for the surface now instead of leaving the choice to
                 // ShapeFix_Face, which guesses wrongly for wires that span most of a periodic parameter.
@@ -1281,7 +1346,9 @@ private:
                 // Tolerant vertices carry their own saved tolerance, which the edge inherits.
                 const double planeTolerance = std::max(CheckToleranceMm, BRep_Tool::Tolerance(item.second.shape));
                 for (const double fraction : {0.0, 0.25, 0.5, 0.75, 1.0}) {
-                    if (!(plane->Pln().Distance(curve->Value(first + fraction * (last - first))) <= planeTolerance))
+                    // The comparison is made with the confusion margin: a tolerance taken from the residual of the edge's own end
+                    // vertex would otherwise fail by rounding.
+                    if (!(plane->Pln().Distance(curve->Value(first + fraction * (last - first))) <= planeTolerance + Precision::Confusion()))
                         fail("Inventor edge does not lie on its saved planar face");
                 }
             }
@@ -1348,7 +1415,7 @@ private:
         }
         const auto torus = Handle(Geom_ToroidalSurface)::DownCast(support.geometry);
         if (!torus.IsNull() && loopCount == 3) {
-            const auto joined = joinToroidalBoundaries(result, *torus, face.get<bool>(8) != support.inverted);
+            const auto joined = joinToroidalBoundaries(result, *torus, senseFlipped);
             if (!joined.IsNull())
                 result = joined;
         }
@@ -1371,7 +1438,7 @@ private:
         if (fixed.IsNull() || fixed.ShapeType() != TopAbs_FACE)
             fail("Could not construct a single trimmed Inventor face");
         result = TopoDS::Face(fixed);
-        if (face.get<bool>(8) != support.inverted)
+        if (senseFlipped)
             result.Reverse();
         return result;
     }
@@ -1489,7 +1556,11 @@ SolidBuilder::SplinePayload SolidBuilder::splinePayload(const Record& source, bo
         record = target.first;
         start = target.second;
     }
+    return splinePayloadAt(record, start, surface);
+}
 
+SolidBuilder::SplinePayload SolidBuilder::splinePayloadAt(const Record* record, std::size_t start, bool surface) const
+{
     unsigned depth = 0;
     std::size_t candidate = 0;
     for (std::size_t i = start; i < record->fields.size(); ++i) {
@@ -1512,7 +1583,11 @@ SolidBuilder::SplinePayload SolidBuilder::splinePayload(const Record& source, bo
 
 Handle(Geom_BSplineCurve) SolidBuilder::buildSplineCurve(const Record& record, double& tolerance) const
 {
-    const auto payload = splinePayload(record, false);
+    return splineCurveFrom(splinePayload(record, false), tolerance);
+}
+
+Handle(Geom_BSplineCurve) SolidBuilder::splineCurveFrom(const SplinePayload& payload, double& tolerance) const
+{
     SplineFields fields(payload.record, payload.fields);
     const int degree = fields.integer();
     const int form = fields.integer();
@@ -1531,7 +1606,7 @@ Handle(Geom_BSplineCurve) SolidBuilder::buildSplineCurve(const Record& record, d
         }
     }
     const double savedTolerance = length(fields.real());
-    if (savedTolerance < 0 || savedTolerance > MaxSplineToleranceMm)
+    if (savedTolerance < 0 || savedTolerance > MaxSavedToleranceMm)
         throw std::runtime_error("Unsupported Inventor intersection curve tolerance " + std::to_string(savedTolerance) + " mm");
     tolerance = std::max(CheckToleranceMm, savedTolerance);
     if (payload.rational)
@@ -2529,12 +2604,16 @@ void SolidBuilder::findCircularBands()
             const double axial = offset.Dot(gp_Vec(axis));
             const double circleRadius = vector(circle.get<Triple>(5)).Magnitude();
             double radial = circleRadius - radius;
+            bool lemonParallel = false;
             if (toroidal) {
-                // The parallel may lie on the far side of the axis of a spindle torus (negative distance).
+                // The parallel may lie on the far side of the axis of a spindle torus (negative distance), on its inner
+                // (lemon) part, where the parametrisation's normal is opposite to the saved one (see buildFace).
                 const double farRadial = -circleRadius - radius;
                 if (std::abs(std::hypot(farRadial, axial) - std::abs(tubeRadius)) <
-                    std::abs(std::hypot(radial, axial) - std::abs(tubeRadius)))
+                    std::abs(std::hypot(radial, axial) - std::abs(tubeRadius))) {
                     radial = farRadial;
+                    lemonParallel = true;
+                }
             }
             // On a cone the parallel radius grows linearly with the axial offset.
             const double radialError = toroidal ? std::abs(std::hypot(radial, axial) - std::abs(tubeRadius))
@@ -2548,7 +2627,7 @@ void SolidBuilder::findCircularBands()
             parameters[i] = toroidal ? std::atan2(axial, radial) : conical ? axial / std::cos(semiAngle) : axial;
             const bool reversed = axis.Dot(direction(circle.get<Triple>(4))) < 0;
             lowerBoundary[i] = !(reversed ^ edge.get<bool>(9) ^ coedge.get<bool>(7) ^
-                                 face.get<bool>(8) ^ (tubeRadius < 0));
+                                 face.get<bool>(8) ^ (tubeRadius < 0) ^ lemonParallel);
         }
         if (!usable || edgeIds[0] == edgeIds[1])
             continue;
@@ -2602,7 +2681,7 @@ TopoDS_Vertex SolidBuilder::vertex(qint32 id, std::unordered_map<qint32, TopoDS_
                 toleranceField = 8;
             if (vertexRecord.number(toleranceField) != -1.0) {
                 const double tolerance = length(vertexRecord.number(toleranceField));
-                if (tolerance < 0 || tolerance > MaxSplineToleranceMm)
+                if (tolerance < 0 || tolerance > MaxSavedToleranceMm)
                     throw std::runtime_error("Unsupported Inventor vertex tolerance " + std::to_string(tolerance) + " mm");
                 BRep_Builder().UpdateVertex(found->second, tolerance);
             }
@@ -2645,14 +2724,18 @@ TopoDS_Edge SolidBuilder::buildEdge(qint32 id, std::unordered_map<qint32, TopoDS
             geometry = new Geom_Ellipse(axes, major, minor);
     } else if (curve.type == "intcurve-curve" && tokenAt(*resolveBlock(curve).first, resolveBlock(curve).second + 1, SplineToken::HelixCurve)) {
         const auto [block, start] = resolveBlock(curve);
-        if (edge.get<bool>(9) != curve.get<bool>(3))
-            fail("Unsupported reversed Inventor helix edge");
-        if (first < block->number(start + 4) - Precision::PConfusion() ||
-            last > block->number(start + 6) + Precision::PConfusion())
+        // An edge that runs against the curve has its parameters in the reversed curve, as for a spline: the helix is
+        // evaluated at the negated parameter. The end-vertex check below confirms the sign on every such edge.
+        const bool reversedHelix = edge.get<bool>(9) != curve.get<bool>(3);
+        const double low = reversedHelix ? -last : first;
+        const double high = reversedHelix ? -first : last;
+        if (low < block->number(start + 4) - Precision::PConfusion() ||
+            high > block->number(start + 6) + Precision::PConfusion())
             fail("Inventor helix trim is outside the saved curve domain");
-        const Helix helix = readHelix(*block, start + 7);
-        geometry = interpolateCurve([&](double u) { return helix.at(u); },
-                                    [&](double u) { return helix.tangent(u); }, first, last);
+        const Helix helix = readHelix(*block, start + 7, true);
+        const double sign = reversedHelix ? -1.0 : 1.0;
+        geometry = interpolateCurve([&](double t) { return helix.at(sign * t); },
+                                    [&](double t) { return helix.tangent(sign * t) * sign; }, first, last);
         tolerance = std::max(tolerance, 1e-4);
     } else if (curve.type == "intcurve-curve") {
         const auto spline = buildSplineCurve(curve, tolerance);
@@ -2678,7 +2761,7 @@ TopoDS_Edge SolidBuilder::buildEdge(qint32 id, std::unordered_map<qint32, TopoDS
 
     if (edge.type == "tedge-edge") {
         const double savedTolerance = length(edge.number(11));
-        if (savedTolerance < 0 || savedTolerance > MaxSplineToleranceMm)
+        if (savedTolerance < 0 || savedTolerance > MaxSavedToleranceMm)
             throw std::runtime_error("Unsupported Inventor edge tolerance " + std::to_string(savedTolerance) + " mm");
         tolerance = std::max(tolerance, savedTolerance);
     }
@@ -2693,10 +2776,27 @@ TopoDS_Edge SolidBuilder::buildEdge(qint32 id, std::unordered_map<qint32, TopoDS
         trimmed->Segment(first, last);
         geometry = trimmed;
     }
-    if (!(first < last) || (geometry->IsPeriodic() && last - first > geometry->Period() + Precision::PConfusion()) ||
-        !(geometry->Value(first).Distance(startPoint) <= std::max(tolerance, BRep_Tool::Tolerance(start))) ||
-        !(geometry->Value(last).Distance(endPoint) <= std::max(tolerance, BRep_Tool::Tolerance(finish))))
+    if (!(first < last) || (geometry->IsPeriodic() && last - first > geometry->Period() + Precision::PConfusion()))
         throw std::runtime_error("Inventor edge " + std::to_string(id) + " endpoints disagree with the saved trim parameters");
+    {
+        // The end vertices must lie on the curve within the tolerance the file gives. A saved intersection curve is a fitted
+        // spline, and its ends can miss the vertices by more than its own fit tolerance (about 0.01 mm against 0.004 mm on
+        // the oversized part), so for those the residual is accepted up to the safety cap and carried into the edge and its
+        // vertices below. Residuals of a millimetre or more still fail: that is a wrong curve, not a loose fit.
+        // A helix curve is evaluated from its exact model, not fitted, so it keeps the strict check.
+        const bool fittedSpline = curve.type == "intcurve-curve" &&
+                                  !tokenAt(*resolveBlock(curve).first, resolveBlock(curve).second + 1, SplineToken::HelixCurve);
+        const double startResidual = geometry->Value(first).Distance(startPoint);
+        const double endResidual = geometry->Value(last).Distance(endPoint);
+        const auto allowed = [&](const TopoDS_Vertex& vertex) {
+            const double saved = std::max(tolerance, BRep_Tool::Tolerance(vertex));
+            return fittedSpline ? std::max(saved, MaxSplineToleranceMm) : saved;
+        };
+        if (!(startResidual <= allowed(start)) || !(endResidual <= allowed(finish)))
+            throw std::runtime_error("Inventor edge " + std::to_string(id) + " endpoints disagree with the saved trim parameters");
+        if (fittedSpline)
+            tolerance = std::max({tolerance, startResidual + Precision::Confusion(), endResidual + Precision::Confusion()});
+    }
 
     if (const auto seam = _circleSeams.find(id); seam != _circleSeams.end()) {
         const Handle(Geom_Circle) circle = Handle(Geom_Circle)::DownCast(geometry);
@@ -2735,8 +2835,104 @@ TopoDS_Edge SolidBuilder::buildEdge(qint32 id, std::unordered_map<qint32, TopoDS
     return result;
 }
 
-SolidBuilder::Surface SolidBuilder::buildSurface(const Record& surface) const
+bool SolidBuilder::ellipticCone(const Record& surface, EllipticCone& cone) const
 {
+    if (surface.type != "cone-surface")
+        return false;
+    const double ratio = surface.number(6);
+    const double sine = surface.number(9);
+    const double cosine = surface.number(10);
+    const gp_Vec radial = vector(surface.get<Triple>(5));
+    const double radius = radial.Magnitude();
+    if (!std::isfinite(radius) || !std::isfinite(ratio) || radius <= Precision::Confusion() || std::abs(cosine) < 1e-12 ||
+        ratio < 1e-3 || ratio > 1.0)
+        return false;
+    if (std::abs(ratio - 1) <= 1e-9 || radius * std::abs(1.0 - ratio) <= MaxCircularApproximationMm)
+        return false; // circular for our purposes
+    cone = {point(surface.get<Triple>(3)), direction(surface.get<Triple>(4)), gp_Dir(radial), radius, ratio, sine / cosine, cosine < 0};
+    return true;
+}
+
+// The heights along the cone axis that the face's boundary reaches, with a margin. The face's edges are built once here and
+// again by the face itself, so the edge-use counts of the shell are put back.
+std::optional<std::pair<double, double>> SolidBuilder::coneHeightRange(const Record& face, qint32 faceId,
+                                                                       const std::unordered_set<qint32>& omittedLoops,
+                                                                       const EllipticCone& cone)
+{
+    const auto savedUses = _edgeUses;
+    std::unordered_map<qint32, FaceEdge> edges;
+    std::unordered_map<qint32, TopoDS_Vertex> vertices;
+    std::unordered_set<qint32> visited;
+    try {
+        for (qint32 loopId = face.link(4); loopId != -1;) {
+            if (!visited.insert(loopId).second)
+                fail("Cyclic Inventor loop list");
+            const Record& loop = get(loopId, "loop");
+            if (loop.link(5) != faceId)
+                fail("Inventor loop belongs to a different face");
+            if (omittedLoops.count(loopId) == 0)
+                buildWire(loop, loopId, edges, vertices);
+            loopId = loop.link(3);
+        }
+    } catch (...) {
+        _edgeUses = savedUses;
+        throw;
+    }
+    _edgeUses = savedUses;
+    double low = std::numeric_limits<double>::max();
+    double high = std::numeric_limits<double>::lowest();
+    for (const auto& item : edges) {
+        double first, last;
+        const Handle(Geom_Curve) curve = BRep_Tool::Curve(item.second.shape, first, last);
+        if (curve.IsNull())
+            continue;
+        for (int i = 0; i <= 32; ++i) {
+            const double height = gp_Vec(cone.origin, curve->Value(first + (last - first) * i / 32.0)).Dot(gp_Vec(cone.axis));
+            low = std::min(low, height);
+            high = std::max(high, height);
+        }
+    }
+    if (!(low < high))
+        return std::nullopt;
+    const double margin = 0.05 * (high - low) + 0.2;
+    low -= margin;
+    high += margin;
+    // The section scale 1 + h * tangent / radius must stay positive: a face that reaches the apex is not supported.
+    const double scaleLow = 1.0 + low * cone.tangent / cone.radius;
+    const double scaleHigh = 1.0 + high * cone.tangent / cone.radius;
+    if (!(scaleLow > 0.02) || !(scaleHigh > 0.02))
+        return std::nullopt;
+    return std::make_pair(low, high);
+}
+
+// An elliptic cone as a ruled surface between its elliptical sections at two heights: exact, since the sections are similar and
+// the generators are straight. u runs round the ellipse from the major axis, v from the low section to the high one.
+Handle(Geom_Surface) SolidBuilder::ellipticConeSurface(const EllipticCone& cone, double low, double high) const
+{
+    const auto section = [&](double height) {
+        const double scale = 1.0 + height * cone.tangent / cone.radius;
+        const gp_Ax2 axes(cone.origin.Translated(gp_Vec(cone.axis) * height), cone.axis, cone.major);
+        return GeomConvert::CurveToBSplineCurve(new Geom_Ellipse(axes, cone.radius * scale, cone.radius * cone.ratio * scale));
+    };
+    Handle(Geom_Surface) ruled = GeomFill::Surface(section(low), section(high));
+    if (const Handle(Geom_BSplineSurface) spline = Handle(Geom_BSplineSurface)::DownCast(ruled);
+        !spline.IsNull() && spline->IsUClosed()) {
+        try {
+            spline->SetUPeriodic();
+        } catch (const Standard_Failure&) {
+            // Left as a closed, non-periodic surface.
+        }
+    }
+    return ruled;
+}
+
+SolidBuilder::Surface SolidBuilder::buildSurface(const Record& surface, const std::pair<double, double>* coneHeights) const
+{
+    if (EllipticCone elliptic; ellipticCone(surface, elliptic)) {
+        if (!coneHeights)
+            fail("Unsupported Inventor conical surface profile");
+        return {ellipticConeSurface(elliptic, coneHeights->first, coneHeights->second), elliptic.inverted};
+    }
     if (surface.type == "spline-surface") {
         const auto [block, start] = resolveBlock(surface);
         if (tokenAt(*block, start + 1, SplineToken::HelixSurface))
@@ -2755,14 +2951,21 @@ SolidBuilder::Surface SolidBuilder::buildSurface(const Record& surface) const
         const double cosine = surface.number(10);
         const gp_Vec radial = vector(surface.get<Triple>(5));
         const double radius = radial.Magnitude();
-        if (std::abs(ratio - 1) > 1e-9 || !std::isfinite(radius) ||
-            radius <= Precision::Confusion() || std::abs(cosine) < 1e-12)
+        if (!std::isfinite(radius) || !std::isfinite(ratio) || radius <= Precision::Confusion() || std::abs(cosine) < 1e-12)
             fail("Unsupported Inventor conical surface profile");
+        // The saved cone has a minor/major radius ratio. A ratio below 1 is an elliptical cone or cylinder, which OCCT has no
+        // surface for. Many saved cones are circular up to rounding (ratio 0.9999, 0.9985): a circle of the mean radius is within
+        // half the axis difference of the ellipse, accepted up to MaxCircularApproximationMm. Real ellipses are built by
+        // ellipticConeSurface when the face supplies its height range; here they are refused.
+        const double axisDifference = radius * std::abs(1.0 - ratio);
+        if (axisDifference > MaxCircularApproximationMm && std::abs(ratio - 1) > 1e-9)
+            fail("Unsupported Inventor conical surface profile");
+        const double meanRadius = radius * (1.0 + std::min(ratio, 1.0)) / 2.0;
         const gp_Pnt origin = point(surface.get<Triple>(3));
         const gp_Ax3 axes(origin, direction(surface.get<Triple>(4)), gp_Dir(radial));
         if (std::abs(sine) < 1e-12)
-            return {new Geom_CylindricalSurface(axes, radius), cosine < 0};
-        return {new Geom_ConicalSurface(axes, std::atan(sine / cosine), radius), cosine < 0};
+            return {new Geom_CylindricalSurface(axes, meanRadius), cosine < 0};
+        return {new Geom_ConicalSurface(axes, std::atan(sine / cosine), meanRadius), cosine < 0};
     }
     if (surface.type == "sphere-surface") {
         const gp_Pnt origin = point(surface.get<Triple>(3));
