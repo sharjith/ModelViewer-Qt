@@ -2,7 +2,7 @@
 
 20 November 2026 · `feature/inventor3d`
 
-Status: observation only. No production IAM code exists yet. The only IAM reader is the ignored experimental A01 prototype under `out/inventor-research/iam-wip/` (source and executable stay local). Production IAM integration was paused while the IPT foundation was qualified; that foundation now reads 73 of 84 corpus parts ([IPT working specification](INVENTOR_FOUNDATION.md)).
+Status (21 November 2026): a production reader for the direct occurrences of an assembly exists (`src/Import/Inventor/Assembly.cpp`), qualified headless against Inventor-exported STEP assemblies (see "Production assembly reader" below); its viewer integration is built but not yet run by the owner. Until then the baseline below is the ignored experimental A01 prototype under `out/inventor-research/iam-wip/` (source and executable stay local), which read 2 of the 33 local assemblies. The IPT foundation reads 73 of 84 corpus parts ([IPT working specification](INVENTOR_FOUNDATION.md)).
 
 ## Prototype baseline on the local corpus
 
@@ -156,4 +156,50 @@ Sample 7821. The 9-face body (4.4 m across, the pinched doughnut) is in the view
 - **Record types.** The B-rep has 29 record types. The only invalid-geometry marker, `illegal_geometry-sys-attrib` (one record), is attached to a face of the 1 345-face engine shell, which Autodesk's viewer does show, so it does not explain the torus. `name_attrib-gen-attrib` (24) and `vertedge-sys-attrib` (12) sit on edges and vertices.
 - **Not tried.** Whether the display tessellation in the graphics segment has triangles for these faces (the face nodes only hold references); whether Autodesk's translator drops a body it cannot tessellate. No second sample shows the behaviour.
 
+**Inventor's own STEP export omits this body (owner observation, then measured).** The owner noted that the part's STEP export (AP214, Inventor 2026) does not show the torus. Checked: its toroidal surfaces contain none with the torus' radii (900.44 and 1301.14 mm), while two other tori of the part are present (the units are right). All 1 082 shells of the export were read with OCCT and matched by bounding box to the 1 080 bodies the reader finds: 1 074 match; five of the six that do not (two 28-face sheets, a 458-face, a 21-face and a 206-face body) have a STEP shell with the same face count and dimensions within a few millimetres (bounding-box differences on sheet and spline bodies); the sixth, this torus, has no counterpart. So Inventor's exporter leaves out exactly this one body of 1 080, which means the application has a reason (a self-intersecting torus is not a valid solid; the saved file shows no flag for it), but one case does not give a rule: whether self-intersection is that reason would need other samples, and the reader's validity check does not detect it (the body passes OCCT's check). Not tried: an OCCT self-interference check on all bodies, which would test the hypothesis on this part only.
+
 **Decision (owner, 21 November 2026): no rule.** A hide or warn rule keyed on a spindle torus would be built from one example and would misfire: the same sample has small spindle tori (for instance major 1.05, minor 1.90) in ordinary bodies. The body stays visible; hiding it by hand is the workaround. Revisit only if more samples show a body that Autodesk's viewer omits and a common property can be tested.
+
+## Production assembly reader, 21 November 2026
+
+Observations and results are headless (standalone probe) unless a line says the owner ran it. Local assemblies are named S1 to S3 here; their file names stay local.
+
+**What an assembly saves.** Three typed segments, with the same table layout as a part's graphics (decoded by the shared segment code), and one stream:
+- `AmRxSegment`: the occurrence tree (one placement node per occurrence) and the table that binds occurrence numbers to the referenced files;
+- `AmDcSegment`: the components: occurrence number, browser name, suppression flag;
+- `DesignViewSegment`: the occurrences hidden in the saved design view;
+- stream `UFRxDoc`: the saved pathname of the assembly, then of every referenced file.
+A placement is a sparsely stored 4x4 matrix in centimetres (rigid rotation, translation), relative to the assembly that holds the occurrence; a sub-assembly is an occurrence whose file is an `.iam`, read by the same call, so nesting is recursion and composition of placements.
+
+**Two layout facts found on the corpus.**
+- The browser-name record ends with the name (UTF-16, preceded by its character count) and a 16-byte trailer, but the header before it is one 32-bit word shorter in an Inventor 2021 file (count at offset 38) than in a 2025 file (offset 42). The reader finds the name from the end of the record: the one offset where a plausible count and its characters fill the record up to the trailer. The earlier prototype used the fixed offset and failed on the older file ("unsupported layout").
+- Component references are absolute paths on the machine that saved the assembly (`C:\Users\<name>\Desktop\<Project>\<Sub>\<file>`). They are resolved in turn: as given; relative to the folder the assembly was saved in, applied to the folder it is in now; then the last 3, 2 and 1 components under the assembly's folder and up to two folders above. A file that is not found (a Content Center part that was not shipped, a renamed file) is reported with its name; it is not an error of the assembly.
+
+**Evidence for nested placement (MOD-14), found in the corpus.** Two local assemblies sit next to an Inventor-exported STEP of the same assembly (AP214, one occurrence record and one placement transform per occurrence). S1: 39 occurrences, nested 2 deep, 4 sub-assemblies, 9 products used more than once, 30 of 39 world placements rotated. S2: 25 occurrences, nested 3 deep, 2 sub-assemblies, 20 of 25 rotated; only its `.iam` is shipped (no part files). `tools/inventor/step_assembly_reference.cpp` reads a STEP assembly through OCCT's XCAF and prints each occurrence's name path, local and composed transform. Method: `inventor_compound_probe --assembly <file.iam>` prints the same for the `.iam` (recursing into sub-assemblies that resolve); the two are matched by name path.
+
+Result: S1 39 of 39 occurrences match, S2 23 of 23 direct occurrences match (the 2 STEP occurrences left are the children inside S2's sub-assembly file, which is not shipped); the largest difference between a composed placement read from the `.iam` and the STEP is 6e-15 in rotation and 5e-14 mm in translation. Composition of nested transforms is qualified on these samples. Not covered: nesting deeper than 2 with real geometry, patterns, flexible or adaptive placements, occurrence appearance overrides.
+
+Regenerate (output under `out/`; `<s1.iam>` and `<s1.stp>` are the local files, copy a file with non-ASCII characters in its name to an ASCII name for the STEP tool):
+```
+step_assembly_reference <s1.stp> > out/inventor-research/foundation/step_ref_s1.json
+inventor_compound_probe --assembly <s1.iam> > out/inventor-research/foundation/iam_s1.json
+python out/inventor-research/compare_iam_step.py out/inventor-research/foundation/iam_s1.json out/inventor-research/foundation/step_ref_s1.json
+```
+
+**Loader design (unbuilt in the viewer).** `Inventor::buildAssemblyScene` walks the occurrences; each distinct part file is read once (`readPartBodies`) and tessellated once; an occurrence is the part's shape moved by the composed placement (`shape.Moved(location)`, not copied), so occurrences share the faces and their triangulation and the saved face colours (a table keyed by face) still match. The converter makes one mesh per placed body; the nodes are then regrouped under the occurrence tree by an instance tag in the names, as the Parasolid importer does. A component that cannot be found, a part that cannot be read, an assembly file that cannot be read and a body that cannot be built become error items (the mechanism of the graceful-failure design above); Strict fails the import on the first. Suppressed occurrences and the ones hidden in the saved design view are not loaded (the viewer has no way for an importer to mark a node initially hidden) and are counted in the import warnings.
+
+Known gaps of the first slice: the 8 assemblies that failed with "inconsistent component name or number" and the template and weldment assemblies (MOD-11, MOD-12) were not re-examined after the layout fixes above; patterns, flexible placement, representations.
+
+### Assembly reader: binding of files, unnamed components, corpus after the fixes, 21 November 2026
+
+Found by the owner's first viewer test (a faucet assembly) and by re-measuring the whole corpus; headless unless a line says the owner ran it.
+
+**Rows are bound to files by name, not by position.** A row of the component table in `AmRxSegment` lists the occurrence numbers of one referenced file and carries the file's name (UTF-16, after the row's reference list). The saved pathnames in `UFRxDoc` are in an order of their own. The first reader paired row i with pathname i, which is only right when the two orders agree: in the faucet assembly the last three rows (`Karet Penutup`, `O ring`, `Tangkai`) and pathnames (`Tangkai`, `Karet Penutup`, `O ring`) differed, so three occurrences were bound to the wrong files. A row now takes the first unused pathname whose file name equals the row's name (ignoring case); only a row that no name decides takes the pathnames left, in order. The qualification against Inventor's STEP exports had matched name paths and placements but not the file bound to each occurrence, so it could not see this; the binding is now also checked against the occurrence names (a nested assembly: 29 of 39 occurrences name-equal to their file, the 10 others are Content Center parts whose display names differ from their file names, same part family; a gear box: 23 of 23). The two bound assemblies were unchanged by the fix.
+
+**Components saved without a name.** In eight local assemblies (a pump, motor, frame and valve group) the browser-name record has a zero character count and only the trailer after the header. Inventor names such an occurrence from its file and an instance number ("Fot A2_112M2.STEP:1"); the reader does the same, counting per file in the order of the saved occurrence numbers. This convention is not checked against a reference for those assemblies (none has a paired STEP).
+
+**Files renamed after saving.** The faucet's shipped parts carry number prefixes ("3. Base.ipt") that the saved references do not have, so no lookup finds them; the reader reports the missing file and does not guess. A test copy with the original names (kept under `out/`) reads all 9 occurrences.
+
+**Corpus after the fixes** (33 local assemblies, `inventor_compound_probe --assembly`; the prototype read 2): 14 read at the top level (2 fully, 12 with some component files not found: standard-library parts that are not shipped, or parts not included in the sample); 3 stop on a further table detail ("occurrence root and file references could not be associated", one of them in a sub-assembly of 72 occurrences); 16 are template and weldment files whose component table is not of the kind this reader knows ("occurrence list incomplete" 8, "inconsistent occurrence reference" 8; MOD-12). Regenerate with `out/inventor-research/run_iam_corpus.ps1` (local script, output under `out/`).
+
+**Owner results so far (21 November 2026).** The nested assembly opens with its structure, 17 error items for the standard hardware and the parts in the places of the STEP; its mesh count (19) equals the STEP's (36) minus the 17 unresolved parts. Strict mode fails the whole import naming the first missing component (nested assembly and gear box, both seen). The faucet in its own folder fails with the first missing file (correct, see above).
