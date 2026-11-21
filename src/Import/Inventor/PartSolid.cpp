@@ -42,10 +42,7 @@
 #include <ShapeFix_Wire.hxx>
 #include <ShapeBuild_ReShape.hxx>
 #include <NCollection_Array1.hxx>
-#include <TColStd_HArray1OfBoolean.hxx>
-#include <TColStd_HArray1OfReal.hxx>
-#include <TColgp_Array1OfVec.hxx>
-#include <TColgp_HArray1OfPnt.hxx>
+#include <NCollection_HArray1.hxx>
 #include <NCollection_Array2.hxx>
 #include <TopExp.hxx>
 #include <BRepBndLib.hxx>
@@ -1596,10 +1593,11 @@ Handle(Geom_BSplineCurve) SolidBuilder::interpolateCurve(const std::function<gp_
     if (!(span > 0) || span > 2000.0)
         fail("Unsupported Inventor helix parameter range");
     const int count = std::max(8, static_cast<int>(std::ceil(span / TwoPi * 48.0)) + 1);
-    Handle(TColgp_HArray1OfPnt) points = new TColgp_HArray1OfPnt(1, count);
-    Handle(TColStd_HArray1OfReal) parameters = new TColStd_HArray1OfReal(1, count);
-    TColgp_Array1OfVec tangents(1, count);
-    Handle(TColStd_HArray1OfBoolean) flags = new TColStd_HArray1OfBoolean(1, count);
+    // The NCollection templates directly: OCCT 8 deprecates the TColStd/TColgp typedef headers (same types on 7.x).
+    Handle(NCollection_HArray1<gp_Pnt>) points = new NCollection_HArray1<gp_Pnt>(1, count);
+    Handle(NCollection_HArray1<double>) parameters = new NCollection_HArray1<double>(1, count);
+    NCollection_Array1<gp_Vec> tangents(1, count);
+    Handle(NCollection_HArray1<bool>) flags = new NCollection_HArray1<bool>(1, count);
     for (int i = 1; i <= count; ++i) {
         const double u = i == count ? last : first + span * (i - 1) / (count - 1);
         points->SetValue(i, position(u));
@@ -1860,8 +1858,8 @@ TopoDS_Face SolidBuilder::joinWindingBoundaries(const TopoDS_Face& face, const H
         return {};
     const gp_Dir2d seamDirection(gp_Vec2d(lowerStart, upperStart));
     const int samples = std::max(8, static_cast<int>(std::ceil(seamLength * 8.0)) + 1);
-    Handle(TColgp_HArray1OfPnt) seamPoints = new TColgp_HArray1OfPnt(1, samples);
-    Handle(TColStd_HArray1OfReal) seamParameters = new TColStd_HArray1OfReal(1, samples);
+    Handle(NCollection_HArray1<gp_Pnt>) seamPoints = new NCollection_HArray1<gp_Pnt>(1, samples);
+    Handle(NCollection_HArray1<double>) seamParameters = new NCollection_HArray1<double>(1, samples);
     for (int i = 1; i <= samples; ++i) {
         const double s = seamLength * (i - 1) / (samples - 1);
         seamPoints->SetValue(i, surface->Value(lowerStart.X() + seamDirection.X() * s,
