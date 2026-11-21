@@ -241,6 +241,11 @@ QString browserName(QByteArrayView record)
         const auto count = qFromLittleEndian<quint32>(record.constData() + offset);
         if (count == 0 || count > 1024 || offset + 4 + 2 * static_cast<qsizetype>(count) + trailer != record.size())
             continue;
+        // Other header words can look like a count that also fills the record exactly; the text must be printable.
+        QString text(static_cast<qsizetype>(count), Qt::Uninitialized);
+        std::memcpy(text.data(), record.constData() + offset + 4, static_cast<std::size_t>(count) * 2);
+        if (!std::all_of(text.begin(), text.end(), [](QChar c) { return c.isPrint() && !c.isSurrogate(); }))
+            continue;
         if (found)
             unsupportedAssembly("ambiguous component name record");
         found = offset;
