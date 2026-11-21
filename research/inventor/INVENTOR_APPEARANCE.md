@@ -65,8 +65,30 @@ if ($LASTEXITCODE -ne 0) { throw 'Could not prepare damaged graphics metadata' }
 & $probe --part-appearance $env:INV_COLOR_OUTPUT > out/inventor-research/G01-malformed-appearance.json
 if ($LASTEXITCODE -ne 0) { throw 'Geometry load failed when graphics metadata was unreadable' }
 $fallback = Get-Content -Raw out/inventor-research/G01-malformed-appearance.json | ConvertFrom-Json
-if ($fallback.body_rgb -or $fallback.face_overrides.Count -ne 0) { throw 'Unexpected fallback colors' }
+if ($fallback.face_overrides.Count -ne 0 -or ($fallback.body_rgb -and -not $fallback.style_rgb)) { throw 'Unexpected fallback colors' }
+# Since the colour-style fallback (below) a part whose graphics are unreadable takes its colour style's colour, if it has one.
 ```
+
+## Parts whose graphics save no colour: the part's colour style (21 November 2026)
+
+**Observation.** In an assembly exported by Inventor to AP214 STEP (paired reference, used only for comparison), every solid carries one colour, 6 distinct values in all. The 9 part files of that assembly that were shipped (P1 to P9 here) save no colour in their graphics segment, so the reader showed them in the default grey, while Inventor shows, and its STEP carries, 0.184 (five of the nine), 0.02 (two), 0.0 (one) and 0.749 (one).
+
+**Where the colour is saved.** Two places together; both are plain data, no decoder is involved:
+1. The part's model-information property stream (a top-level stream of the compound file, text stored as UTF-16) holds `<PartActiveColorStyle><Category>..</Category><StyleName>..</StyleName><Protein><MaterialId>ID</MaterialId>..`. `ID` is the id of an appearance asset ("ACADGen-144", "Plastic-002", "MetalPaint-003", "InvGen-071", ...). A part that was never given an appearance names the library default (`InvGen-071`, style name "Default" in the document's language).
+2. The application segment (`PmAppSegment`) lists the appearance assets the document uses. A record is the id (32-bit character count, UTF-16), the 36-character GUID of the asset schema (count, UTF-16), 20 bytes of header, and the colour as four 32-bit floats `r, g, b, 1.0` (offset 20 in all 9 parts; the reader scans the next 60 bytes for the first such quadruple). The segment also keeps the other assets of the document (the default `InvGen-071` at 0.75, material assets), so the colour is looked up by the id, never taken as "the" colour of the file. The record's other fields (texture file names, bump maps, the asset schema) are not read.
+
+**Result.** For P1 to P9 the colour found equals the STEP colour of the same part: five parts 0.184 (one paint appearance), two parts 0.02 (a plastic), one part 0.0 (a gloss paint) and one part 0.75 (the library default, the part has no appearance of its own; the STEP has 0.749, the same 8-bit value 191). Two of the nine parts save more than one appearance asset (one a second grey and a red paint besides its black, the other a plastic besides its gloss paint); the asset the part's style names is the one Inventor shows, so the colour is looked up by that id. (In these two parts the asset listed first in the segment is also the right one; that is not relied on, and a document whose style names a later asset is not in the local samples.) Run over all 90 local part files: 76 have a colour style, and for 70 of them the colour equals what the reader gets with the fallback (graphics colour absent or equal); in 6 the graphics body colour differs from the default-appearance style (colour of the graphics body wins, as before and as the owner approved for the wheel); 14 older files have no colour style and no colour. Unknown: appearance overrides on an occurrence or a face in an assembly, textures, transparency.
+
+**Order of use in the reader.** A face colour from the graphics, then the graphics body colour, then the part's colour style. Parts with a colour in their graphics are unchanged by this.
+
+**Regenerate** (output under `out/`; the probe's `--dump-segments <dir>` writes every stream and each segment's unpacked data for string searches; `--part-appearance` now also prints `style_name`, `style_material_id` and `style_rgb`):
+```powershell
+$probe = 'out/inventor-research/compound-build/inventor_compound_probe.exe'
+& $probe --part-appearance '<local-part>.ipt' > out/inventor-research/part-appearance.json
+& $probe --dump-segments out/inventor-research/segments/<part> '<local-part>.ipt'
+```
+
+Not done: the same lookup for the Content-Center parts that are not shipped (their STEP colour 0.745 and an orange 0.78/0.56/0.11 stay unverified).
 
 ## Provenance
 

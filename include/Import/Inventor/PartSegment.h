@@ -24,6 +24,17 @@ struct SavedAppearance {
 
 std::optional<SavedAppearance> readPartAppearance(CompoundFile& file);
 
+// The colour of the appearance the part itself has applied (its "active colour style"), for a part whose graphics save no
+// colour. The style is saved as text in the part's model-information property stream, and names an appearance asset
+// ("MaterialId") whose colour is saved in the application segment. Empty when either is not there. The name of the style is
+// returned too, for diagnostics.
+struct PartStyleColor {
+    DiffuseColor color;
+    QString materialId;
+    QString styleName;
+};
+std::optional<PartStyleColor> readPartStyleColor(CompoundFile& file);
+
 // The colours of a part with several bodies. The single-body appearance above gives up on those, because their graphics hang
 // from several shells. Here every graphics face is read, keyed by its persistent face key (the key the B-rep stores on each
 // face), and a face is listed only when the file gives it one unambiguous colour. Faces not listed take defaultColor.

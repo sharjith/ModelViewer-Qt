@@ -2796,6 +2796,12 @@ std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function
     if (colorTable)
         builder.useColorTable(&*colorTable);
     auto outcomes = builder.build(saved ? &*saved : nullptr, appearance);
+    // A part whose graphics save no colour has the appearance its own colour style names (Inventor shows that colour, and its
+    // STEP export carries it): the part's default, below any colour a face or the graphics body gives.
+    if (appearance && !appearance->body) {
+        if (const auto style = readPartStyleColor(container))
+            appearance->body = Quantity_Color(style->color[0], style->color[1], style->color[2], Quantity_TOC_RGB);
+    }
 
     // A part with several bodies: name them as the model browser does. A saved body is matched to its browser body by its
     // face count, which must equal a graphics shell of exactly one browser body; anything less certain keeps the numbered

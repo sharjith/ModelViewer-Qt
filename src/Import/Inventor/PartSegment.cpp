@@ -244,6 +244,85 @@ std::optional<SavedAppearance> readPartAppearance(CompoundFile& file)
     }
 }
 
+std::optional<PartStyleColor> readPartStyleColor(CompoundFile& file)
+{
+    try {
+        // <PartActiveColorStyle>...<StyleName>name</StyleName>...<MaterialId>id</MaterialId>...: the text is stored as 8-bit
+        // characters in the files seen, and the UTF-16 form is accepted as well.
+        const auto element = [](const QByteArray& bytes, const char* tag, bool wide, qsizetype from) -> QString {
+            const auto encode = [&](const QByteArray& ascii) {
+                if (!wide)
+                    return ascii;
+                QByteArray out;
+                for (const char c : ascii) {
+                    out.append(c);
+                    out.append('\0');
+                }
+                return out;
+            };
+            const QByteArray open = encode(QByteArray("<") + tag + ">");
+            const QByteArray close = encode(QByteArray("</") + tag + ">");
+            const auto start = bytes.indexOf(open, from);
+            if (start < 0)
+                return {};
+            const auto end = bytes.indexOf(close, start + open.size());
+            if (end < 0 || end - start > 400)
+                return {};
+            const auto text = bytes.mid(start + open.size(), end - start - open.size());
+            return wide ? QString::fromUtf16(reinterpret_cast<const char16_t*>(text.constData()), text.size() / 2)
+                        : QString::fromLocal8Bit(text);
+        };
+        QString materialId;
+        QString styleName;
+        const auto& streams = file.streams();
+        for (std::size_t index = 0; index < streams.size() && materialId.isEmpty(); ++index) {
+            if (streams[index].path.size() != 1 || streams[index].size > 1024 * 1024)
+                continue;
+            const QByteArray bytes = file.readStream(index, 1024 * 1024);
+            for (const bool wide : {false, true}) {
+                const QByteArray marker = wide ? QByteArray("<\0P\0a\0r\0t\0A\0c\0t\0i\0v\0e\0C\0o\0l\0o\0r\0S\0t\0y\0l\0e\0>\0", 44)
+                                               : QByteArray("<PartActiveColorStyle>");
+                const auto at = bytes.indexOf(marker);
+                if (at < 0)
+                    continue;
+                materialId = element(bytes, "MaterialId", wide, at);
+                styleName = element(bytes, "StyleName", wide, at);
+                break;
+            }
+        }
+        if (materialId.isEmpty() || materialId.size() > 128)
+            return std::nullopt;
+
+        // The application segment lists the appearance assets the document uses: the id (count, UTF-16), the 36-character
+        // GUID of the asset schema (count, UTF-16), 20 bytes of header, then the colour as four 32-bit floats (r, g, b, 1).
+        static const QByteArray label("\x0c\0\0\0P\0m\0" "A\0p\0p\0S\0e\0g\0m\0e\0n\0t\0", 28);
+        const auto index = findSegmentMetadata(file, label);
+        if (!index)
+            return std::nullopt;
+        const auto data = readPartner(file, *index, GraphicsDataLimit);
+        QByteArray key(4, '\0');
+        qToLittleEndian<quint32>(static_cast<quint32>(materialId.size()), key.data());
+        key.append(reinterpret_cast<const char*>(materialId.utf16()), materialId.size() * 2);
+        QByteArray guidSize(4, '\0');
+        qToLittleEndian<quint32>(36u, guidSize.data());
+        key.append(guidSize);
+        const auto at = data.indexOf(key);
+        if (at < 0)
+            return std::nullopt;
+        const qsizetype start = at + key.size() + 72;
+        for (qsizetype offset = 0; offset < 60 && start + offset + 16 <= data.size(); ++offset) {
+            std::array<float, 4> value{};
+            std::memcpy(value.data(), data.constData() + start + offset, sizeof(value));
+            const auto unit = [](float v) { return std::isfinite(v) && v >= 0.0f && v <= 1.0f; };
+            if (unit(value[0]) && unit(value[1]) && unit(value[2]) && value[3] == 1.0f)
+                return PartStyleColor{{value[0], value[1], value[2]}, materialId, styleName};
+        }
+        return std::nullopt;
+    } catch (const std::runtime_error&) {
+        return std::nullopt;
+    }
+}
+
 std::optional<PartColorTable> readPartColorTable(CompoundFile& file)
 {
     try {

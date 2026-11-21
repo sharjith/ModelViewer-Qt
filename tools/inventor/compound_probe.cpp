@@ -3,6 +3,7 @@
 #include "Inventor/CompoundFile.h"
 #include "Inventor/PartSegment.h"
 #include "Inventor/PartSolid.h"
+#include "../../src/Import/Inventor/SegmentData.h"
 
 #include <Bnd_Box.hxx>
 #include <BRepGProp_Face.hxx>
@@ -31,6 +32,9 @@
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QCryptographicHash>
+#include <QDir>
+#include <QFile>
+#include <QRegularExpression>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QFileInfo>
@@ -151,6 +155,10 @@ int main(int argc, char* argv[])
         QStringLiteral("Tessellate body <n> (1-based) and check the vertex normals the converter would produce"),
         QStringLiteral("n"));
     parser.addOption(partNormals);
+    const QCommandLineOption dumpSegments(QStringLiteral("dump-segments"),
+        QStringLiteral("Write every stream of the file, and the unpacked data of every segment, into <dir> (for string searches)"),
+        QStringLiteral("dir"));
+    parser.addOption(dumpSegments);
     parser.addOption(hashStreams);
     parser.addOption(partBrep);
     parser.addOption(partSolid);
@@ -163,6 +171,31 @@ int main(int argc, char* argv[])
         parser.showHelp(1);
 
     try {
+        if (parser.isSet(dumpSegments)) {
+            Inventor::CompoundFile file(arguments.front());
+            const QDir directory(parser.value(dumpSegments));
+            directory.mkpath(QStringLiteral("."));
+            int written = 0;
+            for (std::size_t index = 0; index < file.streams().size(); ++index) {
+                const auto& stream = file.streams()[index];
+                const QString name = stream.path.join(QLatin1Char('_')).replace(QRegularExpression(QStringLiteral("[^A-Za-z0-9_]")), QStringLiteral("x"));
+                const QByteArray raw = file.readStream(index, qsizetype(1) << 30);
+                QFile rawFile(directory.filePath(name + QStringLiteral(".raw")));
+                if (rawFile.open(QIODevice::WriteOnly))
+                    rawFile.write(raw);
+                if (stream.path.size() == 2 && stream.path[1].startsWith(QLatin1Char('B'))) {
+                    try {
+                        const QByteArray data = Inventor::Detail::decodeSegment(raw, qsizetype(1) << 30);
+                        QFile dataFile(directory.filePath(name + QStringLiteral(".data")));
+                        if (dataFile.open(QIODevice::WriteOnly))
+                            dataFile.write(data);
+                    } catch (const std::exception&) {
+                    }
+                }
+                ++written;
+            }
+            return printJson({{QStringLiteral("streams_written"), written}});
+        }
         if (parser.isSet(assembly)) {
             QJsonArray rows;
             walkAssembly(QFileInfo(arguments.front()).absoluteFilePath(), gp_Trsf(), QString(), 1, rows);
@@ -199,6 +232,14 @@ int main(int argc, char* argv[])
             QJsonObject report;
             if (appearance.body)
                 report.insert(QStringLiteral("body_rgb"), rgb(*appearance.body));
+            {
+                Inventor::CompoundFile styleFile(arguments.front());
+                if (const auto style = Inventor::readPartStyleColor(styleFile)) {
+                    report.insert(QStringLiteral("style_name"), style->styleName);
+                    report.insert(QStringLiteral("style_material_id"), style->materialId);
+                    report.insert(QStringLiteral("style_rgb"), QJsonArray{style->color[0], style->color[1], style->color[2]});
+                }
+            }
             QJsonArray faces;
             for (const auto& [face, color] : appearance.faces) {
                 auto row = measure(face);
