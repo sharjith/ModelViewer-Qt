@@ -16,6 +16,7 @@
 #include <Standard_Failure.hxx>
 #include <new>
 #include "ThreeDXml/Importer.h"
+#include "Inventor/AssemblyScene.h"
 #include "Inventor/PartSolid.h"
 #include "Parasolid/XtSceneImporter.h"
 #include "Parasolid/XtImport.h"
@@ -1601,6 +1602,38 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_scene = _xcafScene.get();
 			_declaredLengthUnit = LengthUnit::Millimeter;
 			_importStage = "worker.inventor-read-complete";
+			ImportDiagnostics::checkpoint(_importStage, -1, _scene->mNumMeshes, 0);
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true;
+				_errorMessage = "Model loading cancelled by user.";
+				emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
+	}
+	else if (fi.suffix().compare("iam", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			const auto cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			_importStage = "worker.inventor-assembly";
+			ImportDiagnostics::checkpoint(_importStage);
+			BRepToAssimpConverter::clearColorCache();
+			Inventor::AssemblySceneOptions options;
+			options.cancelled = cancelled;
+			// The same strict setting as for parts: a component that cannot be loaded fails the import instead of being shown
+			// as an error item in the tree.
+			options.strict = QSettings().value(QStringLiteral("inventorStrict"), false).toBool()
+				|| qEnvironmentVariableIntValue("MODELVIEWER_INVENTOR_STRICT") != 0;
+			Inventor::AssemblySceneResult built = Inventor::buildAssemblyScene(fi.absoluteFilePath(), options);
+			_xcafScene = std::move(built.scene);
+			_scene = _xcafScene.get();
+			_declaredLengthUnit = LengthUnit::Millimeter;
+			for (const QString& warning : built.warnings) qWarning().noquote() << warning;
+			_xtWarnings = built.warnings;
+			_importStage = "worker.inventor-assembly-complete";
 			ImportDiagnostics::checkpoint(_importStage, -1, _scene->mNumMeshes, 0);
 		} catch (const std::exception& e) {
 			_errorMessage = QString::fromUtf8(e.what());
