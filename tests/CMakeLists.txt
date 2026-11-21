@@ -159,3 +159,4 @@ set_target_properties(step_material_probe PROPERTIES CXX_STANDARD 17 CXX_STANDAR
 add_subdirectory(3dxml)
 add_subdirectory(jt)
 add_subdirectory(parasolid)
+add_subdirectory(inventor)
