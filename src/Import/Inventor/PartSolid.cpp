@@ -544,7 +544,7 @@ public:
             if (record.type == "body" && !isWireOnlyBody(record)) {
                 checkCancellation(_cancelled);
                 if (_stage)
-                    announce(say("Building body %1 of %2").arg(bodyRecord + 1).arg(bodyTotal));
+                    announce(say(QT_TRANSLATE_NOOP("InventorImport", "Building body %1 of %2")).arg(bodyRecord + 1).arg(bodyTotal));
                 const std::size_t firstOfBody = outcomes.size();
                 _bodyFaceCounts.push_back(countFaces(record));
                 const auto bodyBegin = std::chrono::steady_clock::now();
@@ -1056,7 +1056,7 @@ private:
         // A large shell takes minutes: say which step it is in. Small ones keep the message of their body.
         const bool announceSteps = faces.size() >= 2000;
         if (announceSteps)
-            announce(say("Building %1 faces").arg(faces.size()));
+            announce(say(QT_TRANSLATE_NOOP("InventorImport", "Building %1 faces")).arg(faces.size()));
         if (workerCount >= 2) {
             PhaseTimer timer("buildFace (parallel)");
             prebuilt.resize(faces.size());
@@ -1166,7 +1166,7 @@ private:
             // Integrate over the faces with their saved senses (no sewing involved): the sign says outer or void. The
             // integral is a sum over the faces, so a large shell is integrated in parts on the worker threads.
             if (announceSteps)
-                announce(say("Measuring the volume of %1 faces").arg(faces.size()));
+                announce(say(QT_TRANSLATE_NOOP("InventorImport", "Measuring the volume of %1 faces")).arg(faces.size()));
             PhaseTimer measureTimer("signed volume");
             const std::size_t parts = parallelWorkers(measuredFaces.size());
             std::vector<double> masses(parts, 0.0);
@@ -1216,7 +1216,7 @@ private:
 
         {
             if (announceSteps)
-                announce(say("Sewing %1 faces").arg(faces.size()));
+                announce(say(QT_TRANSLATE_NOOP("InventorImport", "Sewing %1 faces")).arg(faces.size()));
             PhaseTimer timer("sewing.Perform");
             sewing.Perform();
         }
