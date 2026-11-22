@@ -308,6 +308,10 @@ FieldDef readFieldDefinition(Source& s) {
     f.count = static_cast<int>(elts);
     if (ptrClass != 0) {
         f.type = 'p';
+        // A variable-length pointer list (for example the entries of PART_XMT_BLOCK in schema 37 files) carries the same
+        // transmit flag as the other variable-length fields.
+        if (f.count == 1)
+            s.transmitFlag();
     } else {
         const std::string type = s.shortString();
         if (type.size() != 1 || !validFieldType(type[0]))
