@@ -18,7 +18,8 @@ namespace
 //       intentionally invalidates old (v3) *session* files only; MVF
 //       documents stay fully compatible via the JSON read path, which has no
 //       such gate and tolerates missing keys.
-constexpr quint32 SCENEGRAPH_SESSION_VERSION = 4;
+// Version 5 adds the per-node import issue; version 4 streams are still read.
+constexpr quint32 SCENEGRAPH_SESSION_VERSION = 5;
 
 void writeMatrix(QDataStream& out, const aiMatrix4x4& m)
 {
@@ -156,6 +157,20 @@ SceneNode* SceneGraph::buildSubtree(const aiNode*       ainode,
     node->localTransform  = ainode->mTransformation;
     node->parent          = parent;
 
+    // An importer that skipped or only partly loaded this part records it as metadata on the aiNode.
+    if (ainode->mMetaData)
+    {
+        aiString severity, message;
+        if (ainode->mMetaData->Get("ModelViewer.ImportIssue.Severity", severity))
+        {
+            const QString level = QString::fromUtf8(severity.C_Str());
+            node->importIssue.severity = level == QLatin1String("error") ? ImportIssue::Severity::Error
+                                                                          : ImportIssue::Severity::Warning;
+            if (ainode->mMetaData->Get("ModelViewer.ImportIssue.Message", message))
+                node->importIssue.message = QString::fromUtf8(message.C_Str());
+        }
+    }
+
     // Assign mesh UUIDs in the same order that processNode() encountered them:
     // inner loop over mMeshes before recursing into children.
     for (unsigned int i = 0; i < ainode->mNumMeshes; ++i)
@@ -234,6 +249,17 @@ void SceneGraph::rebuildFromMvf(const QJsonArray& documentNodes,
         node->name = obj[QStringLiteral("name")].toString();
         node->isSynthetic = obj[QStringLiteral("isSynthetic")].toBool(false);
         node->sourceFile = obj[QStringLiteral("sourceFile")].toString();
+
+        // Optional key: an importer problem recorded for this node. Older MVF files simply lack it.
+        const QJsonObject issueObj = obj[QStringLiteral("importIssue")].toObject();
+        if (!issueObj.isEmpty())
+        {
+            const QString severity = issueObj[QStringLiteral("severity")].toString();
+            node->importIssue.severity = severity == QLatin1String("error")   ? ImportIssue::Severity::Error
+                                       : severity == QLatin1String("warning") ? ImportIssue::Severity::Warning
+                                                                              : ImportIssue::Severity::None;
+            node->importIssue.message = issueObj[QStringLiteral("message")].toString();
+        }
 
         auto readJsonMatrix = [](const QJsonArray& mat, aiMatrix4x4& m) {
             if (mat.size() != 16) return;
@@ -389,6 +415,7 @@ void SceneGraph::serialize(QDataStream& out) const
         writeMatrix(out, node->importCorrection);  // v2: persists autoOrient+autoScale correction
         out << node->autoOrientApplied << node->autoScaleApplied;  // v3
         out << static_cast<int>(node->importUnit) << node->importUnitUserOverridden;  // v4
+        out << static_cast<int>(node->importIssue.severity) << node->importIssue.message;  // v5
 
         out << static_cast<quint32>(node->meshUuids.size());
         for (const QUuid& uuid : node->meshUuids)
@@ -408,7 +435,7 @@ bool SceneGraph::deserialize(QDataStream& in)
 {
     quint32 version = 0;
     in >> version;
-    if (in.status() != QDataStream::Ok || version != SCENEGRAPH_SESSION_VERSION)
+    if (in.status() != QDataStream::Ok || (version != SCENEGRAPH_SESSION_VERSION && version != 4))
         return false;
 
     _meshUuidToNode.clear();
@@ -447,6 +474,15 @@ bool SceneGraph::deserialize(QDataStream& in)
         int importUnitInt = 0;
         in >> importUnitInt >> node->importUnitUserOverridden;  // v4
         node->importUnit = static_cast<LengthUnit>(importUnitInt);
+
+        if (version >= 5)  // v5
+        {
+            int severityInt = 0;
+            in >> severityInt >> node->importIssue.message;
+            if (severityInt >= static_cast<int>(ImportIssue::Severity::None) &&
+                severityInt <= static_cast<int>(ImportIssue::Severity::Error))
+                node->importIssue.severity = static_cast<ImportIssue::Severity>(severityInt);
+        }
 
         in >> meshCount;
         for (quint32 i = 0; i < meshCount; ++i)
