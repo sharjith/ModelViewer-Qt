@@ -1088,6 +1088,24 @@ void ViewportWidget::deleteGpuOwnedObjects()
 	delete _annotationController;
 	_annotationController = nullptr;
 
+	// The remaining controllers are QObject children of this widget that inherit QOpenGLFunctions_4_5_Core. If they were left
+	// for ~QWidget's child deletion they would be destroyed after ~QOpenGLWidget has already torn down the QOpenGLContext that
+	// owns the shared function tables, and the debug-only assert in ~QOpenGLFunctions_4_5_Core
+	// (refs must stay non-zero) fires when a document is closed. Deleted here, while the context is still current.
+	const auto deleteController = [this](auto*& controller)
+	{
+		_gpuResourceRegistry.remove(controller);
+		delete controller;
+		controller = nullptr;
+	};
+	deleteController(_seamMarkingController);
+	deleteController(_fillHolesController);
+	deleteController(_simulationGlyphController);
+	deleteController(_simulationTensorGlyphController);
+	deleteController(_simulationVolumeController);
+	deleteController(_simulationSliceController);
+	deleteController(_simulationStreamlineController);
+
 	// &_renderCtrl is never delete'd here - it's a plain value member of
 	// this widget, destroyed automatically as part of ~ViewportWidget()'s
 	// own member destruction, same as before this refactor.
@@ -6484,6 +6502,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		_viewer->purgeRedundantNodesAfterLoad(importedFileNode);
 	ImportDiagnostics::checkpoint("viewer.purge-end");
 
+	// 100 % only when the viewer has finished a successful import
+	if (success && !_sceneRuntime.loadCancelled())
+		MainWindow::setImportProgressComplete();
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();
 	ImportDiagnostics::checkpoint("viewer.ui-unlock-begin");
@@ -6607,7 +6628,7 @@ bool ViewportWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVM
 
 void ViewportWidget::showFileReadingProgress(float percent)
 {
-	MainWindow::setProgressValue((int)((float)percent * 100.0f));
+	MainWindow::setImportProgress(MainWindow::ImportBand::Read, percent); // the reading and conversion half of the bar
 	makeCurrent();
 }
 
@@ -6631,7 +6652,8 @@ void ViewportWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNo
 
 	if (totalNodes > 0)
 	{
-		MainWindow::setProgressValue(static_cast<int>((static_cast<float>(processedNodes) / static_cast<float>(totalNodes)) * 100.0f));
+		MainWindow::setImportProgress(MainWindow::ImportBand::Process,
+			static_cast<double>(processedNodes) / static_cast<double>(totalNodes)); // the viewer's half of the bar
 	}
 
 	if (QOpenGLContext::currentContext() != context())

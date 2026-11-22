@@ -325,6 +325,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             if (found != doc.representations.cend() && !ref.name.isEmpty() && !partOfMember.contains(found->member)) partOfMember.insert(found->member, ref.name);
         }
     QStringList members, skippedMembers;
+    QHash<QString,QString> skippedReasons; // member -> why it could not be read, for the nodes that refer to it
     QHash<QString,QString> formats;
     for (auto it = doc.representations.cbegin(); it != doc.representations.cend(); ++it) {
         if (it->format == QLatin1String("UVR") || it->format == QLatin1String("TESSELLATED")) {
@@ -401,10 +402,20 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         MemberOutcome& outcome = outcomes[size_t(memberIndex)];
         parseMs += outcome.parseMs; memberMs += outcome.totalMs;
         if (outcome.error) std::rethrow_exception(outcome.error);
+        {
+            // Test hook: MODELVIEWER_3DXML_SIMULATE_FAILED_REPRESENTATION=n makes the n-th (1-based) representation count as
+            // unreadable, to exercise the error item in the model tree. Has no effect when unset.
+            bool simulatedSet=false;
+            const int simulated=qEnvironmentVariableIntValue("MODELVIEWER_3DXML_SIMULATE_FAILED_REPRESENTATION",&simulatedSet);
+            if (simulatedSet && simulated==memberIndex+1 && !outcome.readFailed) {
+                outcome.readFailed=true;
+                outcome.readFailure=QStringLiteral("%1: simulated failure for testing").arg(member);
+            }
+        }
         if (outcome.readFailed) {
             if (options.strict) throw Error(outcome.readFailure);
             // The rest of the assembly still loads; occurrences that reference the member simply have no geometry.
-            skippedMembers.append(outcome.readFailure); resources[member];
+            skippedMembers.append(outcome.readFailure); resources[member]; skippedReasons.insert(member,outcome.readFailure);
             result.warnings.append(QStringLiteral("Skipped unreadable representation %1").arg(outcome.readFailure));
         }
         else {
@@ -431,6 +442,8 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         { std::lock_guard<std::mutex> lock(gate); applied = size_t(memberIndex) + 1; }
         wake.notify_all();
     }
+    // Progress after the representations: total 0 means "per-mille of the whole import" (members use done/total).
+    if (options.progress) options.progress(QStringLiteral("Building"),850,0);
     // aiMesh owns its material binding. Reuse the first binding in place and
     // deep-copy only when the same source mesh needs another occurrence color.
     std::vector<unsigned> baseMaterials;
@@ -485,6 +498,8 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     std::function<std::unique_ptr<aiNode>(const QString&,const QString&,const QString&,const QString&,const aiMatrix4x4&,bool,const aiColor4D*,const MaterialRendering*,int)> build;
     build = [&](const QString& reference,const QString& name,const QString& path,const QString& id,const aiMatrix4x4& local,bool parentVisible,const aiColor4D* inheritedColor,const MaterialRendering* inheritedMaterial,int depth) {
         options.check();
+        // The product tree build: 850-990 per mille, on an approaching curve (the node total is not known in advance).
+        if (options.progress && (nodeCount & 63u) == 63u) options.progress(QStringLiteral("Building"),int(850+140.0*nodeCount/(nodeCount+2000.0)),0);
         if (depth > 128 || ++nodeCount > 100000 || active.contains(reference)) throw Error(QStringLiteral("Cyclic/excessive product graph at %1").arg(path));
         active.insert(reference); const auto& ref=doc.references[reference];
         auto override=doc.occurrenceColors.constFind(path);
@@ -504,7 +519,17 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         }
         // V_Name and V_description of the reference, as the file writes them (a part number and a description in the PLM system's terms)
         const unsigned declared = (ref.partNumber.isEmpty() ? 0u : 1u) + (ref.description.isEmpty() ? 0u : 1u);
-        node->mMetaData=aiMetadata::Alloc((attachedRep ? 6 : 3) + declared);
+        // A representation of this reference that could not be read was skipped. Record why on the node, as an import
+        // issue, so the model tree shows the part with an error mark and the reason instead of silently without geometry.
+        QString skippedReason;
+        for (const auto& repId : ref.representations) {
+            const auto skippedRep=doc.representations.constFind(repId);
+            if (skippedRep==doc.representations.cend()) continue;
+            const auto reason=skippedReasons.constFind(skippedRep->member);
+            if (reason!=skippedReasons.cend()) { skippedReason=reason.value(); break; }
+        }
+        const unsigned issueEntries = skippedReason.isEmpty() ? 0u : 2u;
+        node->mMetaData=aiMetadata::Alloc((attachedRep ? 6 : 3) + declared + issueEntries);
         if (attachedRep) setRepresentation(*node->mMetaData,3,*attachedRep);
         node->mMetaData->Set(0,"3DXMLReference",aiString(reference.toUtf8().constData()));
         node->mMetaData->Set(1,"3DXMLPath",aiString(path.toUtf8().constData()));
@@ -512,6 +537,11 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         unsigned declaredIndex = attachedRep ? 6 : 3;
         if (!ref.partNumber.isEmpty()) node->mMetaData->Set(declaredIndex++,"3DXML_V_Name",aiString(ref.partNumber.toUtf8().constData()));
         if (!ref.description.isEmpty()) node->mMetaData->Set(declaredIndex++,"3DXML_V_description",aiString(ref.description.toUtf8().constData()));
+        if (issueEntries) {
+            node->mMetaData->Set(declaredIndex++,"ModelViewer.ImportIssue.Severity",aiString("error"));
+            node->mMetaData->Set(declaredIndex++,"ModelViewer.ImportIssue.Message",
+                aiString(QStringLiteral("The 3D representation could not be read and was skipped: %1").arg(skippedReason).toUtf8().constData()));
+        }
         result.occurrencePaths.insert(node.get(),path);
         if (!visible) result.hiddenNodes.insert(node.get());
         std::vector<std::unique_ptr<aiNode>> nodes;
@@ -557,7 +587,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     if (!result.scene->mNumMeshes)
         throw Error(skippedMembers.isEmpty() ? QStringLiteral("3DXML contains no supported triangle geometry")
                                              : QStringLiteral("3DXML contains no readable geometry; first failure: %1").arg(skippedMembers.front()));
-    if (options.progress) options.progress(QStringLiteral("Complete"),members.size(),members.size());
+    if (options.progress) options.progress(QStringLiteral("Complete"),1000,0);
     {
         size_t withGeometry = 0;
         for (const auto& entry : resources) if (std::any_of(entry.second.begin(), entry.second.end(), [](const BodyMeshes& body) { return !body.meshes.empty(); })) ++withGeometry;

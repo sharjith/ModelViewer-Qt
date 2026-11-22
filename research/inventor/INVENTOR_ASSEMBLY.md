@@ -1,0 +1,317 @@
+# Inventor assembly (IAM) baseline
+
+20 November 2026 · `feature/inventor3d`
+
+Status (21 November 2026): a production reader for the direct occurrences of an assembly exists (`src/Import/Inventor/Assembly.cpp`), qualified headless against Inventor-exported STEP assemblies (see "Production assembly reader" below); its viewer integration is built but not yet run by the owner. Until then the baseline below is the ignored experimental A01 prototype under `out/inventor-research/iam-wip/` (source and executable stay local), which read 2 of the 33 local assemblies. The IPT foundation reads 73 of 84 corpus parts ([IPT working specification](INVENTOR_FOUNDATION.md)).
+
+## Prototype baseline on the local corpus
+
+Method: the prototype's `--assembly` mode run on all 33 local IAM files; output kept locally under `out/inventor-research/foundation/iam_survey_proto.txt`. Regenerate per file with:
+
+```powershell
+& out/inventor-research/iam-wip/inventor_assembly_probe.exe --assembly <file.iam> > out/inventor-research/foundation/iam_<id>.json
+```
+
+| Outcome | Files | Reason reported |
+| --- | --- | --- |
+| Reads | 2 flat assemblies (+ the A01 control, outside the corpus) | none |
+| Component file not found on disk | 4 | a referenced part is not shipped with the sample (standard-library or old-version references) |
+| Occurrence list incomplete | 9 | template assemblies; the prototype expects every component to carry a placement |
+| Occurrence reference inconsistent | 9 | weldment template assemblies |
+| Component name or number inconsistent | 8 | pump, valve and motor assemblies, several of them nested |
+| Graphics segment layout unsupported | 1 | different graphics node layout |
+
+Observations.
+- The prototype demands that every saved component bind to exactly one file and carry a rigid placement. Real assemblies break each of those assumptions (nested sub-assemblies, template containers with no geometry, patterns, library parts that are not shipped).
+- The prototype reads decompressed segments into a fixed 8 MB buffer in its Python reference and a 64 MB limit in C++; the plan already notes that some Zstandard frames omit the decompressed size.
+- Occurrence placement, names and visibility for flat assemblies were verified against one Inventor-generated report (A01). Nested transforms, suppression, pattern instances and overrides have no reference yet.
+
+## Evidence needed
+
+- One small nested assembly with a report from Inventor (or a paired STEP assembly) giving each level's placement, to qualify composition of transforms.
+- A statement from the owner on the policy for unresolved references (skip with a warning, or fail the whole import).
+
+Open questions and next steps are in [the implementation plan](INVENTOR_IMPLEMENTATION_PLAN.md), stage 5.
+
+## Graceful failure: error nodes in the model tree, 20 November 2026
+
+Decision (owner): a part or body that cannot be loaded must not fail the whole import. It is shown in the model tree as an item with an error or warning symbol, and hovering it shows the reason. Skipping is the default; a strict setting restores all-or-nothing, as the 3DXML importer already offers. A file with no buildable body at all still fails with the usual error dialog.
+
+Design, implemented for Inventor parts (bodies) and reusable by the future assembly reader and by other importers.
+- Data. `SceneNode` carries an `ImportIssue` (none, warning or error, plus a message). It is saved in the MVF JSON as an optional `importIssue` object (older files lack it) and in the session stream (version 5; version 4 is still read).
+- Transport. An importer records the issue as node metadata on the `aiNode` it creates (`ModelViewer.ImportIssue.Severity` = `error` or `warning`, and `ModelViewer.ImportIssue.Message`). `SceneGraph::buildSubtree` turns it into the `SceneNode` field, so no importer needs to know about the scene graph.
+- Part reader. `Inventor::readPartBodies(path, cancelled, appearance, strict)` returns one outcome per body (a solid, or the error text). A body with several lumps reports each lump separately. Cancellation and running out of memory are never skipped. `readPartSolids` is unchanged and strict.
+- Loader. Each failed body becomes an empty child node of the part's root with the metadata above, and a line in the import warnings list ("Last Import Warnings...").
+- Tree. A node with an issue is always shown, even without meshes. A mesh-less issue node becomes a placeholder item: greyed mesh icon with a warning or error mark, the reason as a rich-text tooltip, no check box, selectable but not editable. Parents ignore it when computing check boxes, selection closure and visibility, and it is not offered assembly actions in the context menu. An assembly node that carries an issue gets the mark and tooltip on its normal icon.
+- Setting. Settings, Import Export, Inventor Importer, "Strict"; `QSettings` key `inventorStrict`; environment override `MODELVIEWER_INVENTOR_STRICT=1`.
+- Test hook. `MODELVIEWER_INVENTOR_SIMULATE_FAILED_BODY=n` makes the n-th body of a part with several bodies count as failed. It exists only so the tree item can be exercised on a corpus part that otherwise loads; it has no effect when unset.
+
+Status. The viewer sources were not built or run by the agent; the headless probe still reports 73 of 84 corpus parts valid in strict mode and no volume changed. Pending owner check: tree item, tooltip (including in the detached overlay tree), check-box behaviour of the parent, save and reopen as MVF, and the settings entry.
+
+### Extension to the JT and 3DXML importers (MOD-16), 20 November 2026
+
+The same mechanism is used by the other two assembly importers, through the same node metadata keys, so the scene graph and the tree needed no further change.
+- 3DXML. A representation that cannot be read was already skipped (unless strict) with a warning, leaving its occurrences without geometry. The scene builder now remembers why each skipped representation failed, and the node of every reference that uses it records the reason as an import issue ("The 3D representation could not be read and was skipped: ..."). Strict behaviour and the settings entry are unchanged. Test hook: `MODELVIEWER_3DXML_SIMULATE_FAILED_REPRESENTATION=n` makes the n-th representation count as unreadable; it has no effect when unset.
+- JT. Before this change an unreadable, missing or cyclic external part file failed the whole import and the JT importer had no skip option (the skip-or-fail setting for JT was decided in October but not built). A part file that cannot be read is now rolled back with the builder's existing checkpoint, a placeholder node carries the reason, and a warning is added; the rest of the assembly loads. `Options::strict` (default false) restores the old all-or-nothing behaviour; it is set from Settings, Import Export, JT Importer, "Strict" (`jtStrict`) and `MODELVIEWER_JT_STRICT=1`. Cancellation and out-of-memory are never skipped. Failures inside a loaded part (rejected LOD alternatives, rejected exact geometry) keep their existing handling and are not new error nodes.
+
+Behaviour change to note: a JT assembly with an unreadable part file used to fail to open and now opens without that part, with the error item and a warning, unless Strict is on.
+
+Status: unbuilt. Pending owner check on a JT assembly with one part file temporarily renamed, on 3DXML with the test hook, and on files that load normally.
+
+### Incomplete bodies shown as an open surface (MOD-17), 20 November 2026
+
+Decision (owner): when a body cannot become a solid but some of its faces can be built, show those faces, marked incomplete, instead of an error node with nothing to see. Strict still means all-or-nothing.
+
+Design and status.
+- Part reader. In the plain single-shell path, when not strict, a face that fails to build no longer aborts the shell: the rest of the faces are still built and the failures are counted. If the shell then cannot be closed into a solid (a failed face, an unpaired edge, an unclosed sew, a failed solid check) the built faces are returned as a compound of faces in `BodyOutcome::incompleteShape`, with a message such as "25 of 1345 faces could not be built (first: ...). The other faces are shown as an open surface; it has no volume." No sewing is needed to show them. Multi-shell lumps (a solid with voids) and the pieces of a pinched shell are not shown partially, because a partial outer shell next to a void would mislead; those still fail as a whole.
+- Loader. An incomplete body is converted and displayed like any other; its node gets a warning-severity import issue with the message, so the tree shows the warning mark and tooltip, and the message is added to the import warnings. A body with nothing buildable is still an error node.
+- Probe. `inventor_compound_probe --part-bodies` reports every body as solid, incomplete (bounding box, faces, no volume) or failed, without stopping at the first failure.
+- Result on the oversized local part (strict mode rejected it whole): 41 outcomes in 20 s at a 2.1 GB peak: 39 valid solids, one incomplete surface with 1 320 of 1 345 faces (25 faces failed, the first on a vertex tolerance of 0.126 mm), and one body that failed (an edge whose endpoints disagree with the saved trim parameters). The face failures counted earlier were therefore concentrated in two bodies. Strict-mode corpus results are unchanged: 73 of 84 valid, no volume changed.
+- Existing behaviour on an open surface. Mass properties already report "open surface" instead of a volume, so no wrong number is shown. Stencil section capping works on the triangle mesh and assumes a closed one, so a cap on an incomplete surface may look wrong; that is the same as for any open mesh. Solid-only exports are not specially guarded.
+
+Pending owner check: the oversized part in the viewer (error node, warning-marked surface, solids), mass properties on the surface, strict mode.
+
+### Lumps with many shells and pinched pieces: the oversized part really is a machine, 20 November 2026
+
+Observation (owner screenshots, then a structure count). The first lenient load of the oversized local part showed only a doughnut-shaped body 4.4 m across and a few small parts, nothing like the machine Autodesk's online viewer shows. A structure count (temporary diagnostic, removed) gave: 2 bodies, 41 lumps, 1 067 shells, 86 466 faces; two lumps hold several shells, one of them 1 025, and the largest shell has 76 794 faces.
+
+Causes and changes.
+- The multi-shell rule assumed a lump with several shells is one solid with voids (largest shell outside, the rest inside), so the 1 025-shell lump failed as a whole and took the machine with it. Shells are now classified by the signed volume of their faces under the saved face senses (computed without sewing): positive is an independent solid; negative has its normals pointing into a cavity. A negative shell that lies inside a positive solid (bounding box and a point-in-solid test) becomes that solid's void; a negative shell inside nothing is an independent part, already oriented outward. A part with a real void (a 5-face and a 92-face shell) still gives exactly its earlier volume. A shell that fails is reported on its own instead of failing the lump.
+- The 76 794-face shell contains pinched circles, so it is built as pieces. Pieces were built with the all-or-nothing path, so the first bad face aborted the whole shell. Each piece now stands on its own: a piece that cannot be built is reported in its place, as an incomplete surface when some of its faces built.
+- Result (lenient, headless): 1 080 bodies in 326 s at a 2.6 GB peak: 997 solids (7 841 faces), 13 incomplete surfaces (75 342 faces; the largest has 65 034 faces with 2 103 failing), and 70 failed bodies ("non-manifold edge at tangent contact", not yet examined). That puts 83 183 of the 86 466 faces (96%) on screen. Strict-mode corpus results are unchanged (73 of 84, no volume changed).
+
+Still different from Autodesk's viewer, not addressed here: colours (appearance is only read for single-body parts, so this part is grey); the component structure and names of the machine (the saved bodies are flat); the 4.4 m doughnut-shaped body (9 faces, 46 litres), which may be reference or hidden geometry whose visibility flag is not read; and the 13 incomplete and 70 failed bodies.
+
+### The oversized part is a derived surface: open surface bodies, 20 November 2026
+
+Observation (owner screenshots of Autodesk's online viewer). The viewer's model browser lists only two items for this part: a solid body and a derived surface ("SRF1::Derived" containing "SRF5"). Owner correction (second screenshot pair): the solid body is the vehicle (frame, tracks, bucket, hoses) and the derived surface, SRF5, is the engine only. The earlier reading that the whole machine was the derived surface was wrong; the open sheets (29 bodies) are most likely the engine and the 1 049 solids the vehicle, not yet verified per body. This matches the 2 saved body records. Names, grouping, colours and body visibility are not in the B-rep segment (the names were searched for in UTF-8 and UTF-16 and are absent); they live elsewhere in the file and are not read yet (MOD-21). The saved face flag for double-sided faces is false on all 86 466 faces, so a sheet body is not marked on its faces: it is a shell of single-sided faces that does not close.
+
+Consequences and changes.
+- A derived surface is made of open sheets, which can never become solids. The reader was reporting them as problems. In the lenient path a shell whose faces all built but which does not enclose a volume is now an open surface body (`BodyOutcome::isSurface`, no error, no warning marker); one line in the import warnings states how many bodies are open surfaces. A shell where some faces failed to build stays "incomplete" with the warning, and a body with nothing buildable stays an error node. Strict mode is unchanged and still rejects sheets.
+- Sheet bodies legitimately break two solid-only rules, so in the lenient path both are relaxed: neighbouring faces may traverse an edge in the same direction (the "inconsistent edge orientation" face failure), and an edge shared by more than two faces is allowed. When the solid topology rules reject a shell before any face is built, its faces are built on their own and shown as a surface.
+- Result (lenient, headless): 1 080 bodies in 331 s at a 2.7 GB peak: 1 049 solids (8 721 faces), 29 open surfaces (11 366 faces), 2 incomplete bodies (64 726 faces, with the two known face problems: a saved vertex tolerance of 0.126 mm and an edge whose endpoints disagree with the saved trim), and no failed bodies. Strict-mode corpus: unchanged, 73 of 84.
+
+Still different from Autodesk's viewer: colours (MOD-21), the component structure (two nodes), body visibility (the 4.4 m doughnut-shaped body), and the two incomplete bodies (MOD-5 and MOD-6).
+
+### Colours and shading of a multi-body part, 21 November 2026
+
+Sample 7821 (the oversized part, 1 080 bodies). Observations are measurements on the local sample; owner acceptance is stated separately.
+
+**The colours are saved per face, and the reader could not see them.** The graphics segment (`PmGraphicsSegment`) holds one graphics face per B-rep face with a style colour. Four limits tuned for small parts hid it:
+- The metadata stream is 170 594 bytes; the segment lookup skipped any metadata stream above 64 KiB, so the segment was "not found".
+- The data stream is 68.6 MB, above the 64 MiB read limit.
+- The node table of this segment is Zstandard-compressed (packing byte 2, frame magic `28 b5 2f fd`); the decoder accepted only zlib (byte 1).
+- The decoder accepted exactly one body node whose faces hang from that body's shell.
+
+Graphics layout of this sample: 875 146 nodes (217 MB unpacked); 6 body nodes (one large, four of 164 bytes, one of 57 KB), 1 385 shell nodes, 298 676 face nodes whose parents are 5 shell nodes. 86 943 face nodes carry a style colour (28 distinct colours: reds, blacks, greys, whites) and 211 733 carry none; 298 050 distinct face keys, 626 keys shared by two nodes, none with conflicting colours. Body nodes carry no colour of their own; the part node gives the default (light grey, 0.75).
+
+**Result.** A part-wide table (persistent face key to colour; a key shared with different colours is dropped) gives 86 259 coloured keys. Mapped onto the built faces: 84 606 of 84 813 (99.8%); the vehicle body 63 238 of 63 406, the engine 1 320 of 1 320, the large sheet body 10 538 of 10 538, the 9-face body 9 of 9; 1 041 of 1 049 solids fully coloured; 2 bodies with no coloured face. The converter makes one mesh per body with vertex colours on a white material (the mechanism the STEP path already used), so the tree keeps one item per body.
+
+**Shading.** The converter built each vertex normal from the triangles at that vertex, leaving out triangles below its size threshold and giving a vertex with no remaining triangle the constant normal (0, 0, 1). Measured with the probe (same rules, tessellation at 0.05% of the body diagonal):
+
+| Body | Triangle normals agreeing with OCC's outward direction | Faces wholly opposing | Vertices with the constant normal |
+|---|---|---|---|
+| Vehicle (63 406 faces) | 1 420 731 of 1 422 032 | 0 | 93 860 of 1 311 021 (7.2%) |
+| Engine (1 320 faces) | 36 173 of 36 175 | 0 | 159 of 34 097 |
+| Ordinary solid (8 faces) | 6 646 of 6 646 | 0 | 0 |
+
+So face orientation and the winding rule are right. The defect was the constant normal: it lights a vertex by how the model is turned, and it is interpolated across every large triangle that shares the vertex, so whole panels faded to black at some angles. Using the tiny triangles' own normal for such a vertex brings the count to 2 288 (0.17%, degenerate triangles with no direction). A vertex with any ordinary triangle keeps its normal unchanged.
+
+**Hypotheses that were wrong, recorded so they are not repeated.** An inside-out shell (signed volume: vehicle +83 L, engine +32 L, outward), inconsistent orientation (644 same-direction edge uses of 156 984; too few to matter) and the lighting model (the shader lights both sides) were each considered and are not the cause. Eight ordinary solids have a negative signed volume after orientation (bodies 8, 82, 89, 185, 251, 985, 995, 1005); not investigated, no visible effect.
+
+**Owner acceptance (21 November 2026).** In the viewer the colours match the Autodesk viewer and the shading is correct from all angles; other CAD formats using the converter show no regression. Still open (MOD-21): the two-node structure (solid body and derived surface), body names, and the 4.4 m body that Autodesk's viewer does not show.
+
+Regenerate (output under `out/`; the probe is built from `tools/inventor`, `<sample>` is the local sample 7821):
+```
+inventor_compound_probe --part-graphics <sample>      > out/inventor-research/colours.json
+inventor_compound_probe --part-bodies   <sample>      > out/inventor-research/bodies.json
+inventor_compound_probe --part-normals 1011 <sample>  > out/inventor-research/normals_1011.json
+```
+
+### Body structure and names of a multi-body part, 21 November 2026
+
+Sample 7821 (the oversized part). The two nodes Autodesk's viewer shows ("solid body", and a derived-surface feature holding "SRF5") are in the model browser segment (`PmBrowserSegment`: metadata 75 KB packed, 745 KB unpacked, zlib).
+
+**Records.** Text records are stored as `tag (u16), 0 (u16), count (u32), UTF-16LE text`: tag `0x0109` a feature ("SRF1::Производный"), `0x010a` a body, `0x0104`/`0x0105` source-component occurrence paths (1 521 and 1 523 records, e.g. "<assembly>.iam:1::<part>.ipt:1"), `0x0106` sketches, `0x0107` 3D sketches, `0x0108` work planes, `0x010c` origin, `0x010e` the source assembly ("... .iam"). The part is a derived part of that assembly; the component paths are kept but are not bodies of this part.
+
+Bodies (tag `0x010a`), in saved order: SRF1, SRF2, SRF3, SRF4, SRF5, "Твердое тело1" (six). Derived features (tag `0x0109`): SRF3, SRF4, SRF5, SRF6 and SRF1 "::Производный". A derived-feature record is followed directly (within about 130 bytes) by the body it owns; "Твердое тело1" follows no feature. The graphics segment has six body nodes too (one of 3.3 MB, four of 164 bytes, one of 57 KB).
+
+**Linking to the B-rep.** The saved B-rep has two body records holding geometry: record 0 with 40 lumps, 1 066 shells and 85 121 faces; record 1 with 1 lump, 1 shell and 1 345 faces. The graphics shells have exactly those counts (85 121 and 1 345; three further shells of 208 018, 3 566 and 626 faces are other representations). The reader matches a B-rep record to the browser body whose graphics shell has the same face count, and uses the name only when exactly one body matches; the graphics order is the plain bodies first, then the derived bodies in saved order. Result: record 0 "Твердое тело1" (1 079 outcomes: 1 049 solids, the vehicle shell, 29 sheets), record 1 "SRF5" owned by "SRF1::Производный" (the engine). The four empty bodies (SRF1 to SRF4) have no B-rep record.
+
+**Display.** The loader builds `Root` > "Твердое тело1" (the 1 079 bodies) and "SRF1::Производный" > "SRF5". The viewer's automatic "purge redundant nodes" (Settings, General; on by default) then collapses a wrapper whose single child is a leaf with one mesh and renames the mesh after the wrapper, so by default the engine shows as one item "SRF1::Производный". With the setting off the two levels show. Owner decision: not a concern.
+
+**Owner acceptance (21 November 2026).** The two groups show correctly in the viewer. Still open (MOD-21): the 4.4 m body that Autodesk's viewer does not show (hidden by hand for now) and names for the individual bodies from the source-component paths (not attempted).
+
+Regenerate (output under `out/`; `<sample>` is the local sample 7821):
+```
+inventor_compound_probe --part-bodies <sample> > out/inventor-research/bodies.json   (record, name and feature per body)
+```
+
+### The 4.4 m body that Autodesk's viewer does not show: no rule found, 21 November 2026
+
+Sample 7821. The 9-face body (4.4 m across, the pinched doughnut) is in the viewer's tree but not in Autodesk's. Looked for a visibility flag at every level the reader can see; none found. Observations only; nothing was changed in the importer.
+
+- **B-rep.** The body is lump 20 (its own lump; the first body record holds 40 lumps) with one shell of 9 faces. The lump and the shell carry no attributes. One of its faces is on a torus surface with major radius -90.04 and minor radius -130.11 in the file's centimetres (a tube larger than the ring: a self-intersecting, "spindle" torus); whether all nine faces share that surface was not checked. The face carries the usual custom attribute (persistent keys) and nothing else.
+- **Graphics.** The nine face nodes (keys 84475 to 84483) are 111 bytes each, the same size and field layout as every other face node (298 676 nodes, size 111 to 115, median 111). Their colours are decoded like any other face.
+- **Record types.** The B-rep has 29 record types. The only invalid-geometry marker, `illegal_geometry-sys-attrib` (one record), is attached to a face of the 1 345-face engine shell, which Autodesk's viewer does show, so it does not explain the torus. `name_attrib-gen-attrib` (24) and `vertedge-sys-attrib` (12) sit on edges and vertices.
+- **Not tried.** Whether the display tessellation in the graphics segment has triangles for these faces (the face nodes only hold references); whether Autodesk's translator drops a body it cannot tessellate. No second sample shows the behaviour.
+
+**Inventor's own STEP export omits this body (owner observation, then measured).** The owner noted that the part's STEP export (AP214, Inventor 2026) does not show the torus. Checked: its toroidal surfaces contain none with the torus' radii (900.44 and 1301.14 mm), while two other tori of the part are present (the units are right). All 1 082 shells of the export were read with OCCT and matched by bounding box to the 1 080 bodies the reader finds: 1 074 match; five of the six that do not (two 28-face sheets, a 458-face, a 21-face and a 206-face body) have a STEP shell with the same face count and dimensions within a few millimetres (bounding-box differences on sheet and spline bodies); the sixth, this torus, has no counterpart. So Inventor's exporter leaves out exactly this one body of 1 080, which means the application has a reason (a self-intersecting torus is not a valid solid; the saved file shows no flag for it), but one case does not give a rule: whether self-intersection is that reason would need other samples, and the reader's validity check does not detect it (the body passes OCCT's check). Not tried: an OCCT self-interference check on all bodies, which would test the hypothesis on this part only.
+
+**Decision (owner, 21 November 2026): no rule.** A hide or warn rule keyed on a spindle torus would be built from one example and would misfire: the same sample has small spindle tori (for instance major 1.05, minor 1.90) in ordinary bodies. The body stays visible; hiding it by hand is the workaround. Revisit only if more samples show a body that Autodesk's viewer omits and a common property can be tested.
+
+## Production assembly reader, 21 November 2026
+
+Observations and results are headless (standalone probe) unless a line says the owner ran it. Local assemblies are named S1 to S3 here; their file names stay local.
+
+**What an assembly saves.** Three typed segments, with the same table layout as a part's graphics (decoded by the shared segment code), and one stream:
+- `AmRxSegment`: the occurrence tree (one placement node per occurrence) and the table that binds occurrence numbers to the referenced files;
+- `AmDcSegment`: the components: occurrence number, browser name, suppression flag;
+- `DesignViewSegment`: the occurrences hidden in the saved design view;
+- stream `UFRxDoc`: the saved pathname of the assembly, then of every referenced file.
+A placement is a sparsely stored 4x4 matrix in centimetres (rigid rotation, translation), relative to the assembly that holds the occurrence; a sub-assembly is an occurrence whose file is an `.iam`, read by the same call, so nesting is recursion and composition of placements.
+
+**Two layout facts found on the corpus.**
+- The browser-name record ends with the name (UTF-16, preceded by its character count) and a 16-byte trailer, but the header before it is one 32-bit word shorter in an Inventor 2021 file (count at offset 38) than in a 2025 file (offset 42). The reader finds the name from the end of the record: the one offset where a plausible count and its characters fill the record up to the trailer. The earlier prototype used the fixed offset and failed on the older file ("unsupported layout").
+- Component references are absolute paths on the machine that saved the assembly (`C:\Users\<name>\Desktop\<Project>\<Sub>\<file>`). They are resolved in turn: as given; relative to the folder the assembly was saved in, applied to the folder it is in now; then the last 3, 2 and 1 components under the assembly's folder and up to two folders above. A file that is not found (a Content Center part that was not shipped, a renamed file) is reported with its name; it is not an error of the assembly.
+
+**Evidence for nested placement (MOD-14), found in the corpus.** Two local assemblies sit next to an Inventor-exported STEP of the same assembly (AP214, one occurrence record and one placement transform per occurrence). S1: 39 occurrences, nested 2 deep, 4 sub-assemblies, 9 products used more than once, 30 of 39 world placements rotated. S2: 25 occurrences, nested 3 deep, 2 sub-assemblies, 20 of 25 rotated; only its `.iam` is shipped (no part files). `tools/inventor/step_assembly_reference.cpp` reads a STEP assembly through OCCT's XCAF and prints each occurrence's name path, local and composed transform. Method: `inventor_compound_probe --assembly <file.iam>` prints the same for the `.iam` (recursing into sub-assemblies that resolve); the two are matched by name path.
+
+Result: S1 39 of 39 occurrences match, S2 23 of 23 direct occurrences match (the 2 STEP occurrences left are the children inside S2's sub-assembly file, which is not shipped); the largest difference between a composed placement read from the `.iam` and the STEP is 6e-15 in rotation and 5e-14 mm in translation. Composition of nested transforms is qualified on these samples. Not covered: nesting deeper than 2 with real geometry, patterns, flexible or adaptive placements, occurrence appearance overrides.
+
+Regenerate (output under `out/`; `<s1.iam>` and `<s1.stp>` are the local files, copy a file with non-ASCII characters in its name to an ASCII name for the STEP tool):
+```
+step_assembly_reference <s1.stp> > out/inventor-research/foundation/step_ref_s1.json
+inventor_compound_probe --assembly <s1.iam> > out/inventor-research/foundation/iam_s1.json
+python out/inventor-research/compare_iam_step.py out/inventor-research/foundation/iam_s1.json out/inventor-research/foundation/step_ref_s1.json
+```
+
+**Loader design (unbuilt in the viewer).** `Inventor::buildAssemblyScene` walks the occurrences; each distinct part file is read once (`readPartBodies`) and tessellated once; an occurrence is the part's shape moved by the composed placement (`shape.Moved(location)`, not copied), so occurrences share the faces and their triangulation and the saved face colours (a table keyed by face) still match. The converter makes one mesh per placed body; the nodes are then regrouped under the occurrence tree by an instance tag in the names, as the Parasolid importer does. A component that cannot be found, a part that cannot be read, an assembly file that cannot be read and a body that cannot be built become error items (the mechanism of the graceful-failure design above); Strict fails the import on the first. Suppressed occurrences and the ones hidden in the saved design view are not loaded (the viewer has no way for an importer to mark a node initially hidden) and are counted in the import warnings.
+
+Known gaps of the first slice: the 8 assemblies that failed with "inconsistent component name or number" and the template and weldment assemblies (MOD-11, MOD-12) were not re-examined after the layout fixes above; patterns, flexible placement, representations.
+
+### Assembly reader: binding of files, unnamed components, corpus after the fixes, 21 November 2026
+
+Found by the owner's first viewer test (a faucet assembly) and by re-measuring the whole corpus; headless unless a line says the owner ran it.
+
+**Rows are bound to files by name, not by position.** A row of the component table in `AmRxSegment` lists the occurrence numbers of one referenced file and carries the file's name (UTF-16, after the row's reference list). The saved pathnames in `UFRxDoc` are in an order of their own. The first reader paired row i with pathname i, which is only right when the two orders agree: in the faucet assembly the last three rows (`Karet Penutup`, `O ring`, `Tangkai`) and pathnames (`Tangkai`, `Karet Penutup`, `O ring`) differed, so three occurrences were bound to the wrong files. A row now takes the first unused pathname whose file name equals the row's name (ignoring case); only a row that no name decides takes the pathnames left, in order. The qualification against Inventor's STEP exports had matched name paths and placements but not the file bound to each occurrence, so it could not see this; the binding is now also checked against the occurrence names (a nested assembly: 29 of 39 occurrences name-equal to their file, the 10 others are Content Center parts whose display names differ from their file names, same part family; a gear box: 23 of 23). The two bound assemblies were unchanged by the fix.
+
+**Components saved without a name.** In eight local assemblies (a pump, motor, frame and valve group) the browser-name record has a zero character count and only the trailer after the header. Inventor names such an occurrence from its file and an instance number ("Fot A2_112M2.STEP:1"); the reader does the same, counting per file in the order of the saved occurrence numbers. This convention is not checked against a reference for those assemblies (none has a paired STEP).
+
+**Files renamed after saving.** The faucet's shipped parts carry number prefixes ("3. Base.ipt") that the saved references do not have, so no lookup finds them; the reader reports the missing file and does not guess. A test copy with the original names (kept under `out/`) reads all 9 occurrences.
+
+**Corpus after the fixes** (33 local assemblies, `inventor_compound_probe --assembly`; the prototype read 2): 14 read at the top level (2 fully, 12 with some component files not found: standard-library parts that are not shipped, or parts not included in the sample); 3 stop on a further table detail ("occurrence root and file references could not be associated", one of them in a sub-assembly of 72 occurrences); 16 are template and weldment files whose component table is not of the kind this reader knows ("occurrence list incomplete" 8, "inconsistent occurrence reference" 8; MOD-12). Regenerate with `out/inventor-research/run_iam_corpus.ps1` (local script, output under `out/`).
+
+**Owner results so far (21 November 2026).** The nested assembly opens with its structure, 17 error items for the standard hardware and the parts in the places of the STEP; its mesh count (19) equals the STEP's (36) minus the 17 unresolved parts. Strict mode fails the whole import naming the first missing component (nested assembly and gear box, both seen). The faucet in its own folder fails with the first missing file (correct, see above).
+
+### Frame assemblies: duplicate path entries, 21 November 2026
+
+The three assemblies that stopped with "occurrence root and file references could not be associated" all failed inside one sub-assembly, a frame generated from a skeleton (6 table rows, 11 saved pathnames). Its saved pathname list holds each of the five members twice, as a full pathname and again as the bare file name right after it; only the skeleton is listed once. The reader now skips a bare file name that repeats the file name of the pathname before it. The five member rows are named by their profile and length ("... - 190"), not by file name, so they bind by position; checked against the part files: the lengths the row names carry (190, 690, 690, 190, 190) equal the measured lengths of the five parts in order. After the change the three assemblies read (the largest: 78 occurrences, 9 sub-assemblies, 3 levels, 43 component files not shipped). Corpus: 17 of 33 read, 16 template and weldment files still do not (MOD-12). Not checked against a reference placement (none of these assemblies has a paired STEP).
+
+### Template and weldment files are empty assemblies, 21 November 2026
+
+The 16 local files that stopped with "the saved occurrence list is incomplete" (8) or "inconsistent occurrence reference" (8) are the templates shipped with Inventor (standard, mold design and weldment templates, 67 KB to 194 KB). Measured with a temporary dump of the occurrence segment (removed again): none of them has a component, a component table row or a saved component pathname. The standard and mold templates have an empty root list. In the weldment templates the root list holds one occurrence record whose target is a node of another type (`f115b4d0`, 90 bytes) instead of a component; it belongs to the weldment feature set, not to a file. So these are assemblies with nothing to place, and the earlier "unsupported" verdict was wrong about them. The reader now returns an empty occurrence list when an assembly has no component records, no rows and no pathnames; the viewer then reports "The Inventor assembly contains no components that can be shown" for a top level assembly of that kind (no partial scene, no crash). Not decoded: the weldment feature record (type `f115b4d0`); it carries weldment features, which have no geometry in an assembly file. Corpus: all 33 local assemblies now read at the occurrence level (17 with components, 16 empty templates).
+
+### Two new samples: a heap crash in sewing and an ambiguous name record, 21 November 2026
+
+Both found by the owner opening freshly downloaded models; reproduced and fixed headless.
+
+**Crash while sewing a threaded part (OCCT 8.0.1).** A small wheel assembly crashed the viewer. The assembly itself reads; one of its four parts, a hex nut with a thread, made the standalone probe exit with `0xC0000374` (heap corruption) in every mode that builds the solid. Under the debugger the heap check reports "block modified past requested size of 88" and the failing free is in `Geom_BSplineCurve::SetOrigin`, reached through `BRepBuilderAPI_Sewing::Cutting` and `BndLib_Add3dCurve` (a bounding box of an edge curve). The edges of the part carry periodic cubic B-splines whose interior knots have multiplicity 2 (33 poles, 17 knots, first and last multiplicity 3); each edge's own trim range is within one period, and cutting a copy over exactly that range works, so the fault is in how sewing re-cuts such a curve, inside OCCT. Not isolated to a minimal OCCT test. Fix in the reader: an edge curve that is a periodic B-spline is replaced, before the edge is made, by a copy cut to the edge's range (`Segment(first, last)`: the same curve over the same parameters, not periodic). After it the part builds (20 faces, volume 1 625 mm3, no crash). Checked that nothing else moved: the oversized part still gives 1 049 solids, 29 open surfaces and 2 incomplete bodies; 99 of the 110 local part files build in strict mode, and the 11 that do not are handled errors (9 template or skeleton parts with no solid bodies, the 4.4 m part's known edge, one more template), no crash. Regenerate with `out/inventor-research/run_corpus.ps1`.
+
+**Ambiguous component name record.** A gripper assembly stopped with "ambiguous component name record". The record of a component name holds a 32-bit character count and the UTF-16 name followed by a 16-byte trailer, and the reader finds the name from the end: the offset whose count and text exactly fill the record. In this record a header word (17, followed by control characters) also fills the record exactly, so two offsets qualified. A candidate must now also be printable text (no control characters); the real name ("Base Plat:1") is then the only one. The assembly reads (24 occurrences, repeated parts named "LINK 2:1" to "LINK 2:4" by instance), as do the other 33 local assemblies (no change in the corpus).
+
+### Hidden occurrences load hidden: a generic node flag, 21 November 2026
+
+Owner decision: components hidden in the saved design view are loaded and start hidden, so the user can show them, instead of being skipped. The viewer already had meshes that start hidden (the 3DXML and JT importers keep a set of hidden `aiNode`s, and the glTF node visibility extension has its own state); this adds one generic way for any importer to ask for it.
+
+- **The flag.** `include/Import/ImportMetadata.h` names the `aiNode` metadata key `ModelViewer.Node.InitiallyHidden` (boolean). A node with the flag, and every node below it, is loaded but starts hidden (unchecked in the model tree, not drawn, shown again by checking it). `AssImpModelLoader::processNode` reads the flag on the node and its ancestors and turns it into the existing initially-hidden mesh state, together with the 3DXML and JT sets, so tree, viewport, fit and MVF saving behave as they already do for those formats. Any importer can set the key; no format code had to change. Moving the 3DXML, JT and glTF cases onto the key is possible but was not done.
+- **Inventor.** A hidden occurrence is read and placed like any other and its leaf node carries the flag; a hidden sub-assembly hides everything in it (the flag is set on every leaf below, so it also holds if the tree is regrouped). The import warning now reads "N component(s) are hidden in the saved design view; they are loaded hidden.". Suppressed occurrences are still skipped (Inventor does not compute them).
+- **Qualification.** None of the 33 local assemblies has a hidden occurrence (the reader found 0), so there is no real file to test with. The hook `MODELVIEWER_INVENTOR_SIMULATE_HIDDEN=<text>` treats every occurrence whose name contains the text as hidden, to exercise the path from the viewer. Not verified against Inventor: which design view Inventor applies when a file saves several.
+
+### Oversized part: the face failure classes (MOD-5, MOD-6), 21 November 2026
+
+Method: the lenient probe run (`inventor_compound_probe --part-bodies <part>`, about 6 to 10 minutes and 3 GB) plus a temporary, environment-gated count of every face failure by message and a few one-off diagnostics (a per-edge geometry print, a search of the spline block table, a stack sampling of the running probe). The diagnostics were removed again and are not in the repository. Before: 1 049 solids, 29 open surfaces and 2 incomplete bodies (64 726 faces and 1 320 of 1 345 faces built); 1 653 of the part's 86 466 faces failed, by class:
+
+| Faces | Message | Cause found |
+|---|---|---|
+| 1 058 | edge endpoints disagree with the saved trim parameters | 1 042: a helix curve with a radial term the reader ignored; 16: fitted intersection splines whose ends miss the vertices by 0.01 mm |
+| 493 | unsupported conical surface profile | cones whose radius ratio is not 1: 276 are circular up to rounding, 217 are real ellipses |
+| 60 | unsupported reversed helix edge | an edge against its curve was refused |
+| 23 | unsupported vertex tolerance | saved vertex tolerances of 0.087 to 0.41 mm against a 0.05 mm cap |
+| 13 | edge does not lie on its saved planar face | rounding: the distance equals the edge tolerance to 8 digits |
+| 6 | unsupported intersection curve tolerance | saved tolerance 0.0676 mm against the 0.05 mm cap |
+
+**Endpoints, the largest class (observation).** Every one of the 1 042 helix edges had the start at the curve start and the end vertex millimetres off (4.9, 17.6, 23.6 mm), and the curve evaluated at the saved end parameter was 4.9 to 23.6 mm from the end vertex. For the first failing edge the vertices lie 110.47 mm and 94.37 mm from the helix axis. The saved helix record holds, after centre, two radial vectors (118.0 mm) and the pitch vector, one more number (-348.08). The radius factor 1 + d u / 2 pi at the saved trim parameters (0.00115218 and 0.00361429) is 0.93617 and 0.79977, which gives 110.47 mm and 94.37 mm: the helix spirals in. The reader now multiplies the radial vectors by that factor (derivative included). Check: the end-vertex check stays strict for helix curves and no helix edge of the part fails with it; the bodies built are the same set.
+
+**Fitted splines.** 16 edges of ordinary fitted intersection splines (saved fit tolerance 0.0036 mm) have their last pole 0.0095 mm from the end vertex. A residual of a fitted spline is now accepted up to the existing 0.05 mm safety cap and carried into the edge and vertex tolerances; residuals of a millimetre or more still fail (those were the helix errors above). Analytic curves and helices keep the strict rule.
+
+**Reversed helices.** An edge that runs against its curve has its trim in the reversed curve, as for a spline; the helix is evaluated at the negated parameter. All 64 edges pass the end-vertex check with it, which confirms the sign.
+
+**Saved tolerances.** A separate limit of 0.5 mm now applies to tolerances the file itself saves (vertex, edge, fitted curve). The largest on this part is 0.41 mm. The 0.05 mm cap stays for measured residuals and for the repair tolerance. This is a safety decision: a saved tolerance above the old cap means a loose join in the file, not a reader error. Reconsider if a model shows false joins.
+
+**Planar faces.** The comparison now allows the 1e-7 mm confusion margin: a tolerance taken from the residual of the edge's own vertex failed by rounding.
+
+**Cones.** Observed radius ratios (minor over major): 0.99986 (208 faces), 0.9985 (56), 0.9992 (12), 0.9675 (about 212 in four groups), 0.8186 (4) and 0.87 (1). A cone or cylinder whose two radii differ by at most 0.01 mm (276 faces) is built circular with the mean radius (at most 0.005 mm off the ellipse). The 217 with differences of 0.2 to 5 mm are elliptic. OCCT has no elliptic cone, so each such face gets a ruled B-spline surface between the elliptical sections at the two ends of the heights its own edges reach (exact: the sections are similar and the generators straight), periodic in u like a saved spline surface. The sense flag is taken from the saved cosine as for circular cones; that this is also right for the ruled surface follows from the parameter directions (u counterclockwise about the axis, v from low to high along the axis) but has not been measured: the owner's visual check qualifies the 217 faces.
+
+**Result.** All 86 466 faces build: 1 049 solids and 31 open surfaces, no incomplete and no failed body. The 147-entry corpus of tests/inventor is unchanged (213 checks pass).
+
+**Cost (measured).** The run takes about 585 s with 3.3 GB peak, against 337 s and 3.1 GB for the committed code. The face building itself is not the cost (the 217 elliptic faces take 1.9 s in all). The 65 034-face body used to fail at the face stage and skip sewing; now all its faces build, the saved topology says the shell is closed, and sewing it takes 223 s, after which OCCT leaves free edges: it is shown as an open surface (no warning mark, as for the other open surfaces). Not done: a time budget or a cancel check for the sewing step, which is not interruptible today; whether the shell should be sewn at all is a decision for the owner.
+
+Regenerate: `inventor_compound_probe --part-bodies <part>` for the body counts; `inventor_tests` for the corpus (see INVENTOR_TESTS.md). The per-class count needs the temporary diagnostic described above.
+
+
+### Spindle torus: the wrong side of a band (pump motor shown as a huge dish), 21 November 2026
+
+Observed by the owner: in a pump assembly the motor appeared as a large smooth dish (a torus) instead of a motor. Sample IP055 (13 MB part, one open-surface body of 1 879 faces; expectation in the corpus manifest unchanged).
+
+**Method.** `inventor_compound_probe --part-faces 1 <part>` (new option: the 20 largest faces with surface type, parameter bounds and torus data; the free-edge count) plus temporary diagnostics in the face builder, removed again. One face was built on a torus with a bounding box of 1 461 mm against about 400 mm for the rest of the motor, and with the parameter bounds of the whole torus (0..2 pi in both directions).
+
+**Observation.** The face lies on a spindle torus: saved major radius -26.545 cm (negative), minor radius 46.5 cm, so the tube is larger than the major radius. It has two boundaries that wind once around the axis, at v = 3.317 (ten arcs, intersection curves) and v = 3.55, so it is a narrow band. Both circles are on the inner (lemon) part of the surface, where major + minor cos v is negative. The saved face sense equals the saved surface sense, and the face had been built as the complement of the band: the rest of the torus, 1 461 mm across.
+
+**Cause (derived, not found in a document).** The surface normal of the OCCT parametrisation (dS/du x dS/dv) carries the sign of the distance from the axis, major + minor cos v. On the lemon part that sign is negative, so the normal points the opposite way to the saved outward normal, and the saved face sense has to be read the other way round there. The reader used the saved sense unchanged. The part of the surface is told from one boundary point (the sign that makes the tube equation hold is the sign of the distance from the axis). The circular-band route (`findCircularBands`) does not take this face because its boundaries are intersection curves, not circle records; it was not changed and has the same sign question for lemon faces whose boundaries are circles. No sample is known for that case.
+
+**Result.** The face is now the band: the motor measures 503 x 528 x 728 mm (was 1 461 x 1 461 x 996 mm) and no face is larger than 566 mm across. Corpus: 147 entries compared, 0 differ, 213 checks pass. Not verified: that the band faces the right way in the viewer (the owner's visual check).
+
+Regenerate: `inventor_compound_probe --part-faces 1 <part>` and `--part-bodies <part>`; `inventor_tests` for the corpus.
+
+**Same cause in the oversized part (circular bands).** A scan of every spindle-torus face of the multi-body part (`inventor_compound_probe --part-faces 0 <part>`, about 10 minutes) showed one body (a closed 9-face body) whose two toroidal faces were as large as 7 002 mm, i.e. built as the complement of a band. Observation: both faces are circular bands between two circle loops 10 mm apart on the lemon part of a spindle torus (saved major radius negative, tube 130 cm). They take the circular-band route (`findCircularBands`), which bypasses the face-sense correction above. The band route now flips the choice of arc and the final face sense for a boundary on the lemon part (the parallel found on the far side of the axis). Result: the body measures 98 mm across, no free edges (9 faces), the band parameter span is 0.009 (was 6.28); corpus unchanged (147 compared, 0 differ). Not verified visually: whether this body is the torus the owner saw in the oversized part.
+
+## Load time: shared edges instead of sewing (21 November 2026)
+
+**Profile (observation).** `MODELVIEWER_INVENTOR_TIMING=1` makes `readPartBodies` print phase totals and the ten slowest bodies to stderr (standalone probe, lenient mode). On the oversized multi-body part (86 466 faces, one saved body record, 1 080 outcomes) the whole read took 408 s: one 85 121-face shell took about 400 s of it (face building 106 s, `BRepBuilderAPI_Sewing` about 225 s), the other 1 048 shells about 9 s together, opening, unpacking and parsing the file 4 s. Building bodies in parallel would therefore not help this file. On a typical 1 882-face part (9 s): faces 2.0 s, sewing 1.7 s, `ShapeFix_Shape` 1.5 s, `SameParameter` 0.45 s. Switching off the sewing cutting pass was tried and rejected: 15 of the 147 corpus parts then fell back to open surfaces.
+
+**Change.** The reader built every face with its own copies of the edges and vertices and left the joining to sewing, although the saved file already says which coedges share an edge. The faces of one shell now share one `TopoDS_Edge` and one `TopoDS_Vertex` per saved edge and vertex record (`_sharedEdges`, `_sharedVertices`, reset per shell), so the shell is connected as built and sewing has almost nothing to join (it still runs and still handles what is left). An edge is shared only when the file gives it exactly two coedges. A first version shared every edge and turned 50 solids into open surfaces (`BRepCheck_InvalidMultiConnexity`): the file saves some circle edges with four coedges (two coincident rings stored as one edge, for example two torus faces and two planes), which sewing separates by geometry and a shared edge cannot. `MODELVIEWER_INVENTOR_NO_SHARED_EDGES=1` switches sharing off for comparisons.
+
+**Result (headless, oversized part).** 167 s instead of 408 s (sewing 7 s instead of 245 s; face building 106 s is now most of it). 1 068 solids and 12 open surfaces, against 1 049 and 31 before: 19 shells that sewing could not close (thin rings and discs of 6 to 10 faces, 0.3 to 5 mm) now close and validate as solids, with volumes equal to the magnitude of the signed volume the old path measured for them (for example 3.52 and 4.51 mm3). Not compared with an independent reference. The 65 034-face machine skin is still an open surface.
+
+**Corpus.** All 147 parts still build with the same solid, face and colour counts. Eight volumes moved by 1e-6 to 5e-4 relative (IP092: 180 280.86 to 180 182.59 mm3). An adaptive integration (`MV_PROBE_ADAPTIVE_VOLUME=1`, 1e-7 relative) gives the same volume with and without sharing to within 0.2 mm3 (IP092: 180 366.32 and 180 366.27 mm3; the checked parts IP027, IP038, IP084, IP085, IP090, IP106 likewise), so the shift is noise in the fixed-order volume the tests record, not different geometry. The eight expected volumes in `tests/inventor/corpus_manifest.tsv` were updated to the new fixed-order values; IP008 (707.645 to 707.650 mm3) was not checked adaptively. Regenerate the evidence with the probe commands above and `out/inventor-research/tests-build/inventor_tests.exe`.
+
+**Parallel face building (21 November 2026).** A shell of 4 000 faces or more is built in parallel: its faces are cut into contiguous chunks (at most one per core minus one, at least 1 000 faces each, 16 at most), and each chunk is built on its own thread with its own `BuildContext` (edge-use counts, shared edges and vertices), so no thread writes a container or an edge that another thread uses. Edges are shared only inside a chunk; an edge whose two faces lie in different chunks is built twice and left to sewing. The faces are then taken in their saved order by the unchanged serial loop (sewing, colours, error handling), so the result and the error messages are those of the serial path; the edge-use counts of the chunks are merged and checked as before. `MODELVIEWER_INVENTOR_THREADS=1` builds serially, for comparison. Smaller shells build serially as before.
+
+Result (headless, oversized part, 6 cores, 5 workers): face building of the two big shells 105 s to 37 s, sewing 7.6 s to 27 s (the chunk-boundary edges), total 166 s to 127 s. Per body, 1 078 of 1 080 bodies are identical to the serial run in kind, face count, edge count, volume and bounding box; the two large open surfaces have the same faces, with 10 492 and 5 238 more edges (the duplicated chunk-boundary edges, which the open-surface fallback leaves unsewn). The 147-part corpus (all shells under 4 000 faces) is unchanged and does not exercise the threads. Not tested: more or fewer cores than 6, a shell failing in strict mode while threads run, cancellation during the parallel phase. Regenerate with `MODELVIEWER_INVENTOR_TIMING=1 inventor_compound_probe --part-bodies <part>`, with and without `MODELVIEWER_INVENTOR_THREADS=1`.
+
+## Review follow-up (21 November 2026)
+
+An independent review of the branch raised four points on the importer; each was checked against the code.
+
+- **A failed solid was reported as a sheet.** The fallback for a shell that did not become a solid showed its faces as an open surface with no message whenever every face was built, whatever the reason. Now only a shell whose own saved edges are open (an edge not shared by two faces, found before sewing: `OpenTopology`) is a sheet. A shell saved closed that failed at sewing, orientation or validation keeps its faces and is marked incomplete with the reason ("The faces could not be closed into a solid (...)"). Effect: the pump motor part and one other corpus part (IP054, IP055) went from an open surface to incomplete (manifest updated), and on the oversized part the 12 open surfaces became 11 incomplete bodies (the 65 034-face skin and the 10 538-face piece among them) and 1 true sheet (1 345 faces).
+- **A lump with several open shells kept only the first.** When no shell of a lump became a solid, the first failure stood for the lump and the others were dropped with their geometry. They are now all kept.
+- **A cycle in a lump, shell or face chain could hang the face count.** `countFaces` is bounded by the number of records; the reconstruction then reports the cycle.
+- **Threads.** The worker threads are started and joined by one helper (`runParallel`): every started thread is joined even if a later one cannot be started (that share then runs on the calling thread) or a worker throws (the exception is rethrown after the join); the signed-volume threads use it too. The chunk a face belongs to for edge sharing is now taken from the range that is actually built (it differed at some boundaries, for example 4 001 faces and 4 workers; the effect was unshared edges, not a race). The oversized part gives the same 1 068 solids, face counts and volumes per body as before (102 s).
+- **Assembly bindings.** Tree groups are keyed by a unique step per occurrence, not by the display name, so two sibling groups of one name stay two groups. A component file chosen among several files of the same name carries a warning on the occurrence; a binding by position that the occurrence's own name does not confirm is reported once per assembly. On the corpus no assembly has a same-name ambiguity; 5 of 36 have positional bindings nothing confirms (renamed occurrences, for example). Not exercised by the tests: the scene builder (see INVENTOR_TESTS.md).
+- **Branch scope (open).** The commit that shows skipped JT and 3DXML parts as error items (`bff415b`, 20 November) changes 3DXML code and exists only on `feature/inventor3d`; the repository rule keeps 3DXML changes on `feature/3dxml-importer` and `feature/JT-importer` too. It also holds JT and settings changes, so it has to be split before it is carried over. Carried on 22 November 2026: the generic model-tree part (import issue on a node, error mark, MVF and session storage) and the 3DXML part were committed separately on `feature/3dxml-importer` and `feature/JT-importer`; the JT and settings parts of that commit stay on `feature/inventor3d`.
+
+### Second review round (22 November 2026)
+
+- **Thread check without a corpus map.** The corpus map is under the ignored `out/` folder, so a fresh checkout has none: `--thread-check` now reports "skipped" and passes. With a map that yields no usable sample it still fails.
+- **Edge orientation versus open boundary.** The edge-use mask (one bit per direction) could not tell one coedge from two coedges running the same way, so a shell with such an edge could be taken for a quiet sheet. A third bit now records a repeated direction (also when the chunks of a threaded build are merged). At the end of the face build, an edge that is not used once in each direction is an open boundary (sheet) only if no repeated direction was seen; otherwise the shell fails with the orientation message and is shown as incomplete with that reason. An edge used in both directions and more often (the coincident rings of a pinched shell) is still left to the sewing: a first version that failed these as well turned 70 void shells of the oversized part into failed bodies, which is how that case was found. Effect on the corpus: none (the manifest is unchanged); the oversized part keeps 1,068 solids, 11 incomplete bodies and 1 sheet.
+- **Split pieces.** When a pinched shell is cut into pieces and none becomes a solid, the first failure stands for the shell and the other pieces keep their faces and reasons (before, only the first was returned).
+- **Generated occurrence names.** A name made by the reader from the chosen file ("Base:3") no longer confirms a binding by position; only a name saved in the assembly does. More assemblies now carry the per-assembly summary warning (6 more of the 36 local assemblies).
+- **Adaptive-volume retry in the thread check** needs a volume from both re-measurements; two errors no longer pass.
+
+### Third review round (22 November 2026)
+
+- **Sheet or error, decided on the whole shell.** All edges are looked at before a shell with an open boundary is accepted as a sheet. A boundary edge no longer hides an edge that two coedges run the same way, nor an edge with a third use (an odd number of repeated coedges, kept as a parity bit next to the direction bits and merged across the worker threads). Pairs of repeated coedges are the coincident rings of a pinched shell and stay with the sewing.
+- **Accepted limit, not changed.** When the solid rules reject a shell (an edge used more than twice in a way they do not cover), the lenient path builds the faces on their own and a shell whose only remaining fault is a boundary is shown as a sheet without a warning. A reviewer asked to carry the rejection into that fallback so such a shell is flagged. Tried: the corpus sample IP052 (a surface body, expected as one sheet) then became an incomplete body, so the rule would warn about a body that is correct as saved. Not adopted; strict mode still fails on such a shell. A rule that tells a genuine surface body from a damaged closed shell by something other than the edge count would be needed.
+- **Progress while converting.** The converter takes the part of the progress bar it may fill as parameters of `convert()` (no shared state), and counts input shapes, not the meshes they produce.
+- **Ordered progress.** Worker threads deliver progress under one lock, so reports never go backwards; the test checks the order.

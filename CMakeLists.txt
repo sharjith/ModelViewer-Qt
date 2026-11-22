@@ -41,6 +41,7 @@ find_package(meshoptimizer REQUIRED)
 # usually pulled in transitively by Qt6Core's own zstd feature dependency,
 # but that's not guaranteed across Qt6 builds/versions - find it explicitly.
 find_package(zstd CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
 find_package(basisu CONFIG REQUIRED)
 find_package(embree CONFIG REQUIRED)
 find_package(OpenImageDenoise CONFIG REQUIRED)
@@ -400,6 +401,7 @@ add_executable(ModelViewer)
 add_subdirectory(src/ThirdParty/occt-jt)
 target_link_libraries(ModelViewer PRIVATE mv_jt_codec)
 target_link_libraries(ModelViewer PRIVATE ${MV_MINIZIP_TARGET})
+target_link_libraries(ModelViewer PRIVATE ZLIB::ZLIB zstd::libzstd)
 
 set(APP_VERSION_MAJOR 2026)
 set(APP_VERSION_MINOR 11)

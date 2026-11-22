@@ -35,7 +35,7 @@ void texturePlanarTests(){
     geometry.uvBinding=1;LegacyFixture::write(dir.filePath("stored.jt"),geometry);
     const auto plain=Jt::Importer::read(dir.filePath("geometry.jt"));const auto stored=Jt::Importer::read(dir.filePath("stored.jt"));
     check(!plain.scene->mMeshes[0]->HasTextureCoords(0),"Planar no-UV control unexpectedly has UVs");
-    for(unsigned minor:{0u,2u,3u,5u,7u,8u,9u,10u})for(bool big:{false,true}){
+    for(unsigned minor:{0u,2u,3u,5u,6u,7u,8u,9u,10u})for(bool big:{false,true}){
         TextureFixture::Options o;o.coordinate=0;o.big=big;o.baseVersion=Fixture::modernTextureUsesSabot(minor)?2:1;o.wrapped=Fixture::modernTextureUsesSabot(minor);
         o.generation={1,1,0,0};o.planes[0]=1;o.planes[5]=1;
         for(bool withStored:{false,true})for(unsigned channel:{0u,2u}){

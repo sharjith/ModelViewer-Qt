@@ -215,3 +215,17 @@ The ModelViewer-original texture-image reader accepts a qualified JT 9.x produce
 
 The ModelViewer-original scene adapter normalizes any finite nonzero bottom-right homogeneous transform scale before producing the renderer's affine matrix. This is exact projective-coordinate equivalence and is shared after the enabled JT8 F32 and JT9/JT10 F64 transform readers. Normalized nonzero perspective-row terms, zero/nonfinite scale and float-unrepresentable results remain explicit failures. Original scene tests cover exact scalar multiples, an authentic producer's F32 predecessor of one, genuine perspective terms, zero scale and underflow. Authentic evidence is one private JT9.5 assembly; no other-version exporter claim is made. See [assembly and attribute validation](../../../research/jt/JT_ASSEMBLY_ATTRIBUTE_VALIDATION.md).
 
+## 18 November 2026 - PMI Manager element version 1
+
+The modified `JtElement_MetaData_PMIManager` reader accepts local version 1 in addition to version 5 for the common JT 10.6
+section 8.3 body. One hash-qualified private JT10.0 assembly contains 76 version-1 elements; all decode with the already-qualified
+header, string table, model-view, Generic PMI Entity, non-text polyline and flagged-property-atom field order. Its 102 dimensions
+use only the existing linear and diameter property forms. Other element versions and unevidenced features remain rejected, and
+trailing version overlays/sort orders/association properties remain outside this reader as before. Evidence and qualification
+limits: `research/jt/JT_PMI_STUDY.md`; original literal fixtures: `tests/jt/jt_pmi_tests.cpp`; privacy-reduced inventory:
+`tools/jt/inventory_pmi_segments.py`. No vendor implementation was used.
+
+## 18 November 2026 - JT 10.6 sampled-subset qualification
+
+`JtData_Model.cxx` admits one independently supplied authentic JT 10.6 assembly through the existing modern graph and stored-tessellation reader. The explicit gate adds only minor version 6. Original little- and big-endian container, geometry-channel, attribute, palette, texture and malformed-record tests cover the shared layout; JT 10.4 and 10.11 remain rejected. The unchanged authentic input passes the AddressSanitizer-enabled suite and native validation with 175 mesh occurrences and no fallback parts. Unsupported metadata remains diagnosed. See `research/jt/JT_106_VALIDATION.md`. Existing upstream notices and hashes are retained; no vendor implementation was used.
+

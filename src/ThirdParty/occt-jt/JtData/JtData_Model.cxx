@@ -117,9 +117,9 @@ Handle(JtNode_Partition) JtData_Model::Init()
   // record-local guards still reject unsupported encodings.
   // The observed 10.9 palette family is qualified independently of later versions.
   const bool legacy8Family=myMajorVersion==8 && myMinorVersion>=0 && myMinorVersion<=2;
-  if(!((myMajorVersion==10 && (myMinorVersion==0 || myMinorVersion==2 || myMinorVersion==3 || myMinorVersion==5 || myMinorVersion==7 || myMinorVersion==8 || myMinorVersion==9 || myMinorVersion==10)) || legacy8Family || (myMajorVersion==9 && (myMinorVersion==0 || myMinorVersion==4 || myMinorVersion==5))))
+  if(!((myMajorVersion==10 && (myMinorVersion==0 || myMinorVersion==2 || myMinorVersion==3 || myMinorVersion==5 || myMinorVersion==6 || myMinorVersion==7 || myMinorVersion==8 || myMinorVersion==9 || myMinorVersion==10)) || legacy8Family || (myMajorVersion==9 && (myMinorVersion==0 || myMinorVersion==4 || myMinorVersion==5))))
     throw std::runtime_error("Unsupported JT version "+std::to_string(myMajorVersion)+"."+
-      std::to_string(myMinorVersion)+"; native reader supports qualified JT 8.0-8.2, JT 9.0, JT 9.4, JT 9.5, JT 10.0, JT 10.2, JT 10.3, JT 10.5, JT 10.7, JT 10.8, JT 10.9 and JT 10.10 subsets");
+      std::to_string(myMinorVersion)+"; native reader supports qualified JT 8.0-8.2, JT 9.0, JT 9.4, JT 9.5, JT 10.0, JT 10.2, JT 10.3, JT 10.5, JT 10.6, JT 10.7, JT 10.8, JT 10.9 and JT 10.10 subsets");
   TRACE ("\n\nInfo: File version = " + myMajorVersion + "." + myMinorVersion);
 
   // Read byte order

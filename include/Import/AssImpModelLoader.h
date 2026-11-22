@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <fstream>
 #include <iostream>
 #include <condition_variable>
@@ -57,8 +58,12 @@ class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandle
 {
 	Q_OBJECT
 public:
-	void setCancelFlag(const bool* cancelFlag) { _cancelFlag = cancelFlag; }
+	void setCancelFlag(const std::atomic_bool* cancelFlag) { _cancelFlag = cancelFlag; }
 	virtual bool Update(float percentage);
+	// Assimp separates the reading of the file from its post-processing steps; these name the stage in the status bar.
+	void UpdateFileRead(int currentStep, int numberOfSteps) override;
+	void UpdatePostProcess(int currentStep, int numberOfSteps) override;
+	void setFileName(const QString& name) { _fileName = name; }
 
 	// Required by Qt system. TODO: Make sure it is fine
 	inline void* operator new(size_t, void* ptr) noexcept
@@ -69,7 +74,9 @@ public:
 	using Assimp::ProgressHandler::operator new;
 
 private:
-	const bool* _cancelFlag = nullptr;
+	const std::atomic_bool* _cancelFlag = nullptr;
+	QString _fileName;
+	int _lastStage = -1;
 
 signals:
 	void fileReadProcessed(float percent);
@@ -279,6 +286,8 @@ public:
 	{
 		if (_sceneReleased)
 			return _releasedWarnings;
+		if (!_xtWarnings.isEmpty())
+			return _xtWarnings;
 		return _threeDXml.scene ? _threeDXml.warnings : _jt.scene ? QStringList(_jt.warnings + _jt.notes) : QStringList();
 	}
 	// Runs the vertex-cache/overdraw/LOD1/vertex-fetch optimisation (SceneMesh::optimizeGeometry) for every eligible mesh of the batch
@@ -393,7 +402,7 @@ private:
 	Assimp::Importer _importer;
 	AssImpModelProgressHandler* _progHandler;
 	QString _errorMessage;
-	bool _loadingCancelled;
+	std::atomic_bool _loadingCancelled{false};
 	
 	AssImpMeshDataBatch _currentBatch;
 	int _batchSize = 20;
@@ -419,6 +428,7 @@ private:
 	std::deque<AssImpMeshDataBatch> _readyBatches;
 	bool _sceneReleased = false;     // the native scene was handed to the viewer (releaseNativeScene())
 	QStringList _releasedWarnings;
+	QStringList _xtWarnings; // warnings of the Parasolid X_T and Inventor importers for the file just read
 	ThreeDXml::ImportResult _threeDXml; // Owns custom aiScene independently of Assimp::Importer.
 	std::unique_ptr<aiScene> _xcafScene; // Owns the scene an OCC document processor built (STEP, IGES, BREP, VRML).
 	Jt::ImportResult _jt;

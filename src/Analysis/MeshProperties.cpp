@@ -46,6 +46,33 @@ namespace
 	// project_step_import_watertight_fixes.md.
 	constexpr double kMinorSelfIntersectionAreaRatio = 0.01; // 1% of the mesh's own surface area
 
+	// Removes points that no face references, renumbering the faces to match. polygon_soup_to_polygon_mesh() adds every
+	// point as a vertex, so an unreferenced point becomes an ISOLATED vertex (no halfedge). is_closed() accepts such a mesh,
+	// but does_bound_a_volume() -> volume_connected_components() reads halfedge(v) of EVERY vertex and dereferences its face,
+	// which for an isolated vertex is the null halfedge: an out-of-range property read (a CGAL assertion in a debug build, an
+	// access violation in release). Stray points are normal in tessellations of imports that contain open or incomplete
+	// bodies. Topology only: no point moves and no face is dropped.
+	void dropUnreferencedPoints(std::vector<PropsPoint3>& points, std::vector<std::array<std::size_t, 3>>& faces)
+	{
+		constexpr std::size_t unused = static_cast<std::size_t>(-1);
+		std::vector<std::size_t> remap(points.size(), unused);
+		std::vector<PropsPoint3> kept;
+		kept.reserve(points.size());
+		for (auto& face : faces)
+		{
+			for (std::size_t& index : face)
+			{
+				if (remap[index] == unused)
+				{
+					remap[index] = kept.size();
+					kept.push_back(points[index]);
+				}
+				index = remap[index];
+			}
+		}
+		points.swap(kept);
+	}
+
 	// The fraction of `mesh`'s surface area covered by faces CGAL::Polygon_mesh_processing::self_intersections()
 	// reports as part of a crossing pair. Only called once does_self_intersect() has already confirmed there is at
 	// least one - self_intersections() itself has no precondition beyond a valid mesh, so it is always safe to call.
@@ -147,6 +174,8 @@ MeshTopologyCheckResult computeMeshTopology(const std::vector<float>& points, co
 			return check;
 		}
 	}
+
+	dropUnreferencedPoints(soupPoints, soupFaces); // no isolated vertices: see the helper's comment
 
 	PropsMesh cgalMesh;
 	CGAL::Polygon_mesh_processing::polygon_soup_to_polygon_mesh(soupPoints, soupFaces, cgalMesh);

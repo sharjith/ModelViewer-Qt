@@ -8,6 +8,8 @@
 #include <QApplication>
 #include <QColorDialog>
 #include <QDir>
+#include <QFileDialog>
+#include <QFileInfo>
 #include <QMessageBox>
 #include <QTimer>
 
@@ -33,6 +35,25 @@ int defaultLevelIndex(const QComboBox* combo, double limit)
 }
 
 // A stored index counts only while it still points at an entry of the (GPU-dependent) list.
+// Status line under the Parasolid schema folder field: what the importer will find in it.
+QString xtSchemaStatusText(const QString& folder)
+{
+    const QString text = folder.trimmed();
+    if (text.isEmpty())
+        return QObject::tr("Automatic: the schema folder next to the application, or MODELVIEWER_XT_SCHEMA_DIR.");
+    const QDir dir(text);
+    if (!dir.exists())
+        return QObject::tr("This folder does not exist.");
+    const QStringList files = dir.entryList({QStringLiteral("sch_*.sch_txt"), QStringLiteral("SCH_*.SCH_TXT")}, QDir::Files);
+    if (files.isEmpty())
+        return QObject::tr("No sch_<number>.sch_txt schema files in this folder.");
+    const bool base = QFileInfo(dir.filePath(QStringLiteral("sch_13006.sch_txt"))).isFile() ||
+                      QFileInfo(dir.filePath(QStringLiteral("SCH_13006.SCH_TXT"))).isFile();
+    if (!base)
+        return QObject::tr("%1 schema files found, but sch_13006.sch_txt (the base schema) is missing.").arg(files.size());
+    return QObject::tr("%1 schema files found.").arg(files.size());
+}
+
 int storedOrDefaultIndex(const QSettings& settings, const char* key, const QComboBox* combo, double defaultLimit)
 {
     const int fallback = defaultLevelIndex(combo, defaultLimit);
@@ -154,6 +175,16 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
     }
 
     loadSettings();
+
+    connect(ui->xtSchemaDirLineEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
+        ui->xtSchemaDirStatusLabel->setText(xtSchemaStatusText(text));
+    });
+    connect(ui->xtSchemaDirBrowseButton, &QPushButton::clicked, this, [this]() {
+        const QString start = ui->xtSchemaDirLineEdit->text().trimmed().isEmpty() ? QDir::homePath() : ui->xtSchemaDirLineEdit->text().trimmed();
+        const QString chosen = QFileDialog::getExistingDirectory(this, tr("Parasolid Schema Folder"), start);
+        if (!chosen.isEmpty())
+            ui->xtSchemaDirLineEdit->setText(QDir::toNativeSeparators(chosen));
+    });
 
     connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this]() {
         updateSettingsHint();
@@ -454,9 +485,12 @@ void SettingsDialog::applySettings()
     settings.setValue("jtPrefetchMin", ui->jtPrefetchMinSpinBox->value());
     settings.setValue("jtDetailLevel", ui->jtDetailLevelComboBox->currentIndex());
     settings.setValue("jtLodMaterialVariants", ui->jtLodMaterialVariantsCheckBox->isChecked());
+    settings.setValue("jtStrict", ui->jtStrictCheckBox->isChecked());
     settings.setValue("threeDxmlStrict", ui->threeDxmlStrictCheckBox->isChecked());
     settings.setValue("threeDxmlThreads", ui->threeDxmlThreadsSpinBox->value());
     settings.setValue("threeDxmlParallelMin", ui->threeDxmlParallelMinSpinBox->value());
+    settings.setValue("inventorStrict", ui->inventorStrictCheckBox->isChecked());
+    settings.setValue("xtSchemaDir", ui->xtSchemaDirLineEdit->text().trimmed());
 
     if (general_showTutorialLauncher)
     {
@@ -644,9 +678,13 @@ void SettingsDialog::setDefaultValues()
     ui->jtPrefetchMinSpinBox->setValue(16);
     ui->jtDetailLevelComboBox->setCurrentIndex(0);
     ui->jtLodMaterialVariantsCheckBox->setChecked(false);
+    ui->jtStrictCheckBox->setChecked(false);
     ui->threeDxmlStrictCheckBox->setChecked(false);
     ui->threeDxmlThreadsSpinBox->setValue(0);
     ui->threeDxmlParallelMinSpinBox->setValue(8);
+    ui->inventorStrictCheckBox->setChecked(false);
+    ui->xtSchemaDirLineEdit->clear();
+    ui->xtSchemaDirStatusLabel->setText(xtSchemaStatusText(QString()));
 }
 
 void SettingsDialog::captureAppliedState()
@@ -1035,9 +1073,13 @@ void SettingsDialog::loadSettings()
     ui->jtPrefetchMinSpinBox->setValue(settings.value("jtPrefetchMin", 16).toInt());
     ui->jtDetailLevelComboBox->setCurrentIndex(qBound(0, settings.value("jtDetailLevel", 0).toInt(), 3));
     ui->jtLodMaterialVariantsCheckBox->setChecked(settings.value("jtLodMaterialVariants", false).toBool());
+    ui->jtStrictCheckBox->setChecked(settings.value("jtStrict", false).toBool());
     ui->threeDxmlStrictCheckBox->setChecked(settings.value("threeDxmlStrict", false).toBool());
     ui->threeDxmlThreadsSpinBox->setValue(settings.value("threeDxmlThreads", 0).toInt());
     ui->threeDxmlParallelMinSpinBox->setValue(settings.value("threeDxmlParallelMin", 8).toInt());
+    ui->inventorStrictCheckBox->setChecked(settings.value("inventorStrict", false).toBool());
+    ui->xtSchemaDirLineEdit->setText(settings.value("xtSchemaDir").toString());
+    ui->xtSchemaDirStatusLabel->setText(xtSchemaStatusText(ui->xtSchemaDirLineEdit->text()));
 
     blockAllChildWidgetSignals(false);
     syncStateFromUi();
@@ -1133,8 +1175,8 @@ void SettingsDialog::restoreDefaults()
         ui->showTextureDebugPanelCheckBox,
         ui->importDiagnosticsCheckBox, ui->importDiagnosticsMaxMbSpinBox, ui->interactionFastPathMbSpinBox,
         ui->smallPartCullSpinBox, ui->batchedDrawingCheckBox, ui->batchMinMeshesSpinBox, ui->lodMinTrianglesSpinBox, ui->jtMergePartMeshesCheckBox, ui->jtDecodeThreadsSpinBox,
-        ui->jtBudgetGibSpinBox, ui->jtPrefetchMinSpinBox, ui->jtDetailLevelComboBox, ui->jtLodMaterialVariantsCheckBox, ui->threeDxmlStrictCheckBox,
-        ui->threeDxmlThreadsSpinBox, ui->threeDxmlParallelMinSpinBox,
+        ui->jtBudgetGibSpinBox, ui->jtPrefetchMinSpinBox, ui->jtDetailLevelComboBox, ui->jtLodMaterialVariantsCheckBox, ui->jtStrictCheckBox, ui->threeDxmlStrictCheckBox,
+        ui->threeDxmlThreadsSpinBox, ui->threeDxmlParallelMinSpinBox, ui->inventorStrictCheckBox,
         ui->clearCacheButton
     };
 

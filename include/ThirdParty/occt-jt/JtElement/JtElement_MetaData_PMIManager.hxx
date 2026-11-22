@@ -16,7 +16,8 @@
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling; the element reader was
-// replaced on 2026-11-01 by the JT 10.6 section 8.3 layout (see MODIFICATIONS.md and PROVENANCE.json).
+// replaced on 2026-11-01 by the JT 10.6 section 8.3 layout and extended on 2026-11-18 for the qualified version-1 form
+// (see MODIFICATIONS.md and PROVENANCE.json).
 
 #ifndef _JtElement_MetaData_PMIManager_HeaderFile
 #define _JtElement_MetaData_PMIManager_HeaderFile
@@ -30,9 +31,9 @@
 
 // PMI Manager Meta Data Element, as written into the PMI data segment (segment type 3) by JT 10.x writers.
 //
-// Reads the layout of the JT 10.6 format description, section 8.3, for element version 5 (the only version observed in
-// authentic files, Solid Edge 2026 JT 10.10): every PMI item is a Generic PMI Entity with a typed 2D-data block, non-text
-// polylines in the part's frame and key/value string properties. Associations (counted, their five words skipped) and model views
+// Reads the common layout of the JT 10.6 format description, section 8.3, for qualified element versions 1 and 5: every PMI item
+// is a Generic PMI Entity with a typed 2D-data block, non-text polylines in the part's frame and key/value string properties.
+// Associations (counted, their five words skipped) and model views
 // (name, camera and id kept) are read since 7 November 2026, from a Solid Edge export with two named PMI model views; design groups,
 // user attributes, 2D text entities, CAD tags and the version 3 additions are not read: a file that uses them is rejected with an
 // explicit diagnostic instead of being misread, and the unread trailing bytes of the element are skipped by the caller. Replaces the

@@ -16,7 +16,8 @@
 
 // Modified for ModelViewer-Qt, 2026-10-19 (including changes made 2026-10-18).
 // Changes: modern OCCT compatibility, JT 10.0 decoding and bounded input handling; the element reader was
-// replaced on 2026-11-01 by the JT 10.6 section 8.3 layout (see MODIFICATIONS.md and PROVENANCE.json).
+// replaced on 2026-11-01 by the JT 10.6 section 8.3 layout and extended on 2026-11-18 for the qualified version-1 form
+// (see MODIFICATIONS.md and PROVENANCE.json).
 
 #include <JtElement_MetaData_PMIManager.hxx>
 #include <JtData_Reader.hxx>
@@ -112,7 +113,8 @@ namespace
       if (anIndex < 0 || std::size_t (anIndex) > aCoordCount / 3)
         throw std::runtime_error ("JT PMI polyline index exceeds the vertex array");
 
-    // Generic entity: properties (each atom is a string and one flag byte in version 5), type names, type codes, user flags.
+    // Generic entity: properties (each atom is a string and one flag byte in qualified versions 1 and 5), type names, type
+    // codes, user flags.
     const std::size_t aPropertyCount = C.Count (10, MaxProperties, "property count");
     JtData_Limits::allocation (aPropertyCount * sizeof (JtElement_MetaData_PMIManager::Property));
     E.Properties.reserve (aPropertyCount);
@@ -145,7 +147,9 @@ Standard_Boolean JtElement_MetaData_PMIManager::Read (JtData_Reader& theReader)
 
   Cursor C{theReader};
   myVersion = C.U8 ("version");
-  if (myVersion != 5)
+  // Authentic version-1 and version-5 elements use the same common body read below. Their trailing version overlays, sort
+  // orders and association properties remain outside this reader. Other local versions have not been qualified.
+  if (myVersion != 1 && myVersion != 5)
     throw std::runtime_error ("Unsupported JT PMI Manager element version " + std::to_string (int (myVersion)));
   C.I16 ("empty field");
 

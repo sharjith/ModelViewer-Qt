@@ -9,6 +9,7 @@
 
 #include <BRep_Tool.hxx>
 #include <BRepAdaptor_Curve.hxx>
+#include <Geom2d_Curve.hxx>
 #include <Geom_Surface.hxx>
 #include <GeomAbs_CurveType.hxx>
 #include <GeomAbs_SurfaceType.hxx>
@@ -308,12 +309,14 @@ namespace
 	}
 }
 
-FaceFallbackTriangulator::Boundary FaceFallbackTriangulator::captureBoundary(const TopoDS_Face& face, const TopTools_IndexedDataMapOfShapeListOfShape& edgeToFaces)
+static FaceFallbackTriangulator::Boundary captureBoundaryImpl(const TopoDS_Face& face,
+	const TopTools_IndexedDataMapOfShapeListOfShape& edgeToFaces, bool useSurfaceTrims)
 {
 	try
 	{
 		// ---- 1. the boundary loops in 3D, from the neighbours' shared-edge discretization ----
 		std::vector<std::vector<std::vector<gp_Pnt>>> wirePolylines; // per wire, per edge
+		std::vector<std::vector<std::vector<gp_Pnt2d>>> wireUV;
 		std::vector<std::vector<std::string>> wireDescriptions;
 		std::vector<std::vector<bool>> wirePoles;
 		double minX = 1e300, minY = 1e300, minZ = 1e300, maxX = -1e300, maxY = -1e300, maxZ = -1e300;
@@ -324,6 +327,7 @@ FaceFallbackTriangulator::Boundary FaceFallbackTriangulator::captureBoundary(con
 			if (!orderedWirePieces(wire, pieces))
 				return failedBoundary("a wire's edges do not form a closed loop");
 			std::vector<std::vector<gp_Pnt>> polylines;
+			std::vector<std::vector<gp_Pnt2d>> trimPolylines;
 			std::vector<bool> fromNeighbour;
 			std::vector<std::string> descriptions;
 			std::vector<bool> poleBefore;
@@ -334,7 +338,27 @@ FaceFallbackTriangulator::Boundary FaceFallbackTriangulator::captureBoundary(con
 				const bool closedEdge = TopExp::FirstVertex(edge, true).IsSame(TopExp::LastVertex(edge, true));
 				std::vector<gp_Pnt> pts;
 				bool neighbour = false;
-				if (!edgePolyline(edge, face, edgeToFaces, piece.start, closedEdge, edge.Orientation() == TopAbs_REVERSED, pts, neighbour))
+				if (useSurfaceTrims)
+				{
+					double first, last;
+					const TopoDS_Face forwardFace = TopoDS::Face(face.Oriented(TopAbs_FORWARD));
+					const Handle(Geom2d_Curve) trim = BRep_Tool::CurveOnSurface(edge, forwardFace, first, last);
+					if (trim.IsNull() || !BRep_Tool::SameParameter(edge) || !BRep_Tool::SameRange(edge)
+						|| !std::isfinite(first) || !std::isfinite(last) || !(first < last))
+						return failedBoundary("an edge has no reconciled surface trim");
+					const BRepAdaptor_Curve curve(edge);
+					if (edge.Orientation() == TopAbs_REVERSED)
+						std::swap(first, last);
+					auto& uv = trimPolylines.emplace_back();
+					constexpr int samples = 24;
+					for (int i = 0; i <= samples; ++i)
+					{
+						const double t = first + (last - first) * i / samples;
+						pts.push_back(curve.Value(t));
+						uv.push_back(trim->Value(t));
+					}
+				}
+				else if (!edgePolyline(edge, face, edgeToFaces, piece.start, closedEdge, edge.Orientation() == TopAbs_REVERSED, pts, neighbour))
 					return failedBoundary("an edge has no usable polyline");
 				fromNeighbour.push_back(neighbour);
 				poleBefore.push_back(piece.poleBefore);
@@ -369,6 +393,8 @@ FaceFallbackTriangulator::Boundary FaceFallbackTriangulator::captureBoundary(con
 			if (!polylines.empty())
 			{
 				wirePolylines.push_back(std::move(polylines));
+				if (useSurfaceTrims)
+					wireUV.push_back(std::move(trimPolylines));
 				wireDescriptions.push_back(std::move(descriptions));
 				wirePoles.push_back(std::move(poleBefore));
 			}
@@ -379,12 +405,14 @@ FaceFallbackTriangulator::Boundary FaceFallbackTriangulator::captureBoundary(con
 		const double eps = std::max(1e-9, 1e-7 * diag);
 
 		std::vector<std::vector<gp_Pnt>> loops3d;
+		std::vector<std::vector<gp_Pnt2d>> loopsUV;
 		std::vector<std::vector<std::pair<size_t, std::string>>> loopPieces;
 		std::vector<std::vector<size_t>> loopPoles;
 		for (size_t w = 0; w < wirePolylines.size(); ++w)
 		{
 			const auto& polylines = wirePolylines[w];
 			std::vector<gp_Pnt> chain;
+			std::vector<gp_Pnt2d> trimChain;
 			std::vector<std::pair<size_t, std::string>> pieceInfo;
 			std::vector<size_t> poles;
 			for (size_t i = 0; i < polylines.size(); ++i)
@@ -396,17 +424,29 @@ FaceFallbackTriangulator::Boundary FaceFallbackTriangulator::captureBoundary(con
 					poles.push_back(chain.size());
 				pieceInfo.emplace_back(chain.size() - from, wireDescriptions[w][i] + (from ? "" : " (NOT joined to previous)"));
 				chain.insert(chain.end(), pts.begin() + from, pts.end());
+				if (useSurfaceTrims)
+				{
+					const auto& uv = wireUV[w][i];
+					trimChain.insert(trimChain.end(), uv.begin() + from, uv.end());
+				}
 			}
 			if (chain.size() >= 2 && chain.front().Distance(chain.back()) <= eps)
+			{
 				chain.pop_back();
+				if (useSurfaceTrims)
+					trimChain.pop_back();
+			}
 			if (chain.size() < 3)
 				return failedBoundary("a boundary loop has fewer than 3 points");
 			loops3d.push_back(std::move(chain));
+			if (useSurfaceTrims)
+				loopsUV.push_back(std::move(trimChain));
 			loopPieces.push_back(std::move(pieceInfo));
 			loopPoles.push_back(std::move(poles));
 		}
-		Boundary result;
+		FaceFallbackTriangulator::Boundary result;
 		result.loops = std::move(loops3d);
+		result.trimUV = std::move(loopsUV);
 		result.pieces = std::move(loopPieces);
 		result.poleBreaks = std::move(loopPoles);
 		result.diag = diag;
@@ -419,7 +459,20 @@ FaceFallbackTriangulator::Boundary FaceFallbackTriangulator::captureBoundary(con
 	}
 }
 
-Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Face& face, const Boundary& boundary, std::string* failure)
+FaceFallbackTriangulator::Boundary FaceFallbackTriangulator::captureBoundary(
+	const TopoDS_Face& face, const TopTools_IndexedDataMapOfShapeListOfShape& edgeToFaces)
+{
+	return captureBoundaryImpl(face, edgeToFaces, false);
+}
+
+FaceFallbackTriangulator::Boundary FaceFallbackTriangulator::captureSurfaceTrims(const TopoDS_Face& face)
+{
+	const TopTools_IndexedDataMapOfShapeListOfShape noNeighbours;
+	return captureBoundaryImpl(face, noNeighbours, true);
+}
+
+Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Face& face, const Boundary& boundary,
+	std::string* failure, double maxProjectionError, bool unwrapSurfaceTrims)
 {
 	auto fail = [failure](const std::string& why) {
 		if (failure)
@@ -451,6 +504,8 @@ Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Fa
 		std::vector<std::vector<gp_Pnt>> loopsKept3d; // parallel to loopsUV (points dropped for duplicate (u, v) removed)
 		for (const std::vector<gp_Pnt>& loop : loops3d)
 		{
+			const auto* trim = boundary.trimUV.empty() ? nullptr : &boundary.trimUV[loopsUV.size()];
+			const bool unwrap = !trim || unwrapSurfaceTrims;
 			std::vector<gp_Pnt2d> uv;
 			std::vector<gp_Pnt> pts;
 			std::vector<size_t> uvIndexOfPoint; // loop point index -> index in `uv` (of the last kept point at or before it)
@@ -461,10 +516,13 @@ Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Fa
 			for (size_t pointIndex = 0; pointIndex < loop.size(); ++pointIndex)
 			{
 				const gp_Pnt& p = loop[pointIndex];
-				gp_Pnt2d q = analysis->ValueOfUV(p.Transformed(toLocal), projectionTolerance);
+				gp_Pnt2d q = trim ? (*trim)[pointIndex] : analysis->ValueOfUV(p.Transformed(toLocal), projectionTolerance);
+				if (maxProjectionError > 0 &&
+				    !(surface->Value(q.X(), q.Y()).Transformed(toGlobal).Distance(p) <= maxProjectionError))
+					return fail("boundary point is too far from the face surface");
 				const bool afterPole = isPoleBreak(pointIndex);
 				const bool atPole = afterPole || isPoleBreak(pointIndex + 1);
-				if (atPole && !uv.empty() && uPeriodic)
+				if (unwrap && atPole && !uv.empty() && uPeriodic)
 				{
 					// A pole has no meaningful u of its own (the projection returns anything): it takes the u of the
 					// seam running into it (the point before it) or out of it (the point after it).
@@ -474,19 +532,20 @@ Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Fa
 					}
 					else if (pointIndex + 1 < loop.size())
 					{
-						const gp_Pnt2d next = analysis->ValueOfUV(loop[pointIndex + 1].Transformed(toLocal), projectionTolerance);
+						const gp_Pnt2d next = trim ? (*trim)[pointIndex + 1]
+							: analysis->ValueOfUV(loop[pointIndex + 1].Transformed(toLocal), projectionTolerance);
 						q.SetX(next.X());
 					}
 				}
 				if (!uv.empty())
 				{
 					const gp_Pnt2d& prev = uv.back();
-					if (uPeriodic)
+					if (unwrap && uPeriodic)
 					{
 						while (q.X() - prev.X() > 0.5 * uPeriod) q.SetX(q.X() - uPeriod);
 						while (q.X() - prev.X() < -0.5 * uPeriod) q.SetX(q.X() + uPeriod);
 					}
-					if (vPeriodic)
+					if (unwrap && vPeriodic)
 					{
 						while (q.Y() - prev.Y() > 0.5 * vPeriod) q.SetY(q.Y() - vPeriod);
 						while (q.Y() - prev.Y() < -0.5 * vPeriod) q.SetY(q.Y() + vPeriod);
@@ -521,7 +580,7 @@ Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Fa
 				return fail("a boundary loop collapsed to fewer than 3 distinct (u, v) points");
 			// A pole edge spans a whole period in u: the loop's other pieces wind once around, the pole edge (dropped
 			// from the wire) winds back. Put the u jump where the pole is, so the polygon closes.
-			if (firstPoleUv > 0 && uPeriodic)
+			if (unwrap && firstPoleUv > 0 && uPeriodic)
 			{
 				const double windings = std::round((uv.front().X() - uv.back().X()) / uPeriod);
 				if (windings != 0.0)
@@ -543,7 +602,7 @@ Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Fa
 			loopsKept3d.push_back(std::move(pts));
 		}
 		// Hole loops on a periodic surface: shift each by whole periods to sit next to the outer loop.
-		for (size_t k = 1; k < loopsUV.size(); ++k)
+		for (size_t k = 1; (boundary.trimUV.empty() || unwrapSurfaceTrims) && k < loopsUV.size(); ++k)
 		{
 			auto meanOf = [](const std::vector<gp_Pnt2d>& l, bool xAxis) {
 				double s = 0.0;
@@ -703,7 +762,32 @@ Handle(Poly_Triangulation) FaceFallbackTriangulator::triangulate(const TopoDS_Fa
 				continue;
 			const int a = f->vertex(0)->info(), b = f->vertex(1)->info(), c = f->vertex(2)->info();
 			if (a < 0 || b < 0 || c < 0)
-				return fail("boundary constraints cross each other");
+			{
+				const auto& crossing = f->vertex(a < 0 ? 0 : b < 0 ? 1 : 2)->point();
+				const double x = CGAL::to_double(crossing.x()), y = CGAL::to_double(crossing.y());
+				std::string reason = "boundary constraints cross each other at u=" + std::to_string(x)
+					+ " v=" + std::to_string(y);
+				if (failure)
+				{
+					for (size_t w = 0; w < loopNodeIndex.size(); ++w)
+					{
+						const auto& loop = loopNodeIndex[w];
+						for (size_t i = 0, reported = 0; i < loop.size() && reported < 4; ++i)
+						{
+							const auto& p = nodeUV[loop[i]];
+							const auto& q = nodeUV[loop[(i + 1) % loop.size()]];
+							const double eps = 1e-8 * std::max({1.0, std::abs(x), std::abs(y)});
+							if (distancePointSegment(x, y, p[0], p[1], q[0], q[1]) > eps)
+								continue;
+							reason += " loop " + std::to_string(w) + " segment " + std::to_string(i)
+								+ " (" + std::to_string(p[0]) + "," + std::to_string(p[1]) + ")->("
+								+ std::to_string(q[0]) + "," + std::to_string(q[1]) + ")";
+							++reported;
+						}
+					}
+				}
+				return fail(reason);
+			}
 			triangles.push_back({ a, b, c });
 		}
 		if (triangles.empty())

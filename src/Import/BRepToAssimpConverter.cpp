@@ -2,6 +2,8 @@
 #include "MainWindow.h"
 #include "FaceFallbackTriangulator.h"
 #include "SceneUtils.h"
+#include "MeshGapFill.h"
+#include <atomic>
 #include <algorithm>
 #include <QCoreApplication>
 #include <QDebug>
@@ -52,6 +54,7 @@
 
 // Per-document STEP colour map (populated by XCAFSTEPProcessor::buildStepColorMap).
 BRepToAssimpConverter::StepColorMap BRepToAssimpConverter::s_stepColorMap;
+BRepToAssimpConverter::StepColorMap BRepToAssimpConverter::s_faceColourOverrides;
 
 // Per-document B-Rep edge data, keyed by aiMesh* produced during this load.
 std::unordered_map<const aiMesh*, BRepToAssimpConverter::OccEdgeData>
@@ -217,7 +220,19 @@ Standard_Real BRepToAssimpConverter::resolveAngularDeflection()
  * @return Pointer to the newly created aiScene containing all converted shapes,
  *         or nullptr if the input vector is empty.
  */
-aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples)
+namespace
+{
+std::atomic<bool> s_fillMeshGaps{false};
+thread_local bool t_groupIsSolid = false;
+} // namespace
+
+void BRepToAssimpConverter::setFillMeshGaps(bool enabled)
+{
+	s_fillMeshGaps = enabled;
+}
+
+aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation,
+										const std::vector<float>* opacities, int progressFromPercent, int progressToPercent)
 {
 	if (shapeTuples.empty())
 		return nullptr;
@@ -235,18 +250,22 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 
 	for (const auto& tuple : shapeTuples)
 	{
-		int progress = (int)(((float)meshIndex / (float)totalCount) * 100);
-		MainWindow::setProgressValue(progress);
+		// Counted in input tuples, not meshes: one tuple can produce several meshes, which would overshoot the caller's range.
+		const size_t tupleIndex = static_cast<size_t>(&tuple - shapeTuples.data());
+		// The range parameters are percent of the reading half of the bar (see MainWindow::setImportProgress).
+		const double progress = (progressFromPercent + ((double)tupleIndex / (double)totalCount) * (progressToPercent - progressFromPercent)) / 100.0;
+		MainWindow::setImportProgress(MainWindow::ImportBand::Read, progress);
 		const TopoDS_Shape& shape = std::get<0>(tuple);
 		const std::string& name = std::get<1>(tuple);
 		const gp_Trsf& trsf = std::get<2>(tuple);
 		const Quantity_Color& color = std::get<3>(tuple);
+		const float opacity = (opacities && tupleIndex < opacities->size()) ? (*opacities)[tupleIndex] : 1.0f;
 
 		// Apply transformation to the shape
 		TopoDS_Shape transformedShape = shape;
-		if (!trsf.Form() == gp_Identity)
+		if (trsf.Form() != gp_Identity)
 		{
-			BRepBuilderAPI_Transform trsfBuilder(shape, trsf, true);
+			BRepBuilderAPI_Transform trsfBuilder(shape, trsf, true, copyTriangulation);
 			transformedShape = trsfBuilder.Shape();
 		}
 
@@ -286,8 +305,10 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 					// Set color only if no texture
 					if (material->GetTextureCount(aiTextureType_DIFFUSE) == 0)
 					{
-						// Diffuse color (from STEP model)
-						aiColor3D diffuseColor(color.Red(), color.Green(), color.Blue());
+						// Diffuse color (from STEP model). A mesh that carries its own vertex colours (per-face colours) gets a
+						// white material, so albedo x vertex colour shows the vertex colours unchanged.
+						aiColor3D diffuseColor = mesh->HasVertexColors(0) ? aiColor3D(1.0f, 1.0f, 1.0f)
+							: aiColor3D(color.Red(), color.Green(), color.Blue());
 						material->AddProperty(&diffuseColor, 1, AI_MATKEY_COLOR_DIFFUSE);
 
 						// Ambient color: dimmed diffuse (30%)
@@ -301,6 +322,9 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 						// Shininess
 						float shininess = 24.0f;
 						material->AddProperty(&shininess, 1, AI_MATKEY_SHININESS);
+
+						if (opacity < 1.0f)
+							material->AddProperty(&opacity, 1, AI_MATKEY_OPACITY);
 
 					}
 				}
@@ -371,6 +395,33 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
 	// Vectors to hold generated meshes
 	std::vector<aiMesh*> meshes;
 
+	// One colour per face of a group when any face of it has an override (the rest take `color`), else empty.
+	const auto overrideColours = [&color](const TopTools_IndexedMapOfShape& group) {
+		std::vector<aiColor4D> colours;
+		if (s_faceColourOverrides.empty())
+			return colours;
+		colours.reserve(static_cast<size_t>(group.Extent()));
+		bool any = false;
+		for (int f = 1; f <= group.Extent(); ++f)
+		{
+			const auto found = s_faceColourOverrides.find(group(f));
+			if (found != s_faceColourOverrides.end())
+			{
+				any = true;
+				colours.emplace_back(static_cast<float>(found->second.Red()), static_cast<float>(found->second.Green()),
+					static_cast<float>(found->second.Blue()), 1.0f);
+			}
+			else
+			{
+				colours.emplace_back(static_cast<float>(color.Red()), static_cast<float>(color.Green()),
+					static_cast<float>(color.Blue()), 1.0f);
+			}
+		}
+		if (!any)
+			colours.clear();
+		return colours;
+	};
+
 	// Explorer to find solids within the shape
 	TopExp_Explorer solidExplorer(shape, TopAbs_SOLID);
 	if (!solidExplorer.More())
@@ -388,7 +439,8 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
 		}
 
 		// Convert the collected faces into a single mesh
-		aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
+		const std::vector<aiColor4D> faceColours = overrideColours(faceGroup);
+		aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex, false, faceColours.empty() ? nullptr : &faceColours);
 		if (mesh)
 		{
 			// Add the mesh to the list
@@ -420,7 +472,10 @@ aiScene* BRepToAssimpConverter::convert(const TopoDS_Shape& shape, const Quantit
 			}
 
 			// Convert the collected faces into a mesh
-			aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex);
+			t_groupIsSolid = true;
+			const std::vector<aiColor4D> faceColours = overrideColours(faceGroup);
+			aiMesh* mesh = convertFaceGroupToMesh(faceGroup, meshIndex, false, faceColours.empty() ? nullptr : &faceColours);
+			t_groupIsSolid = false;
 			if (mesh)
 			{
 				// Add the mesh to the list
@@ -623,6 +678,7 @@ void BRepToAssimpConverter::clearColorCache()
 {
 	s_definitionFaceColours.clear();
 	s_stepColorMap.clear();
+	s_faceColourOverrides.clear();
 	clearEdgeCache();
 }
 
@@ -747,6 +803,11 @@ BRepToAssimpConverter::extractEdgesFromFaceGroup(
 void BRepToAssimpConverter::setStepColorMap(const StepColorMap& map)
 {
 	s_stepColorMap = map;
+}
+
+void BRepToAssimpConverter::setFaceColourOverrides(StepColorMap map)
+{
+	s_faceColourOverrides = std::move(map);
 }
 
 // Converts a group of faces to Assimp meshes, grouping by colour.
@@ -1261,6 +1322,10 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 	// localNormals(nNodes) pattern which created O(nNodes) heap objects per face.
 	std::vector<aiVector3D> normalAccum;
 	std::vector<int>        normalCount;
+	// Normals of the tiny triangles left out of the averages above. Used only for a vertex that no ordinary triangle
+	// reaches (a face made of nothing but slivers), which would otherwise get a constant normal unrelated to its surface.
+	std::vector<aiVector3D> sliverAccum;
+	std::vector<int>        sliverCount;
 
 	// Per-topological-face analytic axis data (Cylindrical/Conical Diameter
 	// measurement tool) - see OccFaceData's doc comment. bounds[f] is
@@ -1421,8 +1486,15 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			}
 			else
 			{
-				qWarning().noquote() << QStringLiteral("[STEP import] mesh %1: a face's tessellation has holes and could not be rebuilt (%2)")
-					.arg(meshIndex).arg(QString::fromStdString(gapFailure));
+				Bnd_Box holedBox;
+				BRepBndLib::Add(face, holedBox);
+				double hx0 = 0, hy0 = 0, hz0 = 0, hx1 = 0, hy1 = 0, hz1 = 0;
+				if (!holedBox.IsVoid())
+					holedBox.Get(hx0, hy0, hz0, hx1, hy1, hz1);
+				qWarning().noquote() << QStringLiteral("[STEP import] mesh %1: a face's tessellation has holes and could not be rebuilt (%2) [surface type %3, centre (%4 %5 %6), size (%7 %8 %9)]")
+					.arg(meshIndex).arg(QString::fromStdString(gapFailure)).arg(static_cast<int>(BRepAdaptor_Surface(face, false).GetType()))
+					.arg((hx0 + hx1) / 2, 0, 'g', 6).arg((hy0 + hy1) / 2, 0, 'g', 6).arg((hz0 + hz1) / 2, 0, 'g', 6)
+					.arg(hx1 - hx0, 0, 'g', 4).arg(hy1 - hy0, 0, 'g', 4).arg(hz1 - hz0, 0, 'g', 4);
 			}
 		}
 
@@ -1491,6 +1563,8 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 		// eliminating per-face heap allocations entirely after the first iteration.
 		normalAccum.assign(nNodes, aiVector3D(0.0f, 0.0f, 0.0f));
 		normalCount.assign(nNodes, 0);
+		sliverAccum.assign(nNodes, aiVector3D(0.0f, 0.0f, 0.0f));
+		sliverCount.assign(nNodes, 0);
 
 		// OPTIMIZATION 5: Batch vertex transformation
 		for (int i = 1; i <= nNodes; ++i)
@@ -1565,6 +1639,20 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			else
 			{
 				++sliverTriangles;
+				const aiVector3D sliverEdge1 = v1 - v0;
+				const aiVector3D sliverEdge2 = v2 - v0;
+				aiVector3D sliverNormal = sliverEdge1 ^ sliverEdge2;
+				const float sliverLengthSq = sliverNormal.SquareLength();
+				if (sliverLengthSq > 0.0f)
+				{
+					sliverNormal /= sqrtf(sliverLengthSq);
+					sliverAccum[n1] += sliverNormal;
+					sliverAccum[n2] += sliverNormal;
+					sliverAccum[n3] += sliverNormal;
+					++sliverCount[n1];
+					++sliverCount[n2];
+					++sliverCount[n3];
+				}
 			}
 
 			// OPTIMIZATION 8: Direct face creation (no intermediate copies)
@@ -1602,6 +1690,16 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 				{
 					smoothedNormal = aiVector3D(0.0f, 0.0f, 1.0f);
 				}
+			}
+			else if (sliverCount[i] > 0)
+			{
+				// Only tiny triangles reach this vertex: their direction is still the surface's.
+				smoothedNormal = sliverAccum[i] / static_cast<float>(sliverCount[i]);
+				const float length = smoothedNormal.Length();
+				if (length > 1e-6f)
+					smoothedNormal /= length;
+				else
+					smoothedNormal = aiVector3D(0.0f, 0.0f, 1.0f);
 			}
 			else
 			{
@@ -1645,6 +1743,29 @@ aiMesh* BRepToAssimpConverter::convertFaceGroupToMesh(const TopTools_IndexedMapO
 			std::cout << "  Slivers kept: " << sliverTriangles << std::endl;
 			std::cout << "  Valid triangles: " << (totalTriangles - degenerateTriangles) << std::endl;
 			std::cout << "  Threshold: " << threshold << std::endl;
+		}
+	}
+
+	if (s_fillMeshGaps && t_groupIsSolid && !vertices.empty() && !faces.empty())
+	{
+		// A solid has no open boundary: what is left open between its faces is a tessellation gap, closed here.
+		const size_t originalTriangles = faces.size();
+		std::vector<unsigned> indices;
+		indices.reserve(faces.size() * 3 + 64);
+		for (const aiFace& f : faces)
+			indices.insert(indices.end(), {f.mIndices[0], f.mIndices[1], f.mIndices[2]});
+		const MeshGapFill::Result gaps = MeshGapFill::fill(&vertices[0].x, vertices.size(), indices);
+		if (gaps.trianglesAdded > 0)
+		{
+			for (size_t t = originalTriangles * 3; t + 2 < indices.size(); t += 3)
+			{
+				aiFace meshFace;
+				meshFace.mNumIndices = 3;
+				meshFace.mIndices = new unsigned int[3]{ indices[t], indices[t + 1], indices[t + 2] };
+				faces.push_back(meshFace);
+			}
+			qInfo().noquote() << QStringLiteral("[mesh] mesh %1: closed %2 gap(s) with %3 triangle(s); %4 open edge(s) remain in larger openings")
+				.arg(meshIndex).arg(gaps.loopsFilled).arg(gaps.trianglesAdded).arg(gaps.boundaryEdges);
 		}
 	}
 

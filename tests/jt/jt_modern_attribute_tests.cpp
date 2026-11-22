@@ -74,7 +74,7 @@ void writeAssembly(const QString& path,bool big,unsigned baseVersion=2,unsigned 
 }
 void modernAttributeTests() {
     QTemporaryDir tmp;check(tmp.isValid(),"Cannot create modern attribute test directory");const auto path=tmp.filePath("attributes.jt");
-    for(unsigned minor:{3u,5u,7u,8u,10u})for(bool big:{false,true})for(bool wrapped:{false,true})for(int pi:{-1,0,17}) {
+    for(unsigned minor:{3u,5u,6u,7u,8u,10u})for(bool big:{false,true})for(bool wrapped:{false,true})for(int pi:{-1,0,17}) {
         Bytes graph(big);Fixture::element(graph,Fixture::type("10dd103e"),1,Fixture::partition(big,{}, {}, {20,21,22}));
         attribute(graph,Fixture::type("10dd1030"),20,material(big,2,pi),wrapped);
         attribute(graph,Fixture::type("10dd1083"),21,transform(big,2,pi),wrapped);
@@ -90,7 +90,7 @@ void modernAttributeTests() {
         check(t->GetTrsf()[12]==10&&d->DataFlags()==0x0a,"Transform/style version-2 payload shifted");
         // Indexed entries are now rendered only through an explicit face-group map.
     }
-    for(unsigned minor:{3u,5u,7u,8u,10u})for(bool big:{false,true}) {
+    for(unsigned minor:{3u,5u,6u,7u,8u,10u})for(bool big:{false,true}) {
         const auto readRecord=[&](const Bytes& graph){return read(path,graph,minor);};
         const QString types[]={Fixture::type("10dd1030"),Fixture::type("10dd1083"),Fixture::type("10dd1014")};
         const Bytes bodies[]={material(big),transform(big),style(big)};
@@ -121,7 +121,7 @@ void modernAttributeTests() {
     }
     LegacyFixture::Options geometry;geometry.minorVersion=2;geometry.quantizedData=true;geometry.quantizedBits=4;
     LegacyFixture::write(tmp.filePath("geometry.jt"),geometry);
-    for(unsigned minor:{3u,5u,7u,8u,10u})for(bool big:{false,true})for(unsigned version:{1,2}) {
+    for(unsigned minor:{3u,5u,6u,7u,8u,10u})for(bool big:{false,true})for(unsigned version:{1,2}) {
         writeAssembly(path,big,version,minor);auto result=Jt::Importer::read(path);
         check(result.scene->mNumMeshes==1,"Modern fallback attributes changed mesh count");
         const auto* mesh=result.scene->mMeshes[0];aiColor4D c;
@@ -142,7 +142,7 @@ void modernAttributeTests() {
     // Published list-order accumulation is shared by enabled modern revisions.
     // These generated graphs test semantics, not native tessellation qualification.
     {LegacyFixture::Options o;o.minorVersion=2;o.materialInhibit=0x1ff;LegacyFixture::write(tmp.filePath("geometry.jt"),o);}
-    for(bool big:{false,true})for(unsigned minor:{0,2,3,5,7,8,9,10})for(bool reverse:{false,true})for(bool firstFinal:{false,true}) {
+    for(bool big:{false,true})for(unsigned minor:{0,2,3,5,6,7,8,9,10})for(bool reverse:{false,true})for(bool firstFinal:{false,true}) {
         writeMaterialOrder(path,big,minor,reverse,firstFinal);auto result=Jt::Importer::read(path);aiColor4D c;
         const auto mesh=result.scene->mMeshes[0];const bool red=reverse||firstFinal;
         check(result.scene->mMaterials[mesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,c)==AI_SUCCESS&&c.r==float(red)&&c.g==float(!red),"Same-node material order/final semantics differ across modern versions");
@@ -162,7 +162,7 @@ void modernAttributeFixtureFiles(const QString& folder) {
 void materialOrderFixtureFiles(const QString& folder) {
     check(QDir().mkpath(folder),"Cannot create material-order fixture folder");
     LegacyFixture::Options o;o.minorVersion=2;o.materialInhibit=0x1ff;LegacyFixture::write(QDir(folder).filePath("geometry.jt"),o);
-    for(unsigned minor:{0,2,3,5,7,8,9,10})for(bool reverse:{false,true}) {
+    for(unsigned minor:{0,2,3,5,6,7,8,9,10})for(bool reverse:{false,true}) {
         const auto name=QString("order_10_%1_%2.jt").arg(minor).arg(reverse?"green_red":"red_green");
         writeMaterialOrder(QDir(folder).filePath(name),false,minor,reverse);
     }

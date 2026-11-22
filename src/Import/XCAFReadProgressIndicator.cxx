@@ -16,7 +16,7 @@ void XCAFReadProgressIndicator::Show(const Message_ProgressScope& theScope, cons
     {
         std::cout << "\rProgress: " << static_cast<int>(pos) << "%" << std::flush;
         myLastShownProgress = static_cast<int>(pos);
-		MainWindow::setProgressValue(static_cast<int>(pos));
+		MainWindow::setImportProgress(MainWindow::ImportBand::ReadOcct, pos / 100.0); // OCCT read and transfer: first quarter of the bar
     }
 }
 

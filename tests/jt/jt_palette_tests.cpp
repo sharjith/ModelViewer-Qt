@@ -151,7 +151,7 @@ void paletteTests(){
   for(qsizetype n=13;n<b.data.size();++n){auto truncated=b;truncated.data.truncate(n);rejects([&]{Reader shortReader(truncated,compressed);JtDecode_Int32CDP shortPacket;check(shortPacket.Load2(shortReader),"Expected truncated packet");Jt_VecI32 values(shortPacket.DecodeI32());});}
  }
  // Full binary palette records: byte order, explicit/omitted fallback tail and malformed fields.
- for(unsigned minor:{3u,5u,7u,8u,10u})for(bool big:{false,true})for(bool tail:{false,true}){
+ for(unsigned minor:{3u,5u,6u,7u,8u,10u})for(bool big:{false,true})for(bool tail:{false,true}){
   const auto body=[&](int bad=0){Fixture::Bytes b(big);b.u8(2);b.u8(8);b.u32(0);b.u32(0);b.u8(bad==1?2:1);b.u32(3);b.u8(0);b.u32(96);b.u32(0);b.u32(quint32(-1));b.u32(quint32(bad==2?-3:-2));if(tail)b.u32(quint32(bad==3?0:-1));return b;};
   const auto read=[&](const Fixture::Bytes& payload){Fixture::Bytes graph(big);Fixture::element(graph,Fixture::type("10dd103e"),1,Fixture::partition(big,{}, {}, {20}));Fixture::element(graph,Fixture::type("10dd1106"),20,payload,3);Fixture::end(graph);Fixture::end(graph);graph.u16(1);graph.u32(0);Fixture::container(path,graph,minor);const auto utf=path.toStdU16String();Handle(JtData_Model) m=new JtData_Model(TCollection_ExtendedString(reinterpret_cast<const Standard_ExtCharacter*>(utf.c_str())));auto node=m->Init();check(!node.IsNull(),"Palette record failed to parse");auto map=Handle(JtAttribute_PaletteMap)::DownCast(node->Attributes()[0]);check(!map.IsNull()&&map->Entries().Count()==3&&map->Entries()[2]==-2,"Palette packet values shifted");};
   read(body());rejects([&]{read(body(1));});rejects([&]{read(body(2));});if(tail)rejects([&]{read(body(3));});

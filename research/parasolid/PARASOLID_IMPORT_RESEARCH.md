@@ -41,19 +41,9 @@ MIT and Apache-2.0 code can be candidates for this GPLv3 project, with their not
 
 ## Local sample evidence
 
-The bounded header inventory is recorded in out/jt-research/JT_PARASOLID_SAMPLE_INVENTORY.json (`out/jt-research/JT_PARASOLID_SAMPLE_INVENTORY.json`, local artifact). Two existing data trees were searched: `D:/work/progs/qt5/ModelViewer-Github/data` and `D:/work/progs/cad-in-unity`. No JT files were found there. Nine `.x_t` files were found in the former; seven contain data and two are empty. Nonempty sizes range from approximately 7.5 to 123 MB, so these are later stress cases, not ideal first fixtures.
+The October pass found nine local X_T files. Seven contained data, with sizes from approximately 7.5 to 123 MB. It read only the first 65,536 bytes of each file and interpreted the observed length-prefixed internal strings. One file had a common-header key of `SCH_2400216_20000` and an internal key of `SCH_900000_9008`. None of the seven internal keys matched an advertised exact profile at the candidate reader snapshot. No complete node stream or geometry was decoded.
 
-| Model | Common-header key | Internal-stream key |
-| --- | --- | --- |
-| B4T-6.5 RC | `SCH_2500176_25001` | `SCH_2500176_25001_13006` |
-| B4T-25.0-FB | `SCH_2500248_25001` | `SCH_2500248_25001_13006` |
-| Honda CBR engine | `SCH_3100203_31001` | `SCH_3100203_31001_13006` |
-| V-twin engine | `SCH_2800204_28002` | `SCH_2800204_28002_13006` |
-| Kuka arm | `SCH_3101284_31100` | `SCH_3101284_31100_13006` |
-| Volvo truck | `SCH_2400216_20000` | `SCH_900000_9008` |
-| Yamaha XS650 | `SCH_3000298_30000` | `SCH_3000298_30000_13006` |
-
-The Volvo discrepancy is a header observation, not proof of corruption or a valid complete stream. None of these seven internal keys appears in parasolid-kit's advertised exact-profile list at the inspected snapshot. This is not a runtime rejection result and does not prove that adding a qualified profile would be impossible. No complete node stream or geometry was decoded. Research read only the first 65,536 bytes of each file and interpreted the observed length-prefixed internal strings; no source files were changed.
+The [November inventory](PARASOLID_XT_PHASES.md) supersedes the historical sample listing and provides the regeneration command, neutral IDs and hashes.
 
 Use local downloaded models for investigation without assuming permission to redistribute them as public test fixtures. Obtain or author small fixtures with known reference geometry and appropriate reuse rights for checked-in tests.
 

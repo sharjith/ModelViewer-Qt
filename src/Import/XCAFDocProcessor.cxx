@@ -389,7 +389,7 @@ void XCAFDocProcessor::traverseXCAFAssembly(
     if (processedMeshes % 5 == 0 || processedMeshes == totalMeshes)
     {
         double progress = static_cast<double>(processedMeshes) / totalMeshes;
-        MainWindow::setProgressValue(progress * 100);
+        MainWindow::setImportProgress(MainWindow::ImportBand::ReadConvert, progress); // conversion: second quarter of the bar
     }
 
     // 9) Merge sub-scene into the main scene

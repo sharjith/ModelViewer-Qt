@@ -3,11 +3,13 @@
 
 #include "BRepToAssimpConverter.h"
 #include "ImportDiagnostics.h"
+#include "ImportMetadata.h"
 #include <QElapsedTimer>
 #include <QUuid>
 #include "Logger.h"
 #include <QSettings>
 #include <algorithm>
+#include <map>
 #include <atomic>
 #include <functional>
 #include <chrono>
@@ -15,6 +17,10 @@
 #include <Standard_Failure.hxx>
 #include <new>
 #include "ThreeDXml/Importer.h"
+#include "Inventor/AssemblyScene.h"
+#include "Inventor/PartSolid.h"
+#include "Parasolid/XtSceneImporter.h"
+#include "Parasolid/XtImport.h"
 #include "MeshImportAdaptor.h"
 #include "SceneImportCounts.h"
 #include "IXCAFDocProcessor.hxx"
@@ -42,6 +48,9 @@
 #include <QCheckBox>
 #include <QLayout>
 #include <Quantity_ColorRGBA.hxx>
+#include <TDocStd_Document.hxx>
+#include <TopAbs_ShapeEnum.hxx>
+#include <TopExp_Explorer.hxx>
 #include <cmath>
 #include <limits>
 #include <unordered_set>
@@ -868,6 +877,29 @@ bool loadMorphTargetsForAiMesh(const QString& gltfPath,
 }
 
 
+void AssImpModelProgressHandler::UpdateFileRead(int currentStep, int numberOfSteps)
+{
+	if (_lastStage != 0)
+	{
+		_lastStage = 0;
+		MainWindow::showStatusMessage(QObject::tr("Reading the model: %1").arg(_fileName));
+	}
+	Assimp::ProgressHandler::UpdateFileRead(currentStep, numberOfSteps);
+}
+
+void AssImpModelProgressHandler::UpdatePostProcess(int currentStep, int numberOfSteps)
+{
+	// One message per post-processing step (a handful at most): the steps are named by the flags the owner enabled, not by Assimp.
+	const int stage = 1 + currentStep;
+	// Assimp ends the post-processing with currentStep == numberOfSteps; that is not a step to announce ("step 6 of 5").
+	if (_lastStage != stage && currentStep < numberOfSteps)
+	{
+		_lastStage = stage;
+		MainWindow::showStatusMessage(QObject::tr("Post-processing the model, step %1 of %2: %3").arg(currentStep + 1).arg(numberOfSteps).arg(_fileName));
+	}
+	Assimp::ProgressHandler::UpdatePostProcess(currentStep, numberOfSteps);
+}
+
 bool AssImpModelProgressHandler::Update(float percentage)
 {
 	emit fileReadProcessed(percentage);
@@ -1335,6 +1367,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	_totalMeshOccurrences = 0;
 	_threeDXml = {};
 	_jt = {};
+	_xtWarnings.clear();
 	_declaredLengthUnit = LengthUnit::Unknown;
 
 	_materialProcessor.clearGLBCaches();
@@ -1370,9 +1403,22 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			{ const int threads = QSettings().value(QStringLiteral("threeDxmlThreads"), 0).toInt(); if (threads >= 0) options.threads = unsigned(threads); }
 			{ bool ok = false; const int threads = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_THREADS", &ok); if (ok && threads >= 0) options.threads = unsigned(threads); }
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
-			options.progress = [this](const QString&, int done, int total) {
-				emit fileReadProcessed(total ? float(done)/total : 0.0f);
+			options.progress = [this, &fi, building = false](const QString& stage, int done, int total) mutable {
+				// Bar bands: structure 0-5 %, representations 5-85 %, scene build 85-99 %, done 100 %.
+				// A report with a total is a representation (done of total); one without is a per-mille position of the whole import.
+				if (total > 0) {
+					emit fileReadProcessed(0.05f + 0.80f * float(done) / total);
+					MainWindow::showStatusMessage(QObject::tr("Reading representation %1 of %2: %3").arg(done + 1).arg(total).arg(fi.fileName()));
+				}
+				else {
+					emit fileReadProcessed(done / 1000.0f);
+					if (!building && stage == QLatin1String("Building")) {
+						building = true;
+						MainWindow::showStatusMessage(QObject::tr("Building the 3DXML scene: %1").arg(fi.fileName()));
+					}
+				}
 			};
+			MainWindow::showStatusMessage(QObject::tr("Reading the 3DXML structure: %1").arg(fi.fileName()));
 			_threeDXml = ThreeDXml::Importer::read(fi.absoluteFilePath(), options);
 			_scene = _threeDXml.scene.get();
 			// The file's own edge polylines take the B-Rep edge path (edge/wireframe display modes). Stale entries from
@@ -1390,13 +1436,352 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			return;
 		}
 	}
+	else if (fi.suffix().compare("ipt", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			const auto cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			_importStage = "worker.inventor-read";
+			ImportDiagnostics::checkpoint(_importStage);
+			Inventor::PartAppearance appearance;
+			// By default a body that cannot be built is skipped and shown in the tree with the reason; the strict
+			// setting (or MODELVIEWER_INVENTOR_STRICT=1) restores all-or-nothing. If no body can be built the
+			// first error is thrown either way.
+			const bool strict = QSettings().value(QStringLiteral("inventorStrict"), false).toBool()
+				|| qEnvironmentVariableIntValue("MODELVIEWER_INVENTOR_STRICT") != 0;
+			// The progress bar covers the whole read: the saved bodies take the first 70 % (of a large part's time), the
+			// pre-tessellation of the shapes the next 20 %, and the conversion into the scene the rest.
+			constexpr float ReadShare = 0.70f, TessellateShare = 0.20f;
+			auto outcomes = Inventor::readPartBodies(fi.absoluteFilePath(), cancelled, &appearance, strict,
+				[this](double fraction) { emit fileReadProcessed(static_cast<float>(fraction) * ReadShare); },
+				[&fi](const QString& stage) { MainWindow::showStatusMessage(stage + QStringLiteral(": ") + fi.fileName()); });
+			emit fileReadProcessed(ReadShare);
+			// Test hook: MODELVIEWER_INVENTOR_SIMULATE_FAILED_BODY=n makes the n-th (1-based) body of a part with several
+			// bodies count as unbuildable, to exercise the error item in the model tree. Has no effect when unset.
+			{
+				bool ok = false;
+				const int simulated = qEnvironmentVariableIntValue("MODELVIEWER_INVENTOR_SIMULATE_FAILED_BODY", &ok);
+				if (ok && outcomes.size() > 1 && simulated >= 1 && static_cast<std::size_t>(simulated) <= outcomes.size()) {
+					outcomes[simulated - 1].solid = TopoDS_Solid();
+					outcomes[simulated - 1].error = QStringLiteral("Simulated failure for testing (MODELVIEWER_INVENTOR_SIMULATE_FAILED_BODY).");
+				}
+			}
+			BRepToAssimpConverter::clearColorCache();
+			_importStage = "worker.inventor-tessellate";
+			ImportDiagnostics::checkpoint(_importStage);
+			const QString baseName = fi.completeBaseName();
+			std::vector<TopoDS_Shape> solids; // solids, plus incomplete surfaces (see incompleteParts)
+			std::vector<QString> solidNames;
+			std::vector<int> solidRecords;  // the saved body record of each entry of solids
+			std::vector<int> failedRecords; // the saved body record of each entry of failedBodies
+			std::vector<std::pair<QString, QString>> failedBodies; // display name, reason
+			std::vector<std::pair<std::size_t, QString>> incompleteParts; // index in solids, what is missing
+			std::size_t openSurfaces = 0; // sheet bodies: open surfaces without volume
+			std::map<int, std::size_t> outcomesOfRecord;
+			for (const auto& outcome : outcomes)
+				++outcomesOfRecord[outcome.bodyRecord];
+			for (std::size_t i = 0; i < outcomes.size(); ++i) {
+				// A body the model browser names, alone in its record, is shown under that name.
+				const QString name = outcomes.size() == 1 ? baseName
+					: (!outcomes[i].bodyName.isEmpty() && outcomesOfRecord[outcomes[i].bodyRecord] == 1)
+						? outcomes[i].bodyName
+						: QStringLiteral("%1 Body %2").arg(baseName).arg(i + 1);
+				if (!outcomes[i].solid.IsNull()) {
+					solids.push_back(outcomes[i].solid);
+					solidNames.push_back(name);
+					solidRecords.push_back(outcomes[i].bodyRecord);
+				} else if (!outcomes[i].incompleteShape.IsNull()) {
+					if (outcomes[i].isSurface) {
+						// A sheet body: every face built, the faces just do not enclose a volume. Shown like any part.
+						++openSurfaces;
+					} else {
+						// Faces that could be built but not closed into a solid: shown, marked with a warning.
+						incompleteParts.emplace_back(solids.size(), outcomes[i].error);
+					}
+					solids.push_back(outcomes[i].incompleteShape);
+					solidNames.push_back(name);
+					solidRecords.push_back(outcomes[i].bodyRecord);
+				} else {
+					failedBodies.emplace_back(name, outcomes[i].error);
+					failedRecords.push_back(outcomes[i].bodyRecord);
+				}
+			}
+			std::vector<ShapeWithNameAndTrsf> parts;
+			parts.reserve(solids.size());
+			const Quantity_Color color(0.7, 0.7, 0.7, Quantity_TOC_RGB);
+			// A part with several bodies has no single appearance; the colour the file gives the part is the default of
+			// every face that has no colour of its own.
+			const bool singleBody = outcomes.size() == 1;
+			const Quantity_Color partColor = !singleBody && appearance.body ? *appearance.body : color;
+			std::vector<double> faceWeights(solids.size(), 1.0);
+			double totalWeight = 0.0;
+			for (std::size_t i = 0; i < solids.size(); ++i) {
+				double faceCount = 0.0;
+				for (TopExp_Explorer faces(solids[i], TopAbs_FACE); faces.More(); faces.Next())
+					faceCount += 1.0;
+				faceWeights[i] = std::max(1.0, faceCount);
+				totalWeight += faceWeights[i];
+			}
+			double doneWeight = 0.0;
+			for (std::size_t i = 0; i < solids.size(); ++i) {
+				if (cancelled())
+					throw std::runtime_error("Inventor import cancelled");
+				MainWindow::showStatusMessage(QObject::tr("Tessellating body %1 of %2: %3").arg(i + 1).arg(solids.size()).arg(fi.fileName()));
+				BRepToAssimpConverter::preTessellate(solids[i]);
+				parts.emplace_back(solids[i], solidNames[i].toStdString(), TopLoc_Location(), partColor);
+				doneWeight += faceWeights[i];
+				emit fileReadProcessed(ReadShare + TessellateShare * static_cast<float>(doneWeight / totalWeight));
+			}
+			if (cancelled())
+				throw std::runtime_error("Inventor import cancelled");
+			MainWindow::showStatusMessage(QObject::tr("Converting to the scene: %1").arg(fi.fileName()));
+			if (singleBody && (appearance.body || !appearance.faces.empty())) {
+				Handle(TDocStd_Document) document = new TDocStd_Document("BinOcaf");
+				const auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->Main());
+				const auto colorTool = XCAFDoc_DocumentTool::ColorTool(document->Main());
+				const auto label = shapeTool->AddShape(solids.front(), false);
+				// Keep one model-tree node for the solid, with face colors on XCAF sublabels.
+				TDataStd_Name::Set(label, TCollection_ExtendedString(baseName.toStdU16String().c_str()));
+				colorTool->SetColor(label, appearance.body.value_or(color), XCAFDoc_ColorSurf);
+				for (const auto& [face, faceColor] : appearance.faces) {
+					const auto faceLabel = shapeTool->AddSubShape(label, face);
+					if (!faceLabel.IsNull())
+						colorTool->SetColor(faceLabel, faceColor, XCAFDoc_ColorSurf);
+				}
+				int meshIndex = 0;
+				_xcafScene.reset(BRepToAssimpConverter::convert(solids.front(), colorTool, shapeTool, label, label,
+					meshIndex, baseName.toStdString()));
+				if (_xcafScene && _xcafScene->mRootNode) {
+					auto root = std::make_unique<aiNode>("Root");
+					root->mChildren = new aiNode*[1]{_xcafScene->mRootNode};
+					root->mNumChildren = 1;
+					_xcafScene->mRootNode->mParent = root.get();
+					_xcafScene->mRootNode = root.release();
+				}
+			} else {
+				if (!appearance.faces.empty()) {
+					// The saved colour of each face of a part with several bodies: one mesh per body with vertex colours.
+					BRepToAssimpConverter::StepColorMap overrides;
+					overrides.reserve(appearance.faces.size());
+					for (const auto& [face, faceColor] : appearance.faces)
+						overrides.emplace(face, faceColor);
+					BRepToAssimpConverter::setFaceColourOverrides(std::move(overrides));
+				}
+				// The part reader and the pre-tessellation used the bar up to 90 %; the converter fills the rest.
+				_xcafScene.reset(BRepToAssimpConverter::convert(parts, false, nullptr, 90, 99));
+				BRepToAssimpConverter::setFaceColourOverrides({});
+			}
+			if (!_xcafScene || !_xcafScene->mRootNode || _xcafScene->mNumMeshes == 0 ||
+				_xcafScene->mRootNode->mNumChildren != solids.size())
+				throw std::runtime_error("Inventor part did not produce display geometry for every body");
+			if (openSurfaces != 0)
+				_xtWarnings.append(QStringLiteral("%1 of %2 bodies are open surfaces (sheet bodies) and have no volume.")
+					.arg(openSurfaces).arg(outcomes.size()));
+			for (const auto& [partIndex, what] : incompleteParts) {
+				// The part is shown but has no volume: record a warning on its node (the tree marks it and shows the reason).
+				aiNode* partNode = _xcafScene->mRootNode->mChildren[partIndex];
+				if (!partNode->mMetaData) {
+					partNode->mMetaData = aiMetadata::Alloc(2);
+					partNode->mMetaData->Set(0, "ModelViewer.ImportIssue.Severity", aiString("warning"));
+					partNode->mMetaData->Set(1, "ModelViewer.ImportIssue.Message", aiString(what.toStdString()));
+				}
+				_xtWarnings.append(QStringLiteral("%1 is incomplete: %2").arg(QString::fromStdString(partNode->mName.C_Str()), what));
+			}
+			if (!failedBodies.empty()) {
+				// One empty node per body that could not be built. It carries the reason as node metadata, which
+				// the scene graph turns into an import issue: the tree shows the node with an error symbol.
+				aiNode* sceneRoot = _xcafScene->mRootNode;
+				const unsigned oldCount = sceneRoot->mNumChildren;
+				aiNode** children = new aiNode*[oldCount + failedBodies.size()];
+				for (unsigned i = 0; i < oldCount; ++i)
+					children[i] = sceneRoot->mChildren[i];
+				for (std::size_t i = 0; i < failedBodies.size(); ++i) {
+					aiNode* placeholder = new aiNode(failedBodies[i].first.toStdString());
+					placeholder->mParent = sceneRoot;
+					placeholder->mMetaData = aiMetadata::Alloc(2);
+					placeholder->mMetaData->Set(0, "ModelViewer.ImportIssue.Severity", aiString("error"));
+					placeholder->mMetaData->Set(1, "ModelViewer.ImportIssue.Message",
+						aiString(failedBodies[i].second.toStdString()));
+					children[oldCount + i] = placeholder;
+					_xtWarnings.append(QStringLiteral("%1 could not be loaded and is shown as an error node: %2")
+						.arg(failedBodies[i].first, failedBodies[i].second));
+				}
+				delete[] sceneRoot->mChildren;
+				sceneRoot->mChildren = children;
+				sceneRoot->mNumChildren = oldCount + static_cast<unsigned>(failedBodies.size());
+			}
+			// A part with several saved bodies keeps them as nodes, as the model browser shows them: the solid body holding its
+			// parts, and a derived-surface feature holding its surface body. The meshes and their issue marks are unchanged;
+			// they are only moved under named nodes. Without names the groups are numbered, and a part with one saved body
+			// stays flat.
+			if (outcomesOfRecord.size() > 1) {
+				aiNode* sceneRoot = _xcafScene->mRootNode;
+				std::map<int, std::vector<aiNode*>> membersOfRecord;
+				for (unsigned i = 0; i < sceneRoot->mNumChildren; ++i) {
+					const int record = i < solidRecords.size() ? solidRecords[i] : failedRecords[i - solidRecords.size()];
+					membersOfRecord[record].push_back(sceneRoot->mChildren[i]);
+				}
+				std::vector<aiNode*> topLevel;
+				for (auto& [record, members] : membersOfRecord) {
+					QString bodyName, featureName;
+					for (const auto& outcome : outcomes) {
+						if (outcome.bodyRecord == record) {
+							bodyName = outcome.bodyName;
+							featureName = outcome.featureName;
+							break;
+						}
+					}
+					aiNode* top = nullptr; // the node that goes under the root for this record
+					if (members.size() == 1) {
+						top = members.front(); // already named after the body when the browser names it
+					} else {
+						const QString groupName = !bodyName.isEmpty() ? bodyName
+							: QStringLiteral("%1 (body %2)").arg(baseName).arg(record + 1);
+						top = new aiNode(groupName.toStdString());
+						top->mNumChildren = static_cast<unsigned>(members.size());
+						top->mChildren = new aiNode*[members.size()];
+						for (std::size_t m = 0; m < members.size(); ++m) {
+							top->mChildren[m] = members[m];
+							members[m]->mParent = top;
+						}
+					}
+					if (!featureName.isEmpty()) {
+						aiNode* feature = new aiNode(featureName.toStdString());
+						feature->mNumChildren = 1;
+						feature->mChildren = new aiNode*[1]{top};
+						top->mParent = feature;
+						top = feature;
+					}
+					top->mParent = sceneRoot;
+					topLevel.push_back(top);
+				}
+				delete[] sceneRoot->mChildren;
+				sceneRoot->mNumChildren = static_cast<unsigned>(topLevel.size());
+				sceneRoot->mChildren = new aiNode*[topLevel.size()];
+				std::copy(topLevel.begin(), topLevel.end(), sceneRoot->mChildren);
+			}
+			_scene = _xcafScene.get();
+			_declaredLengthUnit = LengthUnit::Millimeter;
+			_importStage = "worker.inventor-read-complete";
+			ImportDiagnostics::checkpoint(_importStage, -1, _scene->mNumMeshes, 0);
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true;
+				_errorMessage = "Model loading cancelled by user.";
+				emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
+	}
+	else if (fi.suffix().compare("iam", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			const auto cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			_importStage = "worker.inventor-assembly";
+			ImportDiagnostics::checkpoint(_importStage);
+			BRepToAssimpConverter::clearColorCache();
+			Inventor::AssemblySceneOptions options;
+			options.cancelled = cancelled;
+			options.progress = [this](const QString& stage, double fraction) {
+				if (!stage.isEmpty())
+					MainWindow::showStatusMessage(stage);
+				if (fraction >= 0.0)
+					emit fileReadProcessed(static_cast<float>(fraction));
+			};
+			// The same strict setting as for parts: a component that cannot be loaded fails the import instead of being shown
+			// as an error item in the tree.
+			options.strict = QSettings().value(QStringLiteral("inventorStrict"), false).toBool()
+				|| qEnvironmentVariableIntValue("MODELVIEWER_INVENTOR_STRICT") != 0;
+			Inventor::AssemblySceneResult built = Inventor::buildAssemblyScene(fi.absoluteFilePath(), options);
+			_xcafScene = std::move(built.scene);
+			_scene = _xcafScene.get();
+			_declaredLengthUnit = LengthUnit::Millimeter;
+			for (const QString& warning : built.warnings) qWarning().noquote() << warning;
+			_xtWarnings = built.warnings;
+			_importStage = "worker.inventor-assembly-complete";
+			ImportDiagnostics::checkpoint(_importStage, -1, _scene->mNumMeshes, 0);
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true;
+				_errorMessage = "Model loading cancelled by user.";
+				emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
+	}
+	else if (fi.suffix().compare("x_t", Qt::CaseInsensitive) == 0 || fi.suffix().compare("xmt_txt", Qt::CaseInsensitive) == 0)
+	{
+		try {
+			BRepToAssimpConverter::clearColorCache();
+			Xt::SceneImportOptions options;
+			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+			// The callback also runs on the meshing worker threads, so the remembered stage text is guarded.
+			QString lastStage;
+			std::mutex lastStageLock;
+			options.progress = [this, &fi, &lastStage, &lastStageLock](const QString& stage, int done, int total) {
+				emit fileReadProcessed(total ? float(done) / total : 0.0f);
+				// The importer's own (translated) stage text; shown when it changes, not on every step of the same stage.
+				bool changed = false;
+				{
+					std::lock_guard<std::mutex> guard(lastStageLock);
+					if (stage != lastStage) {
+						lastStage = stage;
+						changed = true;
+					}
+				}
+				if (changed)
+					MainWindow::showStatusMessage(stage + QStringLiteral(": ") + fi.fileName());
+			};
+			_importStage = "worker.xt-read";
+			ImportDiagnostics::checkpoint(_importStage);
+			Xt::SceneImportResult imported = Xt::importScene(fi.absoluteFilePath(), options);
+			_importStage = "worker.xt-read-complete";
+			ImportDiagnostics::checkpoint(_importStage);
+			_xcafScene = std::move(imported.scene);
+			_scene = _xcafScene.get();
+			_declaredLengthUnit = LengthUnit::Millimeter; // the importer scales XT metres to millimetres
+			for (const QString& warning : imported.warnings) qWarning().noquote() << warning;
+			_xtWarnings = imported.warnings;
+		} catch (const std::exception& e) {
+			_errorMessage = QString::fromUtf8(e.what());
+			if (_loadingCancelled || MainWindow::isFileLoadCancelRequested()) {
+				_loadingCancelled = true; _errorMessage = "Model loading cancelled by user."; emit loadingCancelled();
+			}
+			emit loadingFinished(false, nullptr);
+			return;
+		}
+	}
 	else if (fi.suffix().compare("jt", Qt::CaseInsensitive) == 0)
 	{
 		try {
 			Jt::Options options=Jt::Options::fromEnvironment();
+			// XT B-Rep segments inside JT files: decode them with the XT reader. A shape that fails validation
+			// is rejected by the JT builder, which then keeps the stored tessellation.
+			// Experimental: the XT length unit inside a JT file is not verified against the JT unit yet, so the exact
+			// decoder is only used when asked for explicitly (MODELVIEWER_JT_XT_EXACT=1).
+			if (qEnvironmentVariableIntValue("MODELVIEWER_JT_XT_EXACT") != 0)
+			options.exactDecoder = [this](const QByteArray& bytes) -> TopoDS_Shape {
+				Xt::BuildOptions build;
+				build.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+				Xt::ImportReport xtReport;
+				TopoDS_Shape shape = Xt::shapeFromJtElement(bytes.constData(), size_t(bytes.size()), build, xtReport);
+				if (shape.IsNull()) throw std::runtime_error(xtReport.error.empty() ? "XT decode failed" : xtReport.error);
+				return shape;
+			};
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
-			options.progress = [this](const QString&, int done, int total) {
+			options.progress = [this, &fi, last = QString()](const QString& stage, int done, int total) mutable {
 				emit fileReadProcessed(total ? float(done)/total : 0.0f);
+				if (stage != last) {
+					last = stage;
+					const QString text = stage == QLatin1String("Reading the JT product structure") ? QObject::tr("Reading the JT product structure")
+						: stage == QLatin1String("Scanning the JT parts") ? QObject::tr("Scanning the JT parts")
+						: stage == QLatin1String("Building JT scene") ? QObject::tr("Building the JT scene")
+						: stage == QLatin1String("Finishing the JT scene") ? QObject::tr("Finishing the JT scene") : stage;
+					MainWindow::showStatusMessage(text + QStringLiteral(": ") + fi.fileName());
+				}
 			};
 			_importStage = "worker.jt-read";
 			ImportDiagnostics::checkpoint(_importStage);
@@ -1480,6 +1865,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			}
 		}
 
+		_progHandler->setFileName(QFileInfo(QString::fromStdString(path)).fileName());
 		_scene = _importer.ReadFile(path, importFlags);
 		workerLap("assimp ReadFile done");
 	}
@@ -1822,6 +2208,17 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 		std::vector<const aiNode*>& path;
 		~PathPop() { path.pop_back(); }
 	} pathPop{ _nodePath };
+	// A node, or one of its ancestors, flagged by its importer as hidden in the file (ImportMetadata::InitiallyHidden).
+	bool flaggedHidden = false;
+	for (const aiNode* ancestor : _nodePath)
+	{
+		bool hidden = false;
+		if (ancestor->mMetaData && ancestor->mMetaData->Get(ImportMetadata::InitiallyHidden, hidden) && hidden)
+		{
+			flaggedHidden = true;
+			break;
+		}
+	}
 	NodePropertyChainPtr nodeProperties;
 	DeclaredMass declaredMass;
 	DeclaredMaterial declaredMaterial;
@@ -1865,7 +2262,7 @@ void AssImpModelLoader::processNode(int nodeCounter, aiNode* node, const aiScene
 			myMesh.declaredMaterialSource = declaredMaterial.sourceKey;
 		}
 
-		myMesh.initiallyVisible = !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
+		myMesh.initiallyVisible = !flaggedHidden && !_threeDXml.hiddenNodes.contains(node) && !_jt.hiddenNodes.contains(node);
 		_importStage = "worker.mesh-stage";
 		ImportDiagnostics::checkpoint(_importStage, _importSceneIndex, _processedMeshCount, _totalMeshOccurrences);
 		_preservesNodeTransforms = _preservesNodeTransforms || myMesh.preserveNodeTransform;
@@ -2458,15 +2855,21 @@ AssImpMeshData AssImpModelLoader::processMesh(aiMesh* mesh, const aiScene* scene
 
 	// Return a mesh object created from the extracted mesh data
 	QString meshName = QString::fromStdString(mesh->mName.C_Str());
+	// Parasolid parts carry their real names, and the assembly tree already shows the model above them, so the
+	// file name prefix would only repeat the top node ("FullAssembly (Dipstick)").
+	const QString sourceSuffix = QFileInfo(QString(_path.data())).suffix();
+	const bool prefixWithFileName = sourceSuffix.compare("x_t", Qt::CaseInsensitive) != 0 && sourceSuffix.compare("xmt_txt", Qt::CaseInsensitive) != 0;
+	const QString filePrefix = QFileInfo(QString(_path.data())).baseName() + " (";
 	if(meshName.isEmpty())
 	{
 		// An unnamed mesh is traced through the node that owns it (the part or instance name) rather than shown anonymously.
 		const QString ownerName = nodeName ? QString::fromUtf8(nodeName) : QString();
-		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + (ownerName.isEmpty() ? QStringLiteral("Unnamed Mesh") : ownerName) + ")";
+		const QString label = ownerName.isEmpty() ? QStringLiteral("Unnamed Mesh") : ownerName;
+		meshName = prefixWithFileName ? filePrefix + label + ")" : label;
 	}
 	else
 	{
-		meshName = QFileInfo(QString(_path.data())).baseName() + " (" + mesh->mName.C_Str() + ")";
+		meshName = prefixWithFileName ? filePrefix + mesh->mName.C_Str() + ")" : QString::fromUtf8(mesh->mName.C_Str());
 	}
 
 	// Material and textures details
