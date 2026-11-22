@@ -324,6 +324,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             if (found != doc.representations.cend() && !ref.name.isEmpty() && !partOfMember.contains(found->member)) partOfMember.insert(found->member, ref.name);
         }
     QStringList members, skippedMembers;
+    QHash<QString,QString> skippedReasons; // member -> why it could not be read, for the nodes that refer to it
     QHash<QString,QString> formats;
     for (auto it = doc.representations.cbegin(); it != doc.representations.cend(); ++it) {
         if (it->format == QLatin1String("UVR") || it->format == QLatin1String("TESSELLATED")) {
@@ -399,10 +400,20 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         MemberOutcome& outcome = outcomes[size_t(memberIndex)];
         parseMs += outcome.parseMs; memberMs += outcome.totalMs;
         if (outcome.error) std::rethrow_exception(outcome.error);
+        {
+            // Test hook: MODELVIEWER_3DXML_SIMULATE_FAILED_REPRESENTATION=n makes the n-th (1-based) representation count as
+            // unreadable, to exercise the error item in the model tree. Has no effect when unset.
+            bool simulatedSet=false;
+            const int simulated=qEnvironmentVariableIntValue("MODELVIEWER_3DXML_SIMULATE_FAILED_REPRESENTATION",&simulatedSet);
+            if (simulatedSet && simulated==memberIndex+1 && !outcome.readFailed) {
+                outcome.readFailed=true;
+                outcome.readFailure=QStringLiteral("%1: simulated failure for testing").arg(member);
+            }
+        }
         if (outcome.readFailed) {
             if (options.strict) throw Error(outcome.readFailure);
             // The rest of the assembly still loads; occurrences that reference the member simply have no geometry.
-            skippedMembers.append(outcome.readFailure); resources[member];
+            skippedMembers.append(outcome.readFailure); resources[member]; skippedReasons.insert(member,outcome.readFailure);
             result.warnings.append(QStringLiteral("Skipped unreadable representation %1").arg(outcome.readFailure));
         }
         else {
@@ -500,11 +511,27 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
             if (found!=doc.representations.cend() && (found->format==QLatin1String("UVR") || found->format==QLatin1String("TESSELLATED")) && resources.at(found->member).size()==1)
                 attachedRep=&found.value();
         }
-        node->mMetaData=aiMetadata::Alloc(attachedRep ? 6 : 3);
+        // A representation of this reference that could not be read was skipped. Record why on the node, as an import
+        // issue, so the model tree shows the part with an error mark and the reason instead of silently without geometry.
+        QString skippedReason;
+        for (const auto& repId : ref.representations) {
+            const auto skippedRep=doc.representations.constFind(repId);
+            if (skippedRep==doc.representations.cend()) continue;
+            const auto reason=skippedReasons.constFind(skippedRep->member);
+            if (reason!=skippedReasons.cend()) { skippedReason=reason.value(); break; }
+        }
+        const unsigned issueEntries = skippedReason.isEmpty() ? 0u : 2u;
+        node->mMetaData=aiMetadata::Alloc((attachedRep ? 6 : 3) + issueEntries);
         if (attachedRep) setRepresentation(*node->mMetaData,3,*attachedRep);
         node->mMetaData->Set(0,"3DXMLReference",aiString(reference.toUtf8().constData()));
         node->mMetaData->Set(1,"3DXMLPath",aiString(path.toUtf8().constData()));
         node->mMetaData->Set(2,"3DXMLInstance",aiString(id.toUtf8().constData()));
+        if (issueEntries) {
+            unsigned issueIndex = attachedRep ? 6 : 3;
+            node->mMetaData->Set(issueIndex++,"ModelViewer.ImportIssue.Severity",aiString("error"));
+            node->mMetaData->Set(issueIndex++,"ModelViewer.ImportIssue.Message",
+                aiString(QStringLiteral("The 3D representation could not be read and was skipped: %1").arg(skippedReason).toUtf8().constData()));
+        }
         result.occurrencePaths.insert(node.get(),path);
         if (!visible) result.hiddenNodes.insert(node.get());
         std::vector<std::unique_ptr<aiNode>> nodes;
