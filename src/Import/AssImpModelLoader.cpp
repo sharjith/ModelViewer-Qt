@@ -891,7 +891,8 @@ void AssImpModelProgressHandler::UpdatePostProcess(int currentStep, int numberOf
 {
 	// One message per post-processing step (a handful at most): the steps are named by the flags the owner enabled, not by Assimp.
 	const int stage = 1 + currentStep;
-	if (_lastStage != stage)
+	// Assimp ends the post-processing with currentStep == numberOfSteps; that is not a step to announce ("step 6 of 5").
+	if (_lastStage != stage && currentStep < numberOfSteps)
 	{
 		_lastStage = stage;
 		MainWindow::showStatusMessage(QObject::tr("Post-processing the model, step %1 of %2: %3").arg(currentStep + 1).arg(numberOfSteps).arg(_fileName));
@@ -1717,13 +1718,22 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			BRepToAssimpConverter::clearColorCache();
 			Xt::SceneImportOptions options;
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
-			options.progress = [this, &fi, last = QString()](const QString& stage, int done, int total) mutable {
+			// The callback also runs on the meshing worker threads, so the remembered stage text is guarded.
+			QString lastStage;
+			std::mutex lastStageLock;
+			options.progress = [this, &fi, &lastStage, &lastStageLock](const QString& stage, int done, int total) {
 				emit fileReadProcessed(total ? float(done) / total : 0.0f);
 				// The importer's own (translated) stage text; shown when it changes, not on every step of the same stage.
-				if (stage != last) {
-					last = stage;
-					MainWindow::showStatusMessage(stage + QStringLiteral(": ") + fi.fileName());
+				bool changed = false;
+				{
+					std::lock_guard<std::mutex> guard(lastStageLock);
+					if (stage != lastStage) {
+						lastStage = stage;
+						changed = true;
+					}
 				}
+				if (changed)
+					MainWindow::showStatusMessage(stage + QStringLiteral(": ") + fi.fileName());
 			};
 			_importStage = "worker.xt-read";
 			ImportDiagnostics::checkpoint(_importStage);
