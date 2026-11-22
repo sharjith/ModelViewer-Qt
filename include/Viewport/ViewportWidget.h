@@ -2097,6 +2097,7 @@ private:
 	QVector3D _wireBgTop{0.45f, 0.45f, 0.45f};
 	QVector3D _wireBgBottom{0.9f, 0.9f, 0.9f};
 	int _wireBgStyle = 0;
+	float _wireMaxLineWidth = 0.0f; // widest line the context draws (0 = not queried yet); the halo needs about 3 px
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
 	void syncCameraWorldUp();

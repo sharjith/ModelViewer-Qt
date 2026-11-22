@@ -98,10 +98,10 @@ void main()
             float gap = abs(lineLum - bgLum);
             // A line already on the pushed side fades in below a 0.28 gap. A line on the other side of the background would pass
             // through the background luminance on its way to the target, so it is moved only when it is nearly invisible anyway
-            // (gap < 0.02, where it could hardly be seen before either). The weight is continuous in the gap, so the colour changes smoothly
+            // (gap < 0.01, a difference of about 2.5/255 that could not be seen before either). The weight is continuous in the gap, so the colour changes smoothly
             // along the gradient (no seam), and a line that was visible on that side is not touched.
             bool onPushedSide = wireBgDarker ? lineLum <= bgLum : lineLum >= bgLum;
-            float weight = onPushedSide ? 1.0 - smoothstep(0.12, 0.28, gap) : 1.0 - smoothstep(0.0, 0.02, gap);
+            float weight = onPushedSide ? 1.0 - smoothstep(0.12, 0.28, gap) : 1.0 - smoothstep(0.0, 0.01, gap);
             if (weight > 0.0)
             {
                 // Aim for a luminance 0.38 away from the background.

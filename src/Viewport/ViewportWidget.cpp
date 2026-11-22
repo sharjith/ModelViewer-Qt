@@ -1337,6 +1337,7 @@ static int displayModeShaderInt(DisplayMode mode)
 void ViewportWidget::initializeGL()
 {
 	_renderCtrl.setOpenGLInitialized(false);
+	_wireMaxLineWidth = 0.0f; // a recreated context may support other line widths; queried again on first use
 
 	if (!QOpenGLContext::currentContext())
 	{
@@ -15112,8 +15113,19 @@ bool ViewportWidget::setWireBackgroundUniforms(bool enable)
 	// the whole line: the caller draws a halo under the lines instead and the per-fragment push is off.
 	if (std::min(lumTop, lumBottom) < 0.35f && std::max(lumTop, lumBottom) > 0.65f)
 	{
-		prog->setUniformValue("wireBgStyle", -1);
-		return true;
+		// The halo is a wider copy of each line; a context that only draws one-pixel lines cannot show it, so the per-fragment
+		// push below stays on as the fallback there (one side for the whole screen, with the faint zone where the gradient crosses).
+		if (_wireMaxLineWidth <= 0.0f)
+		{
+			GLfloat range[2] = { 1.0f, 1.0f };
+			glGetFloatv(GL_ALIASED_LINE_WIDTH_RANGE, range);
+			_wireMaxLineWidth = std::max(range[1], 1.0f);
+		}
+		if (_wireMaxLineWidth >= 3.0f)
+		{
+			prog->setUniformValue("wireBgStyle", -1);
+			return true;
+		}
 	}
 	prog->setUniformValue("wireBgStyle", _wireBgStyle);
 	// One side for the whole screen. Lines are mostly darker than a mid-grey background, so those backgrounds push darker (the
