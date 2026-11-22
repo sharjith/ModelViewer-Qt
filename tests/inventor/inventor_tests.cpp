@@ -16,6 +16,7 @@
 //       expectation and writes the manifest and the map. Review the manifest diff before committing it.
 //
 // Environment: MV_INVENTOR_CORPUS_MAP overrides the default map path.
+#include <mutex>
 #include <zlib.h>
 #include <zstd.h>
 
@@ -24,7 +25,9 @@
 #include "Inventor/PartSolid.h"
 #include "SegmentData.h"
 
+#include <BRepBndLib.hxx>
 #include <BRepGProp.hxx>
+#include <Bnd_Box.hxx>
 #include <GProp_GProps.hxx>
 #include <NCollection_IndexedMap.hxx>
 #include <TopAbs_ShapeEnum.hxx>
@@ -292,23 +295,41 @@ QString fmt(double value)
     return QString::number(value, 'g', 10);
 }
 
+// When set, volumes are integrated adaptively (1e-7 relative) instead of with the fixed-order default, which moves by 1e-6 to
+// 5e-4 between two equally good constructions of the same solid.
+bool g_adaptiveVolume = false;
+
 // What the part reader makes of a file, the way the viewer calls it (not strict).
 Expectation measurePart(const QString& path)
 {
     Expectation e;
     try {
         Inventor::PartAppearance appearance;
-        const auto outcomes = Inventor::readPartBodies(path, {}, &appearance, false);
+        std::mutex progressLock;
+        double lowest = 0.0, highest = 0.0;
+        int progressCalls = 0;
+        const auto outcomes = Inventor::readPartBodies(path, {}, &appearance, false, [&](double fraction) {
+            std::lock_guard<std::mutex> guard(progressLock);
+            lowest = progressCalls == 0 ? fraction : std::min(lowest, fraction);
+            highest = std::max(highest, fraction);
+            ++progressCalls;
+        });
+        // The progress report stays inside 0 to 1 (never reaching 1: the caller says when it is done) and starts.
+        CHECK(progressCalls > 0 && lowest >= 0.0 && highest < 1.0);
         int solids = 0, surfaces = 0, incomplete = 0, failed = 0;
         qint64 faces = 0;
         double volume = 0;
+        Bnd_Box extent; // all bodies together: a face on the wrong side of a surface shows here although the counts agree
         for (const auto& outcome : outcomes) {
             TopoDS_Shape shape;
             if (!outcome.solid.IsNull()) {
                 ++solids;
                 shape = outcome.solid;
                 GProp_GProps properties;
-                BRepGProp::VolumeProperties(shape, properties);
+                if (g_adaptiveVolume)
+                    BRepGProp::VolumeProperties(shape, properties, 1e-7, false);
+                else
+                    BRepGProp::VolumeProperties(shape, properties);
                 volume += properties.Mass();
             } else if (!outcome.incompleteShape.IsNull()) {
                 (outcome.isSurface ? surfaces : incomplete) += 1;
@@ -317,6 +338,7 @@ Expectation measurePart(const QString& path)
                 ++failed;
             }
             if (!shape.IsNull()) {
+                BRepBndLib::AddOptimal(shape, extent, false, false);
                 NCollection_IndexedMap<TopoDS_Shape, TopTools_ShapeMapHasher> map;
                 TopExp::MapShapes(shape, TopAbs_FACE, map);
                 faces += map.Extent();
@@ -328,6 +350,11 @@ Expectation measurePart(const QString& path)
         e.insert(QStringLiteral("failed"), QString::number(failed));
         e.insert(QStringLiteral("faces"), QString::number(faces));
         e.insert(QStringLiteral("volume"), fmt(volume));
+        if (!extent.IsVoid()) {
+            double xmin, ymin, zmin, xmax, ymax, zmax;
+            extent.Get(xmin, ymin, zmin, xmax, ymax, zmax);
+            e.insert(QStringLiteral("extent"), QStringLiteral("%1x%2x%3").arg(xmax - xmin, 0, 'f', 1).arg(ymax - ymin, 0, 'f', 1).arg(zmax - zmin, 0, 'f', 1));
+        }
         e.insert(QStringLiteral("overrides"), QString::number(appearance.faces.size()));
         e.insert(QStringLiteral("colour"), appearance.body
             ? QStringLiteral("%1,%2,%3").arg(appearance.body->Red(), 0, 'f', 3).arg(appearance.body->Green(), 0, 'f', 3)
@@ -346,13 +373,15 @@ Expectation measureAssembly(const QString& path)
     try {
         QString saved;
         const auto occurrences = Inventor::readAssemblyOccurrences(path, {}, &saved);
-        int subassemblies = 0, suppressed = 0, hidden = 0, unresolved = 0;
+        int subassemblies = 0, suppressed = 0, hidden = 0, unresolved = 0, bindingNotes = 0, positional = 0;
         double checksum = 0;
         for (const auto& occurrence : occurrences) {
             if (occurrence.reference.endsWith(QStringLiteral(".iam"), Qt::CaseInsensitive))
                 ++subassemblies;
             suppressed += occurrence.suppressed ? 1 : 0;
             hidden += occurrence.visible ? 0 : 1;
+            bindingNotes += occurrence.bindingNote.isEmpty() ? 0 : 1;
+            positional += occurrence.boundByPosition ? 1 : 0;
             if (Inventor::resolveAssemblyComponent(path, saved, occurrence.reference).path.isEmpty())
                 ++unresolved;
             for (int row = 1; row <= 3; ++row)
@@ -364,6 +393,8 @@ Expectation measureAssembly(const QString& path)
         e.insert(QStringLiteral("suppressed"), QString::number(suppressed));
         e.insert(QStringLiteral("hidden"), QString::number(hidden));
         e.insert(QStringLiteral("unresolved"), QString::number(unresolved));
+        e.insert(QStringLiteral("bindingNotes"), QString::number(bindingNotes));
+        e.insert(QStringLiteral("positionalBindings"), QString::number(positional));
         e.insert(QStringLiteral("placements"), fmt(checksum));
     } catch (const std::exception& error) {
         e.insert(QStringLiteral("error"), QString::fromUtf8(error.what()).left(160).replace(QLatin1Char(';'), QLatin1Char(',')).replace(QLatin1Char('='), QLatin1Char(':')));
@@ -476,6 +507,80 @@ void testCorpus(const QString& manifestPath, const QString& mapPath, qint64 maxB
             std::fprintf(stderr, "    %s\n", qPrintable(line));
     }
     std::printf("corpus: %d compared, %d skipped (no file, hash differs, or over the size limit), %d differ\n", ran, skipped, failedEntries);
+    // A run that compared nothing proves nothing: with the map present it is a failure (a wrong --only, or every sample missing).
+    if (ran == 0 && !entries.isEmpty() && QFileInfo::exists(mapPath)) {
+        ++g_failures;
+        std::fprintf(stderr, "FAIL: the corpus run compared no sample (%d skipped)\n", skipped);
+    }
+}
+
+// Each part is read twice, serially and with the threaded face building forced on for every shell of a few dozen faces, and the
+// two results must agree. The corpus alone never reaches the size at which the importer threads by itself.
+void testThreadCheck(const QString& manifestPath, const QString& mapPath, qint64 maxBytes)
+{
+    if (!QFileInfo::exists(mapPath)) {
+        // The corpus map lives under the ignored out/ folder, so a fresh checkout has none: nothing to compare, not a failure.
+        std::printf("thread check: corpus map NOT FOUND, skipped\n");
+        return;
+    }
+    const QList<Entry> entries = readManifest(manifestPath);
+    const QMap<QString, QString> map = readMap(mapPath);
+    int compared = 0, differing = 0;
+    for (const Entry& entry : entries) {
+        const QString path = map.value(entry.id);
+        if (entry.kind != QLatin1String("ipt") || path.isEmpty() || !QFileInfo::exists(path) || entry.size > maxBytes ||
+            shaOf(path) != entry.sha256)
+            continue;
+        qputenv("MODELVIEWER_INVENTOR_THREADS", "1");
+        const Expectation serial = measurePart(path);
+        qputenv("MODELVIEWER_INVENTOR_THREADS", "4");
+        qputenv("MODELVIEWER_INVENTOR_PARALLEL_MIN_FACES", "20");
+        qputenv("MODELVIEWER_INVENTOR_PARALLEL_FACES_PER_WORKER", "10");
+        const Expectation threaded = measurePart(path);
+        qunsetenv("MODELVIEWER_INVENTOR_THREADS");
+        qunsetenv("MODELVIEWER_INVENTOR_PARALLEL_MIN_FACES");
+        qunsetenv("MODELVIEWER_INVENTOR_PARALLEL_FACES_PER_WORKER");
+        ++compared;
+        ++g_checks;
+        QStringList diff = differences(serial, threaded);
+        if (diff.size() == 1 && diff.first().startsWith(QStringLiteral("volume:"))) {
+            // Only the fixed-order volume moved: compare the adaptive integrals, which do not depend on how the edges were split.
+            g_adaptiveVolume = true;
+            qputenv("MODELVIEWER_INVENTOR_THREADS", "1");
+            const Expectation serialAdaptive = measurePart(path);
+            qputenv("MODELVIEWER_INVENTOR_THREADS", "4");
+            qputenv("MODELVIEWER_INVENTOR_PARALLEL_MIN_FACES", "20");
+            qputenv("MODELVIEWER_INVENTOR_PARALLEL_FACES_PER_WORKER", "10");
+            const Expectation threadedAdaptive = measurePart(path);
+            qunsetenv("MODELVIEWER_INVENTOR_THREADS");
+            qunsetenv("MODELVIEWER_INVENTOR_PARALLEL_MIN_FACES");
+            qunsetenv("MODELVIEWER_INVENTOR_PARALLEL_FACES_PER_WORKER");
+            g_adaptiveVolume = false;
+            const double a = serialAdaptive.value(QStringLiteral("volume")).toDouble();
+            const double b = threadedAdaptive.value(QStringLiteral("volume")).toDouble();
+            // A re-measurement that failed (an error entry instead of a volume) proves nothing: keep the original difference.
+            if (!serialAdaptive.contains(QStringLiteral("volume")) || !threadedAdaptive.contains(QStringLiteral("volume")))
+                diff = QStringList{QStringLiteral("adaptive volume could not be measured (serial: %1, threaded: %2)")
+                                       .arg(serialAdaptive.value(QStringLiteral("error"), QStringLiteral("ok")),
+                                            threadedAdaptive.value(QStringLiteral("error"), QStringLiteral("ok")))};
+            else if (std::abs(a - b) <= 1e-3 + 1e-6 * std::max(std::abs(a), std::abs(b)))
+                diff.clear();
+            else
+                diff = QStringList{QStringLiteral("adaptive volume: serial %1, threaded %2").arg(a).arg(b)};
+        }
+        if (diff.isEmpty())
+            continue;
+        ++g_failures;
+        ++differing;
+        std::fprintf(stderr, "FAIL %s: threaded result differs from serial\n", qPrintable(entry.id));
+        for (const QString& line : diff)
+            std::fprintf(stderr, "    %s\n", qPrintable(line));
+    }
+    std::printf("thread check: %d parts compared, %d differ\n", compared, differing);
+    if (compared == 0) {
+        ++g_failures;
+        std::fprintf(stderr, "FAIL: the thread check compared no part\n");
+    }
 }
 
 // Truncated copies of real samples must be refused with an error, never crash. The smallest few of each kind, cut at half and
@@ -587,6 +692,7 @@ int main(int argc, char* argv[])
     QString map = qEnvironmentVariable("MV_INVENTOR_CORPUS_MAP", QStringLiteral(MV_REPO_DIR "/out/inventor-tests/corpus_map.tsv"));
     qint64 maxBytes = qint64(30) * 1024 * 1024;
     QString only;
+    bool threadCheck = false;
     for (qsizetype i = 0; i < args.size(); ++i) {
         const auto next = [&] { return i + 1 < args.size() ? args[++i] : QString(); };
         if (args[i] == QLatin1String("--manifest"))
@@ -597,6 +703,8 @@ int main(int argc, char* argv[])
             maxBytes = next().toLongLong() * 1024 * 1024;
         else if (args[i] == QLatin1String("--only"))
             only = next();
+        else if (args[i] == QLatin1String("--thread-check"))
+            threadCheck = true;
         else if (args[i] == QLatin1String("--generate")) {
             const QString root = next(), manifestOut = next(), mapOut = next();
             if (root.isEmpty() || manifestOut.isEmpty() || mapOut.isEmpty()) {
@@ -610,6 +718,11 @@ int main(int argc, char* argv[])
         }
     }
 
+    if (threadCheck) {
+        testThreadCheck(manifest, map, maxBytes);
+        std::printf("%d checks, %d failures\n", g_checks, g_failures);
+        return g_failures == 0 ? 0 : 1;
+    }
     if (only.isEmpty()) {
         testSegmentDecoding();
         testGraphicsCursor();

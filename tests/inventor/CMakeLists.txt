@@ -32,6 +32,8 @@ if(Qt6_FOUND AND ZLIB_FOUND AND zstd_FOUND AND OpenCASCADE_FOUND)
     # Synthetic tests always run; the corpus tests compare local samples with corpus_manifest.tsv when the map file
     # (out/inventor-tests/corpus_map.tsv, or MV_INVENTOR_CORPUS_MAP) exists and skip otherwise.
     add_test(NAME inventor_tests COMMAND inventor_tests)
+    # Every part read serially and again with threaded face building forced on; the results must agree (skips when no map).
+    add_test(NAME inventor_thread_check COMMAND inventor_tests --thread-check)
 else()
     message(STATUS "Qt6 Core, zlib, zstd or OpenCASCADE not found: inventor_tests is not built")
 endif()
