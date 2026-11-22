@@ -1380,9 +1380,15 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			{ const int threads = QSettings().value(QStringLiteral("threeDxmlThreads"), 0).toInt(); if (threads >= 0) options.threads = unsigned(threads); }
 			{ bool ok = false; const int threads = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_THREADS", &ok); if (ok && threads >= 0) options.threads = unsigned(threads); }
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
-			options.progress = [this](const QString&, int done, int total) {
+			options.progress = [this, &fi](const QString&, int done, int total) {
 				emit fileReadProcessed(total ? float(done)/total : 0.0f);
+				// The importer names the archive member it is reading; the status bar says which one of how many.
+				if (done < total)
+					MainWindow::showStatusMessage(QObject::tr("Reading representation %1 of %2: %3").arg(done + 1).arg(total).arg(fi.fileName()));
+				else
+					MainWindow::showStatusMessage(QObject::tr("Building the 3DXML scene: %1").arg(fi.fileName()));
 			};
+			MainWindow::showStatusMessage(QObject::tr("Reading the 3DXML structure: %1").arg(fi.fileName()));
 			_threeDXml = ThreeDXml::Importer::read(fi.absoluteFilePath(), options);
 			_scene = _threeDXml.scene.get();
 			// The file's own edge polylines take the B-Rep edge path (edge/wireframe display modes). Stale entries from
@@ -1675,8 +1681,13 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			BRepToAssimpConverter::clearColorCache();
 			Xt::SceneImportOptions options;
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
-			options.progress = [this](const QString&, int done, int total) {
+			options.progress = [this, &fi, last = QString()](const QString& stage, int done, int total) mutable {
 				emit fileReadProcessed(total ? float(done) / total : 0.0f);
+				// The importer's own (translated) stage text; shown when it changes, not on every step of the same stage.
+				if (stage != last) {
+					last = stage;
+					MainWindow::showStatusMessage(stage + QStringLiteral(": ") + fi.fileName());
+				}
 			};
 			_importStage = "worker.xt-read";
 			ImportDiagnostics::checkpoint(_importStage);
@@ -1715,8 +1726,14 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 				return shape;
 			};
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
-			options.progress = [this](const QString&, int done, int total) {
+			options.progress = [this, &fi, last = QString()](const QString& stage, int done, int total) mutable {
 				emit fileReadProcessed(total ? float(done)/total : 0.0f);
+				if (stage != last) {
+					last = stage;
+					const QString text = stage == QLatin1String("Reading the JT product structure") ? QObject::tr("Reading the JT product structure")
+						: stage == QLatin1String("Building JT scene") ? QObject::tr("Building the JT scene") : stage;
+					MainWindow::showStatusMessage(text + QStringLiteral(": ") + fi.fileName());
+				}
 			};
 			_importStage = "worker.jt-read";
 			ImportDiagnostics::checkpoint(_importStage);
