@@ -167,7 +167,8 @@ public:
 	static void setFillMeshGaps(bool enabled);
 
 	static aiScene* convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation = false,
-							const std::vector<float>* opacities = nullptr); // opacities: one per tuple (1 = opaque), optional
+							const std::vector<float>* opacities = nullptr, // opacities: one per tuple (1 = opaque), optional
+							int progressFromPercent = 0, int progressToPercent = 100); // the part of the progress bar this call fills
 	static aiScene* convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& index, const std::string& name = "");
 	static aiScene* convert(
 		const TopoDS_Shape& shape,

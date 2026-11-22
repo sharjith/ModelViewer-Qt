@@ -1565,7 +1565,8 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 						overrides.emplace(face, faceColor);
 					BRepToAssimpConverter::setFaceColourOverrides(std::move(overrides));
 				}
-				_xcafScene.reset(BRepToAssimpConverter::convert(parts));
+				// The part reader and the pre-tessellation used the bar up to 90 %; the converter fills the rest.
+				_xcafScene.reset(BRepToAssimpConverter::convert(parts, false, nullptr, 90, 99));
 				BRepToAssimpConverter::setFaceColourOverrides({});
 			}
 			if (!_xcafScene || !_xcafScene->mRootNode || _xcafScene->mNumMeshes == 0 ||

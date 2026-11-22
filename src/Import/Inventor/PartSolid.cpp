@@ -189,6 +189,9 @@ void runParallel(std::size_t count, Work&& work)
 // its own (see sewSolid), so no two threads write the same container or the same edge.
 // Bit in BuildContext::edgeUses next to the two orientation bits (1 and 2): a second coedge ran the same way as an earlier one.
 constexpr unsigned EdgeOrientationConflict = 4u;
+// Bit 8 of the same value: the number of repeated coedges (uses beyond one per direction) is odd. A coincident ring of a pinched
+// shell adds two (a pair); a third use of an edge adds one, which no manifold or pinched shell has.
+constexpr unsigned EdgeOddRepeats = 8u;
 
 struct BuildContext
 {
@@ -603,12 +606,14 @@ private:
             return;
         const long long done = _doneUnits.fetch_add(units) + units;
         const int permille = static_cast<int>(std::min<long long>(999, done * 1000 / _totalUnits));
-        int last = _lastPermille.load();
-        while (permille > last) {
-            if (_lastPermille.compare_exchange_weak(last, permille)) {
-                _progress(permille / 1000.0);
-                break;
-            }
+        if (permille <= _lastPermille.load())
+            return; // the common case: no lock
+        // Compare and deliver under one lock, so a worker that was slow to get here cannot report a smaller value after a later
+        // worker reported a larger one. The callback is short (a signal and a status text).
+        std::lock_guard<std::mutex> guard(_progressLock);
+        if (permille > _lastPermille.load()) {
+            _lastPermille.store(permille);
+            _progress(permille / 1000.0);
         }
     }
 
@@ -625,6 +630,7 @@ private:
     long long _totalUnits = 0;
     std::atomic<long long> _doneUnits{0};
     std::atomic<int> _lastPermille{0};
+    std::mutex _progressLock;
 
     std::size_t countFaces(const Record& body) const
     {
@@ -883,6 +889,8 @@ private:
         } catch (const std::exception&) {
             // The edges of this shell are shared in a way the solid rules do not cover (a sheet body, or a contact the
             // rules do not know). When not strict, build the faces on their own and show them as an open surface.
+            // The rejection itself is not carried into the fallback on purpose: sheet bodies with such edges are genuine
+            // surface bodies (corpus sample IP052), and flagging them would warn about correct input. Strict mode still fails.
             if (_strict || (_cancelled && _cancelled()))
                 throw;
             return sewSolidOrIncomplete(faces, {}, repairCavity, nullptr, nullptr);
@@ -1097,12 +1105,17 @@ private:
             for (const BuildContext& finished : contexts) {
                 for (const auto& use : finished.edgeUses) {
                     unsigned& merged = _main.edgeUses[use.first];
-                    if ((merged & use.second & 3u) != 0) {
+                    const unsigned overlap = merged & use.second & 3u;
+                    unsigned oddRepeats = (merged ^ use.second) & EdgeOddRepeats;
+                    if (overlap != 0) {
                         if (!_collectFaces)
                             fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
                         merged |= EdgeOrientationConflict;
+                        if (overlap != 3u)
+                            oddRepeats ^= EdgeOddRepeats; // one more repeated coedge
                     }
                     merged |= use.second;
+                    merged = (merged & ~EdgeOddRepeats) | oddRepeats;
                 }
             }
         }
@@ -1173,6 +1186,7 @@ private:
         }
         if (_collectFaces && _failedFaces != 0)
             fail("Some Inventor faces could not be built");
+        bool unpairedEdge = false, repeatedPairedEdge = false;
         for (const auto& use : _main.edgeUses) {
             const Record& usedEdge = get(use.first, "edge");
             if (usedEdge.link(8) < 0 && usedEdge.link(3) == usedEdge.link(5))
@@ -1180,11 +1194,24 @@ private:
             // An edge that is not used once in each direction is an open boundary only if one coedge uses it. Two coedges running
             // the same way are a bad incidence, not a boundary: it must not turn into a quietly accepted sheet. (An edge used in
             // both directions and more often, as the coincident rings of a pinched shell are, is left to the sewing.)
+            // Every edge is looked at before the shell is called a sheet: a boundary edge seen first (the map is unordered) must
+            // not hide an orientation conflict elsewhere on the same shell.
             if ((use.second & 3u) != 3u) {
                 if ((use.second & EdgeOrientationConflict) != 0)
                     fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
-                throw OpenTopology("Inventor shell has an unpaired edge");
+                unpairedEdge = true;
+            } else if ((use.second & EdgeOddRepeats) != 0) {
+                repeatedPairedEdge = true; // used in both directions, and once more in one of them (three uses)
             }
+        }
+        if (unpairedEdge) {
+            // A shell that has a real boundary is taken for a sheet. If it also has an edge with a third use it is not a clean
+            // sheet: the first pass rejects such an edge and the lenient pass has dropped that error, so say it here instead of
+            // showing the shell as an ordinary sheet without a warning. (Pairs of repeats are the rings of a pinched shell and
+            // stay with the sewing.)
+            if (repeatedPairedEdge)
+                fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
+            throw OpenTopology("Inventor shell has an unpaired edge");
         }
 
         {
@@ -1796,6 +1823,7 @@ private:
             if ((use & sense) != 0) {
                 if (!_collectFaces)
                     fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
+                use ^= EdgeOddRepeats;
                 use |= EdgeOrientationConflict; // remembered: such an edge is not an open boundary, it is a bad incidence
             }
             use |= sense;

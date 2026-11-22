@@ -308,14 +308,18 @@ Expectation measurePart(const QString& path)
         std::mutex progressLock;
         double lowest = 0.0, highest = 0.0;
         int progressCalls = 0;
+        bool inOrder = true; // each report is at least the one before it, in the order the callback ran (also with worker threads)
         const auto outcomes = Inventor::readPartBodies(path, {}, &appearance, false, [&](double fraction) {
             std::lock_guard<std::mutex> guard(progressLock);
+            if (progressCalls > 0 && fraction < highest)
+                inOrder = false;
             lowest = progressCalls == 0 ? fraction : std::min(lowest, fraction);
             highest = std::max(highest, fraction);
             ++progressCalls;
         });
-        // The progress report stays inside 0 to 1 (never reaching 1: the caller says when it is done) and starts.
+        // The progress report stays inside 0 to 1 (never reaching 1: the caller says when it is done), starts, and never goes back.
         CHECK(progressCalls > 0 && lowest >= 0.0 && highest < 1.0);
+        CHECK(inOrder);
         int solids = 0, surfaces = 0, incomplete = 0, failed = 0;
         qint64 faces = 0;
         double volume = 0;

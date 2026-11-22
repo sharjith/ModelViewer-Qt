@@ -141,7 +141,8 @@ public:
         // Faces carry the colour the part saves for them; the placed copies share the faces, so the colours still match.
         BRepToAssimpConverter::setFaceColourOverrides(_overrides);
         report(say("Converting %1 bodies to the scene").arg(_tuples.size()), 0.90);
-        std::unique_ptr<aiScene> scene(BRepToAssimpConverter::convert(_tuples));
+        // The converter moves the bar itself; keep it inside the 90 to 97 % reserved for the conversion.
+        std::unique_ptr<aiScene> scene(BRepToAssimpConverter::convert(_tuples, false, nullptr, 90, 97));
         BRepToAssimpConverter::setFaceColourOverrides({});
         if (!scene || !scene->mRootNode || scene->mNumMeshes == 0)
             throw std::runtime_error("Inventor assembly did not produce display geometry");

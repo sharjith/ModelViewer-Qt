@@ -232,7 +232,7 @@ void BRepToAssimpConverter::setFillMeshGaps(bool enabled)
 }
 
 aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation,
-										const std::vector<float>* opacities)
+										const std::vector<float>* opacities, int progressFromPercent, int progressToPercent)
 {
 	if (shapeTuples.empty())
 		return nullptr;
@@ -250,13 +250,14 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 
 	for (const auto& tuple : shapeTuples)
 	{
-		int progress = (int)(((float)meshIndex / (float)totalCount) * 100);
+		// Counted in input tuples, not meshes: one tuple can produce several meshes, which would overshoot the caller's range.
+		const size_t tupleIndex = static_cast<size_t>(&tuple - shapeTuples.data());
+		int progress = progressFromPercent + (int)(((float)tupleIndex / (float)totalCount) * (progressToPercent - progressFromPercent));
 		MainWindow::setProgressValue(progress);
 		const TopoDS_Shape& shape = std::get<0>(tuple);
 		const std::string& name = std::get<1>(tuple);
 		const gp_Trsf& trsf = std::get<2>(tuple);
 		const Quantity_Color& color = std::get<3>(tuple);
-		const size_t tupleIndex = static_cast<size_t>(&tuple - shapeTuples.data());
 		const float opacity = (opacities && tupleIndex < opacities->size()) ? (*opacities)[tupleIndex] : 1.0f;
 
 		// Apply transformation to the shape
