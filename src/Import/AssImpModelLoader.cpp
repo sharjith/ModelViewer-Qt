@@ -49,6 +49,8 @@
 #include <QLayout>
 #include <Quantity_ColorRGBA.hxx>
 #include <TDocStd_Document.hxx>
+#include <TopAbs_ShapeEnum.hxx>
+#include <TopExp_Explorer.hxx>
 #include <cmath>
 #include <limits>
 #include <unordered_set>
@@ -1410,7 +1412,13 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			// first error is thrown either way.
 			const bool strict = QSettings().value(QStringLiteral("inventorStrict"), false).toBool()
 				|| qEnvironmentVariableIntValue("MODELVIEWER_INVENTOR_STRICT") != 0;
-			auto outcomes = Inventor::readPartBodies(fi.absoluteFilePath(), cancelled, &appearance, strict);
+			// The progress bar covers the whole read: the saved bodies take the first 70 % (of a large part's time), the
+			// pre-tessellation of the shapes the next 20 %, and the conversion into the scene the rest.
+			constexpr float ReadShare = 0.70f, TessellateShare = 0.20f;
+			auto outcomes = Inventor::readPartBodies(fi.absoluteFilePath(), cancelled, &appearance, strict,
+				[this](double fraction) { emit fileReadProcessed(static_cast<float>(fraction) * ReadShare); },
+				[&fi](const QString& stage) { MainWindow::showStatusMessage(stage + QStringLiteral(": ") + fi.fileName()); });
+			emit fileReadProcessed(ReadShare);
 			// Test hook: MODELVIEWER_INVENTOR_SIMULATE_FAILED_BODY=n makes the n-th (1-based) body of a part with several
 			// bodies count as unbuildable, to exercise the error item in the model tree. Has no effect when unset.
 			{
@@ -1468,14 +1476,28 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			// every face that has no colour of its own.
 			const bool singleBody = outcomes.size() == 1;
 			const Quantity_Color partColor = !singleBody && appearance.body ? *appearance.body : color;
+			std::vector<double> faceWeights(solids.size(), 1.0);
+			double totalWeight = 0.0;
+			for (std::size_t i = 0; i < solids.size(); ++i) {
+				double faceCount = 0.0;
+				for (TopExp_Explorer faces(solids[i], TopAbs_FACE); faces.More(); faces.Next())
+					faceCount += 1.0;
+				faceWeights[i] = std::max(1.0, faceCount);
+				totalWeight += faceWeights[i];
+			}
+			double doneWeight = 0.0;
 			for (std::size_t i = 0; i < solids.size(); ++i) {
 				if (cancelled())
 					throw std::runtime_error("Inventor import cancelled");
+				MainWindow::showStatusMessage(QObject::tr("Tessellating body %1 of %2: %3").arg(i + 1).arg(solids.size()).arg(fi.fileName()));
 				BRepToAssimpConverter::preTessellate(solids[i]);
 				parts.emplace_back(solids[i], solidNames[i].toStdString(), TopLoc_Location(), partColor);
+				doneWeight += faceWeights[i];
+				emit fileReadProcessed(ReadShare + TessellateShare * static_cast<float>(doneWeight / totalWeight));
 			}
 			if (cancelled())
 				throw std::runtime_error("Inventor import cancelled");
+			MainWindow::showStatusMessage(QObject::tr("Converting to the scene: %1").arg(fi.fileName()));
 			if (singleBody && (appearance.body || !appearance.faces.empty())) {
 				Handle(TDocStd_Document) document = new TDocStd_Document("BinOcaf");
 				const auto shapeTool = XCAFDoc_DocumentTool::ShapeTool(document->Main());
