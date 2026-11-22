@@ -9,9 +9,15 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>399</width>
-    <height>258</height>
+    <width>563</width>
+    <height>524</height>
    </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>560</width>
+    <height>0</height>
+   </size>
   </property>
   <property name="windowTitle">
    <string>Background Color</string>
@@ -19,140 +25,476 @@
   <property name="modal">
    <bool>true</bool>
   </property>
-  <layout class="QVBoxLayout" name="verticalLayout_2">
+  <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <layout class="QHBoxLayout" name="horizontalLayout_2">
+    <layout class="QHBoxLayout" name="modeRow">
      <item>
-      <widget class="QLabel" name="labelColorPreview">
-       <property name="minimumSize">
-        <size>
-         <width>200</width>
-         <height>150</height>
-        </size>
-       </property>
-       <property name="frameShape">
-        <enum>QFrame::Shape::Panel</enum>
-       </property>
-       <property name="frameShadow">
-        <enum>QFrame::Shadow::Raised</enum>
+      <widget class="QPushButton" name="modeSolid">
+       <property name="toolTip">
+        <string>A single solid background color</string>
        </property>
        <property name="text">
-        <string>Preview</string>
+        <string>Solid</string>
        </property>
-       <property name="alignment">
-        <set>Qt::AlignmentFlag::AlignCenter</set>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
        </property>
       </widget>
      </item>
      <item>
-      <layout class="QVBoxLayout" name="verticalLayout">
+      <widget class="QPushButton" name="modeGradient">
+       <property name="toolTip">
+        <string>Blend between two colors instead of a single solid background</string>
+       </property>
+       <property name="text">
+        <string>Gradient</string>
+       </property>
+       <property name="checkable">
+        <bool>true</bool>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="modeSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Policy::Fixed</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>12</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QComboBox" name="directionCombo">
+       <property name="toolTip">
+        <string>Direction the two colors blend in.
+You can also drag the first color's circle
+around the preview.</string>
+       </property>
        <item>
-        <widget class="QPushButton" name="pushButtonTop">
-         <property name="styleSheet">
-          <string notr="true"/>
+        <property name="text">
+         <string>Vertical Gradient</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Horizontal Gradient</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Top Left To Bottom Right</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>Top Right To Bottom Left</string>
+        </property>
+       </item>
+      </widget>
+     </item>
+     <item>
+      <widget class="QToolButton" name="swapButton">
+       <property name="toolTip">
+        <string>Swap the two colors</string>
+       </property>
+       <property name="text">
+        <string notr="true">⇅</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="middleRow" stretch="1,0">
+     <item>
+      <layout class="QVBoxLayout" name="previewColumn" stretch="1,0">
+       <item>
+        <widget class="QWidget" name="previewPlaceholder" native="true">
+         <property name="sizePolicy">
+          <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+           <horstretch>0</horstretch>
+           <verstretch>0</verstretch>
+          </sizepolicy>
          </property>
-         <property name="toolTip">
-          <string>Pick the top color (or the solid
-color, if Gradient is off)</string>
-         </property>
-         <property name="text">
-          <string>Choose First Color</string>
-         </property>
-         <property name="autoDefault">
-          <bool>false</bool>
+         <property name="minimumSize">
+          <size>
+           <width>300</width>
+           <height>200</height>
+          </size>
          </property>
         </widget>
        </item>
        <item>
-        <widget class="QPushButton" name="pushButtonBottom">
-         <property name="toolTip">
-          <string>Pick the bottom color (only used when Gradient is on)</string>
-         </property>
+        <widget class="QLabel" name="hintLabel">
          <property name="text">
-          <string>Choose Second Color</string>
+          <string>This gradient crosses mid-grey: wireframe lines get a light or dark outline here so they stay readable.</string>
          </property>
-         <property name="autoDefault">
-          <bool>false</bool>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <widget class="QComboBox" name="comboBoxGradientStyle">
-         <property name="toolTip">
-          <string>Direction the two colors blend in</string>
-         </property>
-         <item>
-          <property name="text">
-           <string>Vertical Gradient</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Horizontal Gradient</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Top Left To Bottom Right</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Top Right To Bottom Left</string>
-          </property>
-         </item>
-        </widget>
-       </item>
-       <item>
-        <widget class="QCheckBox" name="checkBoxGrad">
-         <property name="toolTip">
-          <string>Blend between two colors instead of a single solid background</string>
-         </property>
-         <property name="text">
-          <string>Gradient</string>
-         </property>
-         <property name="checked">
+         <property name="wordWrap">
           <bool>true</bool>
          </property>
         </widget>
        </item>
+      </layout>
+     </item>
+     <item>
+      <layout class="QVBoxLayout" name="colorColumn">
        <item>
-        <widget class="QPushButton" name="pushButtonDefaultColor">
-         <property name="toolTip">
-          <string>Reset to the application's default background color</string>
-         </property>
+        <widget class="QLabel" name="labelColor0">
          <property name="text">
-          <string>Default</string>
+          <string>First color</string>
          </property>
         </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="colorRow0">
+         <item>
+          <widget class="QPushButton" name="swatchButton0">
+           <property name="minimumSize">
+            <size>
+             <width>40</width>
+             <height>26</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>40</width>
+             <height>26</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Click to choose the color</string>
+           </property>
+           <property name="autoDefault">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="hexEdit0">
+           <property name="minimumSize">
+            <size>
+             <width>84</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>84</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Color as hex RGB, for example #1B1D22</string>
+           </property>
+           <property name="maxLength">
+            <number>7</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="eyedropperButton0">
+           <property name="toolTip">
+            <string>Pick a color from anywhere on the screen.
+Click to take it, Esc to cancel.</string>
+           </property>
+           <property name="text">
+            <string>Pick</string>
+           </property>
+           <property name="autoDefault">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="colorSpacerMiddle">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeType">
+          <enum>QSizePolicy::Policy::Fixed</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>6</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+       <item>
+        <widget class="QLabel" name="labelColor1">
+         <property name="text">
+          <string>Second color</string>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <layout class="QHBoxLayout" name="colorRow1">
+         <item>
+          <widget class="QPushButton" name="swatchButton1">
+           <property name="minimumSize">
+            <size>
+             <width>40</width>
+             <height>26</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>40</width>
+             <height>26</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Click to choose the color</string>
+           </property>
+           <property name="autoDefault">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLineEdit" name="hexEdit1">
+           <property name="minimumSize">
+            <size>
+             <width>84</width>
+             <height>0</height>
+            </size>
+           </property>
+           <property name="maximumSize">
+            <size>
+             <width>84</width>
+             <height>16777215</height>
+            </size>
+           </property>
+           <property name="toolTip">
+            <string>Color as hex RGB, for example #1B1D22</string>
+           </property>
+           <property name="maxLength">
+            <number>7</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QPushButton" name="eyedropperButton1">
+           <property name="toolTip">
+            <string>Pick a color from anywhere on the screen.
+Click to take it, Esc to cancel.</string>
+           </property>
+           <property name="text">
+            <string>Pick</string>
+           </property>
+           <property name="autoDefault">
+            <bool>false</bool>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="colorSpacerBottom">
+         <property name="orientation">
+          <enum>Qt::Orientation::Vertical</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>20</width>
+           <height>40</height>
+          </size>
+         </property>
+        </spacer>
        </item>
       </layout>
      </item>
     </layout>
    </item>
    <item>
-    <spacer name="verticalSpacer">
-     <property name="orientation">
-      <enum>Qt::Orientation::Vertical</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>292</width>
-       <height>49</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
-   <item>
-    <layout class="QHBoxLayout" name="horizontalLayout">
+    <layout class="QHBoxLayout" name="recentRow">
      <item>
-      <spacer name="horizontalSpacer">
+      <widget class="QLabel" name="labelRecent">
+       <property name="text">
+        <string>Recent</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <layout class="QHBoxLayout" name="recentLayout"/>
+     </item>
+     <item>
+      <spacer name="recentSpacer">
        <property name="orientation">
         <enum>Qt::Orientation::Horizontal</enum>
        </property>
        <property name="sizeHint" stdset="0">
         <size>
          <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="presetHeader">
+     <item>
+      <widget class="QLabel" name="labelPresets">
+       <property name="text">
+        <string>Presets</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="presetSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="savePresetButton">
+       <property name="toolTip">
+        <string>Keep the current background as a preset.
+Right-click one of your presets to delete it.</string>
+       </property>
+       <property name="text">
+        <string>Save as preset...</string>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QListWidget" name="presetList">
+     <property name="minimumSize">
+      <size>
+       <width>0</width>
+       <height>94</height>
+      </size>
+     </property>
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>94</height>
+      </size>
+     </property>
+     <property name="contextMenuPolicy">
+      <enum>Qt::ContextMenuPolicy::CustomContextMenu</enum>
+     </property>
+     <property name="verticalScrollBarPolicy">
+      <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+     </property>
+     <property name="horizontalScrollBarPolicy">
+      <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
+     </property>
+     <property name="iconSize">
+      <size>
+       <width>56</width>
+       <height>34</height>
+      </size>
+     </property>
+     <property name="movement">
+      <enum>QListView::Movement::Static</enum>
+     </property>
+     <property name="flow">
+      <enum>QListView::Flow::LeftToRight</enum>
+     </property>
+     <property name="isWrapping" stdset="0">
+      <bool>false</bool>
+     </property>
+     <property name="resizeMode">
+      <enum>QListView::ResizeMode::Adjust</enum>
+     </property>
+     <property name="spacing">
+      <number>4</number>
+     </property>
+     <property name="viewMode">
+      <enum>QListView::ViewMode::IconMode</enum>
+     </property>
+     <property name="uniformItemSizes">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="bottomRow">
+     <item>
+      <widget class="QCheckBox" name="livePreviewCheck">
+       <property name="toolTip">
+        <string>Show the changes in the viewport while you edit.
+Close takes them back; Apply and OK keep them.</string>
+       </property>
+       <property name="text">
+        <string>Preview in viewport</string>
+       </property>
+       <property name="checked">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="bottomSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="defaultButton">
+       <property name="toolTip">
+        <string>Reset to the application's default background color</string>
+       </property>
+       <property name="text">
+        <string>Default</string>
+       </property>
+       <property name="autoDefault">
+        <bool>false</bool>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="buttonSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeType">
+        <enum>QSizePolicy::Policy::Fixed</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>12</width>
          <height>20</height>
         </size>
        </property>
@@ -186,46 +528,6 @@ color, if Gradient is off)</string>
    </item>
   </layout>
  </widget>
- <tabstops>
-  <tabstop>pushButtonTop</tabstop>
-  <tabstop>pushButtonBottom</tabstop>
-  <tabstop>okButton</tabstop>
-  <tabstop>applyButton</tabstop>
-  <tabstop>cancelButton</tabstop>
- </tabstops>
  <resources/>
- <connections>
-  <connection>
-   <sender>checkBoxGrad</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>pushButtonBottom</receiver>
-   <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>387</x>
-     <y>93</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>387</x>
-     <y>66</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>checkBoxGrad</sender>
-   <signal>clicked(bool)</signal>
-   <receiver>comboBoxGradientStyle</receiver>
-   <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>387</x>
-     <y>93</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>387</x>
-     <y>122</y>
-    </hint>
-   </hints>
-  </connection>
- </connections>
+ <connections/>
 </ui>
