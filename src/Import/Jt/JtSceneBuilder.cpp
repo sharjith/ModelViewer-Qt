@@ -622,6 +622,7 @@ struct Builder {
     LodPlan* lodPlan=nullptr;
     unsigned variantNodes=0,variantShapes=0,variantAmbiguousNodes=0,variantContradictedNodes=0;
     unsigned nodes=0;
+    size_t scoutedNodes=0;unsigned scanned=0; // nodes found by the scan of the parts (see scout()), for the progress bar
     // Where the read spends its time (reported in the import notes): opening part files, decoding shape payloads, converting them.
     double openMs=0,decodeMs=0,convertMs=0,copyMs=0,addMs=0,metaMs=0,sourceCtxMs=0,attrMs=0;unsigned filesOpened=0,shapesDecoded=0,prefetched=0;
     unsigned lodNodes=0,lodReduced=0,lodIndistinct=0; // LOD nodes seen by visit(); those that loaded a reduced level; those with no distinct levels
@@ -1661,6 +1662,11 @@ struct Builder {
     void scout(const Handle(JtData_Object)& object,std::unordered_set<const void*>& seen,std::vector<Handle(JtProperty_LateLoaded)>& out) {
         if(object.IsNull()||!seen.insert(object.get()).second)return;
         options.check();
+        // Progress bar bands (per mille): structure 0-50, scan of the parts 50-250, scene build 250-950, merge and names 950-1000.
+        // The number of nodes is not known before the scan, so the scan moves the bar on an approaching curve; the build then knows
+        // how many nodes the scan found.
+        scoutedNodes=std::max<size_t>(scoutedNodes,seen.size());
+        if(options.progress&&(++scanned&63u)==0) options.progress("Scanning the JT parts",int(50+200.0*scanned/(scanned+3000.0)),1000);
         const auto shape=Handle(JtNode_Shape_Base)::DownCast(object);
         if(!shape.IsNull()) {
             if(estimating) {if(shape->HasCountRanges())estimatedPolygons+=(unsigned long long)std::max(0,shape->PolyRangeMax());else ++estimatedWithoutCounts;}
@@ -2193,7 +2199,10 @@ struct Builder {
             }
             node->mMetaData->Set(meta++,"JTTextureUnits",*units);
         }
-        if(options.progress) options.progress("Building JT scene",int(nodes),0);
+        if(options.progress) {
+            const double built=scoutedNodes?std::min(0.98,double(nodes)/double(scoutedNodes)):nodes/(nodes+3000.0);
+            options.progress("Building JT scene",int(250+700.0*built),1000);
+        }
         return node;
     }
 };
@@ -2462,6 +2471,7 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
     }
     if(!skippedContent.isEmpty())
         b.result.warnings.append(QStringLiteral("JT display content that is not decoded yet and is therefore not shown: %1.").arg(skippedContent.join(QStringLiteral("; "))));
+    if(options.progress) options.progress("Finishing the JT scene",950,1000);
     if(options.mergePartMeshes) {
         const size_t before=b.meshes.size();
         PartMerger merger{options,b.meshes,b.result.hiddenNodes,b,{}};

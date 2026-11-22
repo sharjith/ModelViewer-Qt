@@ -1731,7 +1731,9 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 				if (stage != last) {
 					last = stage;
 					const QString text = stage == QLatin1String("Reading the JT product structure") ? QObject::tr("Reading the JT product structure")
-						: stage == QLatin1String("Building JT scene") ? QObject::tr("Building the JT scene") : stage;
+						: stage == QLatin1String("Scanning the JT parts") ? QObject::tr("Scanning the JT parts")
+						: stage == QLatin1String("Building JT scene") ? QObject::tr("Building the JT scene")
+						: stage == QLatin1String("Finishing the JT scene") ? QObject::tr("Finishing the JT scene") : stage;
 					MainWindow::showStatusMessage(text + QStringLiteral(": ") + fi.fileName());
 				}
 			};
