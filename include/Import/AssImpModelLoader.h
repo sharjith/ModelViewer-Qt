@@ -60,6 +60,10 @@ class AssImpModelProgressHandler : public QObject, public Assimp::ProgressHandle
 public:
 	void setCancelFlag(const std::atomic_bool* cancelFlag) { _cancelFlag = cancelFlag; }
 	virtual bool Update(float percentage);
+	// Assimp separates the reading of the file from its post-processing steps; these name the stage in the status bar.
+	void UpdateFileRead(int currentStep, int numberOfSteps) override;
+	void UpdatePostProcess(int currentStep, int numberOfSteps) override;
+	void setFileName(const QString& name) { _fileName = name; }
 
 	// Required by Qt system. TODO: Make sure it is fine
 	inline void* operator new(size_t, void* ptr) noexcept
@@ -71,6 +75,8 @@ public:
 
 private:
 	const std::atomic_bool* _cancelFlag = nullptr;
+	QString _fileName;
+	int _lastStage = -1;
 
 signals:
 	void fileReadProcessed(float percent);

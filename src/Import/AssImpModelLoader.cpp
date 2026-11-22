@@ -877,6 +877,28 @@ bool loadMorphTargetsForAiMesh(const QString& gltfPath,
 }
 
 
+void AssImpModelProgressHandler::UpdateFileRead(int currentStep, int numberOfSteps)
+{
+	if (_lastStage != 0)
+	{
+		_lastStage = 0;
+		MainWindow::showStatusMessage(QObject::tr("Reading the model: %1").arg(_fileName));
+	}
+	Assimp::ProgressHandler::UpdateFileRead(currentStep, numberOfSteps);
+}
+
+void AssImpModelProgressHandler::UpdatePostProcess(int currentStep, int numberOfSteps)
+{
+	// One message per post-processing step (a handful at most): the steps are named by the flags the owner enabled, not by Assimp.
+	const int stage = 1 + currentStep;
+	if (_lastStage != stage)
+	{
+		_lastStage = stage;
+		MainWindow::showStatusMessage(QObject::tr("Post-processing the model, step %1 of %2: %3").arg(currentStep + 1).arg(numberOfSteps).arg(_fileName));
+	}
+	Assimp::ProgressHandler::UpdatePostProcess(currentStep, numberOfSteps);
+}
+
 bool AssImpModelProgressHandler::Update(float percentage)
 {
 	emit fileReadProcessed(percentage);
@@ -1826,6 +1848,7 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			}
 		}
 
+		_progHandler->setFileName(QFileInfo(QString::fromStdString(path)).fileName());
 		_scene = _importer.ReadFile(path, importFlags);
 		workerLap("assimp ReadFile done");
 	}
