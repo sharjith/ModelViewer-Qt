@@ -7973,6 +7973,7 @@ void ViewportWidget::renderSingleView(QColor& topColor, QColor& botColor)
 		glStencilMask(0xFF);
 		glClearColor(1.0f, 1.0f, 1.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
+		_wireBgTop = _wireBgBottom = QVector3D(1.0f, 1.0f, 1.0f); // the wire shader sees the white it is drawn over
 	}
 	else
 	{
@@ -9148,30 +9149,44 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 			_renderCtrl.wireframeShader()->setUniformValue("hasAlbedoMap",    false);
 			_renderCtrl.wireframeShader()->setUniformValue("hasSkinning",     false);
 			_renderCtrl.wireframeShader()->setUniformValue("jointCount",      0);			
+			const bool wireHalo = setWireBackgroundUniforms(true);
 			_renderCtrl.wireframeShader()->setUniformValue("hoverColor", QVector3D(1.0f, 0.84f, 0.0f));
-			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);			
+			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
 			_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.0f, 0.5f, 1.0f));	
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 			WireFlagUniform selectedFlag, hoveredFlag;
 			selectedFlag.bind(_renderCtrl.wireframeShader(), "selected");
 			hoveredFlag.bind(_renderCtrl.wireframeShader(), "hovered");
 			const int hoveredIdNow = _selectionManager->getHoveredId();
-			std::vector<int> wireIds;
-			if (!drawWireBatches(!_capturingCleanFrame, hoverHighlightingEnabled ? hoveredIdNow : -1, wireIds))
-				for (const auto& entry : opaque)
-					wireIds.push_back(entry.second);
-			for (int id : wireIds)
-			{
-				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
+			const auto drawHollow = [&]() {
+				// The batches reset these uniforms themselves, so the remembered values are stale at the start of every draw
+				// (the halo pass and the main pass both run through here).
+				selectedFlag.bind(_renderCtrl.wireframeShader(), "selected");
+				hoveredFlag.bind(_renderCtrl.wireframeShader(), "hovered");
+				// The previous pass may have left them set (its last mesh); the batches draw before any flag is uploaded here.
+				_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
+				_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+				std::vector<int> wireIds;
+				if (!drawWireBatches(!_capturingCleanFrame, hoverHighlightingEnabled ? hoveredIdNow : -1, wireIds))
+					for (const auto& entry : opaque)
+						wireIds.push_back(entry.second);
+				for (int id : wireIds)
 				{
-					const bool isSel = selIds.contains(id);
-					selectedFlag.set(_renderCtrl.wireframeShader(), isSel);
-					hoveredFlag.set(_renderCtrl.wireframeShader(), !isSel && hoverHighlightingEnabled && id == hoveredIdNow);
-					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
+					if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
+					{
+						const bool isSel = selIds.contains(id);
+						selectedFlag.set(_renderCtrl.wireframeShader(), isSel);
+						hoveredFlag.set(_renderCtrl.wireframeShader(), !isSel && hoverHighlightingEnabled && id == hoveredIdNow);
+						mesh->renderWireframeFast(_renderCtrl.wireframeShader());
+					}
 				}
-			}
+			};
+			if (wireHalo)
+				drawWireHalo(wireSingleSample ? 1.0f : 1.25f, drawHollow);
+			drawHollow();
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+			setWireBackgroundUniforms(false); // the shader's other passes draw over faces
 		}
 		else
 		{
@@ -9321,20 +9336,27 @@ void ViewportWidget::drawOpaqueMeshes(QOpenGLShaderProgram* prog, int activeClip
 		_renderCtrl.wireframeShader()->setUniformValue("hovered",       false);
 		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
 		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
+		const bool wireHalo = setWireBackgroundUniforms(true);
 		{
 			const QList<int> selIds = _capturingCleanFrame ? QList<int>() : _selectionManager->getSelectedIds();
-			for (auto& [key, id] : opaque)
-			{
-				if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
+			const auto drawEdges = [&]() {
+				for (auto& [key, id] : opaque)
 				{
-					const bool isSel = selIds.contains(id);
-					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
-					_renderCtrl.wireframeShader()->setUniformValue("hovered",
-					    !isSel && hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
-					mesh->renderFeatureEdgesFast(_renderCtrl.wireframeShader());
+					if (SceneMesh* mesh = _sceneRuntime.meshAt(id))
+					{
+						const bool isSel = selIds.contains(id);
+						_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
+						_renderCtrl.wireframeShader()->setUniformValue("hovered",
+						    !isSel && hoverHighlightingEnabled && id == _selectionManager->getHoveredId());
+						mesh->renderFeatureEdgesFast(_renderCtrl.wireframeShader());
+					}
 				}
-			}
+			};
+			if (wireHalo)
+				drawWireHalo(OverlayLineWeights::wireframeOverlayLine, drawEdges);
+			drawEdges();
 		}
+		setWireBackgroundUniforms(false);
 		_renderCtrl.wireframeShader()->setUniformValue("hovered",  false);
 		_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		glLineWidth(1.0f);
@@ -9657,6 +9679,7 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
 			_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.0f, 0.5f, 1.0f));
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+			const bool wireHalo = setWireBackgroundUniforms(true);
 			const int selectedLocation = _renderCtrl.wireframeShader()->uniformLocation("selected");
 			const int hoveredLocation = _renderCtrl.wireframeShader()->uniformLocation("hovered");
 			const int hoveredIdNow = _selectionManager->getHoveredId();
@@ -9674,11 +9697,20 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 					mesh->renderWireframeFast(_renderCtrl.wireframeShader());
 				}
 			};
-			if (!drawWireSequence(hoverHighlightingEnabledT ? hoveredIdNow : -1, drawOne))
-				for (auto& it : transparent)
-					drawOne(it.second);
+			const auto drawHollowT = [&]() {
+				// Same as the opaque pass: nothing is highlighted when the batched runs start.
+				_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
+				_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+				if (!drawWireSequence(hoverHighlightingEnabledT ? hoveredIdNow : -1, drawOne))
+					for (auto& it : transparent)
+						drawOne(it.second);
+			};
+			if (wireHalo)
+				drawWireHalo(wireSingleSampleT ? 1.0f : 1.25f, drawHollowT);
+			drawHollowT();
 			_renderCtrl.wireframeShader()->setUniformValue("hovered", false);
 			_renderCtrl.wireframeShader()->setUniformValue("selected", false);
+			setWireBackgroundUniforms(false);
 		}
 		else
 		{
@@ -9812,21 +9844,28 @@ void ViewportWidget::drawTransparentMeshes(QOpenGLShaderProgram* prog, int activ
 		_renderCtrl.wireframeShader()->setUniformValue("hovered",       false);
 		_renderCtrl.wireframeShader()->setUniformValue("selectedColor", QVector3D(0.25f, 0.55f, 1.0f));
 		_renderCtrl.wireframeShader()->setUniformValue("selected",      false);
+		const bool wireHalo = setWireBackgroundUniforms(true);
 		{
 			const QList<int> selIds = _capturingCleanFrame ? QList<int>() : _selectionManager->getSelectedIds();
-			for (auto& it : transparent)
-			{
-				if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+			const auto drawEdges = [&]() {
+				for (auto& it : transparent)
 				{
-					const int id = it.second;
-					const bool isSel = selIds.contains(id);
-					_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
-					_renderCtrl.wireframeShader()->setUniformValue("hovered",
-					    !isSel && hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
-					mesh->renderFeatureEdgesFast(_renderCtrl.wireframeShader());
+					if (SceneMesh* mesh = _sceneRuntime.meshAt(it.second))
+					{
+						const int id = it.second;
+						const bool isSel = selIds.contains(id);
+						_renderCtrl.wireframeShader()->setUniformValue("selected", isSel);
+						_renderCtrl.wireframeShader()->setUniformValue("hovered",
+						    !isSel && hoverHighlightingEnabledT && id == _selectionManager->getHoveredId());
+						mesh->renderFeatureEdgesFast(_renderCtrl.wireframeShader());
+					}
 				}
-			}
+			};
+			if (wireHalo)
+				drawWireHalo(OverlayLineWeights::wireframeOverlayLine, drawEdges);
+			drawEdges();
 		}
+		setWireBackgroundUniforms(false);
 		_renderCtrl.wireframeShader()->setUniformValue("hovered",  false);
 		_renderCtrl.wireframeShader()->setUniformValue("selected", false);
 		glLineWidth(1.0f);
@@ -15057,9 +15096,72 @@ void ViewportWidget::renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode
 		RenderableMesh::recordRenderMeshWithDisplayModeCpuMs(static_cast<double>(meshModeTimer.nsecsElapsed()) / 1000000.0);
 }
 
+bool ViewportWidget::setWireBackgroundUniforms(bool enable)
+{
+	QOpenGLShaderProgram* prog = _renderCtrl.wireframeShader();
+	if (!enable || (_renderCtrl.skyBoxEnabled() && !_captureOnWhite))
+	{
+		prog->setUniformValue("wireBgStyle", -1);
+		return false;
+	}
+	// The background exactly as the last gradientBackground() call drew it (Solid, swapped visibility, white capture, the compare and
+	// multi-view panes all go through it), so the shader and the picture cannot disagree.
+	const auto luma = [](const QVector3D& c) { return 0.2126f * c.x() + 0.7152f * c.y() + 0.0722f * c.z(); };
+	const float lumTop = luma(_wireBgTop), lumBottom = luma(_wireBgBottom);
+	// A gradient that spans mid-grey (dark end below 0.35, light end above 0.65) leaves no single line colour that contrasts along
+	// the whole line: the caller draws a halo under the lines instead and the per-fragment push is off.
+	if (std::min(lumTop, lumBottom) < 0.35f && std::max(lumTop, lumBottom) > 0.65f)
+	{
+		prog->setUniformValue("wireBgStyle", -1);
+		return true;
+	}
+	prog->setUniformValue("wireBgStyle", _wireBgStyle);
+	// One side for the whole screen. Lines are mostly darker than a mid-grey background, so those backgrounds push darker (the
+	// 0.4 limit; at exactly 0.5 the lines used to sit on the wrong side and stayed dull).
+	prog->setUniformValue("wireBgDarker", (lumTop + lumBottom) * 0.5f > 0.4f);
+	prog->setUniformValue("wireBgTop", _wireBgTop);
+	prog->setUniformValue("wireBgBottom", _wireBgBottom);
+	prog->setUniformValue("wireBgViewport", QVector2D(float(width()), float(height())));
+	return false;
+}
+
+void ViewportWidget::drawWireHalo(float lineWidth, const std::function<void()>& drawAll)
+{
+	// All halos first, so one mesh's halo never covers another mesh's line; no depth writes, so the lines drawn after pass the depth test.
+	GLboolean depthMask = GL_TRUE;
+	glGetBooleanv(GL_DEPTH_WRITEMASK, &depthMask);
+	// Opaque draws have blending off and transparent ones use the premultiplied function; the halo sets its own (the shader outputs
+	// premultiplied colour for it) and restores the caller's state.
+	const GLboolean blendWasOn = glIsEnabled(GL_BLEND);
+	GLint srcRgb = GL_ONE, dstRgb = GL_ZERO, srcAlpha = GL_ONE, dstAlpha = GL_ZERO, equationRgb = GL_FUNC_ADD, equationAlpha = GL_FUNC_ADD;
+	glGetIntegerv(GL_BLEND_SRC_RGB, &srcRgb);
+	glGetIntegerv(GL_BLEND_DST_RGB, &dstRgb);
+	glGetIntegerv(GL_BLEND_SRC_ALPHA, &srcAlpha);
+	glGetIntegerv(GL_BLEND_DST_ALPHA, &dstAlpha);
+	glGetIntegerv(GL_BLEND_EQUATION_RGB, &equationRgb);
+	glGetIntegerv(GL_BLEND_EQUATION_ALPHA, &equationAlpha);
+	glEnable(GL_BLEND);
+	glBlendEquationSeparate(GL_FUNC_ADD, GL_FUNC_ADD);
+	glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+	glDepthMask(GL_FALSE);
+	glLineWidth(lineWidth + 2.0f);
+	_renderCtrl.wireframeShader()->setUniformValue("wireHaloPass", true);
+	drawAll();
+	_renderCtrl.wireframeShader()->setUniformValue("wireHaloPass", false);
+	glBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+	glBlendEquationSeparate(equationRgb, equationAlpha);
+	if (!blendWasOn)
+		glDisable(GL_BLEND);
+	glDepthMask(depthMask);
+	glLineWidth(lineWidth);
+}
+
 void ViewportWidget::gradientBackground(float top_r, float top_g, float top_b, float top_a,
 	float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle)
 {
+	_wireBgTop = QVector3D(top_r, top_g, top_b);
+	_wireBgBottom = QVector3D(bot_r, bot_g, bot_b);
+	_wireBgStyle = gradientStyle;
 	glViewport(0, 0, width(), height());
 	if (!_renderCtrl.bgVAO().isCreated())
 	{

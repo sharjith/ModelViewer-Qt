@@ -2086,6 +2086,17 @@ private:
 	void renderMeshWithDisplayMode(SceneMesh* mesh, DisplayMode mode);
 	void renderMeshExploded(SceneMesh* mesh, DisplayMode mode);
 
+	// Hands the wireframe shader the background behind the lines (colours, gradient style, size) so pure wireframe lines can be kept
+	// apart from it; enable = false switches the adjustment off for the shader's other passes.
+	// Returns true when the gradient is strong (it crosses mid-grey): the per-fragment push is then off and the caller draws a halo
+	// pass (wireHaloPass) under the lines instead.
+	bool setWireBackgroundUniforms(bool enable);
+	// Draws the halo underlay of the wire lines (wider, no depth writes) by calling drawAll with the shader's halo pass on.
+	void drawWireHalo(float lineWidth, const std::function<void()>& drawAll);
+	// The background gradient as the last gradientBackground() call drew it (what the wire shader keeps its lines apart from).
+	QVector3D _wireBgTop{0.45f, 0.45f, 0.45f};
+	QVector3D _wireBgBottom{0.9f, 0.9f, 0.9f};
+	int _wireBgStyle = 0;
 	void gradientBackground(float top_r, float top_g, float top_b, float top_a,
 		float bot_r, float bot_g, float bot_b, float bot_a, int gradientStyle);
 	void syncCameraWorldUp();
