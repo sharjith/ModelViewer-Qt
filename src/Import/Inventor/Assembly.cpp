@@ -198,22 +198,36 @@ QString fileStem(QString path)
 
 // Which saved pathname belongs to each row of the component table. A row takes the first unused pathname whose file name
 // (without the extension) equals the row's name, ignoring case; the rows that no name decides take the pathnames that are
-// left, in order.
-std::vector<qsizetype> bindRowsToPaths(const std::vector<QString>& names, const QStringList& paths)
+// left, in order. notes[row] says when several unused pathnames carry the row's name (the first was taken); positional[row] is
+// true when no name matched and the pathname was taken by position.
+struct RowBinding {
+    std::vector<qsizetype> pathOfRow;
+    std::vector<QString> notes;
+    std::vector<bool> positional;
+};
+
+RowBinding bindRowsToPaths(const std::vector<QString>& names, const QStringList& paths)
 {
     const auto stemOf = [](const QString& path) { return fileStem(path); };
     std::vector<qsizetype> result(names.size(), -1);
+    std::vector<QString> notes(names.size());
+    std::vector<bool> positional(names.size(), false);
     std::vector<bool> used(static_cast<std::size_t>(paths.size()), false);
     for (std::size_t row = 0; row < names.size(); ++row) {
         if (names[row].isEmpty())
             continue;
+        int candidates = 0;
         for (qsizetype path = 0; path < paths.size(); ++path) {
             if (!used[static_cast<std::size_t>(path)] && stemOf(paths[path]).compare(names[row], Qt::CaseInsensitive) == 0) {
-                result[row] = path;
-                used[static_cast<std::size_t>(path)] = true;
-                break;
+                if (result[row] < 0) {
+                    result[row] = path;
+                    used[static_cast<std::size_t>(path)] = true;
+                }
+                ++candidates;
             }
         }
+        if (candidates > 1)
+            notes[row] = QStringLiteral("Several component files are named like this occurrence; the first one was taken.");
     }
     qsizetype next = 0;
     for (std::size_t row = 0; row < names.size(); ++row) {
@@ -225,8 +239,9 @@ std::vector<qsizetype> bindRowsToPaths(const std::vector<QString>& names, const 
             unsupportedAssembly("component table has no matching pathname");
         result[row] = next;
         used[static_cast<std::size_t>(next)] = true;
+        positional[row] = true;
     }
-    return result;
+    return {std::move(result), std::move(notes), std::move(positional)};
 }
 
 // The browser name of an occurrence ("Part:1"): a UTF-16 string stored with its character count, followed by a 16-byte trailer
@@ -347,7 +362,8 @@ std::vector<AssemblyOccurrence> readAssemblyOccurrences(const QString& path, con
     rowNames.reserve(rows.size());
     for (const auto& row : rows)
         rowNames.push_back(row.name);
-    const std::vector<qsizetype> pathOfRow = bindRowsToPaths(rowNames, paths);
+    const RowBinding binding = bindRowsToPaths(rowNames, paths);
+    const std::vector<qsizetype>& pathOfRow = binding.pathOfRow;
     std::unordered_set<quint32> assigned;
     for (std::size_t r = 0; r < rows.size(); ++r) {
         for (const auto number : rows[r].numbers) {
@@ -355,6 +371,8 @@ std::vector<AssemblyOccurrence> readAssemblyOccurrences(const QString& path, con
             if (found == occurrences.end() || !assigned.insert(number).second)
                 unsupportedAssembly("ambiguous occurrence file binding");
             found->second.reference = paths[pathOfRow[r]];
+            found->second.bindingNote = binding.notes[r];
+            found->second.boundByPosition = binding.positional[r];
         }
     }
     // An occurrence saved without a browser name is named by Inventor from its file and an instance number ("Base:1"), counted
@@ -372,8 +390,24 @@ std::vector<AssemblyOccurrence> readAssemblyOccurrences(const QString& path, con
                 continue;
             const QString stem = fileStem(occurrence.reference);
             const int instance = ++instances[stem.toLower()];
-            if (occurrence.name.isEmpty())
+            // Only a name saved in the assembly is independent evidence: the generated one is made from the chosen file, so it
+            // would confirm its own guess.
+            const bool savedName = !occurrence.name.isEmpty();
+            if (!savedName)
                 occurrence.name = QStringLiteral("%1:%2").arg(stem).arg(instance);
+            if (occurrence.boundByPosition && savedName) {
+                // The occurrence's own saved name ("Base:3") repeats the file's name when the browser name was never changed: that
+                // agrees with the position and confirms it.
+                QString base = occurrence.name;
+                const qsizetype colon = base.lastIndexOf(QLatin1Char(':'));
+                bool digits = colon > 0 && colon + 1 < base.size();
+                for (qsizetype i = colon + 1; digits && i < base.size(); ++i)
+                    digits = base[i].isDigit();
+                if (digits)
+                    base.truncate(colon);
+                if (base.compare(stem, Qt::CaseInsensitive) == 0)
+                    occurrence.boundByPosition = false;
+            }
         }
     }
 

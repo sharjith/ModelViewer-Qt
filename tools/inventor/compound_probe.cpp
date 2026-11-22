@@ -132,6 +132,8 @@ void walkAssembly(const QString& file, const gp_Trsf& parentWorld, const QString
             {QStringLiteral("is_assembly"), isAssembly},
             {QStringLiteral("visible"), occurrence.visible},
             {QStringLiteral("suppressed"), occurrence.suppressed},
+            {QStringLiteral("binding_note"), occurrence.bindingNote},
+            {QStringLiteral("bound_by_position"), occurrence.boundByPosition},
             {QStringLiteral("local"), matrixRows(occurrence.placement)},
             {QStringLiteral("world"), matrixRows(world)},
         };

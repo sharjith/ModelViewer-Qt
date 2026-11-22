@@ -42,8 +42,15 @@ struct PartData {
     QString error;                        // the whole part could not be read
 };
 
+// One group above a leaf. The id is unique per occurrence in the scene, so two groups of one parent that carry the same name
+// stay two groups.
+struct Step {
+    QString name;
+    int id = 0;
+};
+
 struct Instance {
-    std::vector<QString> path; // names of the groups above the leaf, outermost first
+    std::vector<Step> path; // groups above the leaf, outermost first
     QString name;
     QString warning;
     bool hidden = false; // the occurrence, or an assembly above it, is hidden in the saved design view
@@ -51,7 +58,7 @@ struct Instance {
 };
 
 struct Placeholder {
-    std::vector<QString> path;
+    std::vector<Step> path;
     QString name;
     QString message;
     int order = 0;
@@ -115,7 +122,7 @@ public:
 
     AssemblySceneResult build(const QString& assemblyPath)
     {
-        std::vector<QString> groups;
+        std::vector<Step> groups;
         std::vector<QString> stack;
         walk(QFileInfo(assemblyPath).absoluteFilePath(), gp_Trsf(), groups, stack, false);
         if (_tuples.empty()) {
@@ -151,7 +158,7 @@ private:
     }
 
     // A component that cannot be shown. Strict fails the import; otherwise it becomes an error item in the tree.
-    void problem(const std::vector<QString>& path, const QString& name, const QString& message)
+    void problem(const std::vector<Step>& path, const QString& name, const QString& message)
     {
         if (_firstProblem.isEmpty())
             _firstProblem = QStringLiteral("%1: %2").arg(name, message);
@@ -207,7 +214,7 @@ private:
     }
 
     // hiddenAbove: an assembly above this one is hidden, so everything in it is.
-    void walk(const QString& file, const gp_Trsf& parentWorld, std::vector<QString>& groups, std::vector<QString>& stack,
+    void walk(const QString& file, const gp_Trsf& parentWorld, std::vector<Step>& groups, std::vector<QString>& stack,
               bool hiddenAbove)
     {
         checkCancelled();
@@ -223,6 +230,14 @@ private:
             return;
         }
         stack.push_back(file);
+        {
+            const auto positional = std::count_if(occurrences.begin(), occurrences.end(),
+                                                  [](const AssemblyOccurrence& item) { return item.boundByPosition; });
+            if (positional > 0)
+                _warnings.append(QStringLiteral("%1: %2 component file(s) were matched to their occurrences by position in the saved "
+                                                "table, because no file name equals the occurrence name; check that the parts are the "
+                                                "expected ones.").arg(QFileInfo(file).fileName()).arg(positional));
+        }
         for (const auto& occurrence : occurrences) {
             checkCancelled();
             if (occurrence.suppressed) {
@@ -239,6 +254,8 @@ private:
             if (savedHidden && !hiddenAbove)
                 ++_hidden;
             const gp_Trsf world = parentWorld * occurrence.placement;
+            if (!occurrence.bindingNote.isEmpty())
+                _warnings.append(QStringLiteral("%1: %2").arg(occurrence.name, occurrence.bindingNote));
             const ComponentFile resolved = resolveAssemblyComponent(file, savedPath, occurrence.reference);
             if (resolved.path.isEmpty()) {
                 problem(groups, occurrence.name, resolved.problem);
@@ -249,7 +266,7 @@ private:
                     problem(groups, occurrence.name, QStringLiteral("The assembly contains itself."));
                     continue;
                 }
-                groups.push_back(occurrence.name);
+                groups.push_back({occurrence.name, _nextStep++});
                 walk(resolved.path, world, groups, stack, hidden);
                 groups.pop_back();
             } else {
@@ -259,7 +276,7 @@ private:
         stack.pop_back();
     }
 
-    void place(const QString& file, const AssemblyOccurrence& occurrence, const gp_Trsf& world, const std::vector<QString>& groups,
+    void place(const QString& file, const AssemblyOccurrence& occurrence, const gp_Trsf& world, const std::vector<Step>& groups,
                bool hidden)
     {
         const PartData& data = part(file);
@@ -269,15 +286,17 @@ private:
         }
         // A part with several bodies is a group named after the occurrence; with one body the occurrence is the leaf.
         const bool several = data.shapes.size() + data.failed.size() > 1;
-        std::vector<QString> path = groups;
+        std::vector<Step> path = groups;
         if (several)
-            path.push_back(occurrence.name);
+            path.push_back({occurrence.name, _nextStep++});
         const TopLoc_Location location(world);
         for (std::size_t i = 0; i < data.shapes.size(); ++i) {
             Instance instance;
             instance.path = path;
             instance.name = several ? data.shapeNames[i] : occurrence.name;
             instance.warning = data.shapeWarnings[i];
+            if (instance.warning.isEmpty())
+                instance.warning = occurrence.bindingNote;
             instance.hidden = hidden;
             instance.order = _order++;
             const std::string tagged = instance.name.toStdString() + kInstanceTag + std::to_string(_instances.size());
@@ -298,7 +317,7 @@ private:
                 scene->mMeshes[i]->mName = aiString(meshName.substr(0, tag));
         }
         aiNode* root = scene->mRootNode;
-        std::vector<std::pair<int, std::pair<const std::vector<QString>*, aiNode*>>> items; // order, (path, leaf)
+        std::vector<std::pair<int, std::pair<const std::vector<Step>*, aiNode*>>> items; // order, (path, leaf)
         for (unsigned i = 0; i < root->mNumChildren; ++i) {
             aiNode* leaf = root->mChildren[i];
             std::string name = leaf->mName.C_Str();
@@ -324,12 +343,11 @@ private:
         top.name = root->mName.C_Str();
         for (const auto& [order, item] : items) {
             TreeGroup* group = &top;
-            for (const QString& step : *item.first) {
-                const std::string key = step.toStdString();
-                auto& slot = group->byName[key];
+            for (const Step& step : *item.first) {
+                auto& slot = group->byName[std::to_string(step.id)];
                 if (!slot) {
                     slot = std::make_unique<TreeGroup>();
-                    slot->name = key;
+                    slot->name = step.name.toStdString();
                     group->entries.push_back({slot.get(), nullptr});
                 }
                 group = slot.get();
@@ -360,6 +378,7 @@ private:
     QStringList _warnings;
     QString _firstProblem;
     int _order = 0;
+    int _nextStep = 0;
     int _suppressed = 0;
     int _hidden = 0;
 };

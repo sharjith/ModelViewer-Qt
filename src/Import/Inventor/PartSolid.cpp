@@ -68,6 +68,7 @@
 #include <gp_Lin.hxx>
 #include <gp_Pln.hxx>
 #include <gp_Vec.hxx>
+#include <QCoreApplication>
 #include <QtEndian>
 
 #include <QtGlobal>
@@ -79,6 +80,7 @@
 #include <cstdio>
 #include <map>
 #include <mutex>
+#include <numeric>
 #include <algorithm>
 #include <BRepTools_WireExplorer.hxx>
 #include <cmath>
@@ -148,9 +150,46 @@ struct PhaseTimer
     std::chrono::steady_clock::time_point begin;
 };
 
+// Runs work(0) .. work(count - 1): work(0) on the calling thread, the others on threads of their own. Every thread that was
+// started is joined whatever happens (a joinable std::thread that is destroyed ends the process); a thread that cannot be
+// started leaves its share to the calling thread; the first exception any share threw is rethrown after the join.
+template <class Work>
+void runParallel(std::size_t count, Work&& work)
+{
+    std::vector<std::exception_ptr> errors(count);
+    const auto guarded = [&](std::size_t index) {
+        try {
+            work(index);
+        } catch (...) {
+            errors[index] = std::current_exception();
+        }
+    };
+    std::vector<std::thread> threads;
+    std::size_t started = 1;
+    try {
+        threads.reserve(count);
+        for (; started < count; ++started)
+            threads.emplace_back(guarded, started);
+    } catch (...) {
+        // started is the first share without a thread (or 1 when even the vector could not be made).
+    }
+    guarded(0);
+    for (std::size_t index = started; index < count; ++index)
+        guarded(index);
+    for (std::thread& thread : threads)
+        thread.join();
+    for (const std::exception_ptr& error : errors) {
+        if (error)
+            std::rethrow_exception(error);
+    }
+}
+
 // State that one thread building faces writes while it works: the edge-use counts of the shell and the edges and vertices
 // shared by the faces it builds. The main thread uses SolidBuilder::_main; a worker building a chunk of a large shell uses
 // its own (see sewSolid), so no two threads write the same container or the same edge.
+// Bit in BuildContext::edgeUses next to the two orientation bits (1 and 2): a second coedge ran the same way as an earlier one.
+constexpr unsigned EdgeOrientationConflict = 4u;
+
 struct BuildContext
 {
     std::unordered_map<qint32, unsigned> edgeUses;
@@ -159,6 +198,13 @@ struct BuildContext
     int chunk = -1; // >= 0 while this thread builds one chunk of a large shell: only edges inside the chunk are shared
 };
 thread_local BuildContext* t_context = nullptr;
+
+// Thrown when the saved edges of a shell are not all shared by two faces: the shell itself is open (a sheet body). A shell that
+// fails later (sewing, orientation, validation) was saved closed; that is a failure to build a solid, not a sheet.
+struct OpenTopology : std::runtime_error
+{
+    using std::runtime_error::runtime_error;
+};
 
 [[noreturn]] void fail(const char* message)
 {
@@ -460,6 +506,11 @@ public:
     // gets colours, through build()'s SavedAppearance.
     void useColorTable(const PartColorTable* table) { _colorTable = table; }
 
+    // Reports how far the build is (see readPartBodies). Work is counted in units per face: building a face, sewing it and
+    // measuring it, in the proportions of their measured cost on the largest part.
+    void useProgress(std::function<void(double)> progress) { _progress = std::move(progress); }
+    void useStage(std::function<void(const QString&)> stage) { _stage = std::move(stage); }
+
     std::vector<BodyOutcome> build(const SavedAppearance* saved = nullptr, PartAppearance* appearance = nullptr)
     {
         for (const auto& record : _records) {
@@ -473,11 +524,24 @@ public:
             PhaseTimer timer("findCircularBands");
             findCircularBands();
         }
+        if (_progress) {
+            std::size_t totalFaces = 0;
+            for (const auto& record : _records) {
+                if (record.type == "body" && !isWireOnlyBody(record))
+                    totalFaces += countFaces(record);
+            }
+            _totalUnits = static_cast<long long>(totalFaces) * (UnitsBuildFace + UnitsSewFace + UnitsMeasureFace);
+        }
         std::vector<BodyOutcome> outcomes;
         int bodyRecord = 0;
+        const auto bodyTotal = _stage ? std::count_if(_records.begin(), _records.end(), [this](const Record& record) {
+            return record.type == "body" && !isWireOnlyBody(record);
+        }) : 0;
         for (const auto& record : _records) {
             if (record.type == "body" && !isWireOnlyBody(record)) {
                 checkCancellation(_cancelled);
+                if (_stage)
+                    announce(say("Building body %1 of %2").arg(bodyRecord + 1).arg(bodyTotal));
                 const std::size_t firstOfBody = outcomes.size();
                 _bodyFaceCounts.push_back(countFaces(record));
                 const auto bodyBegin = std::chrono::steady_clock::now();
@@ -528,14 +592,59 @@ public:
     const std::vector<std::size_t>& bodyFaceCounts() const { return _bodyFaceCounts; }
 
 private:
+    static constexpr long long UnitsBuildFace = 10;
+    static constexpr long long UnitsSewFace = 6;
+    static constexpr long long UnitsMeasureFace = 3;
+
+    // Thread-safe; calls the callback only when the thousandth has moved on, so workers rarely contend.
+    void advance(long long units)
+    {
+        if (!_progress || _totalUnits <= 0)
+            return;
+        const long long done = _doneUnits.fetch_add(units) + units;
+        const int permille = static_cast<int>(std::min<long long>(999, done * 1000 / _totalUnits));
+        int last = _lastPermille.load();
+        while (permille > last) {
+            if (_lastPermille.compare_exchange_weak(last, permille)) {
+                _progress(permille / 1000.0);
+                break;
+            }
+        }
+    }
+
+    // What the builder is doing, for the status bar. Called on the calling thread only (never from a face worker).
+    void announce(const QString& text) const
+    {
+        if (_stage)
+            _stage(text);
+    }
+    static QString say(const char* source) { return QCoreApplication::translate("InventorImport", source); }
+
+    std::function<void(const QString&)> _stage;
+    std::function<void(double)> _progress;
+    long long _totalUnits = 0;
+    std::atomic<long long> _doneUnits{0};
+    std::atomic<int> _lastPermille{0};
+
     std::size_t countFaces(const Record& body) const
     {
+        // The links come from the file: a cycle in a lump, shell or face chain must not loop here. A chain cannot be longer than
+        // the number of records, so one that is returns 0 and the guarded reconstruction reports the cycle.
         std::size_t faces = 0;
+        std::size_t steps = 0;
+        const std::size_t limit = _records.size();
         try {
             for (qint32 id = body.link(3); id != -1; id = get(id, "lump").link(3)) {
+                if (++steps > limit)
+                    return 0;
                 for (qint32 shellId = get(id, "lump").link(4); shellId != -1; shellId = get(shellId, "shell").link(3)) {
-                    for (qint32 faceId = get(shellId, "shell").link(5); faceId != -1; faceId = get(faceId, "face").link(3))
+                    if (++steps > limit)
+                        return 0;
+                    for (qint32 faceId = get(shellId, "shell").link(5); faceId != -1; faceId = get(faceId, "face").link(3)) {
+                        if (++steps > limit)
+                            return 0;
                         ++faces;
+                    }
                 }
             }
         } catch (const std::exception&) {
@@ -596,13 +705,17 @@ private:
             } catch (const IncompleteShell& incomplete) {
                 if (_strict || (_cancelled && _cancelled()))
                     throw;
-                clearExtras();
                 result.push_back({TopoDS_Solid(), incomplete.message, incomplete.shape, incomplete.surface});
+                for (auto& outcome : _extraFailures)
+                    result.push_back(std::move(outcome));
+                clearExtras();
             } catch (const std::exception& error) {
                 if (_strict || (_cancelled && _cancelled()))
                     throw;
-                clearExtras();
                 result.push_back({TopoDS_Solid(), QString::fromUtf8(error.what()), TopoDS_Shape()});
+                for (auto& outcome : _extraFailures)
+                    result.push_back(std::move(outcome));
+                clearExtras();
             }
             id = lump.link(3);
         }
@@ -666,8 +779,10 @@ private:
         if (outers.empty()) {
             if (!_extraFailures.empty()) {
                 // Every outer shell failed: report the first as the lump's failure.
+                // The other failed shells stay in _extraFailures: buildBody reports them after this one, so no open shell of
+                // the lump is dropped.
                 const BodyOutcome first = _extraFailures.front();
-                _extraFailures.clear();
+                _extraFailures.erase(_extraFailures.begin());
                 // An open surface has no error text; its faces are kept as the lump's outcome, not refused with an empty message.
                 if (!first.incompleteShape.IsNull())
                     throw IncompleteShell(first.incompleteShape, first.error, first.isSurface);
@@ -761,6 +876,7 @@ private:
             fail("Inventor shell has no faces");
         TangentCut cut;
         try {
+            PhaseTimer timer("findTangentCut");
             cut = findTangentCut(faces);
         } catch (const Detail::ResourceError&) {
             throw;
@@ -775,6 +891,7 @@ private:
             faces.erase(std::remove_if(faces.begin(), faces.end(),
                                        [&](qint32 id) { return cut.omittedFaces.count(id) != 0; }),
                         faces.end());
+            PhaseTimer timer("findTangentCut (again)");
             cut = findTangentCut(faces);
         }
         if (!cut.pieces.empty()) {
@@ -807,6 +924,10 @@ private:
                 // Nothing was built as a solid: the first failure stands for the whole shell.
                 if (failures.empty())
                     fail("Inventor shell has no pieces");
+                // The first failure stands for the shell; the other pieces keep their faces and their own reasons (the caller
+                // reports _extraFailures after it), so a first piece without geometry cannot hide the recoverable ones.
+                for (std::size_t i = 1; i < failures.size(); ++i)
+                    _extraFailures.push_back(std::move(failures[i]));
                 if (!failures.front().incompleteShape.IsNull())
                     throw IncompleteShell(failures.front().incompleteShape, failures.front().error, failures.front().isSurface);
                 throw std::runtime_error(failures.front().error.toStdString());
@@ -879,8 +1000,14 @@ private:
     // MODELVIEWER_INVENTOR_THREADS=<n> overrides (1 = serial), for comparisons.
     std::size_t parallelWorkers(std::size_t faceCount) const
     {
-        constexpr std::size_t MinFacesPerWorker = 1000;
-        constexpr std::size_t MinParallelFaces = 4000;
+        // The thresholds can be lowered (MODELVIEWER_INVENTOR_PARALLEL_MIN_FACES, MODELVIEWER_INVENTOR_PARALLEL_FACES_PER_WORKER) so
+        // that the test suite can run small shells through the threaded path and compare them with the serial one.
+        const auto threshold = [](const char* name, std::size_t fallback) {
+            const QByteArray value = qgetenv(name);
+            return value.isEmpty() ? fallback : static_cast<std::size_t>(std::max(1, value.toInt()));
+        };
+        const std::size_t MinFacesPerWorker = threshold("MODELVIEWER_INVENTOR_PARALLEL_FACES_PER_WORKER", 1000);
+        const std::size_t MinParallelFaces = threshold("MODELVIEWER_INVENTOR_PARALLEL_MIN_FACES", 4000);
         if (!_sharing || faceCount < MinParallelFaces)
             return 1;
         std::size_t workers = std::thread::hardware_concurrency();
@@ -918,13 +1045,20 @@ private:
         std::vector<TopoDS_Face> prebuilt;
         std::vector<std::exception_ptr> prebuiltErrors;
         const std::size_t workerCount = parallelWorkers(faces.size());
+        // A large shell takes minutes: say which step it is in. Small ones keep the message of their body.
+        const bool announceSteps = faces.size() >= 2000;
+        if (announceSteps)
+            announce(say("Building %1 faces").arg(faces.size()));
         if (workerCount >= 2) {
             PhaseTimer timer("buildFace (parallel)");
             prebuilt.resize(faces.size());
             prebuiltErrors.resize(faces.size());
             _faceChunk.clear();
-            for (std::size_t i = 0; i < faces.size(); ++i)
-                _faceChunk[faces[i]] = static_cast<int>(i * workerCount / faces.size());
+            // The chunk of a face is the range the worker below builds, so the two always agree.
+            for (std::size_t chunk = 0; chunk < workerCount; ++chunk) {
+                for (std::size_t i = chunk * faces.size() / workerCount; i < (chunk + 1) * faces.size() / workerCount; ++i)
+                    _faceChunk[faces[i]] = static_cast<int>(chunk);
+            }
             std::vector<BuildContext> contexts(workerCount);
             std::atomic<bool> stop{false};
             std::exception_ptr stopReason;
@@ -945,6 +1079,7 @@ private:
                     try {
                         checkCancellation(_cancelled);
                         prebuilt[i] = buildFace(get(faces[i], "face"), faces[i], omittedLoops);
+                        advance(UnitsBuildFace);
                     } catch (const Detail::ResourceError&) {
                         // Out of memory: stop every thread and report it for the first face that reaches it.
                         std::lock_guard<std::mutex> guard(stopLock);
@@ -957,18 +1092,16 @@ private:
                     }
                 }
             };
-            std::vector<std::thread> workers;
-            for (std::size_t chunk = 1; chunk < workerCount; ++chunk)
-                workers.emplace_back(work, chunk);
-            work(0);
-            for (std::thread& worker : workers)
-                worker.join();
+            runParallel(workerCount, work);
             _faceChunk.clear();
             for (const BuildContext& finished : contexts) {
                 for (const auto& use : finished.edgeUses) {
                     unsigned& merged = _main.edgeUses[use.first];
-                    if ((merged & use.second) != 0 && !_collectFaces)
-                        fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
+                    if ((merged & use.second & 3u) != 0) {
+                        if (!_collectFaces)
+                            fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
+                        merged |= EdgeOrientationConflict;
+                    }
                     merged |= use.second;
                 }
             }
@@ -982,7 +1115,12 @@ private:
                 if (!prebuilt.empty() && prebuiltErrors[faceIndex])
                     std::rethrow_exception(prebuiltErrors[faceIndex]);
                 const TopoDS_Face face = prebuilt.empty() ? buildFace(record, id, omittedLoops) : prebuilt[faceIndex];
-                sewing.Add(face);
+                if (prebuilt.empty())
+                    advance(UnitsBuildFace);
+                {
+                    PhaseTimer addTimer("sewing.Add");
+                    sewing.Add(face);
+                }
                 if (_collectFaces)
                     _builtFaces.push_back(face);
                 if (_measureSignedVolume)
@@ -1012,15 +1150,26 @@ private:
             }
         }
         if (_measureSignedVolume && !measuredFaces.empty()) {
-            // Integrate over the faces with their saved senses (no sewing involved): the sign says outer or void.
-            BRep_Builder compoundBuilder;
-            TopoDS_Compound compound;
-            compoundBuilder.MakeCompound(compound);
-            for (const TopoDS_Face& face : measuredFaces)
-                compoundBuilder.Add(compound, face);
-            GProp_GProps properties;
-            BRepGProp::VolumeProperties(compound, properties);
-            _lastSignedVolume = properties.Mass();
+            // Integrate over the faces with their saved senses (no sewing involved): the sign says outer or void. The
+            // integral is a sum over the faces, so a large shell is integrated in parts on the worker threads.
+            if (announceSteps)
+                announce(say("Measuring the volume of %1 faces").arg(faces.size()));
+            PhaseTimer measureTimer("signed volume");
+            const std::size_t parts = parallelWorkers(measuredFaces.size());
+            std::vector<double> masses(parts, 0.0);
+            const auto integrate = [&](std::size_t part) {
+                BRep_Builder compoundBuilder;
+                TopoDS_Compound compound;
+                compoundBuilder.MakeCompound(compound);
+                for (std::size_t i = part * measuredFaces.size() / parts; i < (part + 1) * measuredFaces.size() / parts; ++i)
+                    compoundBuilder.Add(compound, measuredFaces[i]);
+                GProp_GProps properties;
+                BRepGProp::VolumeProperties(compound, properties);
+                masses[part] = properties.Mass();
+            };
+            runParallel(parts, integrate);
+            _lastSignedVolume = std::accumulate(masses.begin(), masses.end(), 0.0);
+            advance(UnitsMeasureFace * static_cast<long long>(measuredFaces.size()));
         }
         if (_collectFaces && _failedFaces != 0)
             fail("Some Inventor faces could not be built");
@@ -1028,14 +1177,23 @@ private:
             const Record& usedEdge = get(use.first, "edge");
             if (usedEdge.link(8) < 0 && usedEdge.link(3) == usedEdge.link(5))
                 continue; // Degenerate edge at a singular point; it has no partner.
-            if (use.second != 3)
-                fail("Inventor shell has an unpaired or non-manifold edge");
+            // An edge that is not used once in each direction is an open boundary only if one coedge uses it. Two coedges running
+            // the same way are a bad incidence, not a boundary: it must not turn into a quietly accepted sheet. (An edge used in
+            // both directions and more often, as the coincident rings of a pinched shell are, is left to the sewing.)
+            if ((use.second & 3u) != 3u) {
+                if ((use.second & EdgeOrientationConflict) != 0)
+                    fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
+                throw OpenTopology("Inventor shell has an unpaired edge");
+            }
         }
 
         {
+            if (announceSteps)
+                announce(say("Sewing %1 faces").arg(faces.size()));
             PhaseTimer timer("sewing.Perform");
             sewing.Perform();
         }
+        advance(UnitsSewFace * static_cast<long long>(faces.size()));
         TopoDS_Shape sewn = sewing.SewedShape();
         if (faces.size() == 1 && !sewn.IsNull() && sewn.ShapeType() == TopAbs_FACE) {
             // One face that closes on itself (a full torus or sphere) sews to the face, not to a shell.
@@ -1060,9 +1218,13 @@ private:
             PhaseTimer timer("SameParameter");
             BRepLib::SameParameter(sewn, CheckToleranceMm, true);
         }
-        TopoDS_Solid solid = BRepBuilderAPI_MakeSolid(TopoDS::Shell(sewn)).Solid();
-        if (solid.IsNull() || !BRepLib::OrientClosedSolid(solid))
-            fail("Inventor shape could not be oriented as an OCCT solid");
+        TopoDS_Solid solid;
+        {
+            PhaseTimer solidTimer("MakeSolid+Orient");
+            solid = BRepBuilderAPI_MakeSolid(TopoDS::Shell(sewn)).Solid();
+            if (solid.IsNull() || !BRepLib::OrientClosedSolid(solid))
+                fail("Inventor shape could not be oriented as an OCCT solid");
+        }
         const bool hasSplineFaces = std::any_of(faces.begin(), faces.end(), [&](qint32 id) {
             return get(get(id, "face").link(7)).type == "spline-surface";
         });
@@ -1171,6 +1333,9 @@ private:
             builder.MakeCompound(compound);
             for (const TopoDS_Face& face : _builtFaces)
                 builder.Add(compound, face);
+            // Only a shell whose own edges are open is a sheet body (nothing to report). A shell saved closed that could not
+            // be made a solid keeps its diagnostic: its faces are shown, marked incomplete.
+            const bool sheet = _failedFaces == 0 && dynamic_cast<const OpenTopology*>(&error) != nullptr;
             const QString message = _failedFaces != 0
                 ? QStringLiteral("%1 of %2 faces could not be built (first: %3). The other faces are shown as an open "
                                  "surface; it has no volume.")
@@ -1178,7 +1343,7 @@ private:
                 : QStringLiteral("The faces could not be closed into a solid (%1). They are shown as an open surface; "
                                  "it has no volume.").arg(QString::fromUtf8(error.what()));
             _tableColours.insert(_tableColours.end(), _pendingColours.begin(), _pendingColours.end());
-            throw IncompleteShell(compound, _failedFaces != 0 ? message : QString(), _failedFaces == 0);
+            throw IncompleteShell(compound, sheet ? QString() : message, sheet);
         }
     }
 
@@ -1197,6 +1362,7 @@ private:
 
     void validateSolid(const TopoDS_Solid& solid) const
     {
+        PhaseTimer validateTimer("validateSolid");
         const BRepCheck_Analyzer checker(solid);
         if (!checker.IsValid()) {
             throw std::runtime_error("Inventor shape failed OCCT solid validation" + validationErrors(solid, checker));
@@ -1627,8 +1793,11 @@ private:
             unsigned& use = context().edgeUses[edgeId];
             // A solid traverses every edge once in each direction. In the lenient path the faces may belong to a sheet
             // body, where neighbouring faces can legitimately run the same way; the shell is then simply open.
-            if ((use & sense) != 0 && !_collectFaces)
-                fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
+            if ((use & sense) != 0) {
+                if (!_collectFaces)
+                    fail("Inventor shell has a non-manifold edge or inconsistent edge orientation");
+                use |= EdgeOrientationConflict; // remembered: such an edge is not an open boundary, it is a bad incidence
+            }
             use |= sense;
 
             const qint32 startVertex = edge.link(reversed ? 5 : 3);
@@ -3202,8 +3371,12 @@ SolidBuilder::Surface SolidBuilder::buildSurface(const Record& surface, const st
 } // namespace
 
 std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function<bool()>& cancelled,
-                                        PartAppearance* appearance, bool strict)
+                                        PartAppearance* appearance, bool strict,
+                                        const std::function<void(double)>& progress,
+                                        const std::function<void(const QString&)>& stage)
 {
+    if (stage)
+        stage(QCoreApplication::translate("InventorImport", "Unpacking the part file"));
     checkCancellation(cancelled);
     const auto overallBegin = std::chrono::steady_clock::now();
     std::optional<CompoundFile> containerStorage;
@@ -3213,7 +3386,13 @@ std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function
         containerStorage.emplace(path);
         bytes = readPartBRepSegment(*containerStorage, SegmentLimit);
     }
+    // Unpacking and parsing take about 5 % of a large part; the faces are the rest.
+    constexpr double BuildFrom = 0.05;
+    if (progress)
+        progress(0.02);
     CompoundFile& container = *containerStorage;
+    if (stage)
+        stage(QCoreApplication::translate("InventorImport", "Reading the saved records"));
     SavedBodyReader reader(bytes, cancelled);
     std::vector<Record> records;
     {
@@ -3244,6 +3423,11 @@ std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function
     SolidBuilder builder(records, reader.millimeters, cancelled, strict);
     if (colorTable)
         builder.useColorTable(&*colorTable);
+    builder.useStage(stage);
+    if (progress) {
+        progress(BuildFrom);
+        builder.useProgress([progress](double fraction) { progress(BuildFrom + fraction * (1.0 - BuildFrom)); });
+    }
     auto outcomes = builder.build(saved ? &*saved : nullptr, appearance);
     if (PhaseTimes::enabled()) {
         auto& times = PhaseTimes::get();

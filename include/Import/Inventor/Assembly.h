@@ -18,6 +18,13 @@ struct AssemblyOccurrence {
     gp_Trsf placement; // relative to the assembly that holds the occurrence, in millimetres
     bool visible = true;
     bool suppressed = false;
+    // Non-empty when several unused files carry the occurrence's name and the first was taken: a wrong choice would place other
+    // geometry with a valid placement, so the scene reports it on the occurrence.
+    QString bindingNote;
+    // True when no saved file name equals the row's name, the file was taken by its position in the saved table, and the
+    // occurrence's own name does not repeat the file's name either (nothing confirms the choice). The scene reports one summary
+    // per assembly; a positional binding whose name agrees with the file is not flagged.
+    bool boundByPosition = false;
 };
 
 // The direct occurrences of the assembly in browser order. Throws std::runtime_error when the assembly's saved tables are not

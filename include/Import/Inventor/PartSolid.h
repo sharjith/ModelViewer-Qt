@@ -43,8 +43,15 @@ struct BodyOutcome {
 // what readPartSolids does. Otherwise a failing body is reported in its place and the remaining bodies are still
 // built; cancellation and running out of memory still throw. When no body can be built at all the first error
 // is thrown. Appearance applies only to a single saved solid and is cleared when any body failed.
+// progress, when given, is called with the fraction done (from 0 up to, not including, 1; rising, at most once per thousandth,
+// though calls racing on worker threads may arrive slightly out of order). It may be called from a worker thread of the reader
+// and must be thread-safe. It is not called with 1: the caller knows when it is done.
 std::vector<BodyOutcome> readPartBodies(const QString& path, const std::function<bool()>& cancelled,
-                                        PartAppearance* appearance, bool strict);
+                                        PartAppearance* appearance, bool strict,
+                                        const std::function<void(double)>& progress = {},
+                                        const std::function<void(const QString&)>& stage = {});
+// stage, when given, is called from the calling thread with a short, translated description of what the reader is doing now
+// ("Building body 3 of 12", "Sewing 65034 faces", ...), for a status bar. It is called when the stage changes.
 
 // Read the saved closed analytic solids in body record order, in millimeters.
 // Unsupported profiles and invalid shapes throw instead of returning partial geometry.
