@@ -409,19 +409,19 @@ Face à la caméra : elle fait toujours face à l&apos;écran.</translation>
 <context>
     <name>AssImpModelLoader</name>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="2006"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="2017"/>
         <source>Performance Warning!</source>
         <translation>Avertissement de Performances !</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="2007"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="2018"/>
         <source>The model contains more than 100000 triangles and the current method of UV generation is &quot;Smart UV&quot; which is time consuming.
 Do you want to continue generating the UV?</source>
         <translation>Le modèle contient plus de 100 000 triangles et la méthode actuelle de génération d&apos;UV est « Smart UV », ce qui est chronophage.
 Souhaitez-vous continuer à générer les UV ?</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="2013"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="2024"/>
         <source>Change Settings</source>
         <translation>Modifier les Paramètres</translation>
     </message>
@@ -453,96 +453,282 @@ Souhaitez-vous continuer à générer les UV ?</translation>
 <context>
     <name>BackgroundColor</name>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="17"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="23"/>
         <source>Background Color</source>
         <translation>Couleur d&apos;Arrière-Plan</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="40"/>
         <source>Preview</source>
-        <translation>Aperçu</translation>
+        <translation type="vanished">Aperçu</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="55"/>
         <source>Pick the top color (or the solid
 color, if Gradient is off)</source>
-        <translation>Choisir la couleur du haut (ou la couleur
+        <translation type="vanished">Choisir la couleur du haut (ou la couleur
 unie, si le dégradé est désactivé)</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="59"/>
         <source>Choose First Color</source>
-        <translation>Choisissez la Première Couleur</translation>
+        <translation type="vanished">Choisissez la Première Couleur</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="69"/>
         <source>Pick the bottom color (only used when Gradient is on)</source>
-        <translation>Choisir la couleur du bas (utilisée uniquement lorsque le dégradé est activé)</translation>
+        <translation type="vanished">Choisir la couleur du bas (utilisée uniquement lorsque le dégradé est activé)</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="72"/>
         <source>Choose Second Color</source>
-        <translation>Choisissez la Deuxième Couleur</translation>
+        <translation type="vanished">Choisissez la Deuxième Couleur</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="82"/>
         <source>Direction the two colors blend in</source>
-        <translation>Direction dans laquelle les deux couleurs se fondent</translation>
+        <translation type="vanished">Direction dans laquelle les deux couleurs se fondent</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="86"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="91"/>
         <source>Vertical Gradient</source>
         <translation>Dégradé Vertical</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="91"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="96"/>
         <source>Horizontal Gradient</source>
         <translation>Dégradé Horizontal</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="96"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="101"/>
         <source>Top Left To Bottom Right</source>
         <translation>Du haut gauche au bas droit</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="101"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="106"/>
         <source>Top Right To Bottom Left</source>
         <translation>Du haut droit au bas gauche</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="109"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="50"/>
         <source>Blend between two colors instead of a single solid background</source>
         <translation>Fondu entre deux couleurs au lieu d&apos;un fond uni unique</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="112"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="34"/>
+        <source>A single solid background color</source>
+        <translation>Un arrière-plan d&apos;une seule couleur</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="37"/>
+        <source>Solid</source>
+        <translation>Uni</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="53"/>
         <source>Gradient</source>
         <translation>Dégradé</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="122"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="85"/>
+        <source>Direction the two colors blend in.
+You can also drag the first color&apos;s circle
+around the preview.</source>
+        <translation>Direction dans laquelle les deux couleurs se fondent.
+Vous pouvez aussi faire glisser le cercle de la première couleur
+autour de l&apos;aperçu.</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="114"/>
+        <source>Swap the two colors</source>
+        <translation>Échanger les deux couleurs</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="146"/>
+        <location filename="../src/Render/BackgroundColor.cpp" line="398"/>
+        <source>This gradient crosses mid-grey: wireframe lines get a light or dark outline here so they stay readable.</source>
+        <translation>Ce dégradé traverse le gris moyen : les lignes du filaire reçoivent ici un contour clair ou foncé pour rester lisibles.</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="160"/>
+        <location filename="../src/Render/BackgroundColor.cpp" line="393"/>
+        <source>First color</source>
+        <translation>Première couleur</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="181"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="266"/>
+        <source>Click to choose the color</source>
+        <translation>Cliquez pour choisir la couleur</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="203"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="288"/>
+        <source>Color as hex RGB, for example #1B1D22</source>
+        <translation>Couleur en RVB hexadécimal, par exemple #1B1D22</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="213"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="298"/>
+        <source>Pick a color from anywhere on the screen.
+Click to take it, Esc to cancel.</source>
+        <translation>Prélever une couleur n&apos;importe où à l&apos;écran.
+Cliquez pour la prendre, Échap pour annuler.</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="217"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="302"/>
+        <source>Pick</source>
+        <translation>Prélever</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="245"/>
+        <location filename="../src/Render/BackgroundColor.cpp" line="394"/>
+        <source>Second color</source>
+        <translation>Deuxième couleur</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="333"/>
+        <source>Recent</source>
+        <translation>Récentes</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="360"/>
+        <source>Presets</source>
+        <translation>Préréglages</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="380"/>
+        <source>Keep the current background as a preset.
+Right-click one of your presets to delete it.</source>
+        <translation>Enregistrer l&apos;arrière-plan actuel comme préréglage.
+Faites un clic droit sur l&apos;un de vos préréglages pour le supprimer.</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="384"/>
+        <source>Save as preset...</source>
+        <translation>Enregistrer comme préréglage...</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="450"/>
+        <source>Show the changes in the viewport while you edit.
+Close takes them back; Apply and OK keep them.</source>
+        <translation>Afficher les modifications dans la fenêtre pendant la modification.
+Fermer les annule ; Appliquer et OK les conservent.</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="454"/>
+        <source>Preview in viewport</source>
+        <translation>Aperçu dans la fenêtre</translation>
+    </message>
+    <message>
+        <location filename="../ui/Render/BackgroundColor.ui" line="477"/>
         <source>Reset to the application&apos;s default background color</source>
         <translation>Réinitialiser à la couleur d&apos;arrière-plan par défaut de l&apos;application</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="125"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="480"/>
+        <location filename="../src/Render/BackgroundColor.cpp" line="58"/>
         <source>Default</source>
         <translation>Par défaut</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="164"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="506"/>
         <source>OK</source>
         <translation>OK</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="171"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="513"/>
         <source>Apply</source>
         <translation>Appliquer</translation>
     </message>
     <message>
-        <location filename="../ui/Render/BackgroundColor.ui" line="178"/>
+        <location filename="../ui/Render/BackgroundColor.ui" line="520"/>
         <source>Close</source>
         <translation>Fermer</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="59"/>
+        <source>Studio</source>
+        <translation>Studio</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="60"/>
+        <source>Classic CAD</source>
+        <translation>CAO classique</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="61"/>
+        <source>Sky</source>
+        <translation>Ciel</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="62"/>
+        <source>Warm</source>
+        <translation>Chaud</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="63"/>
+        <source>Dark</source>
+        <translation>Sombre</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="64"/>
+        <source>Blueprint</source>
+        <translation>Plan bleu</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="65"/>
+        <source>Mid grey</source>
+        <translation>Gris moyen</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="66"/>
+        <source>Paper</source>
+        <translation>Papier</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="67"/>
+        <source>Black</source>
+        <translation>Noir</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="343"/>
+        <source>Click a circle to choose that color.
+Drag the first circle to change the direction.
+The lines show how wireframes look on this background.</source>
+        <translation>Cliquez sur un cercle pour choisir cette couleur.
+Faites glisser le premier cercle pour changer la direction.
+Les lignes montrent l&apos;aspect des filaires sur cet arrière-plan.</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="393"/>
+        <source>Color</source>
+        <translation>Couleur</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="429"/>
+        <source>Choose Color</source>
+        <translation>Choisir une couleur</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="576"/>
+        <source>%1 (your preset)</source>
+        <translation>%1 (votre préréglage)</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="585"/>
+        <source>Save Preset</source>
+        <translation>Enregistrer le préréglage</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="585"/>
+        <source>Preset name:</source>
+        <translation>Nom du préréglage :</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="585"/>
+        <source>My background</source>
+        <translation>Mon arrière-plan</translation>
+    </message>
+    <message>
+        <location filename="../src/Render/BackgroundColor.cpp" line="611"/>
+        <source>Delete preset</source>
+        <translation>Supprimer le préréglage</translation>
     </message>
 </context>
 <context>
@@ -2869,47 +3055,47 @@ Le modèle peut être partiellement chargé</translation>
         <translation>Conversion de %1 corps vers la scène</translation>
     </message>
     <message>
-        <location filename="../src/Import/Inventor/AssemblyScene.cpp" line="148"/>
+        <location filename="../src/Import/Inventor/AssemblyScene.cpp" line="149"/>
         <source>Arranging the model tree</source>
         <translation>Organisation de l&apos;arborescence du modèle</translation>
     </message>
     <message>
-        <location filename="../src/Import/Inventor/AssemblyScene.cpp" line="198"/>
+        <location filename="../src/Import/Inventor/AssemblyScene.cpp" line="199"/>
         <source>Reading part %1: %2</source>
         <translation>Lecture de la pièce %1 : %2</translation>
     </message>
     <message>
-        <location filename="../src/Import/Inventor/AssemblyScene.cpp" line="221"/>
+        <location filename="../src/Import/Inventor/AssemblyScene.cpp" line="222"/>
         <source>Tessellating part %1: %2</source>
         <translation>Tessellation de la pièce %1 : %2</translation>
     </message>
     <message>
-        <location filename="../src/Import/Inventor/PartSolid.cpp" line="544"/>
+        <location filename="../src/Import/Inventor/PartSolid.cpp" line="547"/>
         <source>Building body %1 of %2</source>
         <translation>Construction du corps %1 sur %2</translation>
     </message>
     <message>
-        <location filename="../src/Import/Inventor/PartSolid.cpp" line="1051"/>
+        <location filename="../src/Import/Inventor/PartSolid.cpp" line="1059"/>
         <source>Building %1 faces</source>
         <translation>Construction de %1 faces</translation>
     </message>
     <message>
-        <location filename="../src/Import/Inventor/PartSolid.cpp" line="1156"/>
+        <location filename="../src/Import/Inventor/PartSolid.cpp" line="1169"/>
         <source>Measuring the volume of %1 faces</source>
         <translation>Mesure du volume de %1 faces</translation>
     </message>
     <message>
-        <location filename="../src/Import/Inventor/PartSolid.cpp" line="1192"/>
+        <location filename="../src/Import/Inventor/PartSolid.cpp" line="1219"/>
         <source>Sewing %1 faces</source>
         <translation>Couture de %1 faces</translation>
     </message>
     <message>
-        <location filename="../src/Import/Inventor/PartSolid.cpp" line="3379"/>
+        <location filename="../src/Import/Inventor/PartSolid.cpp" line="3407"/>
         <source>Unpacking the part file</source>
         <translation>Décompression du fichier de pièce</translation>
     </message>
     <message>
-        <location filename="../src/Import/Inventor/PartSolid.cpp" line="3395"/>
+        <location filename="../src/Import/Inventor/PartSolid.cpp" line="3423"/>
         <source>Reading the saved records</source>
         <translation>Lecture des enregistrements sauvegardés</translation>
     </message>
@@ -3086,8 +3272,8 @@ Le modèle peut être partiellement chargé</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="214"/>
-        <location filename="../src/App/MainWindow.cpp" line="276"/>
-        <location filename="../src/App/MainWindow.cpp" line="1093"/>
+        <location filename="../src/App/MainWindow.cpp" line="277"/>
+        <location filename="../src/App/MainWindow.cpp" line="1094"/>
         <source>Simulation Results</source>
         <translation>Résultats de simulation</translation>
     </message>
@@ -3843,7 +4029,7 @@ Le modèle peut être partiellement chargé</translation>
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="1034"/>
-        <location filename="../src/App/MainWindow.cpp" line="1324"/>
+        <location filename="../src/App/MainWindow.cpp" line="1325"/>
         <source>Compare Results...</source>
         <translation>Comparer les résultats...</translation>
     </message>
@@ -3953,45 +4139,45 @@ Le modèle peut être partiellement chargé</translation>
         <translation>Afficher la fenêtre de journal de console en direct (l&apos;active aussi dans les Paramètres)</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="690"/>
-        <location filename="../src/App/MainWindow.cpp" line="1122"/>
+        <location filename="../src/App/MainWindow.cpp" line="691"/>
+        <location filename="../src/App/MainWindow.cpp" line="1123"/>
         <source>Recent...</source>
         <translation>Récent...</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="710"/>
-        <location filename="../src/App/MainWindow.cpp" line="1132"/>
+        <location filename="../src/App/MainWindow.cpp" line="711"/>
+        <location filename="../src/App/MainWindow.cpp" line="1133"/>
         <source>Close the active window</source>
         <translation>Fermer la fenêtre active</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="715"/>
-        <location filename="../src/App/MainWindow.cpp" line="1134"/>
+        <location filename="../src/App/MainWindow.cpp" line="716"/>
+        <location filename="../src/App/MainWindow.cpp" line="1135"/>
         <source>Close the active document</source>
         <translation>Fermer le document actif</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="720"/>
-        <location filename="../src/App/MainWindow.cpp" line="1136"/>
+        <location filename="../src/App/MainWindow.cpp" line="721"/>
+        <location filename="../src/App/MainWindow.cpp" line="1137"/>
         <source>Close all the windows</source>
         <translation>Fermer toutes les fenêtres</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="725"/>
-        <location filename="../src/App/MainWindow.cpp" line="1138"/>
+        <location filename="../src/App/MainWindow.cpp" line="726"/>
+        <location filename="../src/App/MainWindow.cpp" line="1139"/>
         <source>Move the focus to the next window</source>
         <translation>Déplacer le focus vers la fenêtre suivante</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="730"/>
-        <location filename="../src/App/MainWindow.cpp" line="1140"/>
+        <location filename="../src/App/MainWindow.cpp" line="731"/>
+        <location filename="../src/App/MainWindow.cpp" line="1141"/>
         <source>Move the focus to the previous window</source>
         <translation>Déplacer le focus vers la fenêtre précédente</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1045"/>
-        <location filename="../src/App/MainWindow.cpp" line="1076"/>
-        <location filename="../src/App/MainWindow.cpp" line="1128"/>
+        <location filename="../src/App/MainWindow.cpp" line="1046"/>
+        <location filename="../src/App/MainWindow.cpp" line="1077"/>
+        <location filename="../src/App/MainWindow.cpp" line="1129"/>
         <source>Cancel Loading</source>
         <translation>Annuler le Chargement</translation>
     </message>
@@ -4004,42 +4190,42 @@ Le modèle peut être partiellement chargé</translation>
         <translation type="vanished">Voulez-vous économiser ?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2270"/>
+        <location filename="../src/App/MainWindow.cpp" line="2292"/>
         <source>Tutorial Display Method</source>
         <translation>Méthode d&apos;Affichage du Tutoriel</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2271"/>
+        <location filename="../src/App/MainWindow.cpp" line="2293"/>
         <source>How would you like to view the tutorial?</source>
         <translation>Comment souhaitez-vous afficher le tutoriel ?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2272"/>
+        <location filename="../src/App/MainWindow.cpp" line="2294"/>
         <source>Choose between an integrated dialog or opening in your web browser.</source>
         <translation>Choisissez entre une boîte de dialogue intégrée ou l&apos;ouverture dans votre navigateur web.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2275"/>
+        <location filename="../src/App/MainWindow.cpp" line="2297"/>
         <source>Dialog Window</source>
         <translation>Fenêtre de Dialogue</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2276"/>
+        <location filename="../src/App/MainWindow.cpp" line="2298"/>
         <source>Web Browser</source>
         <translation>Navigateur Web</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2279"/>
+        <location filename="../src/App/MainWindow.cpp" line="2301"/>
         <source>Remember my choice</source>
         <translation>Mémoriser mon choix</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2335"/>
+        <location filename="../src/App/MainWindow.cpp" line="2357"/>
         <source>Tutorial Not Found</source>
         <translation>Tutoriel introuvable</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2336"/>
+        <location filename="../src/App/MainWindow.cpp" line="2358"/>
         <source>Tutorial file not found at:
 %1
 
@@ -4050,12 +4236,12 @@ Please ensure the tutorial files are installed correctly.</source>
 Veuillez vous assurer que les fichiers du tutoriel sont correctement installés.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2370"/>
+        <location filename="../src/App/MainWindow.cpp" line="2392"/>
         <source>Logs Folder Not Found</source>
         <translation>Dossier des journaux introuvable</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2371"/>
+        <location filename="../src/App/MainWindow.cpp" line="2393"/>
         <source>The logs folder could not be found at:
 %1
 
@@ -4088,82 +4274,82 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
         <translation type="vanished">À propos de la Visionneuse de Modèles 3D</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="240"/>
-        <location filename="../src/App/MainWindow.cpp" line="1085"/>
+        <location filename="../src/App/MainWindow.cpp" line="241"/>
+        <location filename="../src/App/MainWindow.cpp" line="1086"/>
         <source>Variants</source>
         <translation>Variantes</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="243"/>
-        <location filename="../src/App/MainWindow.cpp" line="1086"/>
+        <location filename="../src/App/MainWindow.cpp" line="244"/>
+        <location filename="../src/App/MainWindow.cpp" line="1087"/>
         <source>Animations</source>
         <translation>Animations</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="246"/>
-        <location filename="../src/App/MainWindow.cpp" line="1087"/>
+        <location filename="../src/App/MainWindow.cpp" line="247"/>
+        <location filename="../src/App/MainWindow.cpp" line="1088"/>
         <source>Cameras</source>
         <translation>Caméras</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="267"/>
-        <location filename="../src/App/MainWindow.cpp" line="1091"/>
+        <location filename="../src/App/MainWindow.cpp" line="268"/>
+        <location filename="../src/App/MainWindow.cpp" line="1092"/>
         <source>Selections</source>
         <translation>Sélections</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="270"/>
-        <location filename="../src/App/MainWindow.cpp" line="1092"/>
+        <location filename="../src/App/MainWindow.cpp" line="271"/>
+        <location filename="../src/App/MainWindow.cpp" line="1093"/>
         <source>States</source>
         <translation>États</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="355"/>
         <location filename="../src/App/MainWindow.cpp" line="356"/>
-        <location filename="../src/App/MainWindow.cpp" line="1111"/>
+        <location filename="../src/App/MainWindow.cpp" line="357"/>
         <location filename="../src/App/MainWindow.cpp" line="1112"/>
+        <location filename="../src/App/MainWindow.cpp" line="1113"/>
         <source>Auto Fit View On Hide/Show</source>
         <translation>Ajuster la vue au masquage/affichage</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="357"/>
-        <location filename="../src/App/MainWindow.cpp" line="1116"/>
+        <location filename="../src/App/MainWindow.cpp" line="358"/>
+        <location filename="../src/App/MainWindow.cpp" line="1117"/>
         <source>Selection Highlighting</source>
         <translation>Surlignage de la sélection</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="358"/>
-        <location filename="../src/App/MainWindow.cpp" line="1117"/>
+        <location filename="../src/App/MainWindow.cpp" line="359"/>
+        <location filename="../src/App/MainWindow.cpp" line="1118"/>
         <source>Selection Highlighting in Viewer</source>
         <translation>Surlignage de la sélection dans la visionneuse</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="408"/>
-        <location filename="../src/App/MainWindow.cpp" line="1078"/>
+        <location filename="../src/App/MainWindow.cpp" line="409"/>
+        <location filename="../src/App/MainWindow.cpp" line="1079"/>
         <source>Document</source>
         <translation>Document</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="434"/>
-        <location filename="../src/App/MainWindow.cpp" line="1106"/>
+        <location filename="../src/App/MainWindow.cpp" line="435"/>
+        <location filename="../src/App/MainWindow.cpp" line="1107"/>
         <source>Materials</source>
         <translation>Matériaux</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="440"/>
-        <location filename="../src/App/MainWindow.cpp" line="1107"/>
+        <location filename="../src/App/MainWindow.cpp" line="441"/>
+        <location filename="../src/App/MainWindow.cpp" line="1108"/>
         <source>Transformations</source>
         <translation>Transformations</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="444"/>
-        <location filename="../src/App/MainWindow.cpp" line="1080"/>
+        <location filename="../src/App/MainWindow.cpp" line="445"/>
+        <location filename="../src/App/MainWindow.cpp" line="1081"/>
         <source>Properties</source>
         <translation>Propriétés</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="457"/>
-        <location filename="../src/App/MainWindow.cpp" line="1082"/>
+        <location filename="../src/App/MainWindow.cpp" line="458"/>
+        <location filename="../src/App/MainWindow.cpp" line="1083"/>
         <source>Environment</source>
         <translation>Environnement</translation>
     </message>
@@ -4173,69 +4359,69 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
         <translation>Affichage</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="103"/>
+        <location filename="../src/App/MainWindow.cpp" line="104"/>
         <source>Last Import Warnings...</source>
         <translation>Derniers avertissements d&apos;importation...</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="105"/>
+        <location filename="../src/App/MainWindow.cpp" line="106"/>
         <source>Show the warnings the importer reported for the most recently loaded file.</source>
         <translation>Affiche les avertissements signalés par l&apos;importateur pour le dernier fichier chargé.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="139"/>
+        <location filename="../src/App/MainWindow.cpp" line="140"/>
         <source>Applying theme...</source>
         <translation>Application du thème...</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="163"/>
+        <location filename="../src/App/MainWindow.cpp" line="164"/>
         <source>Creating panels and docks...</source>
         <translation>Création des panneaux et des zones ancrables...</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="334"/>
-        <location filename="../src/App/MainWindow.cpp" line="1094"/>
+        <location filename="../src/App/MainWindow.cpp" line="335"/>
+        <location filename="../src/App/MainWindow.cpp" line="1095"/>
         <source>3D Plot</source>
         <translation>Graphique 3D</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="701"/>
-        <location filename="../src/App/MainWindow.cpp" line="1124"/>
+        <location filename="../src/App/MainWindow.cpp" line="702"/>
+        <location filename="../src/App/MainWindow.cpp" line="1125"/>
         <source>Clear Recent Files</source>
         <translation>Effacer les fichiers récents</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="906"/>
+        <location filename="../src/App/MainWindow.cpp" line="907"/>
         <source>Save Selection Set</source>
         <translation>Enregistrer l&apos;ensemble de sélection</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="907"/>
+        <location filename="../src/App/MainWindow.cpp" line="908"/>
         <source>Name for this selection:</source>
         <translation>Nom pour cette sélection :</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="921"/>
+        <location filename="../src/App/MainWindow.cpp" line="922"/>
         <source>Save Scene State</source>
         <translation>Enregistrer l&apos;état de la scène</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="922"/>
+        <location filename="../src/App/MainWindow.cpp" line="923"/>
         <source>Name for this state:</source>
         <translation>Nom de cet état :</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1040"/>
+        <location filename="../src/App/MainWindow.cpp" line="1041"/>
         <source>Restoring window layout...</source>
         <translation>Restauration de la disposition des fenêtres...</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1324"/>
+        <location filename="../src/App/MainWindow.cpp" line="1325"/>
         <source>Exit Compare</source>
         <translation>Quitter la comparaison</translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/App/MainWindow.cpp" line="1981"/>
+        <location filename="../src/App/MainWindow.cpp" line="1982"/>
         <source>%1: %n import warning(s) - see Help &gt; Last Import Warnings</source>
         <translation>
             <numerusform>%1 : %n avertissement d&apos;importation - voir Aide &gt; Derniers avertissements d&apos;importation</numerusform>
@@ -4243,17 +4429,17 @@ Copyright © 2021 Sharjith Naramparambath - sharjith@gmail.com
         </translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1987"/>
+        <location filename="../src/App/MainWindow.cpp" line="1988"/>
         <source>Import Warnings - %1</source>
         <translation>Avertissements d&apos;importation - %1</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2255"/>
+        <location filename="../src/App/MainWindow.cpp" line="2277"/>
         <source>Guide Not Found</source>
         <translation>Guide introuvable</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2256"/>
+        <location filename="../src/App/MainWindow.cpp" line="2278"/>
         <source>The PDF guide was not found at:
 %1
 
@@ -4264,121 +4450,121 @@ Please ensure the documentation files are installed correctly.</source>
 Veuillez vérifier que les fichiers de documentation sont correctement installés.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2567"/>
+        <location filename="../src/App/MainWindow.cpp" line="2589"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2567"/>
+        <location filename="../src/App/MainWindow.cpp" line="2589"/>
         <source>
 Unsupported file format: </source>
         <translation>
 Format de fichier non pris en charge : </translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2611"/>
+        <location filename="../src/App/MainWindow.cpp" line="2633"/>
         <source>Open Model File</source>
         <translation>Ouvrir le fichier modèle</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2621"/>
+        <location filename="../src/App/MainWindow.cpp" line="2643"/>
         <source>Simulation Results (%1)</source>
         <translation>Résultats de simulation (%1)</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2984"/>
+        <location filename="../src/App/MainWindow.cpp" line="3006"/>
         <source>&amp;Undo %1</source>
         <translation>&amp;Annuler %1</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2986"/>
-        <location filename="../src/App/MainWindow.cpp" line="2998"/>
+        <location filename="../src/App/MainWindow.cpp" line="3008"/>
+        <location filename="../src/App/MainWindow.cpp" line="3020"/>
         <source>&amp;Undo</source>
         <translation>&amp;Annuler</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2989"/>
+        <location filename="../src/App/MainWindow.cpp" line="3011"/>
         <source>&amp;Redo %1</source>
         <translation>&amp;Rétablir %1</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2991"/>
-        <location filename="../src/App/MainWindow.cpp" line="2999"/>
+        <location filename="../src/App/MainWindow.cpp" line="3013"/>
+        <location filename="../src/App/MainWindow.cpp" line="3021"/>
         <source>&amp;Redo</source>
         <translation>&amp;Rétablir</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3195"/>
+        <location filename="../src/App/MainWindow.cpp" line="3217"/>
         <source>Confirm Exit</source>
         <translation>Confirmer la Sortie</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3196"/>
+        <location filename="../src/App/MainWindow.cpp" line="3218"/>
         <source>Are you sure you want to exit the application?</source>
         <translation>Êtes-vous sûr de vouloir quitter l&apos;application ?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3256"/>
+        <location filename="../src/App/MainWindow.cpp" line="3278"/>
         <source>&amp;%1 %2</source>
         <translation>&amp;%1 %2</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3258"/>
+        <location filename="../src/App/MainWindow.cpp" line="3280"/>
         <source>%1 -&gt; Shift-click to import into active document</source>
         <translation>%1 -&gt; Maj-clic pour importer dans le document actif</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3259"/>
+        <location filename="../src/App/MainWindow.cpp" line="3281"/>
         <source>Click to open • Shift-click to import into active window</source>
         <translation>Cliquer pour ouvrir • Maj-clic pour importer dans la fenêtre active</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3304"/>
+        <location filename="../src/App/MainWindow.cpp" line="3326"/>
         <source>File Not Found</source>
         <translation>Fichier introuvable</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3305"/>
+        <location filename="../src/App/MainWindow.cpp" line="3327"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation>Le fichier &apos;%1&apos; n&apos;existe plus. Souhaitez-vous le supprimer des fichiers récents ?</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3089"/>
+        <location filename="../src/App/MainWindow.cpp" line="3111"/>
         <source>A computation is still running in &quot;%1&quot;. It is being cancelled: close again when it has finished.</source>
         <translation>Un calcul est encore en cours dans « %1 ». Il est annulé : fermez à nouveau une fois terminé.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3135"/>
+        <location filename="../src/App/MainWindow.cpp" line="3157"/>
         <source>Saving %1 of %2: %3</source>
         <translation>Enregistrement de %1 sur %2 : %3</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3148"/>
+        <location filename="../src/App/MainWindow.cpp" line="3170"/>
         <source>Save changes</source>
         <translation>Enregistrer les modifications</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3149"/>
+        <location filename="../src/App/MainWindow.cpp" line="3171"/>
         <source>Could not save &quot;%1&quot;.</source>
         <translation>Impossible d&apos;enregistrer « %1 ».</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3150"/>
+        <location filename="../src/App/MainWindow.cpp" line="3172"/>
         <source>If you skip it, the other documents are still saved, but the application stays open.</source>
         <translation>Si vous l&apos;ignorez, les autres documents sont tout de même enregistrés, mais l&apos;application reste ouverte.</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3151"/>
+        <location filename="../src/App/MainWindow.cpp" line="3173"/>
         <source>Retry</source>
         <translation>Réessayer</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3152"/>
+        <location filename="../src/App/MainWindow.cpp" line="3174"/>
         <source>Skip this document</source>
         <translation>Ignorer ce document</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3167"/>
+        <location filename="../src/App/MainWindow.cpp" line="3189"/>
         <source>Some documents were not saved, so they stay open.</source>
         <translation>Certains documents n&apos;ont pas été enregistrés et restent ouverts.</translation>
     </message>
@@ -13772,9 +13958,9 @@ dont les valeurs Z sont dans cette colonne (mêmes X et Y).</translation>
         <translation type="vanished">%1 maillages ont été figés - annulation de transformation ignorée</translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2039"/>
-        <location filename="../src/App/MainWindow.cpp" line="2065"/>
-        <location filename="../src/App/MainWindow.cpp" line="2104"/>
+        <location filename="../src/App/MainWindow.cpp" line="2040"/>
+        <location filename="../src/App/MainWindow.cpp" line="2066"/>
+        <location filename="../src/App/MainWindow.cpp" line="2105"/>
         <source>Cancel Loading</source>
         <translation>Annuler le chargement</translation>
     </message>
@@ -14517,52 +14703,52 @@ dont les valeurs Z sont dans cette colonne (mêmes X et Y).</translation>
         <translation>Lecture du modèle : %1</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="897"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="898"/>
         <source>Post-processing the model, step %1 of %2: %3</source>
         <translation>Post-traitement du modèle, étape %1 sur %2 : %3</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="1410"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="1411"/>
         <source>Reading representation %1 of %2: %3</source>
         <translation>Lecture de la représentation %1 sur %2 : %3</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="1416"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="1417"/>
         <source>Building the 3DXML scene: %1</source>
         <translation>Construction de la scène 3DXML : %1</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="1420"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="1421"/>
         <source>Reading the 3DXML structure: %1</source>
         <translation>Lecture de la structure 3DXML : %1</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="1527"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="1528"/>
         <source>Tessellating body %1 of %2: %3</source>
         <translation>Tessellation du corps %1 sur %2 : %3</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="1535"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="1536"/>
         <source>Converting to the scene: %1</source>
         <translation>Conversion vers la scène : %1</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="1768"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="1779"/>
         <source>Reading the JT product structure</source>
         <translation>Lecture de la structure produit JT</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="1769"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="1780"/>
         <source>Scanning the JT parts</source>
         <translation>Analyse des pièces JT</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="1770"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="1781"/>
         <source>Building the JT scene</source>
         <translation>Construction de la scène JT</translation>
     </message>
     <message>
-        <location filename="../src/Import/AssImpModelLoader.cpp" line="1771"/>
+        <location filename="../src/Import/AssImpModelLoader.cpp" line="1782"/>
         <source>Finishing the JT scene</source>
         <translation>Finalisation de la scène JT</translation>
     </message>
@@ -26251,64 +26437,64 @@ Adapté aux modèles à surfaces dures/mécaniques.</translation>
         <translation type="vanished">Nombre de maillages : %1</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2179"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2227"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2233"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2247"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2296"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2180"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2228"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2234"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2248"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2297"/>
         <source>Error</source>
         <translation>Erreur</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2179"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2180"/>
         <source>No files found in selected folder.</source>
         <translation>Aucun fichier trouvé dans le dossier sélectionné.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2228"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2229"/>
         <source>Failed to load fallback HDR cubemap from:
 </source>
         <translation>Échec du chargement de la cubemap HDR de secours depuis :
 </translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2234"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2235"/>
         <source>No valid 6-face skybox images or fallback HDR file found in folder.</source>
         <translation>Aucune image de skybox valide à 6 faces ou fichier HDR de secours trouvé dans le dossier.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2248"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2249"/>
         <source>Missing skybox face: %1
 Expected files should include identifiers like posx/negx or right/left, etc.</source>
         <translation>Face de skybox manquante : %1
 Les fichiers attendus doivent inclure des identifiants comme posx/negx ou right/left, etc.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2296"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2297"/>
         <source>Failed to load skybox face:
 </source>
         <translation>Échec du chargement de la face de skybox :
 </translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2578"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2589"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2579"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2590"/>
         <source>Z-Up</source>
         <translation>Z vers le haut</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2578"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2589"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2579"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2590"/>
         <source>Y-Up</source>
         <translation>Y vers le haut</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2594"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2595"/>
         <source>Camera Up-Axis Mismatch</source>
         <translation>Incohérence de l&apos;axe vertical de la caméra</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="2595"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="2596"/>
         <source>The imported model &quot;%1&quot; uses %2, but this view is currently %3.
 
 The active camera convention was left unchanged because this view already contains content.</source>
@@ -26317,264 +26503,264 @@ The active camera convention was left unchanged because this view already contai
 La convention de caméra active a été laissée inchangée car cette vue contient déjà du contenu.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="3118"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="3119"/>
         <source>Oblique projections are not available in ray-traced mode.</source>
         <translation>Les projections obliques ne sont pas disponibles en mode lancer de rayons.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="3136"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="3137"/>
         <source>Ray tracing does not support oblique projections yet - switched to Orthographic.</source>
         <translation>Le lancer de rayons ne prend pas encore en charge les projections obliques - passage en Orthographique.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="3305"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="3306"/>
         <source>Press Esc to deactivate rotation mode</source>
         <translation>Appuyez sur Échap pour désactiver le mode rotation</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="3313"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="3314"/>
         <source>Press Esc to deactivate panning mode</source>
         <translation>Appuyez sur Échap pour désactiver le mode panoramique</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="3321"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="3322"/>
         <source>Press Esc to deactivate zooming mode</source>
         <translation>Appuyez sur Échap pour désactiver le mode zoom</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="4275"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="4276"/>
         <source>Animation %1</source>
         <translation>Animation %1</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="5499"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="5500"/>
         <source>Manual exploded placement active: translate or rotate the selected meshes to refine the staged pose</source>
         <translation>Placement éclaté manuel actif : déplacez ou faites pivoter les maillages sélectionnés pour affiner la pose préparée</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="5500"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="5501"/>
         <source>Transform gizmo active: drag the corner box handle to scale uniformly</source>
         <translation>Gizmo de transformation actif : faites glisser la poignée d&apos;angle pour redimensionner uniformément</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6082"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6083"/>
         <source>Reading file: </source>
         <translation>Lecture du fichier : </translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6246"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6247"/>
         <source>Model loading did not finish correctly.</source>
         <translation>Le chargement du modèle ne s&apos;est pas terminé correctement.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6341"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6342"/>
         <source>Recorded PMI</source>
         <translation>PMI enregistrée</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6476"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6484"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6477"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6485"/>
         <source>Model loading cancelled</source>
         <translation>Chargement du modèle annulé</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6489"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6490"/>
         <source>Model loading cancelled after importing %1 meshes</source>
         <translation>Chargement du modèle annulé après l&apos;importation de %1 maillages</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6534"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6538"/>
         <source>Generating UVs for %1 meshes</source>
         <translation>Génération des UV pour %1 maillages</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6586"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6590"/>
         <source>Updating mesh: </source>
         <translation>Mise à jour du maillage : </translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6617"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6621"/>
         <source>%1 of %2 marked seams could not be resolved.</source>
         <translation>%1 couture(s) marquée(s) sur %2 n&apos;ont pas pu être résolues.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6642"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6646"/>
         <source>Generating UVs... </source>
         <translation>Génération des UV... </translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6643"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6647"/>
         <source>Processing node: %1/%2  Mesh: %3/%4</source>
         <translation>Traitement du nœud : %1/%2  Maillage : %3/%4</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6679"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6684"/>
         <source>Cancelling...</source>
         <translation>Annulation...</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6680"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6685"/>
         <source>Cancelling model load...</source>
         <translation>Annulation du chargement du modèle...</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6932"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6933"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6934"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6937"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6938"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6939"/>
         <source>Drag Clipping Plane</source>
         <translation>Faire glisser le plan de coupe</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="6965"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="6970"/>
         <source>Drag Clipping Box Face</source>
         <translation>Faire glisser une face de la boîte de coupe</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11577"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11621"/>
         <source>Click a point on a plot to place the note (Esc cancels).</source>
         <translation>Cliquez sur un point d&apos;un tracé pour placer la note (Échap annule).</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="11685"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="11729"/>
         <source>No plot there - click on a plot to place the note (Esc cancels).</source>
         <translation>Aucun tracé à cet endroit : cliquez sur un tracé pour placer la note (Échap annule).</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="12616"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="12660"/>
         <source>Translate Exploded Placement</source>
         <translation>Déplacer le placement éclaté</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="12628"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="12672"/>
         <source>Translate Selection</source>
         <translation>Déplacer la sélection</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="12877"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="12921"/>
         <source>Scale Selection</source>
         <translation>Redimensionner la sélection</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13145"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13189"/>
         <source>Rotate Exploded Placement</source>
         <translation>Faire pivoter le placement éclaté</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13160"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13204"/>
         <source>Rotate Selection</source>
         <translation>Faire pivoter la sélection</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13634"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13824"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13678"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13868"/>
         <source>Bottom</source>
         <translation>Dessous</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13634"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13824"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13678"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13868"/>
         <source>Rear</source>
         <translation>Arrière</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13634"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="13824"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13678"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="13868"/>
         <source>Right</source>
         <translation>Droite</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="16056"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="16174"/>
         <source>Click a point on the model to plot its value over time.</source>
         <translation>Cliquez sur un point du modèle pour tracer sa valeur en fonction du temps.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="16057"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="16175"/>
         <source>Click the first of two points on the model to plot the field along a line.</source>
         <translation>Cliquez sur le premier de deux points du modèle pour tracer le champ le long d&apos;une ligne.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="16134"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="16252"/>
         <source>Click the second point to complete the line.</source>
         <translation>Cliquez sur le second point pour terminer la ligne.</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="16949"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="17067"/>
         <source>Performance Warning!</source>
         <translation>Avertissement de performance !</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="16950"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="17068"/>
         <source>The model contains more than %1 triangles and the current method of UV generation is &quot;Smart UV&quot; which is time consuming.
 Do you want to continue generating the UV?</source>
         <translation>Le modèle contient plus de %1 triangles et la méthode actuelle de génération UV est « Smart UV », ce qui prend du temps.
 Voulez-vous continuer à générer les UV ?</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="16956"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="17074"/>
         <source>Change Settings</source>
         <translation>Modifier les paramètres</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="21302"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="21420"/>
         <source>Aim Light</source>
         <translation>Orienter la lumière</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="21302"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="21420"/>
         <source>Move Light</source>
         <translation>Déplacer la lumière</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22796"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22914"/>
         <source>Edit Note...</source>
         <translation>Modifier la note...</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22797"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22915"/>
         <source>Delete Note</source>
         <translation>Supprimer la note</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22808"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22926"/>
         <source>Plot Over Time Here</source>
         <translation>Tracer au fil du temps ici</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22856"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22974"/>
         <source>Center Screen</source>
         <translation>Centrer l&apos;écran</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22858"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22976"/>
         <source>Center Object List</source>
         <translation>Centrer la liste d&apos;objets</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22830"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22845"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22861"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22948"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22963"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22979"/>
         <source>Show</source>
         <translation>Afficher</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22832"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22847"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22863"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22950"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22965"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22981"/>
         <source>Hide</source>
         <translation>Masquer</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22865"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22983"/>
         <source>Show Only</source>
         <translation>Afficher uniquement</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22867"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22985"/>
         <source>Transformations</source>
         <translation>Transformations</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22868"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22986"/>
         <source>Edit Material</source>
         <translation>Modifier le matériau</translation>
     </message>
@@ -26583,114 +26769,114 @@ Voulez-vous continuer à générer les UV ?</translation>
         <translation type="vanished">Générer les UV</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22876"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22994"/>
         <source>Copy</source>
         <translation>Copier</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22877"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22995"/>
         <source>Cut</source>
         <translation>Couper</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22833"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22848"/>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22878"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22951"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22966"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22996"/>
         <source>Delete</source>
         <translation>Supprimer</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22870"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22988"/>
         <source>Split by Connectivity</source>
         <translation>Diviser par connectivité</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22871"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22989"/>
         <source>Merge by Adjacency</source>
         <translation>Fusionner par adjacence</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22872"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22990"/>
         <source>Merge Selected</source>
         <translation>Fusionner la sélection</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22873"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22991"/>
         <source>Mesh Union</source>
         <translation>Union de maillages</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22874"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22992"/>
         <source>Group</source>
         <translation>Grouper</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22880"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="22998"/>
         <source>Mesh Info</source>
         <translation>Infos du maillage</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22887"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23005"/>
         <source>Fit All</source>
         <translation>Ajuster tout</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22892"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23010"/>
         <source>Zoom Area</source>
         <translation>Zone de zoom</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22906"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23024"/>
         <source>Select</source>
         <translation>Sélectionner</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22914"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23032"/>
         <source>Zoom</source>
         <translation>Zoom</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22922"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23040"/>
         <source>Pan</source>
         <translation>Panoramique</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22930"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23048"/>
         <source>Rotate</source>
         <translation>Pivoter</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22943"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23061"/>
         <source>Show All</source>
         <translation>Tout afficher</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22950"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23068"/>
         <source>Hide All</source>
         <translation>Tout masquer</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22957"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23075"/>
         <source>Swap Visible</source>
         <translation>Échanger les visibles</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22976"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23094"/>
         <source>Paste</source>
         <translation>Coller</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22983"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23101"/>
         <source>Environment Settings</source>
         <translation>Paramètres d&apos;environnement</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="22984"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23102"/>
         <source>Background Color</source>
         <translation>Couleur d&apos;arrière-plan</translation>
     </message>
     <message>
-        <location filename="../src/Viewport/ViewportWidget.cpp" line="23420"/>
+        <location filename="../src/Viewport/ViewportWidget.cpp" line="23538"/>
         <source>Uploading mesh %1 / %2</source>
         <translation>Téléversement du maillage %1 / %2</translation>
     </message>
