@@ -6502,6 +6502,9 @@ bool ViewportWidget::loadAssImpModel(const QString& fileName, const UVMethod& uv
 		_viewer->purgeRedundantNodesAfterLoad(importedFileNode);
 	ImportDiagnostics::checkpoint("viewer.purge-end");
 
+	// 100 % only when the viewer has finished a successful import
+	if (success && !_sceneRuntime.loadCancelled())
+		MainWindow::setImportProgressComplete();
 	MainWindow::setProgressValue(0);
 	MainWindow::hideProgressBar();
 	ImportDiagnostics::checkpoint("viewer.ui-unlock-begin");
@@ -6625,7 +6628,7 @@ bool ViewportWidget::generateUVsForMeshes(const std::vector<int>& ids, const UVM
 
 void ViewportWidget::showFileReadingProgress(float percent)
 {
-	MainWindow::setProgressValue((int)((float)percent * 100.0f));
+	MainWindow::setImportProgress(MainWindow::ImportBand::Read, percent); // the reading and conversion half of the bar
 	makeCurrent();
 }
 
@@ -6649,7 +6652,8 @@ void ViewportWidget::showNodeMeshLoadingProgress(int processedNodes, int totalNo
 
 	if (totalNodes > 0)
 	{
-		MainWindow::setProgressValue(static_cast<int>((static_cast<float>(processedNodes) / static_cast<float>(totalNodes)) * 100.0f));
+		MainWindow::setImportProgress(MainWindow::ImportBand::Process,
+			static_cast<double>(processedNodes) / static_cast<double>(totalNodes)); // the viewer's half of the bar
 	}
 
 	if (QOpenGLContext::currentContext() != context())

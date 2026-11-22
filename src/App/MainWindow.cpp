@@ -64,6 +64,7 @@
 #include <QToolTip>
 #include <QSet>
 #include <algorithm>
+#include <cmath>
 #include <QStyle>
 #include <QScrollArea>
 #include <QShortcut>
@@ -2104,6 +2105,27 @@ void MainWindow::hideProgressBar()
 	_mainWindow->_cancelTaskButton->setText(QObject::tr("Cancel Loading"));
 	_mainWindow->_cancelTaskButton->setEnabled(true);
 	_fileLoadCancelRequested = false;
+}
+
+void MainWindow::setImportProgress(ImportBand band, double fraction)
+{
+	double from = 0.0, to = 0.5;
+	switch (band)
+	{
+	case ImportBand::Read:        from = 0.0;  to = 0.5;  break;
+	case ImportBand::ReadOcct:    from = 0.0;  to = 0.25; break;
+	case ImportBand::ReadConvert: from = 0.25; to = 0.5;  break;
+	case ImportBand::Process:     from = 0.5;  to = 1.0;  break;
+	}
+	fraction = std::clamp(fraction, 0.0, 1.0);
+	// 100 % is reserved for setImportProgressComplete(): the last mesh batch may not be attached yet when a stage reports 1.0,
+	// and rounding must not turn an intermediate value into 100.
+	setProgressValue(std::min(99, static_cast<int>(std::lround(100.0 * (from + (to - from) * fraction)))));
+}
+
+void MainWindow::setImportProgressComplete()
+{
+	setProgressValue(100);
 }
 
 void MainWindow::setProgressValue(const int& value)

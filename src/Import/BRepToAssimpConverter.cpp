@@ -252,8 +252,9 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 	{
 		// Counted in input tuples, not meshes: one tuple can produce several meshes, which would overshoot the caller's range.
 		const size_t tupleIndex = static_cast<size_t>(&tuple - shapeTuples.data());
-		int progress = progressFromPercent + (int)(((float)tupleIndex / (float)totalCount) * (progressToPercent - progressFromPercent));
-		MainWindow::setProgressValue(progress);
+		// The range parameters are percent of the reading half of the bar (see MainWindow::setImportProgress).
+		const double progress = (progressFromPercent + ((double)tupleIndex / (double)totalCount) * (progressToPercent - progressFromPercent)) / 100.0;
+		MainWindow::setImportProgress(MainWindow::ImportBand::Read, progress);
 		const TopoDS_Shape& shape = std::get<0>(tuple);
 		const std::string& name = std::get<1>(tuple);
 		const gp_Trsf& trsf = std::get<2>(tuple);

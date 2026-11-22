@@ -116,6 +116,13 @@ public:
 	static void resetProgressBar();
 	static void hideProgressBar();
 	static void setProgressValue(const int& value);
+	// One continuous bar for a model import. Reading and conversion take 0-50 %, the viewer's processing of the model 50-100 %;
+	// the bar reaches 100 % only when the viewer has finished. The STEP/IGES/VRML route splits the first half: the OCCT read and
+	// transfer 0-25 %, the conversion to the scene 25-50 %. Writers pass the fraction (0..1) of their own stage and never
+	// compute percentages themselves. Safe to call from any thread.
+	enum class ImportBand { Read, ReadOcct, ReadConvert, Process };
+	static void setImportProgress(ImportBand band, double fraction); // never reports more than 99 %
+	static void setImportProgressComplete(); // 100 %: only for a successfully finished import, after the viewer attached the last batch
 	static void setCancelButtonEnabled(bool enabled);
 	static void setCancelButtonText(const QString& text);
 	static void requestFileLoadCancel();
