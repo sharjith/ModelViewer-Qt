@@ -1380,13 +1380,20 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			{ const int threads = QSettings().value(QStringLiteral("threeDxmlThreads"), 0).toInt(); if (threads >= 0) options.threads = unsigned(threads); }
 			{ bool ok = false; const int threads = qEnvironmentVariableIntValue("MODELVIEWER_3DXML_THREADS", &ok); if (ok && threads >= 0) options.threads = unsigned(threads); }
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
-			options.progress = [this, &fi](const QString&, int done, int total) {
-				emit fileReadProcessed(total ? float(done)/total : 0.0f);
-				// The importer names the archive member it is reading; the status bar says which one of how many.
-				if (done < total)
+			options.progress = [this, &fi, building = false](const QString& stage, int done, int total) mutable {
+				// Bar bands: structure 0-5 %, representations 5-85 %, scene build 85-99 %, done 100 %.
+				// A report with a total is a representation (done of total); one without is a per-mille position of the whole import.
+				if (total > 0) {
+					emit fileReadProcessed(0.05f + 0.80f * float(done) / total);
 					MainWindow::showStatusMessage(QObject::tr("Reading representation %1 of %2: %3").arg(done + 1).arg(total).arg(fi.fileName()));
-				else
-					MainWindow::showStatusMessage(QObject::tr("Building the 3DXML scene: %1").arg(fi.fileName()));
+				}
+				else {
+					emit fileReadProcessed(done / 1000.0f);
+					if (!building && stage == QLatin1String("Building")) {
+						building = true;
+						MainWindow::showStatusMessage(QObject::tr("Building the 3DXML scene: %1").arg(fi.fileName()));
+					}
+				}
 			};
 			MainWindow::showStatusMessage(QObject::tr("Reading the 3DXML structure: %1").arg(fi.fileName()));
 			_threeDXml = ThreeDXml::Importer::read(fi.absoluteFilePath(), options);

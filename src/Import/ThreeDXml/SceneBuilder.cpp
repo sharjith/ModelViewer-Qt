@@ -442,6 +442,8 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
         { std::lock_guard<std::mutex> lock(gate); applied = size_t(memberIndex) + 1; }
         wake.notify_all();
     }
+    // Progress after the representations: total 0 means "per-mille of the whole import" (members use done/total).
+    if (options.progress) options.progress(QStringLiteral("Building"),850,0);
     // aiMesh owns its material binding. Reuse the first binding in place and
     // deep-copy only when the same source mesh needs another occurrence color.
     std::vector<unsigned> baseMaterials;
@@ -496,6 +498,8 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     std::function<std::unique_ptr<aiNode>(const QString&,const QString&,const QString&,const QString&,const aiMatrix4x4&,bool,const aiColor4D*,const MaterialRendering*,int)> build;
     build = [&](const QString& reference,const QString& name,const QString& path,const QString& id,const aiMatrix4x4& local,bool parentVisible,const aiColor4D* inheritedColor,const MaterialRendering* inheritedMaterial,int depth) {
         options.check();
+        // The product tree build: 850-990 per mille, on an approaching curve (the node total is not known in advance).
+        if (options.progress && (nodeCount & 63u) == 63u) options.progress(QStringLiteral("Building"),int(850+140.0*nodeCount/(nodeCount+2000.0)),0);
         if (depth > 128 || ++nodeCount > 100000 || active.contains(reference)) throw Error(QStringLiteral("Cyclic/excessive product graph at %1").arg(path));
         active.insert(reference); const auto& ref=doc.references[reference];
         auto override=doc.occurrenceColors.constFind(path);
@@ -583,7 +587,7 @@ ImportResult SceneBuilder::build(const Document& doc, ArchiveReader& archive, co
     if (!result.scene->mNumMeshes)
         throw Error(skippedMembers.isEmpty() ? QStringLiteral("3DXML contains no supported triangle geometry")
                                              : QStringLiteral("3DXML contains no readable geometry; first failure: %1").arg(skippedMembers.front()));
-    if (options.progress) options.progress(QStringLiteral("Complete"),members.size(),members.size());
+    if (options.progress) options.progress(QStringLiteral("Complete"),1000,0);
     {
         size_t withGeometry = 0;
         for (const auto& entry : resources) if (std::any_of(entry.second.begin(), entry.second.end(), [](const BodyMeshes& body) { return !body.meshes.empty(); })) ++withGeometry;
