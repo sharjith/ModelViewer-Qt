@@ -46,6 +46,9 @@ public:
         PureNameRole    = Qt::UserRole + 2,   // QString— plain mesh name for the editor
         IsSyntheticRole = Qt::UserRole + 3,   // bool   — true on file-level (synthetic) nodes
         NodeUuidRole    = Qt::UserRole + 4,   // QUuid  — nodeUuid for assembly/file items
+        IssueSeverityRole = Qt::UserRole + 5, // int    — ImportIssue::Severity; 0 (or absent) when the node has no import issue
+        IsIssueItemRole = Qt::UserRole + 6,   // bool   — true on the placeholder item of a part that could not be loaded:
+                                              //          it has no meshes, no check box and takes no part in visibility
     };
 
     explicit SceneTreeWidget(QWidget* parent = nullptr);
@@ -381,12 +384,16 @@ private:
                              bool forceItem = false);
     void finalizeRebuild();
 
-    // Returns true if node has at least one mesh UUID anywhere in its subtree
+    // Returns true if node has at least one mesh UUID anywhere in its subtree, or an import issue to show
     bool nodeHasMeshes(const SceneNode* node) const;
 
     // Item factories
     QTreeWidgetItem* makeMeshLeaf(const QUuid& uuid);
     QTreeWidgetItem* makeAssemblyItem(const SceneNode* node);
+    // Placeholder for a part the importer could not load: error/warning symbol, message as tooltip, no check box.
+    QTreeWidgetItem* makeIssueItem(const SceneNode* node);
+    // Stores the node's import issue on the item and sets its tooltip.
+    void applyIssue(QTreeWidgetItem* item, const SceneNode* node);
 
     // Tri-state helpers
     void propagateCheckDown(QTreeWidgetItem* item, Qt::CheckState state);

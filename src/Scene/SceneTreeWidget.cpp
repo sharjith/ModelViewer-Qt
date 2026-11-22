@@ -71,6 +71,28 @@ static const TreeIcons& treeIcons()
     return inst;
 }
 
+// The icon with a small warning (severity 1) or error (severity 2) mark in its lower right corner. Severity 0
+// returns the icon unchanged. Results are cached per base pixmap and severity.
+static QPixmap badgedIcon(const QPixmap& base, int severity)
+{
+    if (severity <= 0 || base.isNull())
+        return base;
+    static QHash<qint64, QPixmap> cache;
+    const qint64 key = base.cacheKey() * 4 + qMin(severity, 2);
+    const auto found = cache.constFind(key);
+    if (found != cache.cend())
+        return *found;
+    const QStyle::StandardPixmap which = severity >= 2 ? QStyle::SP_MessageBoxCritical : QStyle::SP_MessageBoxWarning;
+    QPixmap result = base;
+    const int side = qMax(8, base.width() * 3 / 5);
+    const QPixmap mark = QApplication::style()->standardIcon(which).pixmap(side, side);
+    QPainter painter(&result);
+    painter.drawPixmap(base.width() - side, base.height() - side, mark);
+    painter.end();
+    cache.insert(key, result);
+    return result;
+}
+
 // ---------------------------------------------------------------------------
 // PlusMinusStyle
 //
@@ -846,7 +868,8 @@ QPoint SceneTreeWidget::mapMenuToGlobal(const QPoint& localPos) const
 bool SceneTreeWidget::isAssemblyAt(const QPoint& localPos) const
 {
     QTreeWidgetItem* item = itemAt(localPos);
-    return item && !item->data(0, IsLeafRole).toBool();
+    // The placeholder of a part that could not be loaded is not an assembly: it has nothing to operate on.
+    return item && !item->data(0, IsLeafRole).toBool() && !item->data(0, IsIssueItemRole).toBool();
 }
 
 bool SceneTreeWidget::hasChildrenAt(const QPoint& localPos) const
@@ -1454,6 +1477,7 @@ void SceneTreeWidget::onItemChanged(QTreeWidgetItem* item, int /*column*/)
     // incidental during an in-progress rebuild should react as if the user
     // actually toggled a checkbox.
     if (_updatingTree || _rebuildInProgress || _inRename || !item) return;
+    if (item->data(0, IsIssueItemRole).toBool()) return;
 
     const bool isLeaf = item->data(0, IsLeafRole).toBool();
 
@@ -1613,6 +1637,8 @@ void SceneTreeWidget::onItemClicked(QTreeWidgetItem* item, int /*column*/)
 bool SceneTreeWidget::nodeHasMeshes(const SceneNode* node) const
 {
     if (!node->meshUuids.isEmpty()) return true;
+    // A part that could not be loaded has no meshes but is still shown, with its error.
+    if (node->importIssue.isSet()) return true;
     for (const SceneNode* child : node->children)
         if (nodeHasMeshes(child)) return true;
     return false;
@@ -1635,6 +1661,11 @@ void SceneTreeWidget::buildSubtree(QTreeWidgetItem* parentItem,
     // -----------------------------------------------------------------------
     if (node->children.isEmpty())
     {
+        if (node->meshUuids.isEmpty() && node->importIssue.isSet())
+        {
+            parentItem->addChild(makeIssueItem(node));
+            return;
+        }
         for (const QUuid& uuid : node->meshUuids)
             parentItem->addChild(makeMeshLeaf(uuid));
         return;
@@ -1683,6 +1714,17 @@ void SceneTreeWidget::processRebuildBatch()
             continue;
 
         QTreeWidgetItem* attachParent = task.parentItem;
+
+        if (node->children.isEmpty() && node->meshUuids.isEmpty() && node->importIssue.isSet())
+        {
+            // A part that could not be loaded: one placeholder item carrying the reason.
+            QTreeWidgetItem* issueItem = makeIssueItem(node);
+            if (attachParent)
+                attachParent->addChild(issueItem);
+            else
+                addTopLevelItem(issueItem);
+            continue;
+        }
 
         if (!task.forceItem && node->children.isEmpty())
         {
@@ -1807,7 +1849,36 @@ QTreeWidgetItem* SceneTreeWidget::makeAssemblyItem(const SceneNode* node)
       item->setData(0, IsLeafRole,      false);
       item->setData(0, IsSyntheticRole, node->isSynthetic);
       item->setData(0, NodeUuidRole,    node->nodeUuid);
+      applyIssue(item, node);
       return item;
+}
+
+void SceneTreeWidget::applyIssue(QTreeWidgetItem* item, const SceneNode* node)
+{
+    if (!item || !node || !node->importIssue.isSet())
+        return;
+    item->setData(0, IssueSeverityRole, static_cast<int>(node->importIssue.severity));
+    const QString label = node->importIssue.severity == ImportIssue::Severity::Error
+                              ? tr("Could not be loaded") : tr("Loaded with a warning");
+    // Rich text so a long message wraps instead of running off the screen.
+    item->setToolTip(0, QStringLiteral("<p><b>%1</b></p><p>%2</p>")
+                            .arg(label.toHtmlEscaped(), node->importIssue.message.toHtmlEscaped()));
+    updateItemIcon(item);
+}
+
+QTreeWidgetItem* SceneTreeWidget::makeIssueItem(const SceneNode* node)
+{
+    auto* item = new QTreeWidgetItem();
+    item->setText(0, node->name);
+    // Selectable so its message and properties can be inspected; not checkable (nothing to show or hide) and not editable.
+    item->setFlags((item->flags() | Qt::ItemIsSelectable) & ~(Qt::ItemIsUserCheckable | Qt::ItemIsEditable));
+    item->setData(0, IsLeafRole,      false);
+    item->setData(0, IsIssueItemRole, true);
+    item->setData(0, IsSyntheticRole, false);
+    item->setData(0, NodeUuidRole,    node->nodeUuid);
+    item->setData(0, PureNameRole,    node->name);
+    applyIssue(item, node);
+    return item;
 }
 
 void SceneTreeWidget::propagateCheckDown(QTreeWidgetItem* item,
@@ -1816,6 +1887,8 @@ void SceneTreeWidget::propagateCheckDown(QTreeWidgetItem* item,
     for (int i = 0; i < item->childCount(); ++i)
     {
         QTreeWidgetItem* child = item->child(i);
+        if (child->data(0, IsIssueItemRole).toBool())
+            continue;  // Nothing to show or hide.
         child->setCheckState(0, state);
         updateItemIcon(child);
         if (child->childCount() > 0)
@@ -1843,7 +1916,7 @@ void SceneTreeWidget::refreshAllAssemblyStates()
 
 void SceneTreeWidget::refreshAssemblyBottomUp(QTreeWidgetItem* item)
 {
-    if (!item || item->data(0, IsLeafRole).toBool()) return;
+    if (!item || item->data(0, IsLeafRole).toBool() || item->data(0, IsIssueItemRole).toBool()) return;
     for (int i = 0; i < item->childCount(); ++i)
         refreshAssemblyBottomUp(item->child(i));
 
@@ -1862,6 +1935,8 @@ Qt::CheckState SceneTreeWidget::aggregateChildCheckState(QTreeWidgetItem* item) 
 
     for (int i = 0; i < item->childCount(); ++i)
     {
+        if (item->child(i)->data(0, IsIssueItemRole).toBool())
+            continue;  // Placeholders of parts that could not be loaded take no part in visibility.
         switch (item->child(i)->checkState(0))
         {
         case Qt::Checked:
@@ -2263,13 +2338,18 @@ bool SceneTreeWidget::allDirectChildrenSelected(QTreeWidgetItem* parent) const
     const int n = parent->childCount();
     if (n == 0) return false;
 
+    int considered = 0;
     for (int i = 0; i < n; ++i)
     {
         QTreeWidgetItem* c = parent->child(i);
+        // Placeholders of parts that could not be loaded do not count towards the selection of their parent.
+        if (c && c->data(0, IsIssueItemRole).toBool())
+            continue;
+        ++considered;
         if (!c || !c->isSelected())
             return false;
     }
-    return true;
+    return considered > 0;
 }
 
 
@@ -2295,7 +2375,7 @@ void SceneTreeWidget::refreshSelectionClosureBottomUp(QTreeWidgetItem* item)
         refreshSelectionClosureBottomUp(item->child(i));
 
     // Leaves: no upward meaning; assemblies/files: enforce Option A
-    if (!item->data(0, IsLeafRole).toBool())
+    if (!item->data(0, IsLeafRole).toBool() && !item->data(0, IsIssueItemRole).toBool())
     {
         const bool shouldSelect = allDirectChildrenSelected(item);
         if (item->isSelected() != shouldSelect)
@@ -2307,28 +2387,35 @@ void SceneTreeWidget::refreshSelectionClosureBottomUp(QTreeWidgetItem* item)
 void SceneTreeWidget::updateItemIcon(QTreeWidgetItem* item)
 {
     if (!item) return;
+    const int severity = item->data(0, IssueSeverityRole).toInt();
+    if (item->data(0, IsIssueItemRole).toBool())
+    {
+        // Greyed mesh icon: there is nothing to show; the mark says why.
+        item->setIcon(0, badgedIcon(treeIcons().meshGrey, severity));
+        return;
+    }
     const Qt::CheckState cs = item->checkState(0);
     if (item->data(0, IsLeafRole).toBool())
     {
-        item->setIcon(0, cs == Qt::Checked
+        item->setIcon(0, badgedIcon(cs == Qt::Checked
                       ? treeIcons().meshNormal
-                      : treeIcons().meshGrey);
+                      : treeIcons().meshGrey, severity));
     }
     else
     {
         const bool synthetic = item->data(0, IsSyntheticRole).toBool();
         const bool allHidden = (cs == Qt::Unchecked);
         if (synthetic)
-            item->setIcon(0, allHidden ? treeIcons().fileGrey     : treeIcons().fileNormal);
+            item->setIcon(0, badgedIcon(allHidden ? treeIcons().fileGrey     : treeIcons().fileNormal, severity));
         else
-            item->setIcon(0, allHidden ? treeIcons().assemblyGrey : treeIcons().assemblyNormal);
+            item->setIcon(0, badgedIcon(allHidden ? treeIcons().assemblyGrey : treeIcons().assemblyNormal, severity));
     }
 }
 
 const SceneNode* SceneTreeWidget::nodeAt(const QPoint& localPos) const
 {
     QTreeWidgetItem* item = itemAt(localPos);
-    if (!item || item->data(0, IsLeafRole).toBool())
+    if (!item || item->data(0, IsLeafRole).toBool() || item->data(0, IsIssueItemRole).toBool())
         return nullptr;
 
     const QUuid nodeUuid = item->data(0, NodeUuidRole).value<QUuid>();

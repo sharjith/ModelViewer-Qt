@@ -1225,6 +1225,15 @@ MVFPackage buildMVFPackage(const SceneGraph& sceneGraph,
         nodeObj.insert(QStringLiteral("isSynthetic"), node->isSynthetic);
         if (!node->sourceFile.isEmpty())
             nodeObj.insert(QStringLiteral("sourceFile"), node->sourceFile);
+        if (node->importIssue.isSet())
+        {
+            QJsonObject issueObj;
+            issueObj.insert(QStringLiteral("severity"),
+                            node->importIssue.severity == ImportIssue::Severity::Error ? QStringLiteral("error")
+                                                                                       : QStringLiteral("warning"));
+            issueObj.insert(QStringLiteral("message"), node->importIssue.message);
+            nodeObj.insert(QStringLiteral("importIssue"), issueObj);
+        }
         nodeObj.insert(QStringLiteral("matrix"), matrixToJson(node->localTransform));
         // Persist the autoOrient+autoScale correction so the exporter can factor it
         // out on the next export even after a save/load round-trip via MVF.
