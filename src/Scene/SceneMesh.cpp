@@ -4243,6 +4243,35 @@ void SceneMesh::bindFeatureEdgeVertexState()
 	_featureEdgeVAO.release();
 }
 
+QVector3D SceneMesh::occEdgeBaseColor() const
+{
+	const QVector3D albedo = _material.albedoColor();
+	const std::vector<float>& colors = cpuColors();
+	if (!_hasVertexColors || colors.size() < 4)
+		return albedo;
+	// The B-rep edge lines carry no colour of their own, and the wire shader only multiplies vertex colours it finds in the
+	// mesh's vertex buffer. A part whose colour lives in per-vertex colours (per-face colours of an Inventor part) would draw
+	// grey lines next to coloured faces. Tint the lines with the average vertex colour, found once per colour buffer
+	// (at most about 4,000 samples), and multiplied by the albedo exactly as the shaded base colour is.
+	if (_occEdgeTintSource != colors.data() || _occEdgeTintSize != colors.size())
+	{
+		const size_t vertexCount = colors.size() / 4;
+		const size_t step = std::max<size_t>(1, vertexCount / 4000);
+		double r = 0.0, g = 0.0, b = 0.0;
+		size_t samples = 0;
+		for (size_t i = 0; i < vertexCount; i += step, ++samples)
+		{
+			r += colors[i * 4];
+			g += colors[i * 4 + 1];
+			b += colors[i * 4 + 2];
+		}
+		_occEdgeVertexTint = samples ? QVector3D(float(r / samples), float(g / samples), float(b / samples)) : QVector3D(1.0f, 1.0f, 1.0f);
+		_occEdgeTintSource = colors.data();
+		_occEdgeTintSize = colors.size();
+	}
+	return QVector3D(albedo.x() * _occEdgeVertexTint.x(), albedo.y() * _occEdgeVertexTint.y(), albedo.z() * _occEdgeVertexTint.z());
+}
+
 void SceneMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 {
 	if (!wireProg) return;
@@ -4255,6 +4284,8 @@ void SceneMesh::renderFeatureEdgesFast(QOpenGLShaderProgram* wireProg)
 	// OCC B-Rep edges take priority — exact analytical wireframe from STEP/IGES/BREP.
 	if (_occEdgeVAO.isCreated() && _occEdgeCount > 0)
 	{
+		// The edge lines have no vertex colours; use the mesh's average vertex colour so they match the faces.
+		wireProg->setUniformValue("baseColor", occEdgeBaseColor());
 		_occEdgeVAO.bind();
 		glDrawArrays(GL_LINES, 0, _occEdgeCount);
 		_occEdgeVAO.release();

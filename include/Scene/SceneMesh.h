@@ -706,6 +706,13 @@ private:
 	void ensureFeatureEdgesOnGpu();
 	quint64 uniformStateSignature() const;
 	quint64 computeUniformStateSignature(bool includeSelection) const;
+	// Colour of the B-rep edge lines of a mesh whose colour is carried in per-vertex colours (the saved face colours of an
+	// Inventor part): the average vertex colour, found once per colour buffer. See occEdgeBaseColor().
+	QVector3D occEdgeBaseColor() const;
+	mutable QVector3D _occEdgeVertexTint{1.0f, 1.0f, 1.0f};
+	mutable const float* _occEdgeTintSource = nullptr;
+	mutable size_t _occEdgeTintSize = 0;
+
 	mutable bool    _batchKeyDirty = true;
 	mutable quint64 _cachedBatchKey = 0;
 	void removeTexturesByType(std::initializer_list<std::string> types);
