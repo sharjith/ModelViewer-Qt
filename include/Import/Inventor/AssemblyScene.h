@@ -16,6 +16,9 @@ struct AssemblySceneOptions {
     // an item that carries the reason, and the rest of the assembly loads.
     bool strict = false;
     std::function<bool()> cancelled;
+    // Progress: a stage text (translated, may be empty for "unchanged") and the position of the whole import (0..1, negative for
+    // "unchanged"). May be called from worker threads of the part reader.
+    std::function<void(const QString& stage, double fraction)> progress;
 };
 
 struct AssemblySceneResult {

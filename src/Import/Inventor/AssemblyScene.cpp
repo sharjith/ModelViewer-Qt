@@ -6,6 +6,7 @@
 #include "Inventor/Assembly.h"
 #include "Inventor/PartSolid.h"
 
+#include <QCoreApplication>
 #include <QFileInfo>
 #include <QtGlobal>
 
@@ -124,6 +125,7 @@ public:
     {
         std::vector<Step> groups;
         std::vector<QString> stack;
+        report(say("Reading the assembly structure"), 0.0);
         walk(QFileInfo(assemblyPath).absoluteFilePath(), gp_Trsf(), groups, stack, false);
         if (_tuples.empty()) {
             throw std::runtime_error(_firstProblem.isEmpty() ? std::string("The Inventor assembly contains no components that can be shown")
@@ -138,10 +140,12 @@ public:
 
         // Faces carry the colour the part saves for them; the placed copies share the faces, so the colours still match.
         BRepToAssimpConverter::setFaceColourOverrides(_overrides);
+        report(say("Converting %1 bodies to the scene").arg(_tuples.size()), 0.90);
         std::unique_ptr<aiScene> scene(BRepToAssimpConverter::convert(_tuples));
         BRepToAssimpConverter::setFaceColourOverrides({});
         if (!scene || !scene->mRootNode || scene->mNumMeshes == 0)
             throw std::runtime_error("Inventor assembly did not produce display geometry");
+        report(say("Arranging the model tree"), 0.97);
         regroup(scene.get());
 
         AssemblySceneResult result;
@@ -151,6 +155,18 @@ public:
     }
 
 private:
+    static QString say(const char* source) { return QCoreApplication::translate("InventorImport", source); }
+
+    // Progress bar bands: parts and structure 0-90 % (the number of parts is only known at the end, so each distinct part moves
+    // the bar on an approaching curve and its own read progress fills its slice), conversion 90-97 %, tree 97-100 %.
+    static double partPosition(std::size_t parts) { return 0.90 * double(parts) / (double(parts) + 25.0); }
+
+    void report(const QString& stage, double fraction) const
+    {
+        if (_options.progress)
+            _options.progress(stage, fraction);
+    }
+
     void checkCancelled() const
     {
         if (_options.cancelled && _options.cancelled())
@@ -177,7 +193,12 @@ private:
         const QString base = QFileInfo(file).completeBaseName();
         try {
             PartAppearance appearance;
-            auto outcomes = readPartBodies(file, _options.cancelled, &appearance, _options.strict);
+            // This is the n-th distinct part; its read fills the slice between the curve positions before and after it.
+            const double from = partPosition(_parts.size() - 1), to = partPosition(_parts.size());
+            report(say("Reading part %1: %2").arg(_parts.size()).arg(QFileInfo(file).fileName()), from);
+            auto outcomes = readPartBodies(file, _options.cancelled, &appearance, _options.strict,
+                [this, from, to](double fraction) { report(QString(), from + (to - from) * 0.9 * fraction); },
+                [this, &file](const QString& stage) { report(stage + QStringLiteral(": ") + QFileInfo(file).fileName(), -1.0); });
             if (appearance.body)
                 data.color = *appearance.body;
             for (const auto& [face, color] : appearance.faces)
@@ -197,6 +218,7 @@ private:
                     data.failed.emplace_back(name, outcome.error);
                 }
             }
+            report(say("Tessellating part %1: %2").arg(_parts.size()).arg(QFileInfo(file).fileName()), from + (to - from) * 0.9);
             for (const auto& shape : data.shapes)
                 BRepToAssimpConverter::preTessellate(shape); // once per distinct part; every placed copy shares the result
         } catch (const Detail::ResourceError&) {

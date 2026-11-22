@@ -1681,6 +1681,12 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			BRepToAssimpConverter::clearColorCache();
 			Inventor::AssemblySceneOptions options;
 			options.cancelled = cancelled;
+			options.progress = [this](const QString& stage, double fraction) {
+				if (!stage.isEmpty())
+					MainWindow::showStatusMessage(stage);
+				if (fraction >= 0.0)
+					emit fileReadProcessed(static_cast<float>(fraction));
+			};
 			// The same strict setting as for parts: a component that cannot be loaded fails the import instead of being shown
 			// as an error item in the tree.
 			options.strict = QSettings().value(QStringLiteral("inventorStrict"), false).toBool()
