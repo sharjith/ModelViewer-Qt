@@ -45,7 +45,11 @@ PasteCommand::~PasteCommand()
         for (const PastedItem& item : _items)
         {
             if (item.isCut)
+            {
+                if (item.type == PastedItem::Mesh && item.wrapperNode)
+                    freeSubtree(item.wrapperNode);
                 continue;
+            }
 
             if (item.type == PastedItem::Subtree)
             {
@@ -86,6 +90,11 @@ void PasteCommand::undo()
                 sg->removeMeshUuid(item.meshUuid, pos);
                 sg->restoreMeshUuid(item.srcOwnerNode, item.meshUuid,
                                     item.srcMeshPosition);
+                if (item.wrapperNode)
+                {
+                    int wrapperPos = 0;
+                    sg->removeChildNode(item.wrapperParent, item.wrapperNode, wrapperPos);
+                }
             }
             else // Subtree
             {
@@ -166,6 +175,8 @@ void PasteCommand::redo()
             // Re-execute the move (source → destination).
             if (item.type == PastedItem::Mesh)
             {
+                if (item.wrapperNode)
+                    sg->insertChildNode(item.wrapperParent, item.wrapperNode, item.wrapperPosition);
                 int pos = 0;
                 sg->removeMeshUuid(item.meshUuid, pos);
                 sg->restoreMeshUuid(item.ownerNode, item.meshUuid,

@@ -13,6 +13,7 @@ class SceneMesh;
 #include <assimp/scene.h>
 
 class SceneGraph;
+struct SceneNode;
 class SceneNode;
 class RenderableMesh;
 class SceneGraphExporter
@@ -56,7 +57,10 @@ public:
         const QHash<QUuid, std::vector<float>>* colorOverrides = nullptr,
         // outMeshNodeNameByUuid: optional output, mesh uuid -> name of the exported aiNode that carries that mesh (unique
         // within the scene). Lets a caller refer to individual meshes in the export, e.g. per-view visibility in a 3D PDF.
-        QHash<QUuid, QString>* outMeshNodeNameByUuid = nullptr);
+        QHash<QUuid, QString>* outMeshNodeNameByUuid = nullptr,
+        // allowedTopLevelNodes: optional; when non-empty only these top-level nodes are exported and allowedSourceFiles is
+        // ignored. For a node that has no source file (content pasted into the document), which the file list cannot name.
+        const QList<const SceneNode*>& allowedTopLevelNodes = QList<const SceneNode*>());
 
 private:
     static aiNode* buildNodeRecursive(
