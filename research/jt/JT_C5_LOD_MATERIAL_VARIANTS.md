@@ -174,6 +174,8 @@ Reading (hypotheses, not established):
 
 Consequence for section 8: the default is an open owner decision with three candidates: finest materials (grey where the finest lacks colour), the coarsest-authored materials on any level (matches the other viewer), or per-level as authored (today).
 
+**Update 23 November 2026 (owner acceptance, NX comparison).** The owner compared the A95 assembly in NX with this viewer: NX shows the grey and white part-level colours that this viewer shows with "As authored in this level" (green and red parts grey, wheel-arch covers white). The stored data agree: the per-shape green and red materials exist only on the coarsest alternative, and the finest alternative resolves to the part-level material (see [JT XT segment survey](JT_XT_SEGMENT_SURVEY.md), provenance section). Decision (owner): keep the existing material-variant design and its default; "As authored in this level" stays available as the option that matches NX.
+
 ## 11. V1 as implemented (4 November 2026, built, scene tests pass, real-file checks partly done)
 
 Status: the owner built it and `jt_codec_tests` passed (including `lodMaterialVariantTests`). Real-file checks so far, as reported by the owner:
