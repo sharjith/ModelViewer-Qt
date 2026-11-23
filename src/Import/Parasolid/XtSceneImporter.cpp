@@ -9,6 +9,8 @@
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
 #include <BRepTools.hxx>
 #include <BRep_Builder.hxx>
 #include <Bnd_Box.hxx>
@@ -39,6 +41,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
@@ -124,6 +127,29 @@ bool hasUsableTriangulation(const TopoDS_Face& face, const Handle(Poly_Triangula
     return !edgeBox.IsOut(gp_Pnt(x0, y0, z0)) && !edgeBox.IsOut(gp_Pnt(x1, y1, z1));
 }
 
+// A triangulation that covers the face more than once (overlapping triangles, drawn as black and white stripes) has far more
+// area than the face. The exact area comes from the face's own trims; a face whose area cannot be measured passes.
+bool triangulationAreaPlausible(const TopoDS_Face& face, const Handle(Poly_Triangulation)& triangles)
+{
+    if (triangles.IsNull())
+        return false;
+    double covered = 0;
+    for (int i = 1; i <= triangles->NbTriangles(); ++i) {
+        int a, b, c;
+        triangles->Triangle(i).Get(a, b, c);
+        const gp_Pnt p = triangles->Node(a);
+        covered += 0.5 * gp_Vec(p, triangles->Node(b)).CrossMagnitude(gp_Vec(p, triangles->Node(c)));
+    }
+    try {
+        GProp_GProps properties;
+        BRepGProp::SurfaceProperties(face, properties);
+        const double exact = std::abs(properties.Mass());
+        return !(exact > 1e-9) || covered <= 1.3 * exact;
+    } catch (const Standard_Failure&) {
+        return true;
+    }
+}
+
 TopoDS_Shape buildDisplayFallback(const BuiltBody& body, const SceneImportOptions& options, size_t& recovered)
 {
     if (body.displayCandidates.empty())
@@ -149,6 +175,53 @@ TopoDS_Shape buildDisplayFallback(const BuiltBody& body, const SceneImportOption
         ++recovered;
     }
     return recovered ? display : TopoDS_Shape();
+}
+
+size_t countUnmeshedFaces(const TopoDS_Shape& shape)
+{
+    size_t unmeshed = 0;
+    for (TopExp_Explorer ex(shape, TopAbs_FACE); ex.More(); ex.Next()) {
+        TopLoc_Location location;
+        const auto& triangles = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), location);
+        if (triangles.IsNull() || triangles->NbTriangles() == 0)
+            ++unmeshed;
+    }
+    return unmeshed;
+}
+
+// A face the mesher leaves empty at the configured deflection (typically a long arc discretised so coarsely that the face's
+// own outline crosses itself) is not repaired one face at a time: meshing it alone re-discretises the edges it shares with its
+// neighbours, which leaves gaps and holes between them that the converter then closes with long overlapping triangles. The
+// whole body is meshed again at another deflection instead, so every shared edge keeps one discretisation, and the first
+// setting that leaves no face empty is kept. A body whose faces fail at every setting is meshed as configured again and
+// left to the recovery below.
+bool remeshBodyUntilComplete(const TopoDS_Shape& shape, double deflection, double angle, const SceneImportOptions& options)
+{
+    const size_t original = countUnmeshedFaces(shape);
+    if (!original)
+        return false;
+    size_t bestCount = original;
+    double bestFactor = 1.0, lastFactor = 1.0;
+    for (const double factor : {0.5, 0.25, 0.1, 2.0}) {
+        if (options.cancelled && options.cancelled())
+            return false;
+        BRepTools::Clean(shape);
+        lastFactor = factor;
+        if (!meshBodyGuarded(&shape, deflection * factor, angle, options))
+            continue;
+        const size_t count = countUnmeshedFaces(shape);
+        if (count < bestCount) {
+            bestCount = count;
+            bestFactor = factor;
+        }
+        if (!count)
+            break;
+    }
+    if (bestFactor != lastFactor || bestCount == original) {
+        BRepTools::Clean(shape);
+        meshBodyGuarded(&shape, deflection * bestFactor, angle, options);
+    }
+    return bestCount < original;
 }
 
 struct FaceMeshRecovery {
@@ -306,7 +379,7 @@ FaceMeshRecovery recoverUntriangulatedFaces(BuiltBody& built, double deflection,
                 }
             }
             // The fallback returns points in body coordinates. OCCT stores them in face coordinates.
-            if (hasUsableTriangulation(face, triangles, TopLoc_Location())) {
+            if (hasUsableTriangulation(face, triangles, TopLoc_Location()) && triangulationAreaPlausible(face, triangles)) {
                 if (!face.Location().IsIdentity()) {
                     const gp_Trsf toLocal = face.Location().Transformation().Inverted();
                     for (int i = 1; i <= triangles->NbNodes(); ++i)
@@ -626,6 +699,7 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
     std::vector<TopoDS_Shape> displayFallbacks(bodyCount);
     std::atomic<size_t> droppedFaces{0};
     std::atomic<size_t> recoveredFaces{0};
+    std::atomic<size_t> refinedBodies{0};
     std::atomic<size_t> displayFaces{0};
     {
         const double deflection = BRepToAssimpConverter::resolveDeflectionFraction();
@@ -653,6 +727,8 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
                                                      angle, options, !(absolute > 0)))
                         bodyMeshed[i] = 0;
                     else if (!cancelledNow()) {
+                        if (hasFaces && !(absolute > 0) && remeshBodyUntilComplete(body.shape, deflection, angle, options))
+                            ++refinedBodies;
                         if (trace) {
                             std::fprintf(stderr, "XT mesh check begin body=%lld\n", bodyIndex);
                             std::fflush(stderr);
@@ -708,6 +784,8 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
         result.warnings << QStringLiteral("Parasolid: %1 faces could not be meshed and are left out.").arg(droppedFaces.load());
     if (recoveredFaces)
         result.warnings << QStringLiteral("Parasolid: %1 faces were meshed from their boundary curves.").arg(recoveredFaces.load());
+    if (refinedBodies)
+        result.warnings << QStringLiteral("Parasolid: %1 bodies were meshed again at another deflection because some faces got no triangles at the configured one.").arg(refinedBodies.load());
     if (displayCandidates)
         result.warnings << QStringLiteral("Parasolid: recovered %1 of %2 display mesh candidates rejected during B-Rep construction.")
                                .arg(displayFaces.load()).arg(displayCandidates);
