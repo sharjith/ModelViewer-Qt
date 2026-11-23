@@ -2763,6 +2763,8 @@ void MainWindow::closeSubWindow()
 	// _viewers; its QMdiSubWindow auto-deletes along with it.
 	if (ModelViewer* viewer = activeMdiChild())
 		viewer->close();
+	else if (_startPageWindow && _mdiArea->activeSubWindow() == _startPageWindow)
+		_startPageWindow->close(); // the Start Page is a closable tab too
 }
 
 void MainWindow::closeAllSubWindows()
@@ -2983,12 +2985,15 @@ void MainWindow::updateMenus()
 #endif
 	ui->actionImport->setVisible(hasMdiChild);
 	ui->actionExport->setVisible(hasMdiChild);
-	ui->actionClose->setEnabled(hasMdiChild);
-	ui->actionFileClose->setVisible(hasMdiChild);
+	// Window-scoped state (Close, the Window menu) follows the active MDI window, which may be the Start Page; document-scoped
+	// state follows the active document.
+	const bool startPageActive = _startPageWindow && _mdiArea->activeSubWindow() == _startPageWindow;
+	ui->actionClose->setEnabled(hasMdiChild || startPageActive);
+	ui->actionFileClose->setVisible(hasMdiChild || startPageActive);
 	const int documentCount = _viewers.count();
 	ui->actionClose_All->setVisible(hasMdiChild && documentCount > 1);
 
-	ui->menuWindows->menuAction()->setVisible(hasMdiChild);
+	ui->menuWindows->menuAction()->setVisible(hasMdiChild || startPageActive);
 
 	// The Visualization menu is always visible - Ray Tracing is a
 	// permanent, non-debug entry; only the Texture Debugger action (and
@@ -3104,8 +3109,18 @@ void MainWindow::updateWindowMenu()
 	ui->menuWindows->addAction(ui->actionNext);
 	ui->menuWindows->addAction(ui->actionPrevious);
 
-	if (!_viewers.isEmpty())
+	if (!_viewers.isEmpty() || _startPageWindow)
 		ui->menuWindows->addSeparator();
+
+	if (_startPageWindow)
+	{
+		QMdiSubWindow* startPage = _startPageWindow;
+		QAction* action = ui->menuWindows->addAction(tr("Start Page"), startPage, [this, startPage]() {
+			_mdiArea->setActiveSubWindow(startPage);
+		});
+		action->setCheckable(true);
+		action->setChecked(_mdiArea->activeSubWindow() == startPage);
+	}
 
 	for (ModelViewer* child : std::as_const(_viewers))
 	{
@@ -3355,6 +3370,11 @@ void MainWindow::updateRecentFileActions()
 		recentFileClearSeparator->setVisible(count > 0);
 	if (recentFileClearAct)
 		recentFileClearAct->setVisible(count > 0);
+
+	// The Start Page lists the same files; keep it in step (a removed or cleared entry must not stay clickable).
+	if (_startPageWindow)
+		if (auto* page = qobject_cast<StartPageWidget*>(_startPageWindow->widget()))
+			page->refreshRecentFiles();
 }
 
 void MainWindow::clearRecentFiles()
