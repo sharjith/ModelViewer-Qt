@@ -20,7 +20,7 @@ target_include_directories(parasolid_xt_decode PRIVATE ${REPO}/include/Import/Pa
 find_package(OpenCASCADE QUIET)
 if(OpenCASCADE_FOUND)
     add_executable(parasolid_xt_shapes xt_shapes_cli.cpp ${XT_SOURCES} ${REPO}/src/Import/Parasolid/XtOcct.cpp ${REPO}/src/Import/Parasolid/XtImport.cpp)
-    target_include_directories(parasolid_xt_shapes PRIVATE ${REPO}/include/Import/Parasolid ${REPO}/include ${OpenCASCADE_INCLUDE_DIR})
+    target_include_directories(parasolid_xt_shapes PRIVATE ${REPO}/include/Import/Parasolid ${REPO}/include/Import ${REPO}/include ${OpenCASCADE_INCLUDE_DIR})
     target_link_libraries(parasolid_xt_shapes PRIVATE TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo
                           TKShHealing TKMesh TKPrim TKBO TKOffset)
     add_executable(parasolid_step_summary step_summary_cli.cpp)

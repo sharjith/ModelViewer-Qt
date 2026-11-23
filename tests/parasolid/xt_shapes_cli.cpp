@@ -536,6 +536,20 @@ int main(int argc, char** argv) {
             std::printf("  body %lld: faces %zu/%zu valid=%d free_edges=%zu volume=%.6g area=%.6g type=%d\n",
                         static_cast<long long>(body.index), body.facesBuilt, body.facesTotal, ok, freeEdges, vol.Mass(), area.Mass(),
                         body.bodyType);
+        if (std::getenv("XT_COLOURS")) {
+            // Research aid: colours stored as attributes (SDL/TYSA_COLOUR on faces, body colour as the default).
+            std::map<std::string, size_t> distinct;
+            for (const auto& fc : body.faceColours) {
+                char c[64];
+                std::snprintf(c, sizeof c, "%.3f %.3f %.3f a=%.2f", fc.second.r, fc.second.g, fc.second.b, fc.second.a);
+                ++distinct[c];
+            }
+            char bc[64] = "none";
+            if (body.hasBodyColour) std::snprintf(bc, sizeof bc, "%.3f %.3f %.3f a=%.2f", body.bodyColour.r, body.bodyColour.g, body.bodyColour.b, body.bodyColour.a);
+            std::printf("  colours body %lld: body colour %s; %zu of %zu faces carry a face colour, %zu distinct\n", static_cast<long long>(body.index), bc,
+                        body.faceColours.size(), body.facesBuilt, distinct.size());
+            for (const auto& kv : distinct) std::printf("    colour %s x %zu\n", kv.first.c_str(), kv.second);
+        }
     }
     Bnd_Box box;
     BRepBndLib::Add(all, box);
