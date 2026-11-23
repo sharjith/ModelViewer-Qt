@@ -26,6 +26,7 @@
 #include "QuickHelpDialog.h"
 #include "StartPageWidget.h"
 #include "WhatsNew.h"
+#include <QTimer>
 #include "TutorialDialog.h"
 #include "Logger.h"
 #include "ui_MainWindow.h"
@@ -2243,6 +2244,9 @@ void MainWindow::showStartPage(bool automatic)
 		return;
 	}
 
+	// Activating the new tab clears _activeDocument, so remember which document was in front.
+	ModelViewer* const previousDocument = _activeDocument;
+
 	// An automatic start does not hide a document that was opened on the command line or restored from the last session.
 	bool documentOpen = false;
 	for (const ModelViewer* viewer : std::as_const(_viewers))
@@ -2283,10 +2287,15 @@ void MainWindow::showStartPage(bool automatic)
 
 	QMdiSubWindow* window = _mdiArea->addSubWindow(page);
 	window->setAttribute(Qt::WA_DeleteOnClose);
+	// Closing the page changes what the window commands can do (nothing else refreshes them when no document is left).
+	connect(window, &QObject::destroyed, this, [this]() {
+		if (!_shuttingDown)
+			QTimer::singleShot(0, this, &MainWindow::updateMenus);
+	});
 	window->setWindowTitle(tr("Start Page"));
 	window->setWindowIcon(QIcon(QStringLiteral(":/icons/res/quick_help.png")));
+	_startPageWindow = window; // set before showing: activation refreshes the menus
 	window->showMaximized();
-	_startPageWindow = window;
 
 	// Tabs follow creation order, so move this one to the front.
 	if (QTabBar* tabBar = _mdiArea->findChild<QTabBar*>())
@@ -2304,11 +2313,14 @@ void MainWindow::showStartPage(bool automatic)
 		_mdiArea->setActiveSubWindow(window);
 		activateDocument(nullptr);
 	}
-	else if (_activeDocument)
+	else if (previousDocument && _viewers.contains(previousDocument))
 	{
 		// showMaximized() above can make the new tab current; give the open document back its place.
-		if (auto* documentWindow = qobject_cast<QMdiSubWindow*>(_activeDocument->parentWidget()))
+		if (auto* documentWindow = qobject_cast<QMdiSubWindow*>(previousDocument->parentWidget()))
+		{
 			_mdiArea->setActiveSubWindow(documentWindow);
+			activateDocument(previousDocument);
+		}
 	}
 }
 
@@ -3048,8 +3060,10 @@ void MainWindow::updateMenus()
 	ui->actionTile_Horizontally->setEnabled(hasMdiChild);
 	ui->actionTile_Vertically->setEnabled(hasMdiChild);
 	ui->actionCascade->setEnabled(hasMdiChild);
-	ui->actionNext->setVisible(hasMdiChild && documentCount > 1);
-	ui->actionPrevious->setVisible(hasMdiChild && documentCount > 1);
+	// Next/Previous walk every tab, the Start Page included.
+	const bool severalWindows = (hasMdiChild || startPageActive) && _mdiArea->subWindowList().count() > 1;
+	ui->actionNext->setVisible(severalWindows);
+	ui->actionPrevious->setVisible(severalWindows);
 
 #ifndef QT_NO_CLIPBOARD
 	//bool hasSelection = (activeMdiChild() && activeMdiChild()->textCursor().hasSelection());

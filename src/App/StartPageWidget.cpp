@@ -194,6 +194,7 @@ namespace
 			                     : QCoreApplication::translate("StartPageWidget", "Tutorial %1").arg(number);
 			setCursor(Qt::PointingHandCursor);
 			setToolTip(toolTip);
+			setAccessibleName(_label + QStringLiteral(": ") + title);
 			setFixedSize(kVideoTileWidth, kVideoThumbHeight + kVideoCaptionHeight);
 		}
 
@@ -279,6 +280,8 @@ namespace
 		{
 			setCursor(Qt::PointingHandCursor);
 			setToolTip(QDir::toNativeSeparators(path));
+			setAccessibleName(QFileInfo(path).fileName());
+			setAccessibleDescription(QDir::toNativeSeparators(path));
 			setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 			setFixedHeight(46);
 		}
@@ -593,10 +596,14 @@ QWidget* StartPageWidget::buildVideoPanel(QWidget* parent)
 	previous->setText(QStringLiteral("◀"));
 	previous->setObjectName(QStringLiteral("arrowButton"));
 	previous->setCursor(Qt::PointingHandCursor);
+	previous->setToolTip(tr("Previous videos"));
+	previous->setAccessibleName(tr("Previous videos"));
 	auto* next = new QToolButton(frame);
 	next->setText(QStringLiteral("▶"));
 	next->setObjectName(QStringLiteral("arrowButton"));
 	next->setCursor(Qt::PointingHandCursor);
+	next->setToolTip(tr("Next videos"));
+	next->setAccessibleName(tr("Next videos"));
 	header->addWidget(previous);
 	header->addWidget(next);
 	if (playlistUrl.isValid())

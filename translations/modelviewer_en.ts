@@ -2659,8 +2659,8 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="215"/>
-        <location filename="../src/App/MainWindow.cpp" line="277"/>
-        <location filename="../src/App/MainWindow.cpp" line="1094"/>
+        <location filename="../src/App/MainWindow.cpp" line="278"/>
+        <location filename="../src/App/MainWindow.cpp" line="1095"/>
         <source>Simulation Results</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3405,7 +3405,7 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="1035"/>
-        <location filename="../src/App/MainWindow.cpp" line="1325"/>
+        <location filename="../src/App/MainWindow.cpp" line="1326"/>
         <source>Compare Results...</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3446,7 +3446,8 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
     </message>
     <message>
         <location filename="../ui/App/MainWindow.ui" line="1088"/>
-        <location filename="../src/App/MainWindow.cpp" line="2286"/>
+        <location filename="../src/App/MainWindow.cpp" line="2295"/>
+        <location filename="../src/App/MainWindow.cpp" line="3132"/>
         <source>Start Page</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3526,82 +3527,82 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="241"/>
-        <location filename="../src/App/MainWindow.cpp" line="1086"/>
+        <location filename="../src/App/MainWindow.cpp" line="242"/>
+        <location filename="../src/App/MainWindow.cpp" line="1087"/>
         <source>Variants</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="244"/>
-        <location filename="../src/App/MainWindow.cpp" line="1087"/>
+        <location filename="../src/App/MainWindow.cpp" line="245"/>
+        <location filename="../src/App/MainWindow.cpp" line="1088"/>
         <source>Animations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="247"/>
-        <location filename="../src/App/MainWindow.cpp" line="1088"/>
+        <location filename="../src/App/MainWindow.cpp" line="248"/>
+        <location filename="../src/App/MainWindow.cpp" line="1089"/>
         <source>Cameras</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="268"/>
-        <location filename="../src/App/MainWindow.cpp" line="1092"/>
+        <location filename="../src/App/MainWindow.cpp" line="269"/>
+        <location filename="../src/App/MainWindow.cpp" line="1093"/>
         <source>Selections</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="271"/>
-        <location filename="../src/App/MainWindow.cpp" line="1093"/>
+        <location filename="../src/App/MainWindow.cpp" line="272"/>
+        <location filename="../src/App/MainWindow.cpp" line="1094"/>
         <source>States</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="356"/>
         <location filename="../src/App/MainWindow.cpp" line="357"/>
-        <location filename="../src/App/MainWindow.cpp" line="1112"/>
-        <location filename="../src/App/MainWindow.cpp" line="1113"/>
-        <source>Auto Fit View On Hide/Show</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <location filename="../src/App/MainWindow.cpp" line="358"/>
-        <location filename="../src/App/MainWindow.cpp" line="1117"/>
-        <source>Selection Highlighting</source>
+        <location filename="../src/App/MainWindow.cpp" line="1113"/>
+        <location filename="../src/App/MainWindow.cpp" line="1114"/>
+        <source>Auto Fit View On Hide/Show</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
         <location filename="../src/App/MainWindow.cpp" line="359"/>
         <location filename="../src/App/MainWindow.cpp" line="1118"/>
+        <source>Selection Highlighting</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/MainWindow.cpp" line="360"/>
+        <location filename="../src/App/MainWindow.cpp" line="1119"/>
         <source>Selection Highlighting in Viewer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="409"/>
-        <location filename="../src/App/MainWindow.cpp" line="1079"/>
+        <location filename="../src/App/MainWindow.cpp" line="410"/>
+        <location filename="../src/App/MainWindow.cpp" line="1080"/>
         <source>Document</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="435"/>
-        <location filename="../src/App/MainWindow.cpp" line="1107"/>
+        <location filename="../src/App/MainWindow.cpp" line="436"/>
+        <location filename="../src/App/MainWindow.cpp" line="1108"/>
         <source>Materials</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="441"/>
-        <location filename="../src/App/MainWindow.cpp" line="1108"/>
+        <location filename="../src/App/MainWindow.cpp" line="442"/>
+        <location filename="../src/App/MainWindow.cpp" line="1109"/>
         <source>Transformations</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="445"/>
-        <location filename="../src/App/MainWindow.cpp" line="1081"/>
+        <location filename="../src/App/MainWindow.cpp" line="446"/>
+        <location filename="../src/App/MainWindow.cpp" line="1082"/>
         <source>Properties</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="458"/>
-        <location filename="../src/App/MainWindow.cpp" line="1083"/>
+        <location filename="../src/App/MainWindow.cpp" line="459"/>
+        <location filename="../src/App/MainWindow.cpp" line="1084"/>
         <source>Environment</source>
         <translation type="unfinished"></translation>
     </message>
@@ -3611,112 +3612,112 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="104"/>
+        <location filename="../src/App/MainWindow.cpp" line="105"/>
         <source>Last Import Warnings...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="106"/>
+        <location filename="../src/App/MainWindow.cpp" line="107"/>
         <source>Show the warnings the importer reported for the most recently loaded file.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="140"/>
+        <location filename="../src/App/MainWindow.cpp" line="141"/>
         <source>Applying theme...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="164"/>
+        <location filename="../src/App/MainWindow.cpp" line="165"/>
         <source>Creating panels and docks...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="335"/>
-        <location filename="../src/App/MainWindow.cpp" line="1095"/>
+        <location filename="../src/App/MainWindow.cpp" line="336"/>
+        <location filename="../src/App/MainWindow.cpp" line="1096"/>
         <source>3D Plot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="691"/>
-        <location filename="../src/App/MainWindow.cpp" line="1123"/>
+        <location filename="../src/App/MainWindow.cpp" line="692"/>
+        <location filename="../src/App/MainWindow.cpp" line="1124"/>
         <source>Recent...</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="702"/>
-        <location filename="../src/App/MainWindow.cpp" line="1125"/>
+        <location filename="../src/App/MainWindow.cpp" line="703"/>
+        <location filename="../src/App/MainWindow.cpp" line="1126"/>
         <source>Clear Recent Files</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="711"/>
-        <location filename="../src/App/MainWindow.cpp" line="1133"/>
+        <location filename="../src/App/MainWindow.cpp" line="712"/>
+        <location filename="../src/App/MainWindow.cpp" line="1134"/>
         <source>Close the active window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="716"/>
-        <location filename="../src/App/MainWindow.cpp" line="1135"/>
+        <location filename="../src/App/MainWindow.cpp" line="717"/>
+        <location filename="../src/App/MainWindow.cpp" line="1136"/>
         <source>Close the active document</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="721"/>
-        <location filename="../src/App/MainWindow.cpp" line="1137"/>
+        <location filename="../src/App/MainWindow.cpp" line="722"/>
+        <location filename="../src/App/MainWindow.cpp" line="1138"/>
         <source>Close all the windows</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="726"/>
-        <location filename="../src/App/MainWindow.cpp" line="1139"/>
+        <location filename="../src/App/MainWindow.cpp" line="727"/>
+        <location filename="../src/App/MainWindow.cpp" line="1140"/>
         <source>Move the focus to the next window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="731"/>
-        <location filename="../src/App/MainWindow.cpp" line="1141"/>
+        <location filename="../src/App/MainWindow.cpp" line="732"/>
+        <location filename="../src/App/MainWindow.cpp" line="1142"/>
         <source>Move the focus to the previous window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="907"/>
+        <location filename="../src/App/MainWindow.cpp" line="908"/>
         <source>Save Selection Set</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="908"/>
+        <location filename="../src/App/MainWindow.cpp" line="909"/>
         <source>Name for this selection:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="922"/>
+        <location filename="../src/App/MainWindow.cpp" line="923"/>
         <source>Save Scene State</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="923"/>
+        <location filename="../src/App/MainWindow.cpp" line="924"/>
         <source>Name for this state:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1041"/>
+        <location filename="../src/App/MainWindow.cpp" line="1042"/>
         <source>Restoring window layout...</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1046"/>
-        <location filename="../src/App/MainWindow.cpp" line="1077"/>
-        <location filename="../src/App/MainWindow.cpp" line="1129"/>
+        <location filename="../src/App/MainWindow.cpp" line="1047"/>
+        <location filename="../src/App/MainWindow.cpp" line="1078"/>
+        <location filename="../src/App/MainWindow.cpp" line="1130"/>
         <source>Cancel Loading</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1325"/>
+        <location filename="../src/App/MainWindow.cpp" line="1326"/>
         <source>Exit Compare</source>
         <translation type="unfinished"></translation>
     </message>
     <message numerus="yes">
-        <location filename="../src/App/MainWindow.cpp" line="1982"/>
+        <location filename="../src/App/MainWindow.cpp" line="1983"/>
         <source>%1: %n import warning(s) - see Help &gt; Last Import Warnings</source>
         <translation type="unfinished">
             <numerusform></numerusform>
@@ -3724,17 +3725,17 @@ Then remove the ones you don&apos;t want with each row&apos;s × button.</source
         </translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="1988"/>
+        <location filename="../src/App/MainWindow.cpp" line="1989"/>
         <source>Import Warnings - %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2351"/>
+        <location filename="../src/App/MainWindow.cpp" line="2363"/>
         <source>Guide Not Found</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2352"/>
+        <location filename="../src/App/MainWindow.cpp" line="2364"/>
         <source>The PDF guide was not found at:
 %1
 
@@ -3742,42 +3743,42 @@ Please ensure the documentation files are installed correctly.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2366"/>
+        <location filename="../src/App/MainWindow.cpp" line="2378"/>
         <source>Tutorial Display Method</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2367"/>
+        <location filename="../src/App/MainWindow.cpp" line="2379"/>
         <source>How would you like to view the tutorial?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2368"/>
+        <location filename="../src/App/MainWindow.cpp" line="2380"/>
         <source>Choose between an integrated dialog or opening in your web browser.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2371"/>
+        <location filename="../src/App/MainWindow.cpp" line="2383"/>
         <source>Dialog Window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2372"/>
+        <location filename="../src/App/MainWindow.cpp" line="2384"/>
         <source>Web Browser</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2375"/>
+        <location filename="../src/App/MainWindow.cpp" line="2387"/>
         <source>Remember my choice</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2431"/>
+        <location filename="../src/App/MainWindow.cpp" line="2443"/>
         <source>Tutorial Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2432"/>
+        <location filename="../src/App/MainWindow.cpp" line="2444"/>
         <source>Tutorial file not found at:
 %1
 
@@ -3785,12 +3786,12 @@ Please ensure the tutorial files are installed correctly.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2466"/>
+        <location filename="../src/App/MainWindow.cpp" line="2478"/>
         <source>Logs Folder Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2467"/>
+        <location filename="../src/App/MainWindow.cpp" line="2479"/>
         <source>The logs folder could not be found at:
 %1
 
@@ -3798,120 +3799,120 @@ Please ensure the application has permission to create and access the logs direc
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2655"/>
+        <location filename="../src/App/MainWindow.cpp" line="2667"/>
         <source>Error</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2655"/>
+        <location filename="../src/App/MainWindow.cpp" line="2667"/>
         <source>
 Unsupported file format: </source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2699"/>
+        <location filename="../src/App/MainWindow.cpp" line="2711"/>
         <source>Open Model File</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2709"/>
+        <location filename="../src/App/MainWindow.cpp" line="2721"/>
         <source>Simulation Results (%1)</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3072"/>
+        <location filename="../src/App/MainWindow.cpp" line="3091"/>
         <source>&amp;Undo %1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3074"/>
-        <location filename="../src/App/MainWindow.cpp" line="3086"/>
+        <location filename="../src/App/MainWindow.cpp" line="3093"/>
+        <location filename="../src/App/MainWindow.cpp" line="3105"/>
         <source>&amp;Undo</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3077"/>
+        <location filename="../src/App/MainWindow.cpp" line="3096"/>
         <source>&amp;Redo %1</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3079"/>
-        <location filename="../src/App/MainWindow.cpp" line="3087"/>
+        <location filename="../src/App/MainWindow.cpp" line="3098"/>
+        <location filename="../src/App/MainWindow.cpp" line="3106"/>
         <source>&amp;Redo</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3283"/>
+        <location filename="../src/App/MainWindow.cpp" line="3312"/>
         <source>Confirm Exit</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3284"/>
+        <location filename="../src/App/MainWindow.cpp" line="3313"/>
         <source>Are you sure you want to exit the application?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3344"/>
+        <location filename="../src/App/MainWindow.cpp" line="3373"/>
         <source>&amp;%1 %2</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3346"/>
+        <location filename="../src/App/MainWindow.cpp" line="3375"/>
         <source>%1 -&gt; Shift-click to import into active document</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3347"/>
+        <location filename="../src/App/MainWindow.cpp" line="3376"/>
         <source>Click to open • Shift-click to import into active window</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3396"/>
+        <location filename="../src/App/MainWindow.cpp" line="3430"/>
         <source>File Not Found</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3397"/>
+        <location filename="../src/App/MainWindow.cpp" line="3431"/>
         <source>The file &apos;%1&apos; no longer exists. Would you like to remove it from the recent files?</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3177"/>
+        <location filename="../src/App/MainWindow.cpp" line="3206"/>
         <source>A computation is still running in &quot;%1&quot;. It is being cancelled: close again when it has finished.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3223"/>
+        <location filename="../src/App/MainWindow.cpp" line="3252"/>
         <source>Saving %1 of %2: %3</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3236"/>
+        <location filename="../src/App/MainWindow.cpp" line="3265"/>
         <source>Save changes</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3237"/>
+        <location filename="../src/App/MainWindow.cpp" line="3266"/>
         <source>Could not save &quot;%1&quot;.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3238"/>
+        <location filename="../src/App/MainWindow.cpp" line="3267"/>
         <source>If you skip it, the other documents are still saved, but the application stays open.</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3239"/>
+        <location filename="../src/App/MainWindow.cpp" line="3268"/>
         <source>Retry</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3240"/>
+        <location filename="../src/App/MainWindow.cpp" line="3269"/>
         <source>Skip this document</source>
         <translation></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="3255"/>
+        <location filename="../src/App/MainWindow.cpp" line="3284"/>
         <source>Some documents were not saved, so they stay open.</source>
         <translation></translation>
     </message>
@@ -11805,9 +11806,9 @@ points) whose Z values are in that column (same X and Y).</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/MainWindow.cpp" line="2040"/>
-        <location filename="../src/App/MainWindow.cpp" line="2066"/>
-        <location filename="../src/App/MainWindow.cpp" line="2105"/>
+        <location filename="../src/App/MainWindow.cpp" line="2041"/>
+        <location filename="../src/App/MainWindow.cpp" line="2067"/>
+        <location filename="../src/App/MainWindow.cpp" line="2106"/>
         <source>Cancel Loading</source>
         <translation type="unfinished"></translation>
     </message>
@@ -20231,222 +20232,234 @@ Drag a point; double-click to add; right-click an interior point to remove.</sou
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="352"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="355"/>
         <source>Start Page</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="419"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="422"/>
         <source>Welcome to ModelViewer</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="422"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="425"/>
         <source>Inspect, render and analyse 3D models, CAD data and simulation results. Pick up where you left off, open a sample, or take the tutorial.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="449"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="452"/>
         <source>Open Model</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="450"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="453"/>
         <source>Start Tutorial</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="451"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="454"/>
         <source>View Shortcuts</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="452"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="455"/>
         <source>Mouse Controls</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="460"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="463"/>
         <source>Recent Files</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="466"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="469"/>
         <source>What&apos;s New in %1</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="471"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="474"/>
         <source>NEW - not seen yet</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="478"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="481"/>
         <source>Ray Tracing</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="478"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="481"/>
         <source>CPU and GPU (OptiX) path tracing with denoising and offline export.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="479"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="482"/>
         <source>Simulation results</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="479"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="482"/>
         <source>Open, colour, animate, probe and compare FEM and CFD results.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="480"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="483"/>
         <source>3D data plotting</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="480"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="483"/>
         <source>Surfaces, scatter, lines, bars, voxels and vector fields from CSV or formulas.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="481"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="484"/>
         <source>Measure and annotate</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="481"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="484"/>
         <source>Distances, angles, radii and areas on the model, with a PDF report.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="482"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="485"/>
         <source>Mesh tools</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="482"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="485"/>
         <source>Union, shrink-wrap, subdivide, repair, split, merge and generate UVs.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="483"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="486"/>
         <source>Analysis</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="483"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="486"/>
         <source>Draft, zebra, curvature and wall thickness checks; mass properties.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="484"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="487"/>
         <source>Selection and scenes</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="484"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="487"/>
         <source>Lasso and material selection, scene states and batch rendering.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="485"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="488"/>
         <source>Interface</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="485"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="488"/>
         <source>Tabbed toolbars, clipping planes, oblique views, and de/es/fr/it translations.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="500"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="503"/>
         <source>Click a title to open its tutorial lesson.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="506"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="509"/>
         <source>Full release notes on GitHub</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="518"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="521"/>
         <source>Sample Models</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="521"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="524"/>
         <source>ANC101</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="522"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="525"/>
         <source>CAD</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="523"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="526"/>
         <source>CAD Model</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="524"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="527"/>
         <source>Skateboard Assy</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="525"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="528"/>
         <source>Teapot</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="543"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="546"/>
         <source>Recommended First Steps</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="545"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="548"/>
         <source>1. Open a model and press &lt;b&gt;F&lt;/b&gt; to fit the full scene.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="546"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="549"/>
         <source>2. Use &lt;b&gt;1 / 2 / 3&lt;/b&gt; to switch between Orbit, Fly, and First Person camera modes.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="547"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="550"/>
         <source>3. Right-click in the viewport for common actions like visibility control, transformations, and visualization settings.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="548"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="551"/>
         <source>4. Open &lt;b&gt;Help &amp;gt; Quick Help&lt;/b&gt; whenever you need shortcuts, view controls, or tips.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="560"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="563"/>
         <source>Show this page on startup</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="588"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="591"/>
         <source>Video Tutorials</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="604"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="599"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="600"/>
+        <source>Previous videos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/StartPageWidget.cpp" line="605"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="606"/>
+        <source>Next videos</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/App/StartPageWidget.cpp" line="611"/>
         <source>Watch all on YouTube</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="659"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="666"/>
         <source>Models shown in the thumbnails:</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location filename="../src/App/StartPageWidget.cpp" line="690"/>
+        <location filename="../src/App/StartPageWidget.cpp" line="697"/>
         <source>No recent files yet. Files you open will be listed here.</source>
         <translation type="unfinished"></translation>
     </message>
