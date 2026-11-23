@@ -13,6 +13,7 @@
 #include <QDebug>
 #include <QEvent>
 #include <QFileInfo>
+#include <QTimer>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QElapsedTimer>
@@ -156,6 +157,14 @@ int main(int argc, char** argv)
 #else
 	showStartupStep(QObject::tr("Preparing workspace..."), 60);
 #endif
+	// A file given on the command line, or the last file of the previous session, is opened right after startup; otherwise
+	// the Start Page is the first thing the user sees. Decided here because the page has to be up before the splash goes.
+	const QStringList commandLineFiles = app.arguments().mid(1);
+	QStringList recentFiles = MainWindow::readRecentFiles(settings);
+	const bool restoreLastOpenFile = settings.value("checkRestoreLastFile", false).toBool();
+	const bool startupFileExpected = !commandLineFiles.isEmpty()
+		|| (restoreLastOpenFile && !recentFiles.isEmpty() && QFileInfo(recentFiles.first()).exists());
+
 	ModelViewer* viewer = mw->createMdiChild();
 	// Watch for the viewport's first drawn frame BEFORE the window is shown (it can't paint earlier), so the
 	// splash can stay up until there is something to see instead of handing over to a blank viewport.
@@ -192,8 +201,16 @@ int main(int argc, char** argv)
 			QThread::msleep(5);
 		}
 		QObject::disconnect(firstFrameConnection);
+		// The first document has drawn its frame (so its OpenGL set-up is done); with nothing to open, the Start Page takes
+		// over from it now, behind the splash, so the blank "Untitled" document is never seen.
+		if (!startupFileExpected)
+			mw->showStartPageIfDue();
 		showStartupStep(QObject::tr("Ready"), 100);
 		splash->finish(mw);
+	}
+	else if (!startupFileExpected)
+	{
+		mw->showStartPageIfDue();
 	}
 
 	// Only now construct the console panel (if enabled) - see
@@ -202,7 +219,6 @@ int main(int argc, char** argv)
 	// caused an intermittent taskbar icon mixup.
 	Logger::instance().notifyApplicationVisible();
 
-	const QStringList commandLineFiles = app.arguments().mid(1);
 	bool openedCommandLineFile = false;
 	for (const QString& fileName : commandLineFiles)
 	{
@@ -215,8 +231,6 @@ int main(int argc, char** argv)
 		}
 	}
 
-	QStringList recentFiles = MainWindow::readRecentFiles(settings);
-	bool restoreLastOpenFile = settings.value("checkRestoreLastFile", false).toBool();
 	if (commandLineFiles.isEmpty() && restoreLastOpenFile && !recentFiles.isEmpty())
 	{
 		QString lastFile = recentFiles.first();
@@ -227,6 +241,10 @@ int main(int argc, char** argv)
 			viewer->parentWidget()->close(); // close the first blank document
 		}
 	}
+
+	// With a file opened at startup the page waits in a background tab (it never covers the document that was asked for).
+	if (startupFileExpected)
+		QTimer::singleShot(150, mw, [mw]() { mw->showStartPageIfDue(); });
 
 	// Guard against platforms (Wayland, headless) where no context is current at this point.
 	// The main window's ViewportWidget will have initialised by now on most platforms, but it is

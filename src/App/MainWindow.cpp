@@ -24,7 +24,8 @@
 #include "StatusBalloon.h"
 #include "AboutDialog.h"
 #include "QuickHelpDialog.h"
-#include "WhatsNewDialog.h"
+#include "StartPageWidget.h"
+#include "WhatsNew.h"
 #include "TutorialDialog.h"
 #include "Logger.h"
 #include "ui_MainWindow.h"
@@ -90,7 +91,6 @@
 int MainWindow::_viewerCount = 1;
 MainWindow* MainWindow::_mainWindow = nullptr;
 QuickHelpDialog* MainWindow::_helpDialog = nullptr;
-WhatsNewDialog* MainWindow::_whatsNewDialog = nullptr;
 std::atomic_bool MainWindow::_fileLoadCancelRequested{false};
 
 MainWindow::MainWindow(QWidget* parent)
@@ -2218,24 +2218,98 @@ void MainWindow::on_actionExit_triggered(bool /*checked*/)
 
 void MainWindow::on_actionWhatsNew_triggered()
 {
-	showWhatsNew(false);
+	// Same as the Start Page card's "Full release notes on GitHub" button.
+	QDesktopServices::openUrl(WhatsNew::releaseNotesUrl());
 }
 
-void MainWindow::showWhatsNew(bool automatic)
+void MainWindow::showStartPageIfDue()
 {
-	if (!_whatsNewDialog)
+	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+	// The page opens unless the user switched it off - but a version whose What's New has not been seen yet always shows it.
+	if (settings.value("showStartPageOnStartup", true).toBool() || WhatsNew::dueOnStartup(settings))
+		showStartPage(true);
+}
+
+void MainWindow::on_actionStartPage_triggered()
+{
+	showStartPage(false);
+}
+
+void MainWindow::showStartPage(bool automatic)
+{
+	if (_startPageWindow)
 	{
-		_whatsNewDialog = new WhatsNewDialog(this);
-		_whatsNewDialog->setAttribute(Qt::WA_DeleteOnClose);
-		connect(_whatsNewDialog, &WhatsNewDialog::openTutorialRequested, this, &MainWindow::showTutorial);
-		connect(_whatsNewDialog, &WhatsNewDialog::openQuickHelpRequested, this, &MainWindow::on_actionQuick_Help_triggered);
-		connect(_whatsNewDialog, &QObject::destroyed, []() { _whatsNewDialog = nullptr; });
+		_mdiArea->setActiveSubWindow(_startPageWindow);
+		return;
 	}
+
+	// An automatic start does not hide a document that was opened on the command line or restored from the last session.
+	bool documentOpen = false;
+	for (const ModelViewer* viewer : std::as_const(_viewers))
+		documentOpen = documentOpen || !viewer->currentFile().isEmpty();
+
+	// The blank "Untitled" document that startup creates (it initialises OpenGL and keeps the splash screen honest) is only
+	// a placeholder once the Start Page is the front door: close it, but only when it really is untouched and alone.
+	if (automatic && !documentOpen && _viewers.size() == 1)
+	{
+		ModelViewer* blank = _viewers.first();
+		const bool untouched = blank->currentFile().isEmpty() && blank->sceneGraph()
+			&& blank->sceneGraph()->root()->children.isEmpty();
+		if (untouched)
+		{
+			blank->setCloseApproved(true);
+			blank->close();
+		}
+	}
+
+	auto* page = new StartPageWidget(this);
+	connect(page, &StartPageWidget::openModelRequested, this, &MainWindow::on_actionOpen_triggered);
+	connect(page, &StartPageWidget::openFileRequested, this, &MainWindow::openRecentFilePath);
+	connect(page, &StartPageWidget::openSampleRequested, this, [this](const QString& relativePath) {
+		openFile(PathUtils::getDataDirectory() + QStringLiteral("/sample-models/") + relativePath);
+	});
+	connect(page, &StartPageWidget::tutorialRequested, this, &MainWindow::on_actionTutorial_triggered);
+	connect(page, &StartPageWidget::lessonRequested, this, &MainWindow::showTutorial);
+	connect(page, &StartPageWidget::shortcutsRequested, this, [this]() {
+		on_actionQuick_Help_triggered();
+		if (_helpDialog)
+			_helpDialog->showShortcutsTab();
+	});
+	connect(page, &StartPageWidget::mouseControlsRequested, this, [this]() {
+		on_actionQuick_Help_triggered();
+		if (_helpDialog)
+			_helpDialog->showMouseControlsTab();
+	});
+
+	QMdiSubWindow* window = _mdiArea->addSubWindow(page);
+	window->setAttribute(Qt::WA_DeleteOnClose);
+	window->setWindowTitle(tr("Start Page"));
+	window->setWindowIcon(QIcon(QStringLiteral(":/icons/res/quick_help.png")));
+	window->showMaximized();
+	_startPageWindow = window;
+
+	// Tabs follow creation order, so move this one to the front.
+	if (QTabBar* tabBar = _mdiArea->findChild<QTabBar*>())
+	{
+		const int last = tabBar->count() - 1;
+		if (last > 0)
+			tabBar->moveTab(last, 0);
+	}
+
 	if (automatic)
-		WhatsNewDialog::markShown();
-	_whatsNewDialog->show();
-	_whatsNewDialog->raise();
-	_whatsNewDialog->activateWindow();
+		WhatsNew::markShown();
+
+	if (!(automatic && documentOpen))
+	{
+		_mdiArea->setActiveSubWindow(window);
+		activateDocument(nullptr);
+	}
+	else if (_activeDocument)
+	{
+		// showMaximized() above can make the new tab current; give the open document back its place.
+		if (auto* documentWindow = qobject_cast<QMdiSubWindow*>(_activeDocument->parentWidget()))
+			_mdiArea->setActiveSubWindow(documentWindow);
+	}
 }
 
 void MainWindow::on_actionQuick_Help_triggered()
@@ -2475,16 +2549,8 @@ void MainWindow::showEvent(QShowEvent* event)
 			mdiTabBar->setAutoHide(false);
 		}
 
-		QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
-		if (WhatsNewDialog::dueOnStartup(settings))
-		{
-			// Once per version: What's New instead of (not on top of) the Quick Help popup, which is still one click away in it.
-			QTimer::singleShot(150, this, [this]() { showWhatsNew(true); });
-		}
-		else if (settings.value("showQuickHelpOnStartup", true).toBool())
-		{
-			QTimer::singleShot(150, this, &MainWindow::on_actionQuick_Help_triggered);
-		}
+		// The Start Page that replaces the old startup popups (Quick Help and What's New) is opened by main() through
+		// showStartPageIfDue(), before the splash screen closes.
 
 		_bFirstTime = false;
 	}
@@ -3315,7 +3381,11 @@ void MainWindow::openRecentFile()
 	if (!action)
 		return;
 
-	const QString filePath = action->data().toString();
+	openRecentFilePath(action->data().toString());
+}
+
+void MainWindow::openRecentFilePath(const QString& filePath)
+{
 	if (filePath.isEmpty())
 		return;
 

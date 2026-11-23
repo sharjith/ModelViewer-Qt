@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QMainWindow>
+#include <QPointer>
 #include <QSettings>
 #include <QMap>
 #include <atomic>
@@ -144,6 +145,9 @@ public:
 	static QStringList readRecentFiles(QSettings& settings);
 	static void writeRecentFiles(const QStringList& files, QSettings& settings);
 
+	// The startup rule: opens the Start Page unless the user switched it off (and this version's What's New is already seen).
+	void showStartPageIfDue();
+
 protected:
 	bool eventFilter(QObject* watched, QEvent* event) override;
 	MainWindow(QWidget* parent = Q_NULLPTR);
@@ -155,6 +159,7 @@ protected:
 protected slots:
 	void on_actionExit_triggered(bool checked = false);
 	void on_actionWhatsNew_triggered();
+	void on_actionStartPage_triggered();
 	void on_actionQuick_Help_triggered();
 	void on_actionTutorial_triggered();
 	void on_actionUserGuide_triggered();
@@ -184,6 +189,7 @@ private slots:
 	void updateRecentFileActions();
     void removeFromRecentFiles(const QString& fileName);
 	void openRecentFile();
+	void openRecentFilePath(const QString& filePath); // what a recent-files entry does (also used by the Start Page)
 	void clearRecentFiles();
 	void updateWindowMenu();
 
@@ -388,7 +394,9 @@ private:
 	static std::atomic_bool _fileLoadCancelRequested;
 
 	static QuickHelpDialog* _helpDialog;
-	static class WhatsNewDialog* _whatsNewDialog;
-	void showWhatsNew(bool automatic); // automatic: opened by the once-per-version startup rule
+	// The Start Page tab (one instance): created on first use, otherwise brought to the front. automatic = the startup rule,
+	// which also counts this version's What's New as seen and does not steal focus from a document that is already open.
+	void showStartPage(bool automatic);
+	QPointer<QMdiSubWindow> _startPageWindow;
 	void showTutorial(int lesson);     // lesson 0 = the tutorial home; asks for the display method unless a choice is remembered
 };

@@ -47,6 +47,7 @@
     <property name="title">
      <string>Help</string>
     </property>
+    <addaction name="actionStartPage"/>
     <addaction name="actionWhatsNew"/>
     <addaction name="actionQuick_Help"/>
     <addaction name="actionTutorial"/>
@@ -1076,6 +1077,18 @@
   <action name="actionVisualizationSeparator">
    <property name="separator">
     <bool>true</bool>
+   </property>
+  </action>
+  <action name="actionStartPage">
+   <property name="icon">
+    <iconset resource="../ModelViewer.qrc">
+     <normaloff>:/icons/res/quick_help.png</normaloff>:/icons/res/quick_help.png</iconset>
+   </property>
+   <property name="text">
+    <string>Start Page</string>
+   </property>
+   <property name="statusTip">
+    <string>Open the Start Page: recent files, samples and what's new</string>
    </property>
   </action>
   <action name="actionWhatsNew">

@@ -17,12 +17,11 @@ public:
     explicit QuickHelpDialog(QWidget* parent = nullptr);
     ~QuickHelpDialog() override = default;
 
+    void showShortcutsTab();      // the Start Page's "View Shortcuts" button
+    void showMouseControlsTab();  // ... and "Mouse Controls"
+
 private:
     void setupUI();
-    void setupHomeTab();
-    QWidget* createSampleModelButton(QWidget* parent, const QString& iconResourcePath,
-        const QString& label, const QString& relativeModelPath);
-    void openSampleModel(const QString& relativeModelPath);
     void setupMouseControlsTab();
     void setupKeyboardShortcutsTab();
     void setupViewToolbarTab();
@@ -42,7 +41,6 @@ private:
     QString createTable(const QStringList& headers, const QList<QStringList>& rows);
 
     QTabWidget* _tabWidget;
-    QWidget* _homeTab;
     QTextBrowser* _mouseControlsBrowser;
     QTextBrowser* _keyboardBrowser;
     QTextBrowser* _toolbarBrowser;
@@ -57,5 +55,4 @@ private:
     QTextBrowser* _analysisBrowser;
     QTextBrowser* _tipsBrowser;
     QPushButton* _closeButton;
-	QCheckBox* _showOnStartupCheckBox;
 };

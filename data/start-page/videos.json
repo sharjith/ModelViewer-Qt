@@ -1,0 +1,100 @@
+{
+  "channelUrl": "https://www.youtube.com/@ModelViewerQt",
+  "playlistUrl": "https://www.youtube.com/playlist?list=PLffd2GzvPeAY",
+  "videos": [
+    {
+      "id": "iHZfRz07V-A",
+      "number": 0,
+      "title": "Intro - ModelViewer 2026.11 - free CAD, simulation and ray-tracing viewer (trailer)",
+      "thumb": "thumbs/trailer.jpg",
+      "credit": "Car Concept model by Eric Chadwick, CC BY 4.0 (Khronos glTF Sample Assets)."
+    },
+    {
+      "id": "jy8l0AzggTw",
+      "number": 1,
+      "title": "Open a CAD or 3D model and find your way around (free, no CAD licence)",
+      "thumb": "thumbs/t01.jpg"
+    },
+    {
+      "id": "g1VfFcI8L2U",
+      "number": 2,
+      "title": "Materials, lighting and environments in ModelViewer",
+      "thumb": "thumbs/t02.jpg"
+    },
+    {
+      "id": "HyOEI9thi-k",
+      "number": 3,
+      "title": "Exploded views, section cuts and clean wireframes for CAD assemblies",
+      "thumb": "thumbs/t03.jpg"
+    },
+    {
+      "id": "FAWAq6GzFRw",
+      "number": 4,
+      "title": "Measure, annotate and export a PDF report from a STEP model",
+      "thumb": "thumbs/t04.jpg"
+    },
+    {
+      "id": "5_IYoTOkDjI",
+      "number": 5,
+      "title": "View FEM results for free: stress, deformation and time steps",
+      "thumb": "thumbs/t05.jpg"
+    },
+    {
+      "id": "yeQOFG5ncbw",
+      "number": 6,
+      "title": "Look inside a simulation result: sections, iso-surfaces, streamlines, volume",
+      "thumb": "thumbs/t06.jpg"
+    },
+    {
+      "id": "vmj6744QUeI",
+      "number": 7,
+      "title": "Probe, chart and compare simulation results",
+      "thumb": "thumbs/t07.jpg"
+    },
+    {
+      "id": "DJo6ADCxxyc",
+      "number": 8,
+      "title": "3D plots from CSV and from formulas (like matplotlib, but interactive)",
+      "thumb": "thumbs/t08.jpg"
+    },
+    {
+      "id": "FFrf6tfv-OA",
+      "number": 9,
+      "title": "Play pathlines and simulation results together",
+      "thumb": "thumbs/t09.jpg"
+    },
+    {
+      "id": "Ios48Wl2PAc",
+      "number": 10,
+      "title": "Mesh repair, fill holes, subdivide and shrink wrap",
+      "thumb": "thumbs/t10.jpg",
+      "credit": "Forklift model by Madana, GrabCAD Community Library (grabcad.com/library/forklift-92); shown for non-commercial educational demonstration."
+    },
+    {
+      "id": "ct4ZKiRvAlY",
+      "number": 11,
+      "title": "Surface analysis: zebra stripes, draft angle, wall thickness, mass",
+      "thumb": "thumbs/t11.jpg"
+    },
+    {
+      "id": "i5wB6822Hxs",
+      "number": 12,
+      "title": "Ray tracing in ModelViewer: from preview to a 4K render",
+      "thumb": "thumbs/t12.jpg",
+      "credit": "Car Concept model by Eric Chadwick, CC BY 4.0 (Khronos glTF Sample Assets)."
+    },
+    {
+      "id": "Kxsqd7w7pHk",
+      "number": 13,
+      "title": "glTF and the KHR material extensions: clearcoat, glass, iridescence, sheen, and more",
+      "thumb": "thumbs/t13.jpg"
+    },
+    {
+      "id": "qIYtOrHaNXk",
+      "number": 14,
+      "title": "Animations in ModelViewer: node, skin and morph animation, controls and glTF cameras",
+      "thumb": "thumbs/t14.jpg",
+      "credit": "Fox model by PixelMannen (CC0), rigging and animation by tomkranis, glTF conversion by Asobo Studio and scurest (CC BY 4.0)."
+    }
+  ]
+}
