@@ -46,7 +46,6 @@
 #include <StepRepr_NextAssemblyUsageOccurrence.hxx>
 #include <TCollection_AsciiString.hxx>
 #include <TCollection_HAsciiString.hxx>
-#include <TDF_LabelSequence.hxx>
 #include <TDataStd_AsciiString.hxx>
 #include "StepProductIdentity.h"
 #include <set>

@@ -14,7 +14,7 @@
 #include <BRep_TEdge.hxx>
 #include <BRep_CurveRepresentation.hxx>
 #include <TopExp.hxx>
-#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
+#include "OcctDeprecatedAliases.h"
 #include <BRepGraph.hxx>
 #include <BRepGraph_EditorView.hxx>
 #include <BRepGraph_ShapesView.hxx>
