@@ -244,6 +244,8 @@ private:
     void captureAppliedState();
     void syncStateFromUi();
     void updateSettingsHint();
+    QStringList xtSchemaFolderList() const;
+    void refreshXtSchemaStatus();
     void refreshViewCubeAvailability();
     void setDefaultValues();
     void applySettings();    

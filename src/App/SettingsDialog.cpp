@@ -36,9 +36,16 @@ int defaultLevelIndex(const QComboBox* combo, double limit)
 
 // A stored index counts only while it still points at an entry of the (GPU-dependent) list.
 // Status line under the Parasolid schema folder field: what the importer will find in it.
-QString xtSchemaStatusText(const QString& folder)
+QString xtSchemaStatusText(const QString& folders)
 {
-    const QString text = folder.trimmed();
+    const QStringList parts = folders.split(QLatin1Char(';'), Qt::SkipEmptyParts);
+    if (parts.size() > 1) {
+        QStringList lines;
+        for (const QString& part : parts)
+            lines << QDir::toNativeSeparators(part.trimmed()) + QStringLiteral(": ") + xtSchemaStatusText(part.trimmed());
+        return lines.join(QLatin1Char(10));
+    }
+    const QString text = folders.trimmed().remove(QLatin1Char(';'));
     if (text.isEmpty())
         return QObject::tr("Automatic: the schema folder next to the application, or MODELVIEWER_XT_SCHEMA_DIR.");
     const QDir dir(text);
@@ -176,15 +183,34 @@ SettingsDialog::SettingsDialog(QWidget *parent) :
 
     loadSettings();
 
-    connect(ui->xtSchemaDirLineEdit, &QLineEdit::textChanged, this, [this](const QString& text) {
-        ui->xtSchemaDirStatusLabel->setText(xtSchemaStatusText(text));
+    connect(ui->xtSchemaDirAddButton, &QPushButton::clicked, this, [this]() {
+        QListWidget* list = ui->xtSchemaDirList;
+        const QString start = list->count() > 0 ? list->item(list->count() - 1)->text() : QDir::homePath();
+        const QString chosen = QFileDialog::getExistingDirectory(this, tr("Add Parasolid Schema Folder"), start);
+        if (chosen.isEmpty())
+            return;
+        const QString native = QDir::toNativeSeparators(chosen);
+        if (list->findItems(native, Qt::MatchFixedString).isEmpty())
+            list->addItem(native);
+        list->setCurrentRow(list->count() - 1);
+        refreshXtSchemaStatus();
     });
-    connect(ui->xtSchemaDirBrowseButton, &QPushButton::clicked, this, [this]() {
-        const QString start = ui->xtSchemaDirLineEdit->text().trimmed().isEmpty() ? QDir::homePath() : ui->xtSchemaDirLineEdit->text().trimmed();
-        const QString chosen = QFileDialog::getExistingDirectory(this, tr("Parasolid Schema Folder"), start);
-        if (!chosen.isEmpty())
-            ui->xtSchemaDirLineEdit->setText(QDir::toNativeSeparators(chosen));
+    connect(ui->xtSchemaDirRemoveButton, &QPushButton::clicked, this, [this]() {
+        delete ui->xtSchemaDirList->takeItem(ui->xtSchemaDirList->currentRow());
+        refreshXtSchemaStatus();
     });
+    auto moveSchemaFolder = [this](int delta) {
+        QListWidget* list = ui->xtSchemaDirList;
+        const int row = list->currentRow();
+        const int target = row + delta;
+        if (row < 0 || target < 0 || target >= list->count())
+            return;
+        list->insertItem(target, list->takeItem(row));
+        list->setCurrentRow(target);
+        refreshXtSchemaStatus();
+    };
+    connect(ui->xtSchemaDirUpButton, &QPushButton::clicked, this, [moveSchemaFolder]() { moveSchemaFolder(-1); });
+    connect(ui->xtSchemaDirDownButton, &QPushButton::clicked, this, [moveSchemaFolder]() { moveSchemaFolder(1); });
 
     connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this]() {
         updateSettingsHint();
@@ -490,7 +516,7 @@ void SettingsDialog::applySettings()
     settings.setValue("threeDxmlThreads", ui->threeDxmlThreadsSpinBox->value());
     settings.setValue("threeDxmlParallelMin", ui->threeDxmlParallelMinSpinBox->value());
     settings.setValue("inventorStrict", ui->inventorStrictCheckBox->isChecked());
-    settings.setValue("xtSchemaDir", ui->xtSchemaDirLineEdit->text().trimmed());
+    settings.setValue("xtSchemaDir", xtSchemaFolderList().join(QLatin1Char(';')));
 
     if (general_showTutorialLauncher)
     {
@@ -683,8 +709,8 @@ void SettingsDialog::setDefaultValues()
     ui->threeDxmlThreadsSpinBox->setValue(0);
     ui->threeDxmlParallelMinSpinBox->setValue(8);
     ui->inventorStrictCheckBox->setChecked(false);
-    ui->xtSchemaDirLineEdit->clear();
-    ui->xtSchemaDirStatusLabel->setText(xtSchemaStatusText(QString()));
+    ui->xtSchemaDirList->clear();
+    refreshXtSchemaStatus();
 }
 
 void SettingsDialog::captureAppliedState()
@@ -847,6 +873,19 @@ void SettingsDialog::syncStateFromUi()
     debug_consoleBufferLines = ui->consoleBufferLinesSpinBox->value();
     debug_profileRendering = ui->profileRenderingCheckBox->isChecked();
     debug_showTextureDebugPanel = ui->showTextureDebugPanelCheckBox->isChecked();
+}
+
+QStringList SettingsDialog::xtSchemaFolderList() const
+{
+    QStringList folders;
+    for (int i = 0; i < ui->xtSchemaDirList->count(); ++i)
+        folders << ui->xtSchemaDirList->item(i)->text();
+    return folders;
+}
+
+void SettingsDialog::refreshXtSchemaStatus()
+{
+    ui->xtSchemaDirStatusLabel->setText(xtSchemaStatusText(xtSchemaFolderList().join(QLatin1Char(';'))));
 }
 
 void SettingsDialog::loadSettings()
@@ -1078,8 +1117,11 @@ void SettingsDialog::loadSettings()
     ui->threeDxmlThreadsSpinBox->setValue(settings.value("threeDxmlThreads", 0).toInt());
     ui->threeDxmlParallelMinSpinBox->setValue(settings.value("threeDxmlParallelMin", 8).toInt());
     ui->inventorStrictCheckBox->setChecked(settings.value("inventorStrict", false).toBool());
-    ui->xtSchemaDirLineEdit->setText(settings.value("xtSchemaDir").toString());
-    ui->xtSchemaDirStatusLabel->setText(xtSchemaStatusText(ui->xtSchemaDirLineEdit->text()));
+    ui->xtSchemaDirList->clear();
+    for (const QString& folder : settings.value("xtSchemaDir").toString().split(QLatin1Char(';'), Qt::SkipEmptyParts))
+        if (!folder.trimmed().isEmpty())
+            ui->xtSchemaDirList->addItem(QDir::toNativeSeparators(folder.trimmed()));
+    refreshXtSchemaStatus();
 
     blockAllChildWidgetSignals(false);
     syncStateFromUi();

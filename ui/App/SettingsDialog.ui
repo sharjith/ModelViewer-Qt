@@ -2617,33 +2617,82 @@ axis</string>
             <item row="0" column="0">
              <widget class="QLabel" name="xtSchemaDirLabel">
               <property name="text">
-               <string>Schema Folder:</string>
+               <string>Schema Folders:</string>
               </property>
              </widget>
             </item>
             <item row="0" column="1">
              <layout class="QHBoxLayout" name="xtSchemaDirLayout">
               <item>
-               <widget class="QLineEdit" name="xtSchemaDirLineEdit">
-                <property name="toolTip">
-                 <string>Folder with the Parasolid schema files (sch_13006.sch_txt,
-  sch_36001.sch_txt ...). They give the record layout of every
-  Parasolid version, so X_T files that carry no schema of their
-  own can be read. Leave empty to look in the "schema" folder
-  next to the application.
-  Override: MODELVIEWER_XT_SCHEMA_DIR.</string>
+               <widget class="QListWidget" name="xtSchemaDirList">
+                <property name="maximumSize">
+                 <size>
+                  <width>16777215</width>
+                  <height>110</height>
+                 </size>
                 </property>
-                <property name="placeholderText">
-                 <string>Automatic</string>
+                <property name="toolTip">
+                 <string>Folders with the Parasolid schema files
+  (sch_13006.sch_txt, sch_36001.sch_txt ...). They give the record
+  layout of every Parasolid version, so X_T files that carry no
+  schema of their own can be read. A schema is looked up in the
+  folders in the order listed. With no folder listed, the "schema"
+  folder next to the application is used.
+  Override: MODELVIEWER_XT_SCHEMA_DIR (folders separated by ';').</string>
+                </property>
+                <property name="selectionMode">
+                 <enum>QAbstractItemView::SingleSelection</enum>
                 </property>
                </widget>
               </item>
               <item>
-               <widget class="QPushButton" name="xtSchemaDirBrowseButton">
+               <layout class="QVBoxLayout" name="xtSchemaDirButtonLayout">
+              <item>
+               <widget class="QPushButton" name="xtSchemaDirAddButton">
                 <property name="text">
-                 <string>Browse...</string>
+                 <string>Add...</string>
+                </property>
+                <property name="toolTip">
+                 <string>Add a schema folder to the list.</string>
                 </property>
                </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="xtSchemaDirRemoveButton">
+                <property name="text">
+                 <string>Remove</string>
+                </property>
+                <property name="toolTip">
+                 <string>Remove the selected folder from the list.</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="xtSchemaDirUpButton">
+                <property name="text">
+                 <string>Up</string>
+                </property>
+                <property name="toolTip">
+                 <string>Search the selected folder earlier.</string>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QPushButton" name="xtSchemaDirDownButton">
+                <property name="text">
+                 <string>Down</string>
+                </property>
+                <property name="toolTip">
+                 <string>Search the selected folder later.</string>
+                </property>
+               </widget>
+              </item>
+               <spacer name="xtSchemaDirButtonSpacer">
+                <property name="orientation">
+                 <enum>Qt::Vertical</enum>
+                </property>
+               </spacer>
+               </layout>
               </item>
              </layout>
             </item>
