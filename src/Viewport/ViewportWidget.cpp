@@ -22991,8 +22991,8 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			contextMenu.addAction(QIcon(":/icons/res/mesh_union.png"), tr("Mesh Union"), _viewer, &ModelViewer::unionSelectedMeshes);
 			contextMenu.addAction(QIcon(":/icons/res/group_meshes.png"), tr("Group"), _viewer, &ModelViewer::groupSelectedMeshes);
 			contextMenu.addSeparator();
-			contextMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy"),   _viewer, &ModelViewer::copySelectedItems);
-			contextMenu.addAction(QIcon(":/icons/res/cut.png"), tr("Cut"),    _viewer, &ModelViewer::cutSelectedItems);
+			contextMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy") + QLatin1Char('\t') + QKeySequence(QKeySequence::Copy).toString(QKeySequence::NativeText), _viewer, &ModelViewer::copySelectedItems);
+			contextMenu.addAction(QIcon(":/icons/res/cut.png"), tr("Cut") + QLatin1Char('\t') + QKeySequence(QKeySequence::Cut).toString(QKeySequence::NativeText), _viewer, &ModelViewer::cutSelectedItems);
 			contextMenu.addAction(QIcon(":/icons/res/delete.png"), tr("Delete"), _viewer, &ModelViewer::deleteSelectedItems);
 			contextMenu.addSeparator();
 			contextMenu.addAction(QIcon(":/icons/res/mesh_info.png"), tr("Mesh Info"), _viewer, &ModelViewer::displaySelectedMeshInfo);
@@ -23091,7 +23091,7 @@ void ViewportWidget::showContextMenu(const QPoint& pos)
 			if (ModelViewer::hasClipboardContent())
 			{
 				contextMenu.addSeparator();
-				action = contextMenu.addAction(QIcon(":/icons/res/paste.png"), tr("Paste"));
+				action = contextMenu.addAction(QIcon(":/icons/res/paste.png"), tr("Paste") + QLatin1Char('\t') + QKeySequence(QKeySequence::Paste).toString(QKeySequence::NativeText));
 				connect(action, &QAction::triggered, this, [this]() {
 					_viewer->pasteIntoSelectedNode(_viewer->sceneGraph()->root());
 					});

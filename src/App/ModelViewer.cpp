@@ -2918,12 +2918,12 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	}
 
 	// ---- Copy / Cut --------------------------------------------------------
-	myMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy"), this, [this, &actionTaken]() {
+	myMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy") + QLatin1Char('\t') + QKeySequence(QKeySequence::Copy).toString(QKeySequence::NativeText), this, [this, &actionTaken]() {
 		actionTaken = true;
 		copySelectedItems();
 	});
 
-	myMenu.addAction(QIcon(":/icons/res/cut.png"), tr("Cut"), this, [this, &actionTaken]() {
+	myMenu.addAction(QIcon(":/icons/res/cut.png"), tr("Cut") + QLatin1Char('\t') + QKeySequence(QKeySequence::Cut).toString(QKeySequence::NativeText), this, [this, &actionTaken]() {
 		actionTaken = true;
 		cutSelectedItems();
 	});
@@ -2931,7 +2931,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// ---- Paste (assembly target only, clipboard must be non-empty) ---------
 	if (clickedAssembly && assemblyNode && !s_clipboard.isEmpty())
 	{
-		myMenu.addAction(QIcon(":/icons/res/paste.png"), tr("Paste"), this,
+		myMenu.addAction(QIcon(":/icons/res/paste.png"), tr("Paste") + QLatin1Char('\t') + QKeySequence(QKeySequence::Paste).toString(QKeySequence::NativeText), this,
 		    [this, assemblyNode, &actionTaken]() {
 		        actionTaken = true;
 		        pasteIntoSelectedNode(assemblyNode);
@@ -3494,6 +3494,22 @@ static PasteCommand::PastedItem pasteLeafAsRootChild(SceneGraph* sceneGraph, Sce
 	item.childPosition    = childPos;
 	item.subtreeMeshUuids = { clone->uuid() };
 	return item;
+}
+
+void ModelViewer::pasteFromShortcut()
+{
+	if (s_clipboard.isEmpty() || !_sceneGraph)
+		return;
+
+	const SceneNode* target = nullptr;
+	if (const QTreeWidgetItem* current = treeWidgetModel->currentItem(); current && !treeWidgetModel->selectedItems().isEmpty())
+	{
+		if (current->data(0, SceneTreeWidget::IsLeafRole).toBool())
+			target = _sceneGraph->findNodeForMesh(current->data(0, SceneTreeWidget::MeshUuidRole).value<QUuid>());
+		else
+			target = _sceneGraph->findNodeByUuid(current->data(0, SceneTreeWidget::NodeUuidRole).value<QUuid>());
+	}
+	pasteIntoSelectedNode(target ? target : _sceneGraph->root());
 }
 
 void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
