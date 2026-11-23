@@ -145,6 +145,21 @@ Reading: the green, red and magenta per-shape colours are authored only on the c
 
 Qualification limits: attributes read from the file graph only (external partitions not followed); the NX behaviour is an owner screenshot, not a measurement; shape counts include repeated geometry.
 
+## Tolerant-edge loop fix and regression comparison (23 November 2026)
+
+Cause (observation): the 43 `wild-edge` rejections in the 17 m stream were three distinct tolerant edges, each a 63.3 mm arc whose two vertices are 1.81 mm apart (a nearly closed circle with a small gap covered by another edge). `XtOcct.cpp` rejected a long curve between close vertices unless the curve's own ends were within 1 percent of its length; this gap is 2.9 percent. A tolerant edge's curve is the authored sub-range of its SP-curve, so it cannot be a vertex projected onto the wrong part of a curve.
+
+Change (working tree, not committed): for tolerant edges only, the wild-edge test is skipped when the curve ends on both vertices (within the larger of the vertex tolerances and 0.02 mm). Statistic `tolerant-loop-kept`. `XT_NO_TOLERANT_LOOP=1` restores the old behaviour for comparison.
+
+Comparison method: the same binary with and without `XT_NO_TOLERANT_LOOP=1`; the 390 JT streams (`tools/jt/run_xt_elements.sh`) and the X_T samples up to 60 MB (14 files, `parasolid_xt_shapes - <file> --schema-dir <dir> --mesh`, face tables for the files that changed).
+
+Observations:
+
+- JT streams: 388 unchanged, 2 improved, 0 worse. The 17 m stream now builds 11 of 11 faces and 64 of 64 edges and is a valid closed body (40 by 40 by 42 mm). The stream at offset 1432123 of JT-fbb0276a builds 18 of 18 faces and 56 of 56 edges, closed, but BRepCheck still reports it invalid.
+- X_T samples: 10 of the 14 files give identical face counts and validity. In the XS650 assembly one blended-edge face (area 1.2 mm squared) that was omitted is now filled with a poor patch (largest dihedral 90 degrees, BRepCheck invalid) and the free edges of the body fall from 151 to 145. In the hanger mold one cylinder face (area 793 mm squared, 52 mm across) that was omitted is now filled with an invalid patch (largest dihedral 110 degrees, 3 free edges) while two other faces lose a free edge. The mold file differs only in the sixth digit of its volume. One file (Engine Issue) differed in the batch summary (one more built face, one more face rejected by the viewer's triangulation check) but not in its face table, so that difference may not be repeatable.
+
+Qualification limits: counts and BRepCheck, no visual check of the filled faces; larger files (B4T, Volvo) were not run.
+
 ## Next steps (not started)
 
 1. Green and red parts: provenance established above; remaining decision is the owner's default-material policy (finest or part-level colour against coarsest-authored colour).
