@@ -2132,6 +2132,23 @@ TopoDS_Edge Builder::edgeForImpl(const Node& edge) {
                     ++res.stats.edgesSkippedByCurve["loop-edge-kept"];
                 }
             }
+            if (wild && !curveIndex && startV && endV && !std::getenv("XT_NO_TOLERANT_LOOP")) {
+                // A tolerant edge's curve is the authored sub-range of its SP-curve, so it cannot be a vertex projected onto
+                // the wrong part of a curve. A long arc between two vertices that are close together is then a real edge
+                // (a nearly closed circle whose small gap is covered by another edge) when the curve ends on both vertices.
+                const TopoDS_Vertex vs = vertexFor(startV->index), ve = vertexFor(endV->index);
+                if (!vs.IsNull() && !ve.IsNull()) {
+                    const double reach = std::max({BRep_Tool::Tolerance(vs), BRep_Tool::Tolerance(ve), 2e-5 * scale});
+                    const gp_Pnt a = curve->Value(first), b = curve->Value(last);
+                    const gp_Pnt ps = BRep_Tool::Pnt(vs), pe = BRep_Tool::Pnt(ve);
+                    const bool straight = a.Distance(ps) <= reach && b.Distance(pe) <= reach;
+                    const bool swapped = a.Distance(pe) <= reach && b.Distance(ps) <= reach;
+                    if (straight || swapped) {
+                        wild = false;
+                        ++res.stats.edgesSkippedByCurve["tolerant-loop-kept"];
+                    }
+                }
+            }
             if (wild) {
                 if (std::getenv("XT_DEBUG_TOL"))
                     std::fprintf(stderr, "wild kind=%s length=%g chord=%g range=[%g %g] per=%d same=%d full=[%g %g] ends-gap=%g\n", ci.kind.c_str(), length, chord, first, last, (int)curve->IsPeriodic(), (int)sameVertex, curve->FirstParameter(), curve->LastParameter(), curve->Value(curve->FirstParameter()).Distance(curve->Value(curve->LastParameter())));
