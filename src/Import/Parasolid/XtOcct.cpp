@@ -468,7 +468,9 @@ Handle(Geom_BSplineSurface) Builder::nurbsSurface(const Node& nurbs) {
     const int dim = static_cast<int>(num(nurbs, "NURBS_SURF", "vertex_dim"));
     bool uPer = num(nurbs, "NURBS_SURF", "u_periodic") == 'T';
     bool vPer = num(nurbs, "NURBS_SURF", "v_periodic") == 'T';
-    const bool rational = num(nurbs, "NURBS_SURF", "rational") == 'T';
+    // A homogeneous net (vertex_dim 4: x*w, y*w, z*w, w) is rational whatever the flag says: a JT-embedded stream carries a rational
+    // surface of revolution with the flag clear, and the surface would otherwise be rejected as inconsistent.
+    const bool rational = num(nurbs, "NURBS_SURF", "rational") == 'T' || (dim == 4 && !std::getenv("XT_NO_DIM4_RATIONAL"));
     const Node* verts = node(ptr(nurbs, "NURBS_SURF", "bspline_vertices"));
     const Node* um = node(ptr(nurbs, "NURBS_SURF", "u_knot_mult"));
     const Node* vm = node(ptr(nurbs, "NURBS_SURF", "v_knot_mult"));
@@ -3732,6 +3734,33 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
                         faceSurface = periodic;
                         bb.UpdateFace(f, faceSurface, TopLoc_Location(), kXtTolerance * scale);
                         trace("periodic-spline-ring-chart", face.index);
+                    }
+                }
+            } catch (const Standard_Failure&) {
+            }
+            // The same for a chart closed in V (a surface of revolution whose profile runs along U, such as a rounded rim): the ring
+            // wires are iso-curves at the two ends of U and each runs once around V.
+            try {
+                const auto spline = Handle(Geom_BSplineSurface)::DownCast(faceSurface);
+                if (!spline.IsNull() && spline->IsVClosed() && !spline->IsVPeriodic() && !spline->IsUClosed() && !std::getenv("XT_NO_V_RING")) {
+                    const auto periodic = Handle(Geom_BSplineSurface)::DownCast(spline->Copy());
+                    periodic->SetVPeriodic();
+                    const int first = periodic->FirstVKnotIndex();
+                    const int last = periodic->LastVKnotIndex();
+                    if (last - first > 1)
+                        periodic->SetVOrigin(first + (last - first) / 2);
+                    double u0, u1, v0, v1;
+                    spline->Bounds(u0, u1, v0, v1);
+                    bool equivalent = std::abs(periodic->VPeriod() - (v1 - v0)) <= Precision::PConfusion();
+                    for (int u = 0; u <= 8 && equivalent; ++u)
+                        for (int v = 0; v <= 8 && equivalent; ++v) {
+                            const double x = u0 + (u1 - u0) * u / 8, y = v0 + (v1 - v0) * v / 8;
+                            equivalent = spline->Value(x, y).Distance(periodic->Value(x, y)) <= kXtTolerance * scale;
+                        }
+                    if (equivalent) {
+                        faceSurface = periodic;
+                        bb.UpdateFace(f, faceSurface, TopLoc_Location(), kXtTolerance * scale);
+                        trace("periodic-spline-ring-chart-v", face.index);
                     }
                 }
             } catch (const Standard_Failure&) {
