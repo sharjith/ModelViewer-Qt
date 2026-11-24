@@ -368,6 +368,10 @@ int main(int argc, char** argv) {
     std::printf("faces: %zu built of %zu; edges: %zu built of %zu; tolerant-skipped %zu; direction conflicts %zu\n",
                 r.stats.facesBuilt, r.stats.faces, r.stats.edgesBuilt, r.stats.edges, r.stats.tolerantEdgesSkipped,
                 r.stats.edgeDirectionConflicts);
+    std::printf("JT exact gate: faces %zu/%zu, edges %zu/%zu, skipped-by-surface %zu, skipped-by-curve %zu, tolerant-skipped %zu, direction conflicts %zu, unsupported transform %zu, approximated %zu, missing occurrences %zu, diagnostics %zu, bodies %zu/%zu, instances %zu\n",
+                r.stats.facesBuilt, r.stats.faces, r.stats.edgesBuilt, r.stats.edges, r.stats.facesSkippedBySurface.size(), r.stats.edgesSkippedByCurve.size(), r.stats.tolerantEdgesSkipped,
+                r.stats.edgeDirectionConflicts, r.stats.instancesWithUnsupportedTransform, r.stats.approximatedGeometry, r.stats.missingOccurrences,
+                r.diagnostics.size(), r.stats.bodies, r.bodies.size(), r.instances.size());
     for (const auto& kv : r.stats.surfacesBuilt) std::printf("  surfaces built %-14s %zu\n", kv.first.c_str(), kv.second);
     for (const auto& kv : r.stats.facesSkippedBySurface) std::printf("  faces skipped  %-14s %zu\n", kv.first.c_str(), kv.second);
     for (const auto& kv : r.stats.orientationFlips) std::printf("  orientation corrected %-14s %zu\n", kv.first.c_str(), kv.second);
@@ -641,6 +645,43 @@ int main(int argc, char** argv) {
         params.Relative = true;
         params.InParallel = true;
         params.AllowQualityDecrease = true;
+        if (const char* ac = std::getenv("XT_ANGLE_CHECK")) {
+            // Research aid: "faceA,faceB,cx,cz[,absolute deflection]" - meshes the bodies (relative 0.1, or absolute when given) and reports how many
+            // vertex angles (about the Y axis through cx,cz) of face A also occur on face B, i.e. whether two cylinders on one surface are cut alike.
+            long long idA = 0, idB = 0; double cx = 0, cz = 0, absolute = 0;
+            std::sscanf(ac, "%lld,%lld,%lf,%lf,%lf", &idA, &idB, &cx, &cz, &absolute);
+            for (const auto& body : r.bodies) {
+                IMeshTools_Parameters p2 = params;
+                p2.InParallel = false;
+                if (absolute > 0) { p2.Relative = false; p2.Deflection = absolute; }
+                BRepMesh_IncrementalMesh bodyMesher(body.shape, p2);
+            }
+            const auto anglesOf = [&](long long id) {
+                std::vector<double> angles;
+                for (const auto& body : r.bodies) {
+                    const auto it = body.faceOutcomes.find(id);
+                    if (it == body.faceOutcomes.end() || !it->second.shape) continue;
+                    for (TopExp_Explorer ex(body.shape, TopAbs_FACE); ex.More(); ex.Next()) {
+                        if (ex.Current().TShape().get() != it->second.shape) continue;
+                        TopLoc_Location l;
+                        const auto t = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), l);
+                        if (t.IsNull()) continue;
+                        for (int i = 1; i <= t->NbNodes(); ++i) {
+                            const gp_Pnt q = t->Node(i).Transformed(l.Transformation());
+                            angles.push_back(std::atan2(q.Z() - cz, q.X() - cx));
+                        }
+                    }
+                }
+                std::sort(angles.begin(), angles.end());
+                std::vector<double> distinct;
+                for (double a : angles) if (distinct.empty() || a - distinct.back() > 1e-6) distinct.push_back(a);
+                return distinct;
+            };
+            const auto a = anglesOf(idA), b = anglesOf(idB);
+            size_t shared = 0;
+            for (double x : a) if (std::any_of(b.begin(), b.end(), [&](double y) { return std::abs(x - y) < 1e-5; })) ++shared;
+            std::printf("angle check %s: face %lld has %zu distinct vertex angles, face %lld has %zu, %zu of the first occur on the second\n", absolute > 0 ? "absolute" : "relative", idA, a.size(), idB, b.size(), shared);
+        }
         if (const char* sw = std::getenv("XT_DEFL_SWEEP")) {
             // Research aid: how the body's own faces mesh at several relative deflections (triangles, area against the exact area).
             const long long bodyId = std::atoll(sw);
