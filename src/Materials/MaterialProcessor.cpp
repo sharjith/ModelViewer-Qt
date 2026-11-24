@@ -24,6 +24,44 @@
 
 using namespace std;
 
+namespace
+{
+// The cache file name of an embedded glTF image. PNG, JPEG and WebP bytes are kept exactly as the file has them (the file
+// extension says which), so an exporter can write the original image back instead of a re-encoded copy (the re-encoded PNG
+// of a photo is many times larger than the JPEG it came from, and encoding it is slow); `rawCopy` tells the caller to write the
+// original bytes. Any other format falls back to a PNG that the caller encodes from the decoded image.
+QString embeddedImageCacheFile(const QString& cacheDir, int imageIndex, const char* data, qsizetype size, bool* rawCopy)
+{
+	const auto byteAt = [data, size](qsizetype i) -> unsigned char { return i < size ? static_cast<unsigned char>(data[i]) : 0; };
+	QString extension;
+	if (size >= 8 && byteAt(0) == 0x89 && byteAt(1) == 'P' && byteAt(2) == 'N' && byteAt(3) == 'G')
+		extension = QStringLiteral("png");
+	else if (size >= 3 && byteAt(0) == 0xFF && byteAt(1) == 0xD8 && byteAt(2) == 0xFF)
+		extension = QStringLiteral("jpg");
+	else if (size >= 12 && byteAt(0) == 'R' && byteAt(1) == 'I' && byteAt(2) == 'F' && byteAt(3) == 'F'
+		&& byteAt(8) == 'W' && byteAt(9) == 'E' && byteAt(10) == 'B' && byteAt(11) == 'P')
+		extension = QStringLiteral("webp");
+	if (rawCopy)
+		*rawCopy = !extension.isEmpty();
+	if (extension.isEmpty())
+		extension = QStringLiteral("png");
+	return cacheDir + QLatin1Char('/') + QStringLiteral("image_%1.%2").arg(imageIndex).arg(extension);
+}
+
+// Writes `bytes` to `path` unchanged; false when the file cannot be written.
+bool writeBytesToFile(const QString& path, const char* data, qsizetype size)
+{
+	QFile out(path);
+	if (!out.open(QIODevice::WriteOnly))
+		return false;
+	const bool good = out.write(data, size) == size;
+	out.close();
+	if (!good)
+		QFile::remove(path);
+	return good;
+}
+}
+
 MaterialProcessor::MaterialProcessor() : _folderPath("")
 {
 }
@@ -1047,7 +1085,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 			// over a minute here, one image at a time. The loop below then finds every file already in place.
 			if (!glbBinaryPtr->isEmpty())
 			{
-				struct CacheJob { const char* data; int size; QString diskPath; bool needsSave; int imgIdx; };
+				struct CacheJob { const char* data; int size; QString diskPath; bool needsSave; int imgIdx; bool rawCopy; };
 				std::vector<CacheJob> cacheJobs;
 				const QString preCacheDir = getGlbCacheDir(gltfPath);
 				for (int imgIdx = 0; imgIdx < jsonImages.size(); ++imgIdx)
@@ -1063,8 +1101,10 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 					const int byteLength = bvObj.value("byteLength").toInt(-1);
 					if (byteLength <= 0 || byteOffset + byteLength > static_cast<int>(glbBinaryPtr->size()))
 						continue;
-					const QString diskPath = preCacheDir + "/" + QString("image_%1.png").arg(imgIdx);
-					cacheJobs.push_back({ glbBinaryPtr->constData() + byteOffset, byteLength, diskPath, !QFile::exists(diskPath), imgIdx });
+					bool rawCopy = false;
+					const char* imageBytes = glbBinaryPtr->constData() + byteOffset;
+					const QString diskPath = embeddedImageCacheFile(preCacheDir, imgIdx, imageBytes, byteLength, &rawCopy);
+					cacheJobs.push_back({ imageBytes, byteLength, diskPath, !QFile::exists(diskPath), imgIdx, rawCopy });
 				}
 				if (!cacheJobs.empty())
 				{
@@ -1083,9 +1123,13 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 								continue;
 							if (job.needsSave)
 							{
-								QImageWriter writer(job.diskPath, "PNG");
-								writer.setQuality(90); // low zlib effort: a temp cache, speed matters more than file size
-								writer.write(image);
+								// PNG / JPEG / WebP: the original bytes, no re-encoding (and the file stays as small as the source).
+								if (!job.rawCopy || !writeBytesToFile(job.diskPath, job.data, job.size))
+								{
+									QImageWriter writer(job.diskPath, "PNG");
+									writer.setQuality(90); // low zlib effort: a temp cache, speed matters more than file size
+									writer.write(image);
+								}
 							}
 							PreparedGlbImage& prepared = preparedImages[static_cast<size_t>(job.imgIdx)];
 							prepared.hasAlpha = checkImageForAlpha(image);
@@ -1179,7 +1223,7 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 						if (preparedImages[imgIdx].ready)
 						{
 							// Decoded, alpha-checked and converted in parallel above; only the upload below stays serial.
-							diskPath = cacheDir + "/" + QString("image_%1.png").arg(imgIdx);
+							diskPath = embeddedImageCacheFile(cacheDir, imgIdx, imageData.constData(), imageData.size(), nullptr);
 							qImg = std::move(preparedImages[imgIdx].glImage);
 							hasAlpha = preparedImages[imgIdx].hasAlpha;
 						}
@@ -1195,15 +1239,16 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 								continue;
 							}
 
-							// Choose format (preserve or standardize)
-							QString fileName = QString("image_%1.png").arg(imgIdx);
-							diskPath = cacheDir + "/" + fileName;
+							// PNG / JPEG / WebP keep the original bytes; anything else is stored as a PNG
+							bool rawCopy = false;
+							diskPath = embeddedImageCacheFile(cacheDir, imgIdx, imageData.constData(), imageData.size(), &rawCopy);
 
 							// Save if not already cached
 							stepClock.restart();
 							if (!QFile::exists(diskPath))
 							{
-								qImg.save(diskPath);
+								if (!rawCopy || !writeBytesToFile(diskPath, imageData.constData(), imageData.size()))
+									qImg.save(diskPath, "PNG");
 							}
 							msSave += stepClock.nsecsElapsed() / 1.0e6;
 
@@ -1403,11 +1448,20 @@ void MaterialProcessor::processGltf2CoreAndExtensions(
 				continue;
 			}
 
+			// The original bytes of a PNG / JPEG / WebP image are kept (see embeddedImageCacheFile); other formats become a PNG.
+			QByteArray originalBytes;
+			const int comma = uri.indexOf(QLatin1Char(','));
+			if (comma > 0 && uri.left(comma).contains(QLatin1String(";base64")))
+				originalBytes = QByteArray::fromBase64(uri.mid(comma + 1).toLatin1());
+
 			QString cacheDir = getGlbCacheDir(gltfPath);
-			QString fileName = QString("image_%1.png").arg(imgIdx);
-			QString diskPath = cacheDir + "/" + fileName;
+			bool rawCopy = false;
+			QString diskPath = embeddedImageCacheFile(cacheDir, imgIdx, originalBytes.constData(), originalBytes.size(), &rawCopy);
 			if (!QFile::exists(diskPath))
-				qImg.save(diskPath);
+			{
+				if (!rawCopy || !writeBytesToFile(diskPath, originalBytes.constData(), originalBytes.size()))
+					qImg.save(diskPath, "PNG");
+			}
 
 			// Map by index-based key (avoids storing multi-MB data URIs as hash keys)
 			QString key = gltfPath + "::dataimage_" + QString::number(imgIdx);
