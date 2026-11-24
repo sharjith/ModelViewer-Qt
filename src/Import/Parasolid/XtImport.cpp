@@ -72,7 +72,14 @@ TopoDS_Shape shapeFromJtElement(const char* data, size_t size, const BuildOption
     // edges that WERE built (chart-refined, tolerant-loop-kept ...), so only the built-of-total counts are tested.
     {
         const BuildStats& s = report.build.stats;
-        const bool complete = s.facesBuilt == s.faces && s.edgesBuilt == s.edges &&
+        // A face filled through its boundary whose inner loops could not be cut out is capped over: a patch covers the hole (the hex
+        // socket of a cap screw), which the stored tessellation does not have. Such a part keeps the stored tessellation.
+        const auto counted = [&s](const char* key) {
+            const auto it = s.facesSkippedBySurface.find(key);
+            return it != s.facesSkippedBySurface.end() && it->second > 0;
+        };
+        const bool holesCapped = counted("  fill-capped-incomplete") || counted("  fill-broken-holes-capped");
+        const bool complete = !holesCapped && s.facesBuilt == s.faces && s.edgesBuilt == s.edges &&
                               s.tolerantEdgesSkipped == 0 && s.edgeDirectionConflicts == 0 && s.instancesWithUnsupportedTransform == 0 &&
                               s.missingOccurrences == 0 && report.build.diagnostics.empty() &&
                               s.bodies == report.build.bodies.size() && !report.build.instances.empty();
