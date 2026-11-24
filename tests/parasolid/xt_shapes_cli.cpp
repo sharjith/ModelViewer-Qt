@@ -32,6 +32,10 @@
 #include <cmath>
 #include <ShapeFix_Face.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
+#include <BRepTopAdaptor_FClass2d.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
+#include <FaceFallbackTriangulator.h>
+#include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopoDS_Face.hxx>
 #include <gp_Vec.hxx>
 #include <gp_Pnt2d.hxx>
@@ -366,6 +370,10 @@ int main(int argc, char** argv) {
     std::printf("faces: %zu built of %zu; edges: %zu built of %zu; tolerant-skipped %zu; direction conflicts %zu\n",
                 r.stats.facesBuilt, r.stats.faces, r.stats.edgesBuilt, r.stats.edges, r.stats.tolerantEdgesSkipped,
                 r.stats.edgeDirectionConflicts);
+    std::printf("JT exact gate: faces %zu/%zu, edges %zu/%zu, skipped-by-surface %zu, skipped-by-curve %zu, tolerant-skipped %zu, direction conflicts %zu, unsupported transform %zu, approximated %zu, missing occurrences %zu, diagnostics %zu, bodies %zu/%zu, instances %zu, capped holes %zu\n",
+                r.stats.facesBuilt, r.stats.faces, r.stats.edgesBuilt, r.stats.edges, r.stats.facesSkippedBySurface.size(), r.stats.edgesSkippedByCurve.size(), r.stats.tolerantEdgesSkipped,
+                r.stats.edgeDirectionConflicts, r.stats.instancesWithUnsupportedTransform, r.stats.approximatedGeometry, r.stats.missingOccurrences,
+                r.diagnostics.size(), r.stats.bodies, r.bodies.size(), r.instances.size(), (r.stats.facesSkippedBySurface.count("  fill-capped-incomplete") ? r.stats.facesSkippedBySurface.at("  fill-capped-incomplete") : size_t(0)));
     for (const auto& kv : r.stats.surfacesBuilt) std::printf("  surfaces built %-14s %zu\n", kv.first.c_str(), kv.second);
     for (const auto& kv : r.stats.facesSkippedBySurface) std::printf("  faces skipped  %-14s %zu\n", kv.first.c_str(), kv.second);
     for (const auto& kv : r.stats.orientationFlips) std::printf("  orientation corrected %-14s %zu\n", kv.first.c_str(), kv.second);
@@ -536,6 +544,20 @@ int main(int argc, char** argv) {
             std::printf("  body %lld: faces %zu/%zu valid=%d free_edges=%zu volume=%.6g area=%.6g type=%d\n",
                         static_cast<long long>(body.index), body.facesBuilt, body.facesTotal, ok, freeEdges, vol.Mass(), area.Mass(),
                         body.bodyType);
+        if (std::getenv("XT_COLOURS")) {
+            // Research aid: colours stored as attributes (SDL/TYSA_COLOUR on faces, body colour as the default).
+            std::map<std::string, size_t> distinct;
+            for (const auto& fc : body.faceColours) {
+                char c[64];
+                std::snprintf(c, sizeof c, "%.3f %.3f %.3f a=%.2f", fc.second.r, fc.second.g, fc.second.b, fc.second.a);
+                ++distinct[c];
+            }
+            char bc[64] = "none";
+            if (body.hasBodyColour) std::snprintf(bc, sizeof bc, "%.3f %.3f %.3f a=%.2f", body.bodyColour.r, body.bodyColour.g, body.bodyColour.b, body.bodyColour.a);
+            std::printf("  colours body %lld: body colour %s; %zu of %zu faces carry a face colour, %zu distinct\n", static_cast<long long>(body.index), bc,
+                        body.faceColours.size(), body.facesBuilt, distinct.size());
+            for (const auto& kv : distinct) std::printf("    colour %s x %zu\n", kv.first.c_str(), kv.second);
+        }
     }
     Bnd_Box box;
     BRepBndLib::Add(all, box);
@@ -625,6 +647,300 @@ int main(int argc, char** argv) {
         params.Relative = true;
         params.InParallel = true;
         params.AllowQualityDecrease = true;
+        if (const char* ac = std::getenv("XT_ANGLE_CHECK")) {
+            // Research aid: "faceA,faceB,cx,cz[,absolute deflection]" - meshes the bodies (relative 0.1, or absolute when given) and reports how many
+            // vertex angles (about the Y axis through cx,cz) of face A also occur on face B, i.e. whether two cylinders on one surface are cut alike.
+            long long idA = 0, idB = 0; double cx = 0, cz = 0, absolute = 0;
+            std::sscanf(ac, "%lld,%lld,%lf,%lf,%lf", &idA, &idB, &cx, &cz, &absolute);
+            for (const auto& body : r.bodies) {
+                IMeshTools_Parameters p2 = params;
+                p2.InParallel = false;
+                if (absolute > 0) { p2.Relative = false; p2.Deflection = absolute; }
+                BRepMesh_IncrementalMesh bodyMesher(body.shape, p2);
+            }
+            const auto anglesOf = [&](long long id) {
+                std::vector<double> angles;
+                for (const auto& body : r.bodies) {
+                    const auto it = body.faceOutcomes.find(id);
+                    if (it == body.faceOutcomes.end() || !it->second.shape) continue;
+                    for (TopExp_Explorer ex(body.shape, TopAbs_FACE); ex.More(); ex.Next()) {
+                        if (ex.Current().TShape().get() != it->second.shape) continue;
+                        TopLoc_Location l;
+                        const auto t = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), l);
+                        if (t.IsNull()) continue;
+                        for (int i = 1; i <= t->NbNodes(); ++i) {
+                            const gp_Pnt q = t->Node(i).Transformed(l.Transformation());
+                            angles.push_back(std::atan2(q.Z() - cz, q.X() - cx));
+                        }
+                    }
+                }
+                std::sort(angles.begin(), angles.end());
+                std::vector<double> distinct;
+                for (double a : angles) if (distinct.empty() || a - distinct.back() > 1e-6) distinct.push_back(a);
+                return distinct;
+            };
+            const auto a = anglesOf(idA), b = anglesOf(idB);
+            size_t shared = 0;
+            for (double x : a) if (std::any_of(b.begin(), b.end(), [&](double y) { return std::abs(x - y) < 1e-5; })) ++shared;
+            std::printf("angle check %s: face %lld has %zu distinct vertex angles, face %lld has %zu, %zu of the first occur on the second\n", absolute > 0 ? "absolute" : "relative", idA, a.size(), idB, b.size(), shared);
+        }
+        if (std::getenv("XT_ORIENT_CHECK")) {
+            // Research aid: a face of a solid whose outward normal (surface normal turned by the face orientation) points into the solid's material is
+            // built with the wrong orientation; the viewer draws it black. A point just outside the face is classified against the solid.
+            size_t checked = 0, inverted = 0;
+            for (const auto& body : r.bodies) {
+                std::map<const TopoDS_TShape*, std::pair<long long, std::string>> info;
+                for (const auto& [node, o] : body.faceOutcomes) if (o.shape) info[o.shape] = {node, o.origin + " " + o.surface};
+                for (TopExp_Explorer sx(body.shape, TopAbs_SOLID); sx.More(); sx.Next()) {
+                    const TopoDS_Solid solid = TopoDS::Solid(sx.Current());
+                    Bnd_Box sb;
+                    BRepBndLib::AddOptimal(solid, sb, false, false);
+                    if (sb.IsVoid() || sb.IsOpen()) continue;
+                    double a0, a1, a2, b0, b1, b2;
+                    sb.Get(a0, a1, a2, b0, b1, b2);
+                    const double solidDiagonal = std::sqrt((b0 - a0) * (b0 - a0) + (b1 - a1) * (b1 - a1) + (b2 - a2) * (b2 - a2));
+                    for (TopExp_Explorer fx(solid, TopAbs_FACE); fx.More(); fx.Next()) {
+                        const TopoDS_Face face = TopoDS::Face(fx.Current());
+                        double u0, u1, v0, v1;
+                        BRepTools::UVBounds(face, u0, u1, v0, v1);
+                        {   // the mesh as the viewer reads it: triangle centroids with the winding turned for a REVERSED face
+                            TopLoc_Location tl;
+                            const auto tri = BRep_Tool::Triangulation(face, tl);
+                            if (!tri.IsNull() && tri->NbTriangles() > 0) {
+                                bool flagged = false;
+                                for (int pick = 0; pick < 3 && !flagged; ++pick) {
+                                    const int t = 1 + (pick * (tri->NbTriangles() - 1)) / 2;
+                                    int n1, n2, n3;
+                                    tri->Triangle(t).Get(n1, n2, n3);
+                                    if (face.Orientation() == TopAbs_REVERSED) std::swap(n2, n3);
+                                    const gp_Pnt c1 = tri->Node(n1).Transformed(tl.Transformation()), c2 = tri->Node(n2).Transformed(tl.Transformation()),
+                                                 c3 = tri->Node(n3).Transformed(tl.Transformation());
+                                    gp_Vec tn = gp_Vec(c1, c2).Crossed(gp_Vec(c1, c3));
+                                    if (tn.Magnitude() < 1e-12) continue;
+                                    tn.Normalize();
+                                    const gp_Pnt centre((c1.X() + c2.X() + c3.X()) / 3, (c1.Y() + c2.Y() + c3.Y()) / 3, (c1.Z() + c2.Z() + c3.Z()) / 3);
+                                    const gp_Pnt q(centre.X() + tn.X() * 1e-3 * solidDiagonal, centre.Y() + tn.Y() * 1e-3 * solidDiagonal, centre.Z() + tn.Z() * 1e-3 * solidDiagonal);
+                                    BRepClass3d_SolidClassifier solidClassifier(solid, q, 1e-9);
+                                    ++checked;
+                                    if (solidClassifier.State() == TopAbs_IN) {
+                                        ++inverted;
+                                        flagged = true;
+                                        const auto found = info.find(face.TShape().get());
+                                        std::printf("orientation check: mesh of face %lld (%s) faces into the material (triangle %d)\n",
+                                                    found == info.end() ? 0LL : found->second.first, found == info.end() ? "?" : found->second.second.c_str(), t);
+                                    }
+                                }
+                                if (flagged) continue;
+                            }
+                        }
+                        BRepAdaptor_Surface surface(face, false);
+                        BRepTopAdaptor_FClass2d classifier2d(face, 1e-7);
+                        // a few sample points inside the face
+                        for (int k = 1; k <= 3; ++k) {
+                            const double fu = k / 4.0, fv = (k == 2 ? 0.5 : (k == 1 ? 0.35 : 0.65));
+                            const gp_Pnt2d uv(u0 + fu * (u1 - u0), v0 + fv * (v1 - v0));
+                            if (classifier2d.Perform(uv) != TopAbs_IN) continue;
+                            gp_Pnt p; gp_Vec du, dv;
+                            surface.D1(uv.X(), uv.Y(), p, du, dv);
+                            gp_Vec n = du.Crossed(dv);
+                            if (n.Magnitude() < 1e-12) continue;
+                            n.Normalize();
+                            if (face.Orientation() == TopAbs_REVERSED) n.Reverse();
+                            const gp_Pnt q(p.X() + n.X() * 1e-4 * solidDiagonal, p.Y() + n.Y() * 1e-4 * solidDiagonal, p.Z() + n.Z() * 1e-4 * solidDiagonal);
+                            BRepClass3d_SolidClassifier solidClassifier(solid, q, 1e-9);
+                            ++checked;
+                            if (solidClassifier.State() == TopAbs_IN) {
+                                ++inverted;
+                                const auto found = info.find(face.TShape().get());
+                                std::printf("orientation check: face %lld (%s) points into the material at sample %d\n",
+                                            found == info.end() ? 0LL : found->second.first, found == info.end() ? "?" : found->second.second.c_str(), k);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            std::printf("orientation check: %zu samples, %zu faces flagged\n", checked, inverted);
+        }
+        if (const char* sw = std::getenv("XT_DEFL_SWEEP")) {
+            // Research aid: how the body's own faces mesh at several relative deflections (triangles, area against the exact area).
+            const long long bodyId = std::atoll(sw);
+            for (const auto& body : r.bodies) {
+                if (body.index != bodyId) continue;
+                for (const double defl : {0.01, 0.03, 0.05, 0.1, 0.15, 0.2, 0.3}) {
+                    BRepTools::Clean(body.shape);
+                    IMeshTools_Parameters p2 = params;
+                    p2.Deflection = defl; p2.InParallel = false;
+                    BRepMesh_IncrementalMesh bodyMesher(body.shape, p2);
+                    size_t empty = 0, overlapping = 0, total = 0;
+                    std::string detail;
+                    for (const auto& [node, o] : body.faceOutcomes) {
+                        if (!o.shape) continue;
+                        TopoDS_Face face;
+                        for (TopExp_Explorer ex(body.shape, TopAbs_FACE); ex.More(); ex.Next())
+                            if (ex.Current().TShape().get() == o.shape) { face = TopoDS::Face(ex.Current()); break; }
+                        if (face.IsNull()) continue;
+                        ++total;
+                        TopLoc_Location loc;
+                        const auto tri = BRep_Tool::Triangulation(face, loc);
+                        if (tri.IsNull() || tri->NbTriangles() == 0) { ++empty; continue; }
+                        double covered = 0;
+                        for (int i = 1; i <= tri->NbTriangles(); ++i) {
+                            int n1, n2, n3;
+                            tri->Triangle(i).Get(n1, n2, n3);
+                            const gp_Pnt q = tri->Node(n1);
+                            covered += 0.5 * gp_Vec(q, tri->Node(n2)).CrossMagnitude(gp_Vec(q, tri->Node(n3)));
+                        }
+                        GProp_GProps props;
+                        BRepGProp::SurfaceProperties(face, props);
+                        const double exact = std::abs(props.Mass());
+                        if (exact > 1e-6 && covered > 1.3 * exact) { ++overlapping; detail += " " + std::to_string(node) + "(x" + std::to_string(covered / exact).substr(0, 4) + ")"; }
+                    }
+                    std::printf("sweep relative %.2f: faces %zu, without triangles %zu, area above 1.3x exact %zu:%s\n", defl, total, empty, overlapping, detail.c_str());
+                }
+            }
+        }
+        if (const char* wb = std::getenv("XT_WHOLE_BODY_CHECK")) {
+            // Research aid: the importer's whole-body re-mesh (remeshBodyUntilComplete): which deflection factor completes the body, and the
+            // free-edge count (a watertight body has none) at the configured deflection and at the chosen one.
+            const long long bodyId = std::atoll(wb);
+            for (const auto& body : r.bodies) {
+                if (body.index != bodyId) continue;
+                const auto freeEdgesOf = [&](const TopoDS_Shape& shape) {
+                    NCollection_IndexedDataMap<TopoDS_Shape, NCollection_List<TopoDS_Shape>, TopTools_ShapeMapHasher> m;
+                    TopExp::MapShapesAndAncestors(shape, TopAbs_EDGE, TopAbs_FACE, m);
+                    size_t free = 0;
+                    for (int i = 1; i <= m.Extent(); ++i) if (m.FindFromIndex(i).Size() == 1 && !BRep_Tool::Degenerated(TopoDS::Edge(m.FindKey(i)))) ++free;
+                    return free;
+                };
+                const auto unmeshed = [&](const TopoDS_Shape& shape) {
+                    size_t n = 0;
+                    for (TopExp_Explorer ex(shape, TopAbs_FACE); ex.More(); ex.Next()) {
+                        TopLoc_Location l;
+                        const auto t = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), l);
+                        if (t.IsNull() || t->NbTriangles() == 0) ++n;
+                    }
+                    return n;
+                };
+                for (const double factor : {1.0, 0.5, 0.25, 0.1, 2.0}) {
+                    BRepTools::Clean(body.shape);
+                    IMeshTools_Parameters p2 = params;
+                    p2.Deflection = params.Deflection * factor; p2.InParallel = false;
+                    BRepMesh_IncrementalMesh bodyMesher(body.shape, p2);
+                    size_t tris = 0;
+                    for (TopExp_Explorer ex(body.shape, TopAbs_FACE); ex.More(); ex.Next()) {
+                        TopLoc_Location l;
+                        const auto t = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), l);
+                        if (!t.IsNull()) tris += static_cast<size_t>(t->NbTriangles());
+                    }
+                    std::printf("whole-body factor %.2f (deflection %.3f): faces without triangles %zu, triangles %zu\n", factor, p2.Deflection, unmeshed(body.shape), tris);
+                }
+            }
+        }
+        if (const char* fb = std::getenv("XT_FALLBACK_CHECK")) {
+            // Research aid: what the viewer's recovery does for the faces the body mesh leaves without triangles.
+            const long long bodyId = std::atoll(fb);
+            for (const auto& body : r.bodies) {
+                if (body.index != bodyId) continue;
+                IMeshTools_Parameters p2 = params;
+                p2.InParallel = false;
+                BRepMesh_IncrementalMesh bodyMesher(body.shape, p2);
+                std::map<const TopoDS_TShape*, long long> nodeOf;
+                for (const auto& [node, o] : body.faceOutcomes) if (o.shape) nodeOf[o.shape] = node;
+                TopTools_IndexedDataMapOfShapeListOfShape edgeToFaces;
+                std::vector<TopoDS_Face> failedFaces;
+                for (TopExp_Explorer ex(body.shape, TopAbs_FACE); ex.More(); ex.Next()) {
+                    const TopoDS_Face face = TopoDS::Face(ex.Current());
+                    TopLoc_Location loc;
+                    const auto tri = BRep_Tool::Triangulation(face, loc);
+                    if (tri.IsNull() || tri->NbTriangles() == 0) failedFaces.push_back(face);
+                    else TopExp::MapShapesAndAncestors(face, TopAbs_EDGE, TopAbs_FACE, edgeToFaces);
+                }
+                std::printf("fallback check body %lld: %zu faces without triangles after the body mesh%s", bodyId, failedFaces.size(), "\n");
+                const auto areaOf = [](const Handle(Poly_Triangulation)& t) {
+                    double a = 0;
+                    for (int i = 1; i <= t->NbTriangles(); ++i) {
+                        int n1, n2, n3;
+                        t->Triangle(i).Get(n1, n2, n3);
+                        const gp_Pnt q = t->Node(n1);
+                        a += 0.5 * gp_Vec(q, t->Node(n2)).CrossMagnitude(gp_Vec(q, t->Node(n3)));
+                    }
+                    return a;
+                };
+                // Planar faces only: the share of covered grid cells that more than one triangle covers (projected on the two widest axes).
+                const auto overlapShare = [](const Handle(Poly_Triangulation)& t) {
+                    if (t.IsNull() || t->NbTriangles() == 0) return 0.0;
+                    Bnd_Box box;
+                    for (int i = 1; i <= t->NbNodes(); ++i) box.Add(t->Node(i));
+                    double lo[3], hi[3];
+                    box.Get(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
+                    int a = 0, b = 1;
+                    double ext[3] = {hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]};
+                    int order[3] = {0, 1, 2};
+                    std::sort(order, order + 3, [&](int x, int y) { return ext[x] > ext[y]; });
+                    a = order[0]; b = order[1];
+                    const double cell = std::max(ext[a], ext[b]) / 250.0;
+                    if (cell <= 0) return 0.0;
+                    std::map<std::pair<int, int>, int> cover;
+                    const auto coord = [&](int node, int axis) { const gp_Pnt q = t->Node(node); return axis == 0 ? q.X() : (axis == 1 ? q.Y() : q.Z()); };
+                    for (int i = 1; i <= t->NbTriangles(); ++i) {
+                        int n1, n2, n3;
+                        t->Triangle(i).Get(n1, n2, n3);
+                        const double ax = coord(n1, a), ay = coord(n1, b), bx = coord(n2, a), by = coord(n2, b), cx = coord(n3, a), cy = coord(n3, b);
+                        const double d = (by - cy) * (ax - cx) + (cx - bx) * (ay - cy);
+                        if (std::abs(d) < 1e-14) continue;
+                        const int i0 = static_cast<int>(std::floor((std::min({ax, bx, cx}) - lo[a]) / cell)), i1 = static_cast<int>(std::floor((std::max({ax, bx, cx}) - lo[a]) / cell));
+                        const int j0 = static_cast<int>(std::floor((std::min({ay, by, cy}) - lo[b]) / cell)), j1 = static_cast<int>(std::floor((std::max({ay, by, cy}) - lo[b]) / cell));
+                        for (int ii = i0; ii <= i1; ++ii)
+                            for (int jj = j0; jj <= j1; ++jj) {
+                                const double px = lo[a] + (ii + 0.5) * cell, py = lo[b] + (jj + 0.5) * cell;
+                                const double u = ((by - cy) * (px - cx) + (cx - bx) * (py - cy)) / d, v = ((cy - ay) * (px - cx) + (ax - cx) * (py - cy)) / d;
+                                if (u >= 0 && v >= 0 && u + v <= 1) ++cover[{ii, jj}];
+                            }
+                    }
+                    size_t multi = 0;
+                    for (const auto& kv : cover) if (kv.second > 1) ++multi;
+                    return cover.empty() ? 0.0 : static_cast<double>(multi) / static_cast<double>(cover.size());
+                };
+                for (const TopoDS_Face& face : failedFaces) {
+                    const auto it = nodeOf.find(face.TShape().get());
+                    GProp_GProps props;
+                    BRepGProp::SurfaceProperties(face, props);
+                    const double exact = std::abs(props.Mass());
+                    std::string failure;
+                    const auto boundary = FaceFallbackTriangulator::captureBoundary(face, edgeToFaces);
+                    const auto fallback = FaceFallbackTriangulator::triangulate(face, boundary, &failure);
+                    if (fallback.IsNull())
+                        std::printf("  face %lld: exact area %.1f; fallback null (%s)", it == nodeOf.end() ? 0LL : it->second, exact, failure.c_str());
+                    else
+                        std::printf("  face %lld: exact area %.1f; fallback %d triangles, area %.1f (x%.2f)", it == nodeOf.end() ? 0LL : it->second, exact, fallback->NbTriangles(), areaOf(fallback), exact > 0 ? areaOf(fallback) / exact : 0.0);
+                    if (fallback.IsNull()) {
+                        // The importer's next steps for a null fallback: the edge curves alone, then the stored face trims.
+                        const TopTools_IndexedDataMapOfShapeListOfShape noNeighbours;
+                        std::string f2, f3;
+                        const auto byCurves = FaceFallbackTriangulator::triangulate(face, FaceFallbackTriangulator::captureBoundary(face, noNeighbours), &f2, 0.05);
+                        std::printf("; edge-curve retry %s", byCurves.IsNull() ? ("null: " + f2.substr(0, 40)).c_str() : (std::to_string(byCurves->NbTriangles()) + " triangles, area ratio " + std::to_string(exact > 0 ? areaOf(byCurves) / exact : 0.0)).c_str());
+                        if (byCurves.IsNull()) {
+                            const auto byTrims = FaceFallbackTriangulator::triangulate(face, FaceFallbackTriangulator::captureSurfaceTrims(face), &f3, 0.05);
+                            std::printf("; surface-trim retry %s", byTrims.IsNull() ? ("null: " + f3.substr(0, 40)).c_str() : (std::to_string(byTrims->NbTriangles()) + " triangles, area ratio " + std::to_string(exact > 0 ? areaOf(byTrims) / exact : 0.0)).c_str());
+                        }
+                    }
+                    {   // what the importer does first: the same relative deflection on the face alone
+                        IMeshTools_Parameters pr = p2;
+                        BRepMesh_IncrementalMesh relativeRetry(face, pr);
+                        TopLoc_Location lr;
+                        const auto rt = BRep_Tool::Triangulation(face, lr);
+                        std::printf("; relative retry %d triangles, area ratio %.2f, overlap %.0f%%", rt.IsNull() ? 0 : rt->NbTriangles(), (rt.IsNull() || exact <= 0) ? 0.0 : areaOf(rt) / exact, 100.0 * overlapShare(rt));
+                    }
+                    IMeshTools_Parameters p3;
+                    p3.Deflection = 0.1; p3.Angle = 0.3; p3.Relative = false; p3.InParallel = false; p3.AllowQualityDecrease = true;
+                    BRepMesh_IncrementalMesh retry(face, p3);
+                    TopLoc_Location loc;
+                    const auto again = BRep_Tool::Triangulation(face, loc);
+                    std::printf("; absolute 0.1 retry: %s%s", again.IsNull() ? "none" : (std::to_string(again->NbTriangles()) + " triangles, area ratio " + std::to_string(exact > 0 ? areaOf(again) / exact : 0.0) + ", overlap " + std::to_string(static_cast<int>(100.0 * overlapShare(again))) + "%").c_str(), "\n");
+                }
+            }
+        }
         BRepMesh_IncrementalMesh mesher(all, params);
         size_t tris = 0, facesMeshed = 0, facesTotal = 0;
         for (TopExp_Explorer ex(all, TopAbs_FACE); ex.More(); ex.Next()) {
@@ -1128,6 +1444,45 @@ int main(int argc, char** argv) {
                     const auto it = o.shape ? byShape.find(o.shape) : byShape.end();
                     if (it != byShape.end()) {
                         const TopoDS_Face& f = it->second;
+                        if (const char* want = std::getenv("XT_FACE_DETAIL"); want && std::atoll(want) == node) {
+                            // Research aid: the wires and edges of one built face (why would it not mesh?).
+                            std::printf("FACE %lld detail: orientation %d, tolerance %.3g\n", static_cast<long long>(node), static_cast<int>(f.Orientation()), BRep_Tool::Tolerance(f));
+                            int wi = 0;
+                            for (TopExp_Explorer ew(f, TopAbs_WIRE); ew.More(); ew.Next(), ++wi) {
+                                const TopoDS_Wire w = TopoDS::Wire(ew.Current());
+                                int ne = 0;
+                                for (TopExp_Explorer ee(w, TopAbs_EDGE); ee.More(); ee.Next()) ++ne;
+                                std::printf("  wire %d: orientation %d, %d edges, closed(3D) %d\n", wi, static_cast<int>(w.Orientation()), ne, BRep_Tool::IsClosed(w) ? 1 : 0);
+                                int k = 0;
+                                for (TopExp_Explorer ee(w, TopAbs_EDGE); ee.More(); ee.Next(), ++k) {
+                                    const TopoDS_Edge e = TopoDS::Edge(ee.Current());
+                                    double c0 = 0, c1 = 0, p0 = 0, p1 = 0;
+                                    const auto c3 = BRep_Tool::Curve(e, c0, c1);
+                                    const auto pc = BRep_Tool::CurveOnSurface(e, f, p0, p1);
+                                    std::printf("    edge %d: orient %d, tol %.3g, degenerated %d, 3D curve %s, pcurve %s, seam %d", k, static_cast<int>(e.Orientation()), BRep_Tool::Tolerance(e), BRep_Tool::Degenerated(e) ? 1 : 0,
+                                                c3.IsNull() ? "none" : "yes", pc.IsNull() ? "none" : "yes", BRep_Tool::IsClosed(e, f) ? 1 : 0);
+                                    if (!pc.IsNull()) {
+                                        const gp_Pnt2d a = pc->Value(p0), b = pc->Value(p1);
+                                        std::printf(", uv (%.4g %.4g)->(%.4g %.4g)", a.X(), a.Y(), b.X(), b.Y());
+                                    }
+                                    std::printf("\n");
+                                }
+                            }
+                        }
+                        if (const char* want = std::getenv("XT_FACE_DETAIL"); want && std::atoll(want) == node) {
+                            // The face meshed on its own: what the mesher says about it (flags: 1 open wire, 2 self-intersecting wire, 4 failure, 8 re-mesh).
+                            for (const double defl : {0.1, 0.02, 0.5, 2.0}) {
+                                for (const bool relative : {true, false}) {
+                                    const TopoDS_Shape copy = BRepBuilderAPI_Copy(f).Shape();
+                                    IMeshTools_Parameters mp;
+                                    mp.Deflection = defl; mp.Angle = 0.3; mp.Relative = relative; mp.InParallel = false; mp.AllowQualityDecrease = true;
+                                    BRepMesh_IncrementalMesh one(copy, mp);
+                                    TopLoc_Location l2;
+                                    const auto tr = BRep_Tool::Triangulation(TopoDS::Face(copy), l2);
+                                    std::printf("  mesh deflection %.3g %s: flags %d, triangles %d\n", defl, relative ? "relative" : "absolute", static_cast<int>(one.GetStatusFlags()), tr.IsNull() ? 0 : tr->NbTriangles());
+                                }
+                            }
+                        }
                         try {
                             const int guarded = checkGuarded(f);
                             check = guarded == 1 ? "valid" : (guarded == 0 ? "invalid" : "check-crashed");

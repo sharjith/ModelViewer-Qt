@@ -2918,12 +2918,12 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	}
 
 	// ---- Copy / Cut --------------------------------------------------------
-	myMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy"), this, [this, &actionTaken]() {
+	myMenu.addAction(QIcon(":/icons/res/copy.png"), tr("Copy") + QLatin1Char('\t') + QKeySequence(QKeySequence::Copy).toString(QKeySequence::NativeText), this, [this, &actionTaken]() {
 		actionTaken = true;
 		copySelectedItems();
 	});
 
-	myMenu.addAction(QIcon(":/icons/res/cut.png"), tr("Cut"), this, [this, &actionTaken]() {
+	myMenu.addAction(QIcon(":/icons/res/cut.png"), tr("Cut") + QLatin1Char('\t') + QKeySequence(QKeySequence::Cut).toString(QKeySequence::NativeText), this, [this, &actionTaken]() {
 		actionTaken = true;
 		cutSelectedItems();
 	});
@@ -2931,7 +2931,7 @@ void ModelViewer::showContextMenu(const QPoint& pos)
 	// ---- Paste (assembly target only, clipboard must be non-empty) ---------
 	if (clickedAssembly && assemblyNode && !s_clipboard.isEmpty())
 	{
-		myMenu.addAction(QIcon(":/icons/res/paste.png"), tr("Paste"), this,
+		myMenu.addAction(QIcon(":/icons/res/paste.png"), tr("Paste") + QLatin1Char('\t') + QKeySequence(QKeySequence::Paste).toString(QKeySequence::NativeText), this,
 		    [this, assemblyNode, &actionTaken]() {
 		        actionTaken = true;
 		        pasteIntoSelectedNode(assemblyNode);
@@ -3405,6 +3405,113 @@ SceneNode* ModelViewer::cloneClipboardSubtree(const ClipboardNode& cn, SceneNode
 	return node;
 }
 
+// A mesh listed directly on the document's invisible root belongs to no node: the scene tree, the exporters and the MVF
+// writer all walk root->children only, so such a mesh shows in the viewport but not in the tree, and is dropped on export
+// and on save. A leaf pasted at the top level (the only place an empty document offers Paste) therefore gets its own node.
+//
+// A mesh is drawn at the world transform of its node chain (its scene render transform); the MVF stores only the node
+// matrices and rebuilds that transform on load. The new node therefore carries the mesh's current scene render transform
+// as its own matrix, so the mesh does not move when the document is saved and reopened.
+static aiMatrix4x4 aiFromQt(const QMatrix4x4& m)
+{
+	aiMatrix4x4 out;
+	out.a1 = m(0, 0); out.a2 = m(0, 1); out.a3 = m(0, 2); out.a4 = m(0, 3);
+	out.b1 = m(1, 0); out.b2 = m(1, 1); out.b3 = m(1, 2); out.b4 = m(1, 3);
+	out.c1 = m(2, 0); out.c2 = m(2, 1); out.c3 = m(2, 2); out.c4 = m(2, 3);
+	out.d1 = m(3, 0); out.d2 = m(3, 1); out.d3 = m(3, 2); out.d4 = m(3, 3);
+	return out;
+}
+
+static QMatrix4x4 qtFromAi(const aiMatrix4x4& m)
+{
+	QMatrix4x4 out;
+	out.setRow(0, QVector4D(m.a1, m.a2, m.a3, m.a4));
+	out.setRow(1, QVector4D(m.b1, m.b2, m.b3, m.b4));
+	out.setRow(2, QVector4D(m.c1, m.c2, m.c3, m.c4));
+	out.setRow(3, QVector4D(m.d1, m.d2, m.d3, m.d4));
+	return out;
+}
+
+// World transform of a node: the product of the local matrices from the document root down to it.
+static QMatrix4x4 nodeWorldTransform(const SceneNode* node)
+{
+	QList<const SceneNode*> chain;
+	for (const SceneNode* n = node; n; n = n->parent)
+		chain.prepend(n);
+	QMatrix4x4 world;
+	for (const SceneNode* n : chain)
+		world = world * qtFromAi(n->localTransform);
+	return world;
+}
+
+static bool sameTransform(const QMatrix4x4& a, const QMatrix4x4& b)
+{
+	for (int r = 0; r < 4; ++r)
+		for (int c = 0; c < 4; ++c)
+			if (std::abs(a(r, c) - b(r, c)) > 1e-5f * std::max(1.0f, std::abs(a(r, c))))
+				return false;
+	return true;
+}
+
+// The matrix a new node under `parent` needs so that a mesh drawn at `meshWorld` stays where it is once the MVF has rebuilt
+// its transform from the node chain: parentWorld * local = meshWorld.
+static QMatrix4x4 localForMeshWorld(const SceneNode* parent, const QMatrix4x4& meshWorld)
+{
+	return nodeWorldTransform(parent).inverted() * meshWorld;
+}
+
+// True when a mesh pasted directly into `parent` would be rebuilt at another place than it is drawn at.
+static bool pasteNeedsWrapper(const SceneGraph* sceneGraph, const SceneNode* parent, const QMatrix4x4& meshWorld)
+{
+	return parent == sceneGraph->root() || !sameTransform(nodeWorldTransform(parent), meshWorld);
+}
+
+// Where the MVF would rebuild a mesh: the world transform of its own node chain. That, not the mesh's live render transform,
+// is what the wrapper has to reproduce, so a paste into a node with the same chain adds nothing and behaves as it always did.
+static QMatrix4x4 meshChainWorld(const SceneGraph* sceneGraph, const QUuid& meshUuid, const QMatrix4x4& fallback)
+{
+	const SceneNode* owner = sceneGraph ? sceneGraph->findNodeForMesh(meshUuid) : nullptr;
+	return owner ? nodeWorldTransform(owner) : fallback;
+}
+
+static PasteCommand::PastedItem pasteLeafAsRootChild(SceneGraph* sceneGraph, SceneNode* root, const SceneMesh* clone,
+                                                     const QMatrix4x4& meshWorld)
+{
+	SceneNode* node = new SceneNode();
+	node->nodeUuid  = QUuid::createUuid();
+	node->name      = clone->getName();
+	node->localTransform = aiFromQt(localForMeshWorld(root, meshWorld));
+	node->parent    = root;
+	node->meshUuids.append(clone->uuid());
+
+	const int childPos = root->children.size();
+	sceneGraph->insertChildNode(root, node, childPos);
+
+	PasteCommand::PastedItem item;
+	item.type             = PasteCommand::PastedItem::Subtree;
+	item.subtreeRoot      = node;
+	item.subtreeParent    = root;
+	item.childPosition    = childPos;
+	item.subtreeMeshUuids = { clone->uuid() };
+	return item;
+}
+
+void ModelViewer::pasteFromShortcut()
+{
+	if (s_clipboard.isEmpty() || !_sceneGraph)
+		return;
+
+	const SceneNode* target = nullptr;
+	if (const QTreeWidgetItem* current = treeWidgetModel->currentItem(); current && !treeWidgetModel->selectedItems().isEmpty())
+	{
+		if (current->data(0, SceneTreeWidget::IsLeafRole).toBool())
+			target = _sceneGraph->findNodeForMesh(current->data(0, SceneTreeWidget::MeshUuidRole).value<QUuid>());
+		else
+			target = _sceneGraph->findNodeByUuid(current->data(0, SceneTreeWidget::NodeUuidRole).value<QUuid>());
+	}
+	pasteIntoSelectedNode(target ? target : _sceneGraph->root());
+}
+
 void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 {
 	if (s_clipboard.isEmpty() || !targetNode)
@@ -3472,16 +3579,37 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 		{
 			if (entry.isLeaf)
 			{
+				// A mesh must never sit on the hidden root (the tree, the exporters and the MVF writer only walk its
+				// children): pasted on the background it moves into a new top-level node of its own.
+				SceneNode* destination = target;
+				SceneNode* wrapper     = nullptr;
+				int        wrapperPos  = 0;
+				const SceneMesh* moved = _viewportWidget->getMeshByUuid(entry.leafUuid);
+				const QMatrix4x4 movedWorld = moved ? meshChainWorld(_sceneGraph, entry.leafUuid, moved->getSceneRenderTransform()) : QMatrix4x4();
+				if (moved && pasteNeedsWrapper(_sceneGraph, target, movedWorld))
+				{
+					wrapper           = new SceneNode();
+					wrapper->nodeUuid = QUuid::createUuid();
+					wrapper->name     = moved->getName();
+					wrapper->localTransform = aiFromQt(localForMeshWorld(target, movedWorld));
+					wrapperPos        = target->children.size();
+					_sceneGraph->insertChildNode(target, wrapper, wrapperPos);
+					destination       = wrapper;
+				}
+
 				int srcPos = 0;
 				SceneNode* srcOwner = _sceneGraph->removeMeshUuid(entry.leafUuid, srcPos);
-				const int dstPos = target->meshUuids.size();
-				_sceneGraph->restoreMeshUuid(target, entry.leafUuid, dstPos);
+				const int dstPos = destination->meshUuids.size();
+				_sceneGraph->restoreMeshUuid(destination, entry.leafUuid, dstPos);
 
 				PasteCommand::PastedItem item;
 				item.type            = PasteCommand::PastedItem::Mesh;
 				item.isCut           = true;
 				item.meshUuid        = entry.leafUuid;
-				item.ownerNode       = target;
+				item.ownerNode       = destination;
+				item.wrapperNode     = wrapper;
+				item.wrapperParent   = wrapper ? target : nullptr;
+				item.wrapperPosition = wrapperPos;
 				item.meshPosition    = dstPos;
 				item.srcOwnerNode    = srcOwner;
 				item.srcMeshPosition = srcPos;
@@ -3550,6 +3678,14 @@ void ModelViewer::pasteIntoSelectedNode(const SceneNode* targetNode)
 				{
 					const Material resolved = ViewportWidget::resolveMaterialTextures(_viewportWidget, clone->getMaterial());
 					clone->setTextureMaps(resolved);
+				}
+
+				const QMatrix4x4 sourceWorld = meshChainWorld(crossDoc ? s_clipboardSourceViewer->sceneGraph() : _sceneGraph,
+				                                             entry.leafUuid, clone->getSceneRenderTransform());
+				if (pasteNeedsWrapper(_sceneGraph, target, sourceWorld))
+				{
+					items.append(pasteLeafAsRootChild(_sceneGraph, target, clone, sourceWorld));
+					continue;
 				}
 
 				const QUuid newUuid  = clone->uuid();
@@ -3628,6 +3764,14 @@ void ModelViewer::performCrossDocumentCutPaste(SceneNode* target)
 
 			const Material resolved = ViewportWidget::resolveMaterialTextures(_viewportWidget, clone->getMaterial());
 			clone->setTextureMaps(resolved);
+
+			const QMatrix4x4 sourceWorld = meshChainWorld(src->sceneGraph(), entry.leafUuid, clone->getSceneRenderTransform());
+			if (pasteNeedsWrapper(_sceneGraph, target, sourceWorld))
+			{
+				items.append(pasteLeafAsRootChild(_sceneGraph, target, clone, sourceWorld));
+				srcUuids.append(entry.leafUuid);
+				continue;
+			}
 
 			const QUuid newUuid = clone->uuid();
 			const int insertPos = target->meshUuids.size();
@@ -6190,6 +6334,7 @@ void ModelViewer::exportModelDialog()
 	// Shown after the filename dialog (the 3D PDF export needs no scene choice: it exports what is visible), so the user still
 	// provides exactly one output filename for the single scene picked here.
 	QString selectedSourceFile;   // empty = no filter (single scene loaded)
+	const SceneNode* selectedTopLevelNode = nullptr; // chosen node when it has no source file (content pasted into the document)
 	const QList<SceneNode*>& fileNodes = _sceneGraph->root()->children;
 
 	if (fileNodes.size() > 1)
@@ -6208,6 +6353,7 @@ void ModelViewer::exportModelDialog()
 		{
 			QListWidgetItem* item = new QListWidgetItem(fileNode->name, list);
 			item->setData(Qt::UserRole, fileNode->sourceFile);
+			item->setData(Qt::UserRole + 1, QVariant::fromValue<quintptr>(reinterpret_cast<quintptr>(fileNode)));
 		}
 		list->setCurrentRow(0);   // select first by default
 		vlay->addWidget(list);
@@ -6226,6 +6372,8 @@ void ModelViewer::exportModelDialog()
 			return;
 
 		selectedSourceFile = sel->data(Qt::UserRole).toString();
+		if (selectedSourceFile.isEmpty())
+			selectedTopLevelNode = reinterpret_cast<const SceneNode*>(sel->data(Qt::UserRole + 1).value<quintptr>());
 	}
 	// ------------------------------------------------------------------------------
 
@@ -6275,7 +6423,8 @@ void ModelViewer::exportModelDialog()
 	QHash<QUuid, std::vector<float>> bakedColors = simulationBakedColors();
 	bakedColors.insert(plot3DBakedColors());
 	aiScene* copyScene = SceneGraphExporter::buildExportScene(
-		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles, &animMatRemap, &bakedColors);
+		_sceneGraph, resolver, flattenTransforms, allowedSourceFiles, &animMatRemap, &bakedColors, nullptr,
+		selectedTopLevelNode ? QList<const SceneNode*>{ selectedTopLevelNode } : QList<const SceneNode*>());
 
 	if (!copyScene)
 	{

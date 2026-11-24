@@ -232,7 +232,7 @@ void BRepToAssimpConverter::setFillMeshGaps(bool enabled)
 }
 
 aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation,
-										const std::vector<float>* opacities, int progressFromPercent, int progressToPercent)
+										const std::vector<float>* opacities, int progressFromPercent, int progressToPercent, bool reportProgress)
 {
 	if (shapeTuples.empty())
 		return nullptr;
@@ -254,7 +254,8 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 		const size_t tupleIndex = static_cast<size_t>(&tuple - shapeTuples.data());
 		// The range parameters are percent of the reading half of the bar (see MainWindow::setImportProgress).
 		const double progress = (progressFromPercent + ((double)tupleIndex / (double)totalCount) * (progressToPercent - progressFromPercent)) / 100.0;
-		MainWindow::setImportProgress(MainWindow::ImportBand::Read, progress);
+		if (reportProgress)
+			MainWindow::setImportProgress(MainWindow::ImportBand::Read, progress);
 		const TopoDS_Shape& shape = std::get<0>(tuple);
 		const std::string& name = std::get<1>(tuple);
 		const gp_Trsf& trsf = std::get<2>(tuple);
@@ -702,6 +703,112 @@ void BRepToAssimpConverter::registerPrecomputedEdges(const aiMesh* mesh, OccEdge
 	data.segments = std::move(segments);
 	data.bounds   = std::move(bounds);
 	s_occEdges[mesh] = std::move(data);
+}
+
+std::unique_ptr<aiMesh> BRepToAssimpConverter::mergeConvertedMeshes(std::vector<std::unique_ptr<aiMesh>>& parts)
+{
+	if (parts.empty())
+		return nullptr;
+	if (parts.size() == 1)
+	{
+		std::unique_ptr<aiMesh> only = std::move(parts.front());
+		parts.clear();
+		return only;
+	}
+
+	unsigned vertexTotal = 0, faceTotal = 0;
+	bool allNormals = true;
+	for (const auto& part : parts)
+	{
+		if (!part || part->mPrimitiveTypes != aiPrimitiveType_TRIANGLE || part->HasTangentsAndBitangents() || part->HasTextureCoords(0) ||
+			part->HasVertexColors(0) || part->mNumBones || part->mNumAnimMeshes || !part->mNumVertices || !part->mNumFaces)
+			return nullptr;
+		for (unsigned f = 0; f < part->mNumFaces; ++f)
+			if (part->mFaces[f].mNumIndices != 3)
+				return nullptr;
+		vertexTotal += part->mNumVertices;
+		faceTotal += part->mNumFaces;
+		allNormals = allNormals && part->HasNormals();
+	}
+
+	auto merged = std::make_unique<aiMesh>();
+	merged->mName = parts.front()->mName;
+	merged->mPrimitiveTypes = aiPrimitiveType_TRIANGLE;
+	merged->mMaterialIndex = parts.front()->mMaterialIndex;
+	merged->mNumVertices = vertexTotal;
+	merged->mVertices = new aiVector3D[vertexTotal];
+	if (allNormals)
+		merged->mNormals = new aiVector3D[vertexTotal];
+	merged->mNumFaces = faceTotal;
+	merged->mFaces = new aiFace[faceTotal];
+
+	OccEdgeData edges;
+	OccFaceData faceTables;
+	bool anyEdges = false, anyCircles = false, allFaceTables = true;
+	unsigned vertexBase = 0, faceBase = 0;
+	for (const auto& part : parts)
+	{
+		std::copy(part->mVertices, part->mVertices + part->mNumVertices, merged->mVertices + vertexBase);
+		if (allNormals)
+			std::copy(part->mNormals, part->mNormals + part->mNumVertices, merged->mNormals + vertexBase);
+		for (unsigned f = 0; f < part->mNumFaces; ++f)
+		{
+			aiFace& face = merged->mFaces[faceBase + f];
+			face.mNumIndices = 3;
+			face.mIndices = new unsigned[3];
+			for (unsigned k = 0; k < 3; ++k)
+				face.mIndices[k] = part->mFaces[f].mIndices[k] + vertexBase;
+		}
+
+		if (const OccEdgeData* e = getPrecomputedEdges(part.get()); e && e->bounds.size() >= 2)
+		{
+			anyEdges = true;
+			const int segmentBase = static_cast<int>(edges.segments.size() / 3);
+			edges.segments.insert(edges.segments.end(), e->segments.begin(), e->segments.end());
+			const size_t topoEdges = e->bounds.size() - 1;
+			for (size_t i = 0; i < topoEdges; ++i)
+				edges.bounds.push_back(e->bounds[i] + segmentBase);
+			// circles run parallel to the topological edges: a part without them contributes empty entries
+			for (size_t i = 0; i < topoEdges; ++i)
+				edges.circles.push_back(i < e->circles.size() ? e->circles[i] : OccEdgeCircle());
+			anyCircles = anyCircles || !e->circles.empty();
+			edges.vertexTolerance = std::max(edges.vertexTolerance, e->vertexTolerance);
+		}
+
+		if (const OccFaceData* d = getPrecomputedFaces(part.get()); d && d->bounds.size() >= 2)
+		{
+			const size_t topoFaces = d->bounds.size() - 1;
+			for (size_t i = 0; i < topoFaces; ++i)
+				faceTables.bounds.push_back(d->bounds[i] + static_cast<int>(faceBase));
+			for (size_t i = 0; i < topoFaces; ++i)
+				faceTables.axes.push_back(i < d->axes.size() ? d->axes[i] : OccFaceAxis());
+		}
+		else
+			allFaceTables = false;
+
+		vertexBase += part->mNumVertices;
+		faceBase += part->mNumFaces;
+	}
+
+	if (anyEdges)
+	{
+		edges.bounds.push_back(static_cast<int>(edges.segments.size() / 3));
+		if (!anyCircles)
+			edges.circles.clear();
+		s_occEdges[merged.get()] = std::move(edges);
+	}
+	if (allFaceTables && !faceTables.bounds.empty())
+	{
+		faceTables.bounds.push_back(static_cast<int>(faceTotal));
+		s_occFaces[merged.get()] = std::move(faceTables);
+	}
+	for (const auto& part : parts)
+	{
+		s_occEdges.erase(part.get());
+		s_occFaces.erase(part.get());
+	}
+	parts.clear();
+	return merged;
 }
 
 const BRepToAssimpConverter::OccFaceData*

@@ -9,6 +9,8 @@
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepBndLib.hxx>
+#include <BRepGProp.hxx>
+#include <GProp_GProps.hxx>
 #include <BRepTools.hxx>
 #include <BRep_Builder.hxx>
 #include <Bnd_Box.hxx>
@@ -25,6 +27,7 @@
 #include <Message_ProgressRange.hxx>
 #include <Quantity_Color.hxx>
 #include <TopoDS_Compound.hxx>
+#include <TopoDS_Iterator.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Trsf.hxx>
 
@@ -39,6 +42,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <map>
@@ -124,6 +128,29 @@ bool hasUsableTriangulation(const TopoDS_Face& face, const Handle(Poly_Triangula
     return !edgeBox.IsOut(gp_Pnt(x0, y0, z0)) && !edgeBox.IsOut(gp_Pnt(x1, y1, z1));
 }
 
+// A triangulation that covers the face more than once (overlapping triangles, drawn as black and white stripes) has far more
+// area than the face. The exact area comes from the face's own trims; a face whose area cannot be measured passes.
+bool triangulationAreaPlausible(const TopoDS_Face& face, const Handle(Poly_Triangulation)& triangles)
+{
+    if (triangles.IsNull())
+        return false;
+    double covered = 0;
+    for (int i = 1; i <= triangles->NbTriangles(); ++i) {
+        int a, b, c;
+        triangles->Triangle(i).Get(a, b, c);
+        const gp_Pnt p = triangles->Node(a);
+        covered += 0.5 * gp_Vec(p, triangles->Node(b)).CrossMagnitude(gp_Vec(p, triangles->Node(c)));
+    }
+    try {
+        GProp_GProps properties;
+        BRepGProp::SurfaceProperties(face, properties);
+        const double exact = std::abs(properties.Mass());
+        return !(exact > 1e-9) || covered <= 1.3 * exact;
+    } catch (const Standard_Failure&) {
+        return true;
+    }
+}
+
 TopoDS_Shape buildDisplayFallback(const BuiltBody& body, const SceneImportOptions& options, size_t& recovered)
 {
     if (body.displayCandidates.empty())
@@ -149,6 +176,53 @@ TopoDS_Shape buildDisplayFallback(const BuiltBody& body, const SceneImportOption
         ++recovered;
     }
     return recovered ? display : TopoDS_Shape();
+}
+
+size_t countUnmeshedFaces(const TopoDS_Shape& shape)
+{
+    size_t unmeshed = 0;
+    for (TopExp_Explorer ex(shape, TopAbs_FACE); ex.More(); ex.Next()) {
+        TopLoc_Location location;
+        const auto& triangles = BRep_Tool::Triangulation(TopoDS::Face(ex.Current()), location);
+        if (triangles.IsNull() || triangles->NbTriangles() == 0)
+            ++unmeshed;
+    }
+    return unmeshed;
+}
+
+// A face the mesher leaves empty at the configured deflection (typically a long arc discretised so coarsely that the face's
+// own outline crosses itself) is not repaired one face at a time: meshing it alone re-discretises the edges it shares with its
+// neighbours, which leaves gaps and holes between them that the converter then closes with long overlapping triangles. The
+// whole body is meshed again at another deflection instead, so every shared edge keeps one discretisation, and the first
+// setting that leaves no face empty is kept. A body whose faces fail at every setting is meshed as configured again and
+// left to the recovery below.
+bool remeshBodyUntilComplete(const TopoDS_Shape& shape, double deflection, double angle, const SceneImportOptions& options)
+{
+    const size_t original = countUnmeshedFaces(shape);
+    if (!original)
+        return false;
+    size_t bestCount = original;
+    double bestFactor = 1.0, lastFactor = 1.0;
+    for (const double factor : {0.5, 0.25, 0.1, 2.0}) {
+        if (options.cancelled && options.cancelled())
+            return false;
+        BRepTools::Clean(shape);
+        lastFactor = factor;
+        if (!meshBodyGuarded(&shape, deflection * factor, angle, options))
+            continue;
+        const size_t count = countUnmeshedFaces(shape);
+        if (count < bestCount) {
+            bestCount = count;
+            bestFactor = factor;
+        }
+        if (!count)
+            break;
+    }
+    if (bestFactor != lastFactor || bestCount == original) {
+        BRepTools::Clean(shape);
+        meshBodyGuarded(&shape, deflection * bestFactor, angle, options);
+    }
+    return bestCount < original;
 }
 
 struct FaceMeshRecovery {
@@ -306,7 +380,7 @@ FaceMeshRecovery recoverUntriangulatedFaces(BuiltBody& built, double deflection,
                 }
             }
             // The fallback returns points in body coordinates. OCCT stores them in face coordinates.
-            if (hasUsableTriangulation(face, triangles, TopLoc_Location())) {
+            if (hasUsableTriangulation(face, triangles, TopLoc_Location()) && triangulationAreaPlausible(face, triangles)) {
                 if (!face.Location().IsIdentity()) {
                     const gp_Trsf toLocal = face.Location().Transformation().Inverted();
                     for (int i = 1; i <= triangles->NbNodes(); ++i)
@@ -626,6 +700,7 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
     std::vector<TopoDS_Shape> displayFallbacks(bodyCount);
     std::atomic<size_t> droppedFaces{0};
     std::atomic<size_t> recoveredFaces{0};
+    std::atomic<size_t> refinedBodies{0};
     std::atomic<size_t> displayFaces{0};
     {
         const double deflection = BRepToAssimpConverter::resolveDeflectionFraction();
@@ -653,6 +728,8 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
                                                      angle, options, !(absolute > 0)))
                         bodyMeshed[i] = 0;
                     else if (!cancelledNow()) {
+                        if (hasFaces && !(absolute > 0) && remeshBodyUntilComplete(body.shape, deflection, angle, options))
+                            ++refinedBodies;
                         if (trace) {
                             std::fprintf(stderr, "XT mesh check begin body=%lld\n", bodyIndex);
                             std::fflush(stderr);
@@ -708,6 +785,8 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
         result.warnings << QStringLiteral("Parasolid: %1 faces could not be meshed and are left out.").arg(droppedFaces.load());
     if (recoveredFaces)
         result.warnings << QStringLiteral("Parasolid: %1 faces were meshed from their boundary curves.").arg(recoveredFaces.load());
+    if (refinedBodies)
+        result.warnings << QStringLiteral("Parasolid: %1 bodies were meshed again at another deflection because some faces got no triangles at the configured one.").arg(refinedBodies.load());
     if (displayCandidates)
         result.warnings << QStringLiteral("Parasolid: recovered %1 of %2 display mesh candidates rejected during B-Rep construction.")
                                .arg(displayFaces.load()).arg(displayCandidates);
@@ -799,6 +878,152 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
     regroupByAssembly(result.scene.get(), r.build.instances);
     report(QObject::tr("Done"), 1000, 1000);
     return result;
+}
+
+namespace {
+
+// What identifies a face well enough to tell a copy of it: the surface type, the centre and diagonal of its box, and its area.
+struct FaceKey {
+    int type = 0;
+    double centre[3] = {0, 0, 0};
+    double diagonal = 0;
+    double area = 0;
+};
+
+FaceKey faceKeyOf(const TopoDS_Face& face)
+{
+    FaceKey key;
+    key.type = static_cast<int>(BRepAdaptor_Surface(face, false).GetType());
+    Bnd_Box box;
+    BRepBndLib::AddOptimal(face, box, false, false);
+    if (!box.IsVoid() && !box.IsOpen()) {
+        double lo[3], hi[3];
+        box.Get(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
+        for (int k = 0; k < 3; ++k)
+            key.centre[k] = 0.5 * (lo[k] + hi[k]);
+        key.diagonal = std::sqrt((hi[0] - lo[0]) * (hi[0] - lo[0]) + (hi[1] - lo[1]) * (hi[1] - lo[1]) + (hi[2] - lo[2]) * (hi[2] - lo[2]));
+    }
+    GProp_GProps properties;
+    BRepGProp::SurfaceProperties(face, properties);
+    key.area = std::abs(properties.Mass());
+    return key;
+}
+
+bool sameFace(const FaceKey& a, const FaceKey& b)
+{
+    if (a.type != b.type)
+        return false;
+    const double scale = std::max({a.diagonal, b.diagonal, 1e-9});
+    const double tolerance = 1e-4 * scale;
+    for (int k = 0; k < 3; ++k)
+        if (std::abs(a.centre[k] - b.centre[k]) > tolerance)
+            return false;
+    return std::abs(a.diagonal - b.diagonal) <= tolerance && std::abs(a.area - b.area) <= 1e-4 * std::max({a.area, b.area, 1e-9});
+}
+
+// A part can hold a sheet body next to its solid (a surface model of the same part) that repeats some faces of the solid exactly.
+// Drawn together, a face and its copy fight over the same depth. The copies are taken out of the sheet bodies; the solid keeps its faces.
+TopoDS_Shape withoutFacesRepeatedBySolids(const TopoDS_Shape& shape, size_t& removed)
+{
+    removed = 0;
+    std::vector<FaceKey> solidFaces;
+    for (TopExp_Explorer solid(shape, TopAbs_SOLID); solid.More(); solid.Next())
+        for (TopExp_Explorer face(solid.Current(), TopAbs_FACE); face.More(); face.Next())
+            solidFaces.push_back(faceKeyOf(TopoDS::Face(face.Current())));
+    if (solidFaces.empty())
+        return shape;
+
+    BRep_Builder builder;
+    TopoDS_Compound result;
+    builder.MakeCompound(result);
+    bool changed = false;
+    for (TopoDS_Iterator body(shape); body.More(); body.Next()) {
+        if (TopExp_Explorer(body.Value(), TopAbs_SOLID).More()) {
+            builder.Add(result, body.Value());
+            continue;
+        }
+        TopoDS_Compound kept;
+        builder.MakeCompound(kept);
+        size_t keptFaces = 0, droppedFaces = 0;
+        for (TopExp_Explorer face(body.Value(), TopAbs_FACE); face.More(); face.Next()) {
+            const FaceKey key = faceKeyOf(TopoDS::Face(face.Current()));
+            if (std::any_of(solidFaces.begin(), solidFaces.end(), [&](const FaceKey& other) { return sameFace(key, other); })) {
+                ++droppedFaces;
+                continue;
+            }
+            builder.Add(kept, face.Current());
+            ++keptFaces;
+        }
+        if (!droppedFaces) {
+            builder.Add(result, body.Value());
+            continue;
+        }
+        changed = true;
+        removed += droppedFaces;
+        if (keptFaces)
+            builder.Add(result, kept);
+    }
+    return changed ? TopoDS_Shape(result) : shape;
+}
+
+} // namespace
+
+std::vector<std::unique_ptr<aiMesh>> meshesFromShape(const TopoDS_Shape& originalShape, const std::function<bool()>& cancelled)
+{
+    if (originalShape.IsNull())
+        throw std::runtime_error("the shape is empty");
+    size_t repeatedFaces = 0;
+    const TopoDS_Shape shape = withoutFacesRepeatedBySolids(originalShape, repeatedFaces);
+    SceneImportOptions options;
+    options.cancelled = cancelled;
+    const double deflection = BRepToAssimpConverter::resolveDeflectionFraction();
+    const double angle = BRepToAssimpConverter::resolveAngularDeflection();
+    if (!meshBodyGuarded(&shape, deflection, angle, options))
+        throw std::runtime_error("the shape could not be tessellated");
+    remeshBodyUntilComplete(shape, deflection, angle, options);
+    if (cancelled && cancelled())
+        throw std::runtime_error("cancelled");
+    // The caller replaces a stored tessellation with these meshes: a face left without triangles would be a hole in it.
+    if (const size_t unmeshed = countUnmeshedFaces(shape))
+        throw std::runtime_error(std::to_string(unmeshed) + " faces of the shape got no triangles");
+
+    // One tuple per body: the converter takes only the solids of a shape that has any, so a sheet body (a surface without a solid)
+    // would be left out of a compound that also holds a solid.
+    std::vector<ShapeWithNameAndTrsf> tuples;
+    const Quantity_Color grey(0.7, 0.7, 0.7, Quantity_TOC_RGB);
+    for (TopoDS_Iterator body(shape); body.More(); body.Next())
+        tuples.emplace_back(body.Value(), std::string(), TopLoc_Location(), grey);
+    if (tuples.empty())
+        tuples.emplace_back(shape, std::string(), TopLoc_Location(), grey);
+    // A solid has no open boundary: hairline gaps between the tessellations of neighbouring faces are closed on the mesh.
+    BRepToAssimpConverter::setFillMeshGaps(qEnvironmentVariableIsEmpty("MODELVIEWER_XT_NO_GAP_FILL"));
+    // The JT read owns the progress bar: converting one part must not set it back to the start of the reading band.
+    std::unique_ptr<aiScene> scene(BRepToAssimpConverter::convert(tuples, false, nullptr, 0, 100, /*reportProgress=*/false));
+    BRepToAssimpConverter::setFillMeshGaps(false);
+    if (!scene || scene->mNumMeshes == 0)
+        throw std::runtime_error("the shape could not be converted to meshes");
+
+    // The meshes leave the scene with their addresses unchanged (the edge and face tables are keyed by them).
+    std::vector<std::unique_ptr<aiMesh>> meshes;
+    meshes.reserve(scene->mNumMeshes);
+    for (unsigned i = 0; i < scene->mNumMeshes; ++i) {
+        std::unique_ptr<aiMesh> mesh(scene->mMeshes[i]);
+        scene->mMeshes[i] = nullptr;
+        if (mesh->mColors[0]) {
+            delete[] mesh->mColors[0];
+            mesh->mColors[0] = nullptr;
+        }
+        meshes.push_back(std::move(mesh));
+    }
+    // A part is one mesh: a solid and a sheet body (or several solids) of the same part would otherwise be separate meshes, and surfaces
+    // of separate meshes that lie on each other fight over the depth. The B-Rep edge and face tables are merged with the meshes.
+    if (meshes.size() > 1) {
+        if (std::unique_ptr<aiMesh> merged = BRepToAssimpConverter::mergeConvertedMeshes(meshes)) {
+            meshes.clear();
+            meshes.push_back(std::move(merged));
+        }
+    }
+    return meshes;
 }
 
 } // namespace Xt

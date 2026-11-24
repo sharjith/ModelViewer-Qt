@@ -19,10 +19,13 @@ target_include_directories(parasolid_xt_decode PRIVATE ${REPO}/include/Import/Pa
 # -DCMAKE_PREFIX_PATH=<vcpkg_installed>/x64-windows to find the vcpkg copy).
 find_package(OpenCASCADE QUIET)
 if(OpenCASCADE_FOUND)
-    add_executable(parasolid_xt_shapes xt_shapes_cli.cpp ${XT_SOURCES} ${REPO}/src/Import/Parasolid/XtOcct.cpp ${REPO}/src/Import/Parasolid/XtImport.cpp)
-    target_include_directories(parasolid_xt_shapes PRIVATE ${REPO}/include/Import/Parasolid ${REPO}/include ${OpenCASCADE_INCLUDE_DIR})
+    # FaceFallbackTriangulator (CGAL) needs GMP; the vcpkg copy sits beside the OpenCASCADE prefix.
+    find_library(XT_GMP_LIB NAMES gmp libgmp PATH_SUFFIXES lib NO_DEFAULT_PATH PATHS ${CMAKE_PREFIX_PATH})
+    set(XT_GMP_LIBS ${XT_GMP_LIB})
+    add_executable(parasolid_xt_shapes xt_shapes_cli.cpp ${XT_SOURCES} ${REPO}/src/Import/Parasolid/XtOcct.cpp ${REPO}/src/Import/Parasolid/XtImport.cpp ${REPO}/src/Import/FaceFallbackTriangulator.cpp)
+    target_include_directories(parasolid_xt_shapes PRIVATE ${REPO}/include/Import/Parasolid ${REPO}/include/Import ${REPO}/include ${OpenCASCADE_INCLUDE_DIR} ${OpenCASCADE_INCLUDE_DIR}/..)
     target_link_libraries(parasolid_xt_shapes PRIVATE TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo
-                          TKShHealing TKMesh TKPrim TKBO TKOffset)
+                          TKShHealing TKMesh TKPrim TKBO TKOffset ${XT_GMP_LIBS})
     add_executable(parasolid_step_summary step_summary_cli.cpp)
     target_include_directories(parasolid_step_summary PRIVATE ${OpenCASCADE_INCLUDE_DIR})
     target_link_libraries(parasolid_step_summary PRIVATE TKernel TKMath TKG2d TKG3d TKGeomBase TKBRep TKGeomAlgo TKTopAlgo

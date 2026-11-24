@@ -38,8 +38,18 @@ struct Options {
     // Match the measured exporter profile (DM 10.8.0.1 / JT 10.5, 10.7-10.10) duplicate
     // fallback-material convention. False retains published list order.
     bool duplicateFallbackMaterialCompatibility=true;
-    // Optional independently licensed XT backend. Empty in the native mesh-only build.
-    std::function<TopoDS_Shape(const QByteArray&)> exactDecoder;
+    // Optional independently licensed XT backend. Empty in the native mesh-only build. Called with the XT payload and the factor
+    // that turns the XT length unit (metres) into the unit of the JT geometry (1000 for a file in millimetres); returns the shape
+    // in JT units, or throws.
+    std::function<TopoDS_Shape(const QByteArray&,double)> exactDecoder;
+    // Turns an exact shape into scene meshes (smooth normals; the application's version also registers B-Rep edges for the
+    // wireframe, keyed by mesh address, and keeps the meshes out of the part merge so the registration stays valid). Empty:
+    // flat-shaded triangle meshes without edges.
+    std::function<std::vector<std::unique_ptr<aiMesh>>(const TopoDS_Shape&)> exactMesher;
+    // Rebuild each part from its embedded Parasolid B-Rep when the file has one and it decodes completely, validates and agrees
+    // with the stored extents; the stored tessellation is kept for every other part. Settings dialog (JT Importer) or
+    // MODELVIEWER_JT_XT_EXACT=1 / 0 in fromEnvironment(). The application installs exactDecoder and exactMesher when it is on.
+    bool useExactBRep=false;
     // Optional import-time eye position in JT world coordinates / source units.
     // Unset selects the first RangeLOD child; this is not runtime LOD switching.
     std::optional<std::array<double,3>> lodEyePoint;
@@ -82,6 +92,10 @@ struct Options {
          if(gib>=1&&gib<=256)result.decodedAllocationBudget=size_t(gib)*size_t(1024)*1024*1024;}
         {const int level=settings.value(QStringLiteral("jtDetailLevel"),0).toInt();if(level>=0&&level<=3)result.detailLevel=DetailLevel(level);}
         if(qgetenv("MODELVIEWER_JT_MERGE_PART_MESHES")=="0")result.mergePartMeshes=false;
+        {bool exact=settings.value(QStringLiteral("jtExactBRep"),false).toBool(); // off by default: the stored tessellation stays the established display
+         bool ok=false;const int env=qEnvironmentVariableIntValue("MODELVIEWER_JT_XT_EXACT",&ok);
+         if(ok)exact=env!=0;
+         result.useExactBRep=exact;}
         {bool variants=settings.value(QStringLiteral("jtLodMaterialVariants"),false).toBool(); // off by default: each level keeps its own materials (owner decision, 7 November 2026)
          const QByteArray variantsEnv=qgetenv("MODELVIEWER_JT_LOD_MATERIAL_VARIANTS");
          if(variantsEnv=="1")variants=true;

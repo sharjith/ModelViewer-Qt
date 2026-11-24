@@ -2514,6 +2514,25 @@ axis</string>
              </widget>
             </item>
             <item row="6" column="0" colspan="2">
+             <widget class="QCheckBox" name="jtExactBRepCheckBox">
+              <property name="toolTip">
+               <string>Many JT files carry the exact Parasolid B-Rep of
+  each part next to the stored tessellation. On: a part is
+  rebuilt from that B-Rep when it decodes completely and
+  validates - smooth shading and the exact B-Rep edges in
+  the wireframe, like the X_T importer. A part whose B-Rep
+  is missing, incomplete or rejected keeps the stored
+  tessellation. Off: the stored tessellation is always
+  used. Applies to files opened afterwards; large assemblies
+  open more slowly with it on.
+  Override: MODELVIEWER_JT_XT_EXACT=1 or 0.</string>
+              </property>
+              <property name="text">
+               <string>Use the embedded Parasolid B-Rep when available</string>
+              </property>
+             </widget>
+            </item>
+            <item row="7" column="0" colspan="2">
              <widget class="QCheckBox" name="jtStrictCheckBox">
               <property name="toolTip">
                <string>Off: a part file of an assembly that cannot be read is
@@ -3050,6 +3069,7 @@ Override: MODELVIEWER_IMPORT_DIAGNOSTICS_MAX_MB.</string>
   <tabstop>jtPrefetchMinSpinBox</tabstop>
   <tabstop>jtDetailLevelComboBox</tabstop>
   <tabstop>jtLodMaterialVariantsCheckBox</tabstop>
+  <tabstop>jtExactBRepCheckBox</tabstop>
   <tabstop>jtStrictCheckBox</tabstop>
   <tabstop>threeDxmlStrictCheckBox</tabstop>
   <tabstop>threeDxmlThreadsSpinBox</tabstop>

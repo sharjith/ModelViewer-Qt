@@ -585,7 +585,8 @@ aiScene* SceneGraphExporter::buildExportScene(
     const QStringList& allowedSourceFiles,
     QMap<QString, unsigned int>* outAnimMatRemap,
     const QHash<QUuid, std::vector<float>>* colorOverrides,
-    QHash<QUuid, QString>* outMeshNodeNameByUuid)
+    QHash<QUuid, QString>* outMeshNodeNameByUuid,
+    const QList<const SceneNode*>& allowedTopLevelNodes)
 {
     if (!sceneGraph)
         return nullptr;
@@ -632,7 +633,12 @@ aiScene* SceneGraphExporter::buildExportScene(
     QList<SceneNode*> exportFileNodes;
     for (SceneNode* fileNode : graphRoot->children)
     {
-        if (!filterFiles || allowedSourceFiles.contains(fileNode->sourceFile))
+        if (!allowedTopLevelNodes.isEmpty())
+        {
+            if (allowedTopLevelNodes.contains(fileNode))
+                exportFileNodes.append(fileNode);
+        }
+        else if (!filterFiles || allowedSourceFiles.contains(fileNode->sourceFile))
             exportFileNodes.append(fileNode);
     }
 

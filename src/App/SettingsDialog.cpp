@@ -511,6 +511,7 @@ void SettingsDialog::applySettings()
     settings.setValue("jtPrefetchMin", ui->jtPrefetchMinSpinBox->value());
     settings.setValue("jtDetailLevel", ui->jtDetailLevelComboBox->currentIndex());
     settings.setValue("jtLodMaterialVariants", ui->jtLodMaterialVariantsCheckBox->isChecked());
+    settings.setValue("jtExactBRep", ui->jtExactBRepCheckBox->isChecked());
     settings.setValue("jtStrict", ui->jtStrictCheckBox->isChecked());
     settings.setValue("threeDxmlStrict", ui->threeDxmlStrictCheckBox->isChecked());
     settings.setValue("threeDxmlThreads", ui->threeDxmlThreadsSpinBox->value());
@@ -704,6 +705,7 @@ void SettingsDialog::setDefaultValues()
     ui->jtPrefetchMinSpinBox->setValue(16);
     ui->jtDetailLevelComboBox->setCurrentIndex(0);
     ui->jtLodMaterialVariantsCheckBox->setChecked(false);
+    ui->jtExactBRepCheckBox->setChecked(false);
     ui->jtStrictCheckBox->setChecked(false);
     ui->threeDxmlStrictCheckBox->setChecked(false);
     ui->threeDxmlThreadsSpinBox->setValue(0);
@@ -1112,6 +1114,7 @@ void SettingsDialog::loadSettings()
     ui->jtPrefetchMinSpinBox->setValue(settings.value("jtPrefetchMin", 16).toInt());
     ui->jtDetailLevelComboBox->setCurrentIndex(qBound(0, settings.value("jtDetailLevel", 0).toInt(), 3));
     ui->jtLodMaterialVariantsCheckBox->setChecked(settings.value("jtLodMaterialVariants", false).toBool());
+    ui->jtExactBRepCheckBox->setChecked(settings.value("jtExactBRep", false).toBool());
     ui->jtStrictCheckBox->setChecked(settings.value("jtStrict", false).toBool());
     ui->threeDxmlStrictCheckBox->setChecked(settings.value("threeDxmlStrict", false).toBool());
     ui->threeDxmlThreadsSpinBox->setValue(settings.value("threeDxmlThreads", 0).toInt());
@@ -1217,7 +1220,7 @@ void SettingsDialog::restoreDefaults()
         ui->showTextureDebugPanelCheckBox,
         ui->importDiagnosticsCheckBox, ui->importDiagnosticsMaxMbSpinBox, ui->interactionFastPathMbSpinBox,
         ui->smallPartCullSpinBox, ui->batchedDrawingCheckBox, ui->batchMinMeshesSpinBox, ui->lodMinTrianglesSpinBox, ui->jtMergePartMeshesCheckBox, ui->jtDecodeThreadsSpinBox,
-        ui->jtBudgetGibSpinBox, ui->jtPrefetchMinSpinBox, ui->jtDetailLevelComboBox, ui->jtLodMaterialVariantsCheckBox, ui->jtStrictCheckBox, ui->threeDxmlStrictCheckBox,
+        ui->jtBudgetGibSpinBox, ui->jtPrefetchMinSpinBox, ui->jtDetailLevelComboBox, ui->jtLodMaterialVariantsCheckBox, ui->jtExactBRepCheckBox, ui->jtStrictCheckBox, ui->threeDxmlStrictCheckBox,
         ui->threeDxmlThreadsSpinBox, ui->threeDxmlParallelMinSpinBox, ui->inventorStrictCheckBox,
         ui->clearCacheButton
     };

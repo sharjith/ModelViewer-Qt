@@ -1686,6 +1686,12 @@ void SceneTreeWidget::onItemChanged(QTreeWidgetItem* item, int /*column*/)
 
 void SceneTreeWidget::onItemSelectionChanged()
 {
+    // QTreeWidget emits itemSelectionChanged from its own connection to the selection model, which was made before the
+    // constructor's invalidate() connection, so this slot runs BEFORE that one. Anything that asked for selectedMeshUuids()
+    // since the last change (a status refresh, a panel) has cached the previous selection and left it marked valid, so the
+    // handlers below would read the previous selection: the viewport showed the selection one click late.
+    _selectedMeshCacheValid = false;
+
     if (_updatingTree)
         return;
 

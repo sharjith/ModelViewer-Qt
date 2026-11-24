@@ -42,6 +42,13 @@ public:
         SceneNode* srcOwnerNode    = nullptr;
         int        srcMeshPosition = 0;
 
+        // --- Cut Mesh pasted on the document root: the node created to hold it (ownerNode is this node) ---
+        // Undo moves the mesh back and takes the node out of the scene; redo puts it back. While it is out of the
+        // scene the command owns it.
+        SceneNode* wrapperNode     = nullptr;
+        SceneNode* wrapperParent   = nullptr;
+        int        wrapperPosition = 0;
+
         // --- Copy/Cut Subtree: destination ---
         SceneNode*   subtreeRoot      = nullptr;
         SceneNode*   subtreeParent    = nullptr;

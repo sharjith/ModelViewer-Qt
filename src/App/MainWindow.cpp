@@ -70,6 +70,7 @@
 #include <QStyle>
 #include <QScrollArea>
 #include <QShortcut>
+#include <functional>
 #include <QPointer>
 #include "MaterialPropertiesPanel.h"
 #include "ObjectTransformPanel.h"
@@ -785,6 +786,23 @@ MainWindow::MainWindow(QWidget* parent)
 				child->deleteSelectedItems();
 		}
 		});
+	// Copy / Cut / Paste. Like Delete, they fire only while the active document's tree or 3D viewport has the focus, so
+	// Ctrl+C/X/V keep their normal text meaning in a search box or a property field.
+	const auto documentEditShortcut = [this](const QKeySequence& sequence, const std::function<void(ModelViewer*)>& action) {
+		connect(new QShortcut(sequence, this), &QShortcut::activated, this, [this, action]() {
+			ModelViewer* child = activeMdiChild();
+			if (!child)
+				return;
+			QWidget* focusWidget = QApplication::focusWidget();
+			QWidget* tree = child->treeWidgetModel;
+			QWidget* viewport = child->getViewportWidget();
+			if (focusWidget && ((tree && (focusWidget == tree || tree->isAncestorOf(focusWidget))) || focusWidget == viewport))
+				action(child);
+			});
+	};
+	documentEditShortcut(QKeySequence(QKeySequence::Copy),  [](ModelViewer* child) { child->copySelectedItems(); });
+	documentEditShortcut(QKeySequence(QKeySequence::Cut),   [](ModelViewer* child) { child->cutSelectedItems(); });
+	documentEditShortcut(QKeySequence(QKeySequence::Paste), [](ModelViewer* child) { child->pasteFromShortcut(); });
 	connect(new QShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_I), this), &QShortcut::activated, this, [this]() {
 		if (ModelViewer* child = activeMdiChild())
 			child->importModel();

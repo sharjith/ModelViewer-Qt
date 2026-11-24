@@ -419,7 +419,8 @@ Handle(Geom_BSplineCurve) Builder::nurbsCurve(const Node& nurbs) {
     const int n = static_cast<int>(num(nurbs, "NURBS_CURVE", "n_vertices"));
     const int dim = static_cast<int>(num(nurbs, "NURBS_CURVE", "vertex_dim"));
     bool periodic = num(nurbs, "NURBS_CURVE", "periodic") == 'T';
-    const bool rational = num(nurbs, "NURBS_CURVE", "rational") == 'T';
+    // A homogeneous net (vertex_dim 4) is rational whatever the flag says, as for the surface.
+    const bool rational = num(nurbs, "NURBS_CURVE", "rational") == 'T' || (dim == 4 && !std::getenv("XT_NO_DIM4_RATIONAL"));
     const Node* verts = node(ptr(nurbs, "NURBS_CURVE", "bspline_vertices"));
     const Node* mult = node(ptr(nurbs, "NURBS_CURVE", "knot_mult"));
     const Node* knotNode = node(ptr(nurbs, "NURBS_CURVE", "knots"));
@@ -468,7 +469,9 @@ Handle(Geom_BSplineSurface) Builder::nurbsSurface(const Node& nurbs) {
     const int dim = static_cast<int>(num(nurbs, "NURBS_SURF", "vertex_dim"));
     bool uPer = num(nurbs, "NURBS_SURF", "u_periodic") == 'T';
     bool vPer = num(nurbs, "NURBS_SURF", "v_periodic") == 'T';
-    const bool rational = num(nurbs, "NURBS_SURF", "rational") == 'T';
+    // A homogeneous net (vertex_dim 4: x*w, y*w, z*w, w) is rational whatever the flag says: a JT-embedded stream carries a rational
+    // surface of revolution with the flag clear, and the surface would otherwise be rejected as inconsistent.
+    const bool rational = num(nurbs, "NURBS_SURF", "rational") == 'T' || (dim == 4 && !std::getenv("XT_NO_DIM4_RATIONAL"));
     const Node* verts = node(ptr(nurbs, "NURBS_SURF", "bspline_vertices"));
     const Node* um = node(ptr(nurbs, "NURBS_SURF", "u_knot_mult"));
     const Node* vm = node(ptr(nurbs, "NURBS_SURF", "v_knot_mult"));
@@ -2132,6 +2135,23 @@ TopoDS_Edge Builder::edgeForImpl(const Node& edge) {
                     ++res.stats.edgesSkippedByCurve["loop-edge-kept"];
                 }
             }
+            if (wild && !curveIndex && startV && endV && !std::getenv("XT_NO_TOLERANT_LOOP")) {
+                // A tolerant edge's curve is the authored sub-range of its SP-curve, so it cannot be a vertex projected onto
+                // the wrong part of a curve. A long arc between two vertices that are close together is then a real edge
+                // (a nearly closed circle whose small gap is covered by another edge) when the curve ends on both vertices.
+                const TopoDS_Vertex vs = vertexFor(startV->index), ve = vertexFor(endV->index);
+                if (!vs.IsNull() && !ve.IsNull()) {
+                    const double reach = std::max({BRep_Tool::Tolerance(vs), BRep_Tool::Tolerance(ve), 2e-5 * scale});
+                    const gp_Pnt a = curve->Value(first), b = curve->Value(last);
+                    const gp_Pnt ps = BRep_Tool::Pnt(vs), pe = BRep_Tool::Pnt(ve);
+                    const bool straight = a.Distance(ps) <= reach && b.Distance(pe) <= reach;
+                    const bool swapped = a.Distance(pe) <= reach && b.Distance(ps) <= reach;
+                    if (straight || swapped) {
+                        wild = false;
+                        ++res.stats.edgesSkippedByCurve["tolerant-loop-kept"];
+                    }
+                }
+            }
             if (wild) {
                 if (std::getenv("XT_DEBUG_TOL"))
                     std::fprintf(stderr, "wild kind=%s length=%g chord=%g range=[%g %g] per=%d same=%d full=[%g %g] ends-gap=%g\n", ci.kind.c_str(), length, chord, first, last, (int)curve->IsPeriodic(), (int)sameVertex, curve->FirstParameter(), curve->LastParameter(), curve->Value(curve->FirstParameter()).Distance(curve->Value(curve->LastParameter())));
@@ -3715,6 +3735,33 @@ TopoDS_Face Builder::faceForImpl(const Node& face, TopAbs_Orientation use) {
                         faceSurface = periodic;
                         bb.UpdateFace(f, faceSurface, TopLoc_Location(), kXtTolerance * scale);
                         trace("periodic-spline-ring-chart", face.index);
+                    }
+                }
+            } catch (const Standard_Failure&) {
+            }
+            // The same for a chart closed in V (a surface of revolution whose profile runs along U, such as a rounded rim): the ring
+            // wires are iso-curves at the two ends of U and each runs once around V.
+            try {
+                const auto spline = Handle(Geom_BSplineSurface)::DownCast(faceSurface);
+                if (!spline.IsNull() && spline->IsVClosed() && !spline->IsVPeriodic() && !spline->IsUClosed() && !std::getenv("XT_NO_V_RING")) {
+                    const auto periodic = Handle(Geom_BSplineSurface)::DownCast(spline->Copy());
+                    periodic->SetVPeriodic();
+                    const int first = periodic->FirstVKnotIndex();
+                    const int last = periodic->LastVKnotIndex();
+                    if (last - first > 1)
+                        periodic->SetVOrigin(first + (last - first) / 2);
+                    double u0, u1, v0, v1;
+                    spline->Bounds(u0, u1, v0, v1);
+                    bool equivalent = std::abs(periodic->VPeriod() - (v1 - v0)) <= Precision::PConfusion();
+                    for (int u = 0; u <= 8 && equivalent; ++u)
+                        for (int v = 0; v <= 8 && equivalent; ++v) {
+                            const double x = u0 + (u1 - u0) * u / 8, y = v0 + (v1 - v0) * v / 8;
+                            equivalent = spline->Value(x, y).Distance(periodic->Value(x, y)) <= kXtTolerance * scale;
+                        }
+                    if (equivalent) {
+                        faceSurface = periodic;
+                        bb.UpdateFace(f, faceSurface, TopLoc_Location(), kXtTolerance * scale);
+                        trace("periodic-spline-ring-chart-v", face.index);
                     }
                 }
             } catch (const Standard_Failure&) {

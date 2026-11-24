@@ -562,6 +562,9 @@ public slots:
 	void copySelectedItems();
 	void cutSelectedItems();
 	void pasteIntoSelectedNode(const SceneNode* targetNode);
+	// Ctrl+V: pastes into the assembly or file node that is current in the tree, beside the current mesh (its parent node), or
+	// on the background (a node of its own) when nothing is current - the same targets the context menus offer.
+	void pasteFromShortcut();
 
 	// The clipboard is shared across every open document (static) so a
 	// Copy/Cut in one document's window can be pasted into another's - see
