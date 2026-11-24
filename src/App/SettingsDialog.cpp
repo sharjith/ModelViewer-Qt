@@ -386,6 +386,7 @@ void SettingsDialog::applySettings()
     settings.setValue("checkConfirmExit", general_confirmExit);
     settings.setValue("checkTutorialLaunch", general_showTutorialLauncher);
 	settings.setValue("spinBoxUndoLimit", general_undoLimit);
+	settings.setValue("spinBoxRecentFilesLimit", general_recentFilesLimit);
     settings.setValue("checkProgressiveLoading", general_progressiveLoading);
     settings.setValue("checkAnimateProgressiveFit", general_animateProgressiveFit);
     settings.setValue("checkPurgeRedundantNodes", general_purgeRedundantNodes);
@@ -558,6 +559,7 @@ void SettingsDialog::setDefaultValues()
     ui->checkConfirmExit->setChecked(false);      // No 'checked' property found
 	ui->checkTutorialLaunch->setChecked(true);    // Explicitly set to true
 	ui->spinBoxUndoLimit->setValue(50);           // Explicitly set
+	ui->spinBoxRecentFilesLimit->setValue(15);
     ui->checkProgressiveLoading->setChecked(false);
     ui->checkAnimateProgressiveFit->setChecked(true);
     ui->checkPurgeRedundantNodes->setChecked(true);
@@ -770,6 +772,7 @@ void SettingsDialog::syncStateFromUi()
     general_confirmExit = ui->checkConfirmExit->isChecked();
     general_showTutorialLauncher = ui->checkTutorialLaunch->isChecked();
     general_undoLimit = ui->spinBoxUndoLimit->value();
+    general_recentFilesLimit = ui->spinBoxRecentFilesLimit->value();
     general_progressiveLoading = ui->checkProgressiveLoading->isChecked();
     general_animateProgressiveFit = ui->checkAnimateProgressiveFit->isChecked();
     general_purgeRedundantNodes = ui->checkPurgeRedundantNodes->isChecked();
@@ -910,6 +913,8 @@ void SettingsDialog::loadSettings()
 	ui->checkTutorialLaunch->setChecked(bVal);
 	iVal = settings.value("spinBoxUndoLimit", ui->spinBoxUndoLimit->value()).toInt();
 	ui->spinBoxUndoLimit->setValue(iVal);
+	iVal = settings.value("spinBoxRecentFilesLimit", ui->spinBoxRecentFilesLimit->value()).toInt();
+	ui->spinBoxRecentFilesLimit->setValue(iVal);
     bVal = settings.value("checkProgressiveLoading", ui->checkProgressiveLoading->isChecked()).toBool();
     ui->checkProgressiveLoading->setChecked(bVal);
     bVal = settings.value("checkAnimateProgressiveFit", ui->checkAnimateProgressiveFit->isChecked()).toBool();
@@ -1185,7 +1190,7 @@ void SettingsDialog::restoreDefaults()
     // List of all widgets that need to be restored
     QList<QWidget*> widgetsToRestore = {
         ui->comboBoxTheme, ui->comboBoxLanguage,
-		ui->checkRestoreLastFile, ui->checkTooltips, ui->checkConfirmExit, ui->checkTutorialLaunch, ui->spinBoxUndoLimit,
+		ui->checkRestoreLastFile, ui->checkTooltips, ui->checkConfirmExit, ui->checkTutorialLaunch, ui->spinBoxUndoLimit, ui->spinBoxRecentFilesLimit,
 		ui->checkProgressiveLoading,
         ui->checkPurgeRedundantNodes,
         ui->comboProjectionMode, ui->comboDefaultView, ui->comboDefaultProjection,
@@ -1271,6 +1276,11 @@ void SettingsDialog::on_checkTutorialLaunch_stateChanged()
 void SettingsDialog::on_spinBoxUndoLimit_valueChanged()
 {
 	general_undoLimit = ui->spinBoxUndoLimit->value();
+}
+
+void SettingsDialog::on_spinBoxRecentFilesLimit_valueChanged()
+{
+	general_recentFilesLimit = ui->spinBoxRecentFilesLimit->value();
 }
 
 // Camera tab

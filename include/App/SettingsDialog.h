@@ -157,6 +157,7 @@ private slots:
     void on_checkConfirmExit_stateChanged();
 	void on_checkTutorialLaunch_stateChanged();
 	void on_spinBoxUndoLimit_valueChanged();
+	void on_spinBoxRecentFilesLimit_valueChanged();
     void on_comboProjectionMode_currentIndexChanged();
     void on_comboDefaultView_currentIndexChanged();
     void on_comboDefaultProjection_currentIndexChanged();
@@ -261,6 +262,7 @@ private:
     bool general_confirmExit = false;
     bool general_showTutorialLauncher = true;
 	int general_undoLimit = 50;
+	int general_recentFilesLimit = 15; // File > Recent menu and Start Page list
     bool general_progressiveLoading = false;
     bool general_animateProgressiveFit = true;
     bool general_purgeRedundantNodes = true;

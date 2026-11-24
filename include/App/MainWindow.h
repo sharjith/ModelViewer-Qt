@@ -142,6 +142,10 @@ public:
 
 	static inline QString recentFilesKey() { return QStringLiteral("recentFileList"); }
 	static inline QString fileKey() { return QStringLiteral("file"); }
+	enum { MaxRecentFiles = 30, DefaultRecentFiles = 15 };
+	// How many recent files the File > Recent menu and the Start Page list (Settings > General), within 1..MaxRecentFiles.
+	static int recentFilesLimit(const QSettings& settings);
+	static inline QString recentFilesLimitKey() { return QStringLiteral("spinBoxRecentFilesLimit"); }
 	static QStringList readRecentFiles(QSettings& settings);
 	static void writeRecentFiles(const QStringList& files, QSettings& settings);
 
@@ -219,8 +223,6 @@ private:
 	QMdiSubWindow* createDocumentSubWindow(ModelViewer* viewer);
 
 private:
-	enum { MaxRecentFiles = 15 };
-
 	Ui::MainWindow* ui;
 	// Documents live in _mdiArea (native QMdiArea - tiling/cascading/
 	// restoring, most-recently-used Next/Previous, all built in). The

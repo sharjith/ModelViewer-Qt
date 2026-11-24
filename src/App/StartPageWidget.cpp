@@ -40,7 +40,10 @@
 
 namespace
 {
-	constexpr int kMaxRecentFilesShown = 6;
+	constexpr int kRecentVisibleRows = 6; // the card's height; longer lists scroll
+	constexpr int kWhatsNewVisibleHeight = 340; // the What's New list's visible height; a longer list scrolls
+	constexpr int kRecentRowHeight = 46;
+	constexpr int kRecentRowSpacing = 2;
 	constexpr int kTileSize = 150;
 	constexpr int kVideoTileWidth = 240;
 	constexpr int kVideoThumbHeight = 135; // 16:9, like the thumbnails
@@ -283,10 +286,10 @@ namespace
 			setAccessibleName(QFileInfo(path).fileName());
 			setAccessibleDescription(QDir::toNativeSeparators(path));
 			setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-			setFixedHeight(46);
+			setFixedHeight(kRecentRowHeight);
 		}
 
-		QSize sizeHint() const override { return QSize(200, 46); }
+		QSize sizeHint() const override { return QSize(200, kRecentRowHeight); }
 
 	protected:
 		void paintEvent(QPaintEvent*) override
@@ -461,10 +464,23 @@ void StartPageWidget::buildUi()
 	page->addLayout(middle, 4);
 
 	QVBoxLayout* recentPanel = makePanel(tr("Recent Files"), 3, middle);
-	_recentLayout = new QVBoxLayout();
-	_recentLayout->setSpacing(2);
-	recentPanel->addLayout(_recentLayout);
-	recentPanel->addStretch(1);
+	// The list can be as long as the File > Recent count (up to 30); the card keeps its height and scrolls the rest.
+	auto* recentScroll = new QScrollArea(recentPanel->parentWidget());
+	recentScroll->setObjectName(QStringLiteral("recentScroll"));
+	recentScroll->setWidgetResizable(true);
+	recentScroll->setFrameShape(QFrame::NoFrame);
+	recentScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	recentScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+	// At least kRecentVisibleRows rows tall, and it takes whatever height the card gets from its neighbour.
+	recentScroll->setMinimumHeight(kRecentVisibleRows * kRecentRowHeight + (kRecentVisibleRows - 1) * kRecentRowSpacing);
+	recentScroll->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
+	auto* recentHost = new QWidget(recentScroll);
+	recentHost->setObjectName(QStringLiteral("recentHost"));
+	_recentLayout = new QVBoxLayout(recentHost);
+	_recentLayout->setContentsMargins(0, 0, 0, 0);
+	_recentLayout->setSpacing(kRecentRowSpacing);
+	recentScroll->setWidget(recentHost);
+	recentPanel->addWidget(recentScroll, 1);
 
 	QVBoxLayout* newPanel = makePanel(tr("What's New in %1").arg(QStringLiteral(APP_VERSION_STRING)), 2, middle);
 	if (_whatsNewDue)
@@ -496,7 +512,21 @@ void StartPageWidget::buildUi()
 			: QStringLiteral("<b>%1</b>").arg(title);
 		notes += QStringLiteral("<p style=\"margin:0 0 6px 0;\">%1 &mdash; %2</p>").arg(head, tr(item.text).toHtmlEscaped());
 	}
-	auto* newText = new QLabel(notes, newPanel->parentWidget());
+	// The list sits in a scroll area of fixed height, so a longer list in a later release scrolls instead of growing the card.
+	auto* newsScroll = new QScrollArea(newPanel->parentWidget());
+	newsScroll->setObjectName(QStringLiteral("newsScroll"));
+	newsScroll->setWidgetResizable(true);
+	newsScroll->setFrameShape(QFrame::NoFrame);
+	newsScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	newsScroll->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
+	newsScroll->setFixedHeight(kWhatsNewVisibleHeight);
+	auto* newsHost = new QWidget(newsScroll);
+	newsHost->setObjectName(QStringLiteral("newsHost"));
+	auto* newsLayout = new QVBoxLayout(newsHost);
+	newsLayout->setContentsMargins(0, 0, 8, 0); // keeps the text clear of the scroll bar
+	newsScroll->setWidget(newsHost);
+	newPanel->addWidget(newsScroll);
+	auto* newText = new QLabel(notes, newsHost);
 	newText->setObjectName(QStringLiteral("bodyText"));
 	newText->setTextFormat(Qt::RichText);
 	newText->setWordWrap(true);
@@ -505,7 +535,8 @@ void StartPageWidget::buildUi()
 		if (link.startsWith(QLatin1String("lesson:")))
 			emit lessonRequested(link.mid(7).toInt());
 	});
-	newPanel->addWidget(newText);
+	newsLayout->addWidget(newText);
+	newsLayout->addStretch(1);
 	auto* readNew = new QPushButton(tr("Full release notes on GitHub"), newPanel->parentWidget());
 	readNew->setObjectName(QStringLiteral("secondaryAction"));
 	readNew->setCursor(Qt::PointingHandCursor);
@@ -682,10 +713,8 @@ void StartPageWidget::refreshRecentFiles()
 	QWidget* host = _recentLayout->parentWidget();
 
 	int shown = 0;
-	for (const QString& path : files)
+	for (const QString& path : files) // already limited to the File > Recent count (Settings > General)
 	{
-		if (shown >= kMaxRecentFilesShown)
-			break;
 		auto* row = new RecentFileButton(path, host);
 		connect(row, &QAbstractButton::clicked, this, [this, path]() { emit openFileRequested(path); });
 		_recentLayout->addWidget(row);
@@ -746,7 +775,7 @@ void StartPageWidget::applyTheme()
 		"QLabel#heroTitle { background: transparent; border: none; font-size: 22px; font-weight: 700; color: %7; }"
 		"QLabel#bodyText { background: transparent; border: none; font-size: 10.5pt; color: %8; }"
 		"QLabel#badge { background: %5; border: none; border-radius: 8px; padding: 1px 8px; font-size: 9pt; font-weight: 700; color: %9; }"
-		"QScrollArea#videoScroll, QWidget#videoRow { background: transparent; border: none; }"
+		"QScrollArea#videoScroll, QWidget#videoRow, QScrollArea#recentScroll, QWidget#recentHost, QScrollArea#newsScroll, QWidget#newsHost { background: transparent; border: none; }"
 		"QToolButton#arrowButton { background: %2; color: %7; border: 1px solid %3; border-radius: 6px; min-width: 28px; min-height: 28px; }"
 		"QToolButton#arrowButton:hover { border: 1px solid %5; }"
 		"QLabel#creditText { background: transparent; border: none; font-size: 8.5pt; color: %8; }"

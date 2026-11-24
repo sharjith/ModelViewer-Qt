@@ -1920,15 +1920,21 @@ QString recentFileKey(const QString& path)
 }
 } // namespace
 
+int MainWindow::recentFilesLimit(const QSettings& settings)
+{
+	return std::clamp(settings.value(recentFilesLimitKey(), int(DefaultRecentFiles)).toInt(), 1, int(MaxRecentFiles));
+}
+
 QStringList MainWindow::readRecentFiles(QSettings& settings)
 {
 	QStringList result;
 	QSet<QString> seen;
+	const int limit = recentFilesLimit(settings);
 	const int count = settings.beginReadArray(recentFilesKey());
-	// Only the first MaxRecentFiles entries are ever used. Older versions never trimmed the stored list, so it can
+	// Only the first `limit` entries are ever used. Older versions never trimmed the stored list, so it can
 	// hold hundreds of stale entries; reading just the head keeps every open and menu refresh cheap. A file stored twice under
 	// different spellings of its path (older versions kept the path as it came) is listed once, at its first position.
-	for (int i = 0; i < qMin(count, int(MaxRecentFiles) * 2) && result.size() < int(MaxRecentFiles); ++i) {
+	for (int i = 0; i < qMin(count, limit * 2) && result.size() < limit; ++i) {
 		settings.setArrayIndex(i);
 		const QString path = settings.value(fileKey()).toString();
 		if (path.isEmpty() || seen.contains(recentFileKey(path)))
@@ -1942,7 +1948,7 @@ QStringList MainWindow::readRecentFiles(QSettings& settings)
 
 void MainWindow::writeRecentFiles(const QStringList& files, QSettings& settings)
 {
-	const int count = qMin(int(files.size()), int(MaxRecentFiles));
+	const int count = qMin(int(files.size()), recentFilesLimit(settings));
 	// Drop the whole old array first: beginWriteArray() only sets the new size and would leave stale
 	// higher-index entries behind in the registry / ini file.
 	settings.remove(recentFilesKey());
@@ -2870,6 +2876,15 @@ void MainWindow::on_actionSettings_triggered()
 	settingsDialog->show();
 
 	connect(settingsDialog, &SettingsDialog::settingsChanged, this, [this, settingsDialog]() {
+		{
+			// The recent-files count may have changed: rewrite the list now, so a lowered count drops the surplus entries
+			// from the registry instead of only hiding them (the write clears the stored array first).
+			QSettings recentSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
+			const QStringList kept = readRecentFiles(recentSettings);
+			if (!kept.isEmpty())
+				writeRecentFiles(kept, recentSettings);
+			updateRecentFileActions(); // menu and Start Page
+		}
 		if (!_viewers.empty())
 		{
 			int anIsoVals[] = {1, 2, 4, 8, 16};
@@ -3379,7 +3394,7 @@ void MainWindow::updateRecentFileActions()
 	QSettings settings(QCoreApplication::organizationName(), QCoreApplication::applicationName());
 
 	const QStringList recentFiles = readRecentFiles(settings);
-	const int count = qMin(int(MaxRecentFiles), recentFiles.size());
+	const int count = qMin(recentFilesLimit(settings), recentFiles.size());
 
 	int i = 0;
 	for (; i < count; ++i)
