@@ -3734,11 +3734,14 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 					{
 					case 0: glMode = GL_POINTS;         break;
 					case 1: glMode = GL_LINES;           break;
-					case 2: glMode = GL_LINE_LOOP;       break;
-					case 3: glMode = GL_LINE_STRIP;      break;
+					// Assimp's glTF importer has already expanded loops, strips and fans into plain line and triangle lists, so
+					// the mesh data is a LINES / TRIANGLES list whatever the file's mode was. Tagging it with the file's mode
+					// would draw (and export) the list as a strip or fan again.
+					case 2: glMode = GL_LINES;           break; // LINE_LOOP
+					case 3: glMode = GL_LINES;           break; // LINE_STRIP
 					case 4: glMode = GL_TRIANGLES;       break;
-					case 5: glMode = GL_TRIANGLE_STRIP;  break;
-					case 6: glMode = GL_TRIANGLE_FAN;    break;
+					case 5: glMode = GL_TRIANGLES;       break; // TRIANGLE_STRIP
+					case 6: glMode = GL_TRIANGLES;       break; // TRIANGLE_FAN
 					default: glMode = GL_TRIANGLES;      break;
 					}
 
@@ -3811,11 +3814,12 @@ void AssImpModelLoader::parseGltfPrimitiveModes(const QString& gltfPath)
 							{
 							case 0: glMode = GL_POINTS;         break;
 							case 1: glMode = GL_LINES;          break;
-							case 2: glMode = GL_LINE_LOOP;      break;
-							case 3: glMode = GL_LINE_STRIP;     break;
+							// Loops, strips and fans were expanded to lists by Assimp (see the mapping above).
+							case 2: glMode = GL_LINES;          break; // LINE_LOOP
+							case 3: glMode = GL_LINES;          break; // LINE_STRIP
 							case 4: glMode = GL_TRIANGLES;      break;
-							case 5: glMode = GL_TRIANGLE_STRIP; break;
-							case 6: glMode = GL_TRIANGLE_FAN;   break;
+							case 5: glMode = GL_TRIANGLES;      break; // TRIANGLE_STRIP
+							case 6: glMode = GL_TRIANGLES;      break; // TRIANGLE_FAN
 							default: glMode = GL_TRIANGLES;     break;
 							}
 
