@@ -607,8 +607,9 @@ aiReturn AssImpMeshExporter::exportMeshes(
 
     logMessage("  -> Scene hierarchy created");
 
-    // OBJ has no vertex colours: turn them into materials (vertex colours take precedence)
-    if (ext == "obj")
+    // OBJ has no vertex colours: turn them into materials (vertex colours take precedence). Not for "OBJ without material file":
+    // no materials are written there, so the baking (which can split meshes) would be wasted.
+    if (ext == "obj" && settings.formatId != QLatin1String("objnomtl"))
     {
         const ObjColourBaking::Result baked = ObjColourBaking::bake(newScene.get());
         logMessage(QString("  -> OBJ vertex colours -> materials: %1 meshes recoloured, %2 added by splitting, %3 materials created")
@@ -619,7 +620,7 @@ aiReturn AssImpMeshExporter::exportMeshes(
     logMessage("Step 4: Exporting to file...");
 
     Assimp::Exporter exporter;
-    const aiExportFormatDesc* format = findExportFormat(exportPath.toStdString(), exporter);
+    const aiExportFormatDesc* format = findExportFormat(exportPath.toStdString(), exporter, settings.formatId);
 
     if (!format)
     {
@@ -1016,7 +1017,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
     profile.phase("4 embed textures / update paths");
     // ===== STEP 4c: OBJ has no vertex colours: turn them into materials (vertex colours take precedence) =====
-    if (ext == "obj")
+    if (ext == "obj" && settings.formatId != QLatin1String("objnomtl"))
     {
         const ObjColourBaking::Result baked = ObjColourBaking::bake(scene);
         logMessage(QString("Step 4c: OBJ vertex colours -> materials: %1 meshes recoloured, %2 added by splitting, %3 materials created")
@@ -1028,7 +1029,7 @@ aiReturn AssImpMeshExporter::exportScene(
     logMessage("Step 5: Exporting scene...");
 
     Assimp::Exporter exporter;
-    const aiExportFormatDesc* format = findExportFormat(exportPath, exporter);
+    const aiExportFormatDesc* format = findExportFormat(exportPath, exporter, settings.formatId);
 
     if (!format)
     {
@@ -1043,9 +1044,9 @@ aiReturn AssImpMeshExporter::exportScene(
 
     // Set export flags for GLB to embed textures
     aiReturn result;
-    if (ext == "glb" || ext == "gltf-binary")
+    if (settings.formatId.isEmpty() && (ext == "glb" || ext == "gltf-binary"))
     {
-        // Use glTF2 exporter with embedding
+        // No format chosen by id: a .glb always means the glTF2 binary exporter (with embedded textures)
         logMessage("  -> Exporting with embedded textures...");
         result = exporter.Export(scene, "glb2", exportPath.c_str());
     }
@@ -1075,7 +1076,7 @@ aiReturn AssImpMeshExporter::exportScene(
 
     // OBJ-specific: patch the .mtl file with PBR extension lines (Pm, Pr, map_Pm,
     // map_Pr, map_Ke, norm) that Assimp's OBJ writer does not emit.
-    if (ext == "obj" && settings.copyTextures)
+    if (ext == "obj" && settings.copyTextures && settings.formatId != QLatin1String("objnomtl"))
     {
         QString mtlPath = exportFilePath;
         mtlPath.replace(QRegularExpression("\\.obj$",
@@ -1248,8 +1249,22 @@ aiMesh* AssImpMeshExporter::createMesh(
 
 const aiExportFormatDesc* AssImpMeshExporter::findExportFormat(
     const std::string& filePath,
-    Assimp::Exporter& exporter)
+    Assimp::Exporter& exporter,
+    const QString& formatId)
 {
+    // The dialog's choice wins: formats that share an extension (OBJ with / without MTL, ASCII / binary STL and PLY) differ only by id.
+    if (!formatId.isEmpty())
+    {
+        const std::string wanted = formatId.toStdString();
+        for (unsigned int i = 0; i < exporter.GetExportFormatCount(); ++i)
+        {
+            const aiExportFormatDesc* fmt = exporter.GetExportFormatDescription(i);
+            if (fmt && wanted == fmt->id)
+                return fmt;
+        }
+        return nullptr;
+    }
+
     // Extract file extension
     size_t dotPos = filePath.find_last_of('.');
     if (dotPos == std::string::npos)

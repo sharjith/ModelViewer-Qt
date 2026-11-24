@@ -6266,15 +6266,21 @@ void ModelViewer::exportModelDialog()
 	Assimp::Exporter assimpExporter;
 	QStringList filters;
 	QMap<QString, QString> filterToExtension;
+	QMap<QString, QString> filterToFormatId; // Assimp format id: several formats share an extension (OBJ with / without MTL, ASCII / binary STL, PLY)
 
 	for (unsigned int i = 0; i < assimpExporter.GetExportFormatCount(); ++i)
 	{
 		const aiExportFormatDesc* desc = assimpExporter.GetExportFormatDescription(i);
+		const QString formatId = QString::fromUtf8(desc->id);
+		// glTF 1.0 is obsolete (our importer and every current viewer read glTF 2.0): only the v2 entries are offered.
+		if (formatId == QLatin1String("gltf") || formatId == QLatin1String("glb"))
+			continue;
 		QString ext  = QString::fromUtf8(desc->fileExtension);
 		QString descStr = QString::fromUtf8(desc->description);
 		QString filter  = QString("%1 (*.%2)").arg(descStr).arg(ext);
 		filters.append(filter);
 		filterToExtension[filter] = ext;
+		filterToFormatId[filter] = formatId;
 	}
 	// No combined "all formats" entry: a name does not tell the exporter the format, so one format is always selected and its
 	// extension is added to the name (the name is offered without one).
@@ -6518,8 +6524,11 @@ void ModelViewer::exportModelDialog()
 		}
 	}
 
-	const bool formatSupportsTextures = (exportExt != "ply" && exportExt != "stl");
+	const QString exportFormatId = filterToFormatId.value(selectedFilter);
+	// "OBJ without material file" writes no .mtl, so no textures are copied either.
+	const bool formatSupportsTextures = (exportExt != "ply" && exportExt != "stl" && exportFormatId != QLatin1String("objnomtl"));
 	AssImpMeshExporter::ExportSettings expSettings;
+	expSettings.formatId = exportFormatId;
 	expSettings.outputDirectory  = QFileInfo(fileName).absolutePath();
 	expSettings.copyTextures     = formatSupportsTextures;
 	expSettings.useRelativePaths = true;

@@ -61,6 +61,10 @@ public:
     struct ExportSettings
     {
         QString outputDirectory;              ///< Base directory for output
+        // Assimp format id chosen in the export dialog (obj, objnomtl, stl, stlb, ply, plyb, gltf2, glb2, 3mf, ...). Several formats share
+        // an extension (OBJ with / without MTL, ASCII / binary STL and PLY), so the extension alone cannot say which one was meant.
+        // Empty: pick the first exporter registered for the file's extension (the former behaviour).
+        QString formatId;
         bool copyTextures = true;             ///< Copy texture files to output
         bool useRelativePaths = true;         ///< Use relative paths in glTF
         bool deduplicateTextures = true;      ///< Remove duplicate textures
@@ -397,11 +401,13 @@ private:
      *
      * @param filePath Output file path to determine format
      * @param exporter Assimp exporter instance to query
+     * @param formatId Assimp format id; when not empty it decides (the extension is not looked at)
      * @return Pointer to aiExportFormatDesc, or nullptr if unsupported
      */
     const aiExportFormatDesc* findExportFormat(
         const std::string& filePath,
-        Assimp::Exporter& exporter);
+        Assimp::Exporter& exporter,
+        const QString& formatId = QString());
 
     /*
     *
