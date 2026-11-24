@@ -7,6 +7,7 @@ Written research behind feature implementations. This folder holds **documents o
 | [`jt/`](jt/JT_RESEARCH_INDEX.md) | JT importer: feasibility and licensing, version compatibility, codec and appearance investigations, validation records, Parasolid/JT scope |
 | [`3dxml/`](3dxml/) | 3DXML importer: format research, mesh and scene-graph specifications, provenance statement, decoding handout |
 | [`parasolid/`](parasolid/PARASOLID_RESEARCH_INDEX.md) | Standalone Parasolid X_T feasibility, sample inventory and implementation gates |
+| [`export/`](export/EXPORTERS_PLAN.md) | Own model exporters (GLB, OBJ, STL, PLY, 3MF, later USDZ) replacing Assimp's writers: motivation, current pipeline, design, gated order of work, verification |
 | [`inventor/`](inventor/INVENTOR_IMPLEMENTATION_PLAN.md) | Autodesk Inventor implementation plan, UI gates, licensing and validation scope |
 
 ## What does not belong here
