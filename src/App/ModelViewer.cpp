@@ -6232,6 +6232,8 @@ void ModelViewer::importFiles(QStringList& fileNames)
 
 
 #include "AssImpMeshExporter.h"
+#include "ExportFormatRegistry.h"
+#include "IModelWriter.h"
 #include "SceneMesh.h"
 #include "SceneUtils.h"
 #include "SceneGraphExporter.h"
@@ -6631,9 +6633,27 @@ void ModelViewer::exportModelDialog()
 	// hierarchy-aware path — copyScene/triMeshes were already built above with the
 	// selection filter (if any) applied via the resolver, preserving node transforms
 	// and tree structure for both modes.
-	AssImpMeshExporter meshExporter(this);
 	exportProfileTimer.restart();
-	aiReturn res = meshExporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
+	aiReturn res = aiReturn_FAILURE;
+	QString ownWriterError;
+	if (const IModelWriter* ownWriter = ExportFormatRegistry::ownWriterFor(exportFormatId))
+	{
+		// A format we write ourselves (opt-in while the glTF writer is built: MODELVIEWER_OWN_GLTF_EXPORT=1).
+		ExportRequest request;
+		request.scene = copyScene;
+		request.meshes = &triMeshes;
+		request.settings = &expSettings;
+		request.outputPath = fileName;
+		request.formatId = exportFormatId;
+		const ExportResult own = ownWriter->write(request);
+		res = own.success ? aiReturn_SUCCESS : aiReturn_FAILURE;
+		ownWriterError = own.message;
+	}
+	else
+	{
+		AssImpMeshExporter meshExporter(this);
+		res = meshExporter.exportScene(copyScene, triMeshes, fileName.toStdString(), expSettings);
+	}
 	qDebug() << "Exporting scene result:" << res;
 	qDebug().noquote() << QStringLiteral("[ExportProfile] exportScene total: %1 ms").arg(exportProfileTimer.elapsed());
 	exportProfileTimer.restart();
@@ -6643,7 +6663,7 @@ void ModelViewer::exportModelDialog()
 	if (res == aiReturn_SUCCESS)
 		QMessageBox::information(this, tr("Information"), tr("Exported %1").arg(QFileInfo(fileName).fileName()));
 	else
-		QMessageBox::critical(this, tr("Error"), tr("Export failed!"));
+		QMessageBox::critical(this, tr("Error"), ownWriterError.isEmpty() ? tr("Export failed!") : tr("Export failed: %1").arg(ownWriterError));
 }
 
 

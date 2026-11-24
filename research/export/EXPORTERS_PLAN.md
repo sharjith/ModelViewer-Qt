@@ -124,7 +124,7 @@ Status: design for owner review (24 November 2026). No code until it is accepted
 | Component | Job |
 |---|---|
 | `IModelWriter`, `ExportRequest`, `ExportResult` | The interface and its input / result (success, message, warnings). `ExportRequest` bundles the `aiScene`, the ordered `SceneMesh*` list, `ExportSettings`, the output path and the format id. |
-| `ExportFormatRegistry` | Format id -> writer. Own writers first; the remaining Assimp formats are listed from Assimp's registry; the dialog is built from it. Env var `MODELVIEWER_LEGACY_GLTF_EXPORT=1` routes glb / gltf back to Assimp while the branch is open (removed before merge, owner decision 2). |
+| `ExportFormatRegistry` | Format id -> writer. Own writers first; the remaining Assimp formats are listed from Assimp's registry; the dialog is built from it. While the writer is built it is opt-in: env var `MODELVIEWER_OWN_GLTF_EXPORT=1` routes `glb2` / `gltf2` to it (stages 2a-2e), so the old path stays the default for everything else; at stage 2f the own writer becomes the default and the legacy path and the switch are removed (owner decision 2). |
 | `ExportSession` | Everything that is per export: texture store, warnings, `ExportProfile` timings, variant / light / camera data. Replaces the `GltfPostProcessor` statics for this path; nothing process-wide. |
 | `GltfWriter` | Orchestrates one export; writes `.glb` or `.gltf` + `.bin` + texture folder from the same code. |
 | `GltfBinaryBuffer` | One growable buffer with geometric growth and 4-byte alignment; accessors record exact `min` / `max` computed from the data they write (fixes the validator's `ACCESSOR_MIN_MISMATCH`). |
@@ -147,7 +147,7 @@ Status: design for owner review (24 November 2026). No code until it is accepted
 | Stage | Content | Pass criteria |
 |---|---|---|
 | 2a | Infrastructure (`IModelWriter`, registry with env-var fallback, `ExportSession`, `GltfBinaryBuffer`) and a geometry-only GLB **and** glTF writer: hierarchy, positions, normals, UVs, indices, conditional `COLOR_0`, default material | Validator: 0 errors on K01 and S-A; geometry equals the input (vertex / triangle counts, actual bounds from the buffer); S-A time recorded |
-| 2b | Core PBR materials, textures, samplers, texture transform, alpha modes, two-sided, unlit, units (known unit only) | K-set core models validate with 0 errors; `gltf_profile.py diff` against the Khronos input shows no loss; image bytes policy (D1) in effect |
+| 2b | Core PBR materials, textures, samplers, texture transform, alpha modes, two-sided, unlit, units (known unit only). Also: skip a texture-coordinate channel that is all zeros unless a texture of the mesh's material uses it (the scene builder always provides `TEXCOORD_0`; stage 2a files carry it unused, about a quarter of the binary data of an untextured assembly) | K-set core models validate with 0 errors; `gltf_profile.py diff` against the Khronos input shows no loss; image bytes policy (D1) in effect |
 | 2c | Material extensions | The extension models of the K-set (anisotropy, clearcoat, sheen, transmission, iridescence, diffuse transmission, dispersion, emissive strength, spec / gloss, volume) validate and match the input |
 | 2d | Lights, cameras, variants | Lights / cameras / variants models match the input; round trip through our importer keeps variants |
 | 2e | Animation: node, morph, skin, pointer, visibility | Animation models match the input and play after a round trip |
