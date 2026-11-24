@@ -997,7 +997,8 @@ std::vector<std::unique_ptr<aiMesh>> meshesFromShape(const TopoDS_Shape& origina
         tuples.emplace_back(shape, std::string(), TopLoc_Location(), grey);
     // A solid has no open boundary: hairline gaps between the tessellations of neighbouring faces are closed on the mesh.
     BRepToAssimpConverter::setFillMeshGaps(qEnvironmentVariableIsEmpty("MODELVIEWER_XT_NO_GAP_FILL"));
-    std::unique_ptr<aiScene> scene(BRepToAssimpConverter::convert(tuples));
+    // The JT read owns the progress bar: converting one part must not set it back to the start of the reading band.
+    std::unique_ptr<aiScene> scene(BRepToAssimpConverter::convert(tuples, false, nullptr, 0, 100, /*reportProgress=*/false));
     BRepToAssimpConverter::setFillMeshGaps(false);
     if (!scene || scene->mNumMeshes == 0)
         throw std::runtime_error("the shape could not be converted to meshes");

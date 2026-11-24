@@ -175,7 +175,8 @@ public:
 
 	static aiScene* convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation = false,
 							const std::vector<float>* opacities = nullptr, // opacities: one per tuple (1 = opaque), optional
-							int progressFromPercent = 0, int progressToPercent = 100); // the part of the progress bar this call fills
+							int progressFromPercent = 0, int progressToPercent = 100, // the part of the progress bar this call fills
+							bool reportProgress = true); // false: the caller owns the bar (a JT part converted inside the JT read must not reset it)
 	static aiScene* convert(const TopoDS_Shape& shape, const Quantity_Color& color, int& index, const std::string& name = "");
 	static aiScene* convert(
 		const TopoDS_Shape& shape,

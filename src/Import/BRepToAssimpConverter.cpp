@@ -232,7 +232,7 @@ void BRepToAssimpConverter::setFillMeshGaps(bool enabled)
 }
 
 aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>& shapeTuples, bool copyTriangulation,
-										const std::vector<float>* opacities, int progressFromPercent, int progressToPercent)
+										const std::vector<float>* opacities, int progressFromPercent, int progressToPercent, bool reportProgress)
 {
 	if (shapeTuples.empty())
 		return nullptr;
@@ -254,7 +254,8 @@ aiScene* BRepToAssimpConverter::convert(const std::vector<ShapeWithNameAndTrsf>&
 		const size_t tupleIndex = static_cast<size_t>(&tuple - shapeTuples.data());
 		// The range parameters are percent of the reading half of the bar (see MainWindow::setImportProgress).
 		const double progress = (progressFromPercent + ((double)tupleIndex / (double)totalCount) * (progressToPercent - progressFromPercent)) / 100.0;
-		MainWindow::setImportProgress(MainWindow::ImportBand::Read, progress);
+		if (reportProgress)
+			MainWindow::setImportProgress(MainWindow::ImportBand::Read, progress);
 		const TopoDS_Shape& shape = std::get<0>(tuple);
 		const std::string& name = std::get<1>(tuple);
 		const gp_Trsf& trsf = std::get<2>(tuple);
