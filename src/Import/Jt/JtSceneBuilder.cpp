@@ -30,6 +30,8 @@
 #include <tuple>
 #include <JtProperty_String.hxx>
 #include <JtProperty_Scalar.hxx>
+#include <BRepBndLib.hxx>
+#include <Bnd_Box.hxx>
 #include <BRepCheck_Analyzer.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRep_Tool.hxx>
@@ -603,6 +605,11 @@ struct Builder {
     std::set<QString> activeFiles;
     std::map<QString,Handle(JtNode_Partition)> partitions;
     std::map<std::tuple<const void*,unsigned,unsigned>,unsigned> meshCache; // shape payload, default material, variant material
+    // Meshes rebuilt from an embedded Parasolid B-Rep (they carry B-Rep edge tables keyed by their address, so the part merge leaves them
+    // alone), and the meshes of every XT payload by material so instances of one part decode it once.
+    std::set<unsigned> brepMeshes;
+    std::map<std::pair<const void*,unsigned>,std::vector<unsigned>> exactCache;
+    bool exactUnitAssumed=false;
     std::map<std::vector<float>,unsigned> materialCache;
     std::map<const void*,unsigned> geometryCache;
     std::vector<const aiNode*> hiddenJournal;
@@ -1864,10 +1871,102 @@ struct Builder {
             hasBrep=true;
             if(!options.exactDecoder || !palette.mapping.IsNull()) continue;
             try {
-                options.check();prop->Load();const auto xt=Handle(JtElement_XTBRep)::DownCast(prop->DefferedObject());
+                options.check();
+                // The stored shapes beneath this part carry its materials (the part node itself rarely does): the exact meshes take
+                // theirs. When the shapes disagree (several colours, or a different material in another LOD alternative) one material
+                // would lose that, so the stored tessellation stays.
+                Appearance partStyle=style;
+                if(const auto group=Handle(JtNode_Group)::DownCast(part)) {
+                    std::vector<ShapeRecord> records;
+                    // The style-only pass does not descend into a LOD node itself, so the alternatives of a LOD directly below the part
+                    // are visited one by one.
+                    const std::function<void(const Handle(JtData_Object)&)> walk=[&](const Handle(JtData_Object)& node) {
+                        if(const auto lod=Handle(JtNode_LOD)::DownCast(node)) {
+                            for(int c=0;c<int(lod->Children().Count());++c)walk(lod->Children()[c]);
+                            return;
+                        }
+                        StyleSink sink;StyleSink* const previous=styleSink;styleSink=&sink;
+                        try {visit(node,style,hidden,transformLocked,world,palette,materialSource);}
+                        catch(...) {styleSink=previous;throw;}
+                        styleSink=previous;
+                        if(sink.unsupported) throw std::runtime_error("the stored shapes of the part use materials that cannot be compared");
+                        records.insert(records.end(),sink.shapes.begin(),sink.shapes.end());
+                    };
+                    for(int c=0;c<int(group->Children().Count());++c)walk(group->Children()[c]);
+                    if(!records.empty()) {
+                        for(const auto& record:records)
+                            if(styleSignature(record.style)!=styleSignature(records.front().style)||record.style.diffuse!=records.front().style.diffuse)
+                                throw std::runtime_error("the stored shapes of the part carry different materials");
+                        partStyle=records.front().style;
+                    }
+                }
+                const unsigned exactMat=material(partStyle);
+                const auto cachedExact=exactCache.find({prop.get(),exactMat});
+                if(cachedExact!=exactCache.end()) {
+                    for(const unsigned id:cachedExact->second)attached.push_back(id);
+                    result.exactShapes.push_back(TopoDS_Shape());++result.exactParts;exact=true;break;
+                }
+                // The XT payload is in metres; the JT geometry is never scaled, so the shape is brought to the unit the file declares.
+                double metresToJt=1000.0;
+                if(result.measurementUnits.size()>1) throw std::runtime_error("the JT nodes declare different length units");
+                if(result.measurementUnits.isEmpty()) {
+                    if(!exactUnitAssumed) {exactUnitAssumed=true;result.notes.append(QStringLiteral("JT exact geometry: the file declares no length unit; the Parasolid geometry is taken as millimetres."));}
+                } else {
+                    const QString unit=*result.measurementUnits.cbegin();
+                    if(unit.compare(QLatin1String("millimeters"),Qt::CaseInsensitive)==0) metresToJt=1000.0;
+                    else if(unit.compare(QLatin1String("centimeters"),Qt::CaseInsensitive)==0) metresToJt=100.0;
+                    else if(unit.compare(QLatin1String("meters"),Qt::CaseInsensitive)==0) metresToJt=1.0;
+                    else if(unit.compare(QLatin1String("inches"),Qt::CaseInsensitive)==0) metresToJt=1.0/0.0254;
+                    else if(unit.compare(QLatin1String("feet"),Qt::CaseInsensitive)==0) metresToJt=1.0/0.3048;
+                    else throw std::runtime_error(("the JT length unit \""+unit+"\" is not supported by the exact decoder").toStdString());
+                }
+                prop->Load();const auto xt=Handle(JtElement_XTBRep)::DownCast(prop->DefferedObject());
                 if(xt.IsNull()) throw std::runtime_error("Unsupported exact JT payload");
-                const auto& bytes=xt->Data();const auto shape=options.exactDecoder(QByteArray(reinterpret_cast<const char*>(bytes.Data()),int(bytes.Count())));
-                options.check();auto m=exactMesh(shape,options);attached.push_back(add(std::move(m),style,name));result.exactShapes.push_back(shape);++result.exactParts;exact=true;prop->Unload();break;
+                const auto& bytes=xt->Data();const auto shape=options.exactDecoder(QByteArray(reinterpret_cast<const char*>(bytes.Data()),int(bytes.Count())),metresToJt);
+                options.check();
+                // The exact shape replaces the stored tessellation, so it has to occupy the same box (this also catches a wrong length unit).
+                {
+                    std::array<double,6> stored{1e300,1e300,1e300,-1e300,-1e300,-1e300};bool haveStored=false;
+                    const std::function<void(const Handle(JtData_Object)&)> gather=[&](const Handle(JtData_Object)& node) {
+                        if(node.IsNull())return;
+                        if(const auto sh=Handle(JtNode_Shape_Base)::DownCast(node)) {
+                            const auto& b=sh->Bounds();
+                            if(!std::isfinite(b.MinCorner.X)||!std::isfinite(b.MaxCorner.X)||b.MaxCorner.X<b.MinCorner.X)return;
+                            stored={std::min(stored[0],double(b.MinCorner.X)),std::min(stored[1],double(b.MinCorner.Y)),std::min(stored[2],double(b.MinCorner.Z)),
+                                    std::max(stored[3],double(b.MaxCorner.X)),std::max(stored[4],double(b.MaxCorner.Y)),std::max(stored[5],double(b.MaxCorner.Z))};
+                            haveStored=true;return;
+                        }
+                        if(const auto group=Handle(JtNode_Group)::DownCast(node))
+                            for(int c=0;c<int(group->Children().Count());++c)gather(group->Children()[c]);
+                    };
+                    gather(part);
+                    if(haveStored) {
+                        Bnd_Box box;BRepBndLib::AddOptimal(shape,box,false,false);
+                        if(box.IsVoid()||box.IsOpen()) throw std::runtime_error("the exact shape has no finite extents");
+                        double lo[3],hi[3];box.Get(lo[0],lo[1],lo[2],hi[0],hi[1],hi[2]);
+                        const double diagonal=std::sqrt((stored[3]-stored[0])*(stored[3]-stored[0])+(stored[4]-stored[1])*(stored[4]-stored[1])+(stored[5]-stored[2])*(stored[5]-stored[2]));
+                        const double tolerance=0.05*diagonal+1e-6;
+                        double worst=0;
+                        for(int k=0;k<3;++k)worst=std::max({worst,std::abs(lo[k]-stored[k]),std::abs(hi[k]-stored[3+k])});
+                        if(worst>tolerance)throw std::runtime_error(("the exact shape's extents differ from the stored geometry by "+QString::number(worst,'g',4)+" (box diagonal "+QString::number(diagonal,'g',4)+")").toStdString());
+                    }
+                }
+                std::vector<unsigned> ids;
+                if(options.exactMesher) {
+                    auto list=options.exactMesher(shape);
+                    if(list.empty()) throw std::runtime_error("Exact JT shape produced no mesh");
+                    for(auto& m:list) {
+                        validate(*m);
+                        const unsigned id=add(std::move(m),partStyle,name);
+                        brepMeshes.insert(id);ids.push_back(id);
+                    }
+                    result.exactShapes.push_back(TopoDS_Shape()); // the meshes carry what the display needs; the shape is not kept
+                } else {
+                    auto m=exactMesh(shape,options);ids.push_back(add(std::move(m),partStyle,name));result.exactShapes.push_back(shape);
+                }
+                for(const unsigned id:ids)attached.push_back(id);
+                exactCache[{prop.get(),exactMat}]=ids;
+                ++result.exactParts;exact=true;prop->Unload();break;
             } catch(const Cancelled&) {prop->Unload();throw;}
               catch(const std::bad_alloc&) {prop->Unload();throw;}
               catch(const Standard_Failure& e) {result.warnings.append(label+": exact geometry rejected: "+QString::fromUtf8(e.GetMessageString()));}
@@ -2263,6 +2362,7 @@ struct PartMerger {
     // 0 = can be merged, 1 = mesh layout not supported, 2 = mirrored or non-finite frame
     int reject(unsigned id,const aiMatrix4x4& matrix) const {
         if(id>=meshes.size()||!meshes[id])return 1;
+        if(builder.brepMeshes.count(id))return 1; // carries B-Rep edge tables keyed by its address
         const aiMesh& m=*meshes[id];
         if(!m.mNumVertices||!m.mNumFaces||!m.HasNormals()||m.HasTangentsAndBitangents()||m.mNumBones||m.mNumAnimMeshes||m.HasVertexColors(1))return 1;
         if(m.mPrimitiveTypes!=aiPrimitiveType_TRIANGLE)return 1;
@@ -2511,6 +2611,9 @@ ImportResult Detail::buildScene(const Handle(JtNode_Partition)& root,const QStri
         b.result.notes.append(QStringLiteral("JT detail level %1: %2 of %3 LOD nodes loaded a coarser alternative than the first; %4 offered no distinct levels and kept the established choice. "
             "Measurements and recorded PMI of this session belong to this level.")
             .arg(options.detailLevel==Options::DetailLevel::Coarsest ? QStringLiteral("coarsest") : QStringLiteral("medium")).arg(b.lodReduced).arg(b.lodNodes).arg(b.lodIndistinct));
+    if(options.exactDecoder&&(b.result.exactParts||b.result.fallbackParts))
+        b.result.notes.append(QStringLiteral("JT exact geometry: %1 parts were rebuilt from their embedded Parasolid B-Rep; %2 parts with a B-Rep kept the stored tessellation (the B-Rep was missing, incomplete or rejected, see the warnings).")
+            .arg(b.result.exactParts).arg(b.result.fallbackParts));
     if(b.variantNodes) {
         b.result.variantNames.append(QStringLiteral("As authored in this level"));
         for(unsigned i=0;i<unsigned(b.meshVariantMat.size());++i)if(b.meshVariantMat[i]!=Builder::NoVariant)b.result.variantMaterialByMesh[i]=b.meshVariantMat[i];

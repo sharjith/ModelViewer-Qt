@@ -27,6 +27,7 @@
 #include <Message_ProgressRange.hxx>
 #include <Quantity_Color.hxx>
 #include <TopoDS_Compound.hxx>
+#include <TopoDS_Iterator.hxx>
 #include <gp_Pnt.hxx>
 #include <gp_Trsf.hxx>
 
@@ -877,6 +878,151 @@ SceneImportResult importScene(const QString& path, const SceneImportOptions& opt
     regroupByAssembly(result.scene.get(), r.build.instances);
     report(QObject::tr("Done"), 1000, 1000);
     return result;
+}
+
+namespace {
+
+// What identifies a face well enough to tell a copy of it: the surface type, the centre and diagonal of its box, and its area.
+struct FaceKey {
+    int type = 0;
+    double centre[3] = {0, 0, 0};
+    double diagonal = 0;
+    double area = 0;
+};
+
+FaceKey faceKeyOf(const TopoDS_Face& face)
+{
+    FaceKey key;
+    key.type = static_cast<int>(BRepAdaptor_Surface(face, false).GetType());
+    Bnd_Box box;
+    BRepBndLib::AddOptimal(face, box, false, false);
+    if (!box.IsVoid() && !box.IsOpen()) {
+        double lo[3], hi[3];
+        box.Get(lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]);
+        for (int k = 0; k < 3; ++k)
+            key.centre[k] = 0.5 * (lo[k] + hi[k]);
+        key.diagonal = std::sqrt((hi[0] - lo[0]) * (hi[0] - lo[0]) + (hi[1] - lo[1]) * (hi[1] - lo[1]) + (hi[2] - lo[2]) * (hi[2] - lo[2]));
+    }
+    GProp_GProps properties;
+    BRepGProp::SurfaceProperties(face, properties);
+    key.area = std::abs(properties.Mass());
+    return key;
+}
+
+bool sameFace(const FaceKey& a, const FaceKey& b)
+{
+    if (a.type != b.type)
+        return false;
+    const double scale = std::max({a.diagonal, b.diagonal, 1e-9});
+    const double tolerance = 1e-4 * scale;
+    for (int k = 0; k < 3; ++k)
+        if (std::abs(a.centre[k] - b.centre[k]) > tolerance)
+            return false;
+    return std::abs(a.diagonal - b.diagonal) <= tolerance && std::abs(a.area - b.area) <= 1e-4 * std::max({a.area, b.area, 1e-9});
+}
+
+// A part can hold a sheet body next to its solid (a surface model of the same part) that repeats some faces of the solid exactly.
+// Drawn together, a face and its copy fight over the same depth. The copies are taken out of the sheet bodies; the solid keeps its faces.
+TopoDS_Shape withoutFacesRepeatedBySolids(const TopoDS_Shape& shape, size_t& removed)
+{
+    removed = 0;
+    std::vector<FaceKey> solidFaces;
+    for (TopExp_Explorer solid(shape, TopAbs_SOLID); solid.More(); solid.Next())
+        for (TopExp_Explorer face(solid.Current(), TopAbs_FACE); face.More(); face.Next())
+            solidFaces.push_back(faceKeyOf(TopoDS::Face(face.Current())));
+    if (solidFaces.empty())
+        return shape;
+
+    BRep_Builder builder;
+    TopoDS_Compound result;
+    builder.MakeCompound(result);
+    bool changed = false;
+    for (TopoDS_Iterator body(shape); body.More(); body.Next()) {
+        if (TopExp_Explorer(body.Value(), TopAbs_SOLID).More()) {
+            builder.Add(result, body.Value());
+            continue;
+        }
+        TopoDS_Compound kept;
+        builder.MakeCompound(kept);
+        size_t keptFaces = 0, droppedFaces = 0;
+        for (TopExp_Explorer face(body.Value(), TopAbs_FACE); face.More(); face.Next()) {
+            const FaceKey key = faceKeyOf(TopoDS::Face(face.Current()));
+            if (std::any_of(solidFaces.begin(), solidFaces.end(), [&](const FaceKey& other) { return sameFace(key, other); })) {
+                ++droppedFaces;
+                continue;
+            }
+            builder.Add(kept, face.Current());
+            ++keptFaces;
+        }
+        if (!droppedFaces) {
+            builder.Add(result, body.Value());
+            continue;
+        }
+        changed = true;
+        removed += droppedFaces;
+        if (keptFaces)
+            builder.Add(result, kept);
+    }
+    return changed ? TopoDS_Shape(result) : shape;
+}
+
+} // namespace
+
+std::vector<std::unique_ptr<aiMesh>> meshesFromShape(const TopoDS_Shape& originalShape, const std::function<bool()>& cancelled)
+{
+    if (originalShape.IsNull())
+        throw std::runtime_error("the shape is empty");
+    size_t repeatedFaces = 0;
+    const TopoDS_Shape shape = withoutFacesRepeatedBySolids(originalShape, repeatedFaces);
+    SceneImportOptions options;
+    options.cancelled = cancelled;
+    const double deflection = BRepToAssimpConverter::resolveDeflectionFraction();
+    const double angle = BRepToAssimpConverter::resolveAngularDeflection();
+    if (!meshBodyGuarded(&shape, deflection, angle, options))
+        throw std::runtime_error("the shape could not be tessellated");
+    remeshBodyUntilComplete(shape, deflection, angle, options);
+    if (cancelled && cancelled())
+        throw std::runtime_error("cancelled");
+    // The caller replaces a stored tessellation with these meshes: a face left without triangles would be a hole in it.
+    if (const size_t unmeshed = countUnmeshedFaces(shape))
+        throw std::runtime_error(std::to_string(unmeshed) + " faces of the shape got no triangles");
+
+    // One tuple per body: the converter takes only the solids of a shape that has any, so a sheet body (a surface without a solid)
+    // would be left out of a compound that also holds a solid.
+    std::vector<ShapeWithNameAndTrsf> tuples;
+    const Quantity_Color grey(0.7, 0.7, 0.7, Quantity_TOC_RGB);
+    for (TopoDS_Iterator body(shape); body.More(); body.Next())
+        tuples.emplace_back(body.Value(), std::string(), TopLoc_Location(), grey);
+    if (tuples.empty())
+        tuples.emplace_back(shape, std::string(), TopLoc_Location(), grey);
+    // A solid has no open boundary: hairline gaps between the tessellations of neighbouring faces are closed on the mesh.
+    BRepToAssimpConverter::setFillMeshGaps(qEnvironmentVariableIsEmpty("MODELVIEWER_XT_NO_GAP_FILL"));
+    std::unique_ptr<aiScene> scene(BRepToAssimpConverter::convert(tuples));
+    BRepToAssimpConverter::setFillMeshGaps(false);
+    if (!scene || scene->mNumMeshes == 0)
+        throw std::runtime_error("the shape could not be converted to meshes");
+
+    // The meshes leave the scene with their addresses unchanged (the edge and face tables are keyed by them).
+    std::vector<std::unique_ptr<aiMesh>> meshes;
+    meshes.reserve(scene->mNumMeshes);
+    for (unsigned i = 0; i < scene->mNumMeshes; ++i) {
+        std::unique_ptr<aiMesh> mesh(scene->mMeshes[i]);
+        scene->mMeshes[i] = nullptr;
+        if (mesh->mColors[0]) {
+            delete[] mesh->mColors[0];
+            mesh->mColors[0] = nullptr;
+        }
+        meshes.push_back(std::move(mesh));
+    }
+    // A part is one mesh: a solid and a sheet body (or several solids) of the same part would otherwise be separate meshes, and surfaces
+    // of separate meshes that lie on each other fight over the depth. The B-Rep edge and face tables are merged with the meshes.
+    if (meshes.size() > 1) {
+        if (std::unique_ptr<aiMesh> merged = BRepToAssimpConverter::mergeConvertedMeshes(meshes)) {
+            meshes.clear();
+            meshes.push_back(std::move(merged));
+        }
+    }
+    return meshes;
 }
 
 } // namespace Xt

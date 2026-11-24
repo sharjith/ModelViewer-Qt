@@ -15,6 +15,7 @@
 #include <BRepBndLib.hxx>
 #include <map>
 #include <unordered_map>
+#include <memory>
 #include <vector>
 
 // Hash by TShape pointer only (orientation-independent).
@@ -161,6 +162,12 @@ public:
 
 	// Clears the edge segment cache.  Called from clearColorCache() before each load.
 	static void clearEdgeCache();
+
+	// Several triangle meshes of ONE part (a solid and a sheet body, say) become one mesh, as a lightweight format keeps a part: surfaces of
+	// separate meshes that lie on each other fight over the depth, a single mesh does not. The edge and face tables of the parts (keyed by mesh
+	// address) are merged onto the new mesh with their index offsets and the parts' entries are dropped. Returns null and leaves `parts` untouched
+	// when the parts cannot be joined (not plain triangle meshes); on success `parts` is emptied.
+	static std::unique_ptr<aiMesh> mergeConvertedMeshes(std::vector<std::unique_ptr<aiMesh>>& parts);
 
 	// When on, small gaps between the tessellations of the faces of a solid (hairline cracks, a face that failed to mesh) are closed
 	// on the mesh with triangles that reuse the existing vertices. Off by default; the Parasolid importer turns it on.

@@ -1758,19 +1758,27 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 	{
 		try {
 			Jt::Options options=Jt::Options::fromEnvironment();
-			// XT B-Rep segments inside JT files: decode them with the XT reader. A shape that fails validation
-			// is rejected by the JT builder, which then keeps the stored tessellation.
-			// Experimental: the XT length unit inside a JT file is not verified against the JT unit yet, so the exact
-			// decoder is only used when asked for explicitly (MODELVIEWER_JT_XT_EXACT=1).
-			if (qEnvironmentVariableIntValue("MODELVIEWER_JT_XT_EXACT") != 0)
-			options.exactDecoder = [this](const QByteArray& bytes) -> TopoDS_Shape {
-				Xt::BuildOptions build;
-				build.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
-				Xt::ImportReport xtReport;
-				TopoDS_Shape shape = Xt::shapeFromJtElement(bytes.constData(), size_t(bytes.size()), build, xtReport);
-				if (shape.IsNull()) throw std::runtime_error(xtReport.error.empty() ? "XT decode failed" : xtReport.error);
-				return shape;
-			};
+			// XT B-Rep segments inside JT files: decode them with the XT reader and mesh them the way an X_T body is meshed, so the
+			// part gets smooth normals and B-Rep edges for the wireframe. A shape that is incomplete, fails validation or cannot be
+			// meshed is rejected by the JT builder, which then keeps the stored tessellation. Settings > JT Importer, or
+			// MODELVIEWER_JT_XT_EXACT=1 / 0 (options.useExactBRep).
+			if (options.useExactBRep)
+			{
+				// The edge and face tables of the previous document are keyed by mesh address; drop them before new meshes can reuse an address.
+				BRepToAssimpConverter::clearColorCache();
+				options.exactDecoder = [this](const QByteArray& bytes, double metresToJt) -> TopoDS_Shape {
+					Xt::BuildOptions build;
+					build.lengthScale = metresToJt;
+					build.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
+					Xt::ImportReport xtReport;
+					TopoDS_Shape shape = Xt::shapeFromJtElement(bytes.constData(), size_t(bytes.size()), build, xtReport);
+					if (shape.IsNull()) throw std::runtime_error(xtReport.error.empty() ? "XT decode failed" : xtReport.error);
+					return shape;
+				};
+				options.exactMesher = [this](const TopoDS_Shape& shape) {
+					return Xt::meshesFromShape(shape, [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); });
+				};
+			}
 			options.cancelled = [this] { return _loadingCancelled || MainWindow::isFileLoadCancelRequested(); };
 			options.progress = [this, &fi, last = QString()](const QString& stage, int done, int total) mutable {
 				emit fileReadProcessed(total ? float(done)/total : 0.0f);
@@ -1789,6 +1797,18 @@ void AssImpModelLoader::loadModel(string path, const bool& progressiveLoading)
 			_importStage = "worker.jt-read-complete";
 			ImportDiagnostics::checkpoint(_importStage);
 			_scene = _jt.scene.get();
+			if (options.useExactBRep && _scene)
+			{
+				// Whether the B-Rep edge tables registered while meshing survived to the finished scene (they are keyed by mesh address).
+				unsigned withEdges = 0;
+				for (unsigned i = 0; i < _scene->mNumMeshes; ++i)
+					if (BRepToAssimpConverter::getPrecomputedEdges(_scene->mMeshes[i]))
+						++withEdges;
+				const bool edgeExtraction = QSettings(QCoreApplication::organizationName(), QCoreApplication::applicationName())
+				                                .value("showWireframeCheckBox", true).toBool();
+				_jt.notes.append(QStringLiteral("JT exact geometry: %1 of %2 meshes carry B-Rep edges for the wireframe (edge extraction setting: %3).")
+				                     .arg(withEdges).arg(_scene->mNumMeshes).arg(edgeExtraction ? QStringLiteral("on") : QStringLiteral("off")));
+			}
 			_declaredLengthUnit = Jt::declaredLengthUnit(_jt.measurementUnits, _jt.notes);
 			// LOD material variants: scene meshes whose loaded alternative's own materials differ from their default material.
 			// The prebuilt variant materials and the scene-graph registration are the ones the glTF path uses.

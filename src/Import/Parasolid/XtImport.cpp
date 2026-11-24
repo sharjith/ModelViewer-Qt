@@ -65,13 +65,16 @@ TopoDS_Shape shapeFromJtElement(const char* data, size_t size, const BuildOption
     finish(file, options, report);
     if (!report.error.empty())
         return {};
-    // The caller replaces the JT file's stored tessellation with this shape, so it must be complete and
-    // exact: every face built, nothing fitted or approximated, every body placed.
+    // The caller replaces the JT file's stored tessellation with this shape, so it must be complete: every face and edge
+    // built, every body placed. Fitted blends and intersection charts (approximatedGeometry) are accepted: they follow the
+    // intended surface within the build tolerance, and the caller compares the shape's extents with the stored geometry and
+    // meshes every face. The counters in facesSkippedBySurface and edgesSkippedByCurve also record notes about faces and
+    // edges that WERE built (chart-refined, tolerant-loop-kept ...), so only the built-of-total counts are tested.
     {
         const BuildStats& s = report.build.stats;
-        const bool complete = s.facesBuilt == s.faces && s.facesSkippedBySurface.empty() && s.edgesSkippedByCurve.empty() &&
+        const bool complete = s.facesBuilt == s.faces && s.edgesBuilt == s.edges &&
                               s.tolerantEdgesSkipped == 0 && s.edgeDirectionConflicts == 0 && s.instancesWithUnsupportedTransform == 0 &&
-                              s.approximatedGeometry == 0 && s.missingOccurrences == 0 && report.build.diagnostics.empty() &&
+                              s.missingOccurrences == 0 && report.build.diagnostics.empty() &&
                               s.bodies == report.build.bodies.size() && !report.build.instances.empty();
         if (!complete) {
             report.error = "the XT data could not be rebuilt completely and exactly; the stored JT tessellation is used instead";
