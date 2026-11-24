@@ -419,7 +419,8 @@ Handle(Geom_BSplineCurve) Builder::nurbsCurve(const Node& nurbs) {
     const int n = static_cast<int>(num(nurbs, "NURBS_CURVE", "n_vertices"));
     const int dim = static_cast<int>(num(nurbs, "NURBS_CURVE", "vertex_dim"));
     bool periodic = num(nurbs, "NURBS_CURVE", "periodic") == 'T';
-    const bool rational = num(nurbs, "NURBS_CURVE", "rational") == 'T';
+    // A homogeneous net (vertex_dim 4) is rational whatever the flag says, as for the surface.
+    const bool rational = num(nurbs, "NURBS_CURVE", "rational") == 'T' || (dim == 4 && !std::getenv("XT_NO_DIM4_RATIONAL"));
     const Node* verts = node(ptr(nurbs, "NURBS_CURVE", "bspline_vertices"));
     const Node* mult = node(ptr(nurbs, "NURBS_CURVE", "knot_mult"));
     const Node* knotNode = node(ptr(nurbs, "NURBS_CURVE", "knots"));
