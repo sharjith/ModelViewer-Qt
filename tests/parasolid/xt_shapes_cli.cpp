@@ -32,6 +32,8 @@
 #include <cmath>
 #include <ShapeFix_Face.hxx>
 #include <BRepBuilderAPI_Copy.hxx>
+#include <BRepTopAdaptor_FClass2d.hxx>
+#include <BRepClass3d_SolidClassifier.hxx>
 #include <FaceFallbackTriangulator.h>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopoDS_Face.hxx>
@@ -368,10 +370,10 @@ int main(int argc, char** argv) {
     std::printf("faces: %zu built of %zu; edges: %zu built of %zu; tolerant-skipped %zu; direction conflicts %zu\n",
                 r.stats.facesBuilt, r.stats.faces, r.stats.edgesBuilt, r.stats.edges, r.stats.tolerantEdgesSkipped,
                 r.stats.edgeDirectionConflicts);
-    std::printf("JT exact gate: faces %zu/%zu, edges %zu/%zu, skipped-by-surface %zu, skipped-by-curve %zu, tolerant-skipped %zu, direction conflicts %zu, unsupported transform %zu, approximated %zu, missing occurrences %zu, diagnostics %zu, bodies %zu/%zu, instances %zu\n",
+    std::printf("JT exact gate: faces %zu/%zu, edges %zu/%zu, skipped-by-surface %zu, skipped-by-curve %zu, tolerant-skipped %zu, direction conflicts %zu, unsupported transform %zu, approximated %zu, missing occurrences %zu, diagnostics %zu, bodies %zu/%zu, instances %zu, capped holes %zu\n",
                 r.stats.facesBuilt, r.stats.faces, r.stats.edgesBuilt, r.stats.edges, r.stats.facesSkippedBySurface.size(), r.stats.edgesSkippedByCurve.size(), r.stats.tolerantEdgesSkipped,
                 r.stats.edgeDirectionConflicts, r.stats.instancesWithUnsupportedTransform, r.stats.approximatedGeometry, r.stats.missingOccurrences,
-                r.diagnostics.size(), r.stats.bodies, r.bodies.size(), r.instances.size());
+                r.diagnostics.size(), r.stats.bodies, r.bodies.size(), r.instances.size(), (r.stats.facesSkippedBySurface.count("  fill-capped-incomplete") ? r.stats.facesSkippedBySurface.at("  fill-capped-incomplete") : size_t(0)));
     for (const auto& kv : r.stats.surfacesBuilt) std::printf("  surfaces built %-14s %zu\n", kv.first.c_str(), kv.second);
     for (const auto& kv : r.stats.facesSkippedBySurface) std::printf("  faces skipped  %-14s %zu\n", kv.first.c_str(), kv.second);
     for (const auto& kv : r.stats.orientationFlips) std::printf("  orientation corrected %-14s %zu\n", kv.first.c_str(), kv.second);
@@ -681,6 +683,84 @@ int main(int argc, char** argv) {
             size_t shared = 0;
             for (double x : a) if (std::any_of(b.begin(), b.end(), [&](double y) { return std::abs(x - y) < 1e-5; })) ++shared;
             std::printf("angle check %s: face %lld has %zu distinct vertex angles, face %lld has %zu, %zu of the first occur on the second\n", absolute > 0 ? "absolute" : "relative", idA, a.size(), idB, b.size(), shared);
+        }
+        if (std::getenv("XT_ORIENT_CHECK")) {
+            // Research aid: a face of a solid whose outward normal (surface normal turned by the face orientation) points into the solid's material is
+            // built with the wrong orientation; the viewer draws it black. A point just outside the face is classified against the solid.
+            size_t checked = 0, inverted = 0;
+            for (const auto& body : r.bodies) {
+                std::map<const TopoDS_TShape*, std::pair<long long, std::string>> info;
+                for (const auto& [node, o] : body.faceOutcomes) if (o.shape) info[o.shape] = {node, o.origin + " " + o.surface};
+                for (TopExp_Explorer sx(body.shape, TopAbs_SOLID); sx.More(); sx.Next()) {
+                    const TopoDS_Solid solid = TopoDS::Solid(sx.Current());
+                    Bnd_Box sb;
+                    BRepBndLib::AddOptimal(solid, sb, false, false);
+                    if (sb.IsVoid() || sb.IsOpen()) continue;
+                    double a0, a1, a2, b0, b1, b2;
+                    sb.Get(a0, a1, a2, b0, b1, b2);
+                    const double solidDiagonal = std::sqrt((b0 - a0) * (b0 - a0) + (b1 - a1) * (b1 - a1) + (b2 - a2) * (b2 - a2));
+                    for (TopExp_Explorer fx(solid, TopAbs_FACE); fx.More(); fx.Next()) {
+                        const TopoDS_Face face = TopoDS::Face(fx.Current());
+                        double u0, u1, v0, v1;
+                        BRepTools::UVBounds(face, u0, u1, v0, v1);
+                        {   // the mesh as the viewer reads it: triangle centroids with the winding turned for a REVERSED face
+                            TopLoc_Location tl;
+                            const auto tri = BRep_Tool::Triangulation(face, tl);
+                            if (!tri.IsNull() && tri->NbTriangles() > 0) {
+                                bool flagged = false;
+                                for (int pick = 0; pick < 3 && !flagged; ++pick) {
+                                    const int t = 1 + (pick * (tri->NbTriangles() - 1)) / 2;
+                                    int n1, n2, n3;
+                                    tri->Triangle(t).Get(n1, n2, n3);
+                                    if (face.Orientation() == TopAbs_REVERSED) std::swap(n2, n3);
+                                    const gp_Pnt c1 = tri->Node(n1).Transformed(tl.Transformation()), c2 = tri->Node(n2).Transformed(tl.Transformation()),
+                                                 c3 = tri->Node(n3).Transformed(tl.Transformation());
+                                    gp_Vec tn = gp_Vec(c1, c2).Crossed(gp_Vec(c1, c3));
+                                    if (tn.Magnitude() < 1e-12) continue;
+                                    tn.Normalize();
+                                    const gp_Pnt centre((c1.X() + c2.X() + c3.X()) / 3, (c1.Y() + c2.Y() + c3.Y()) / 3, (c1.Z() + c2.Z() + c3.Z()) / 3);
+                                    const gp_Pnt q(centre.X() + tn.X() * 1e-3 * solidDiagonal, centre.Y() + tn.Y() * 1e-3 * solidDiagonal, centre.Z() + tn.Z() * 1e-3 * solidDiagonal);
+                                    BRepClass3d_SolidClassifier solidClassifier(solid, q, 1e-9);
+                                    ++checked;
+                                    if (solidClassifier.State() == TopAbs_IN) {
+                                        ++inverted;
+                                        flagged = true;
+                                        const auto found = info.find(face.TShape().get());
+                                        std::printf("orientation check: mesh of face %lld (%s) faces into the material (triangle %d)\n",
+                                                    found == info.end() ? 0LL : found->second.first, found == info.end() ? "?" : found->second.second.c_str(), t);
+                                    }
+                                }
+                                if (flagged) continue;
+                            }
+                        }
+                        BRepAdaptor_Surface surface(face, false);
+                        BRepTopAdaptor_FClass2d classifier2d(face, 1e-7);
+                        // a few sample points inside the face
+                        for (int k = 1; k <= 3; ++k) {
+                            const double fu = k / 4.0, fv = (k == 2 ? 0.5 : (k == 1 ? 0.35 : 0.65));
+                            const gp_Pnt2d uv(u0 + fu * (u1 - u0), v0 + fv * (v1 - v0));
+                            if (classifier2d.Perform(uv) != TopAbs_IN) continue;
+                            gp_Pnt p; gp_Vec du, dv;
+                            surface.D1(uv.X(), uv.Y(), p, du, dv);
+                            gp_Vec n = du.Crossed(dv);
+                            if (n.Magnitude() < 1e-12) continue;
+                            n.Normalize();
+                            if (face.Orientation() == TopAbs_REVERSED) n.Reverse();
+                            const gp_Pnt q(p.X() + n.X() * 1e-4 * solidDiagonal, p.Y() + n.Y() * 1e-4 * solidDiagonal, p.Z() + n.Z() * 1e-4 * solidDiagonal);
+                            BRepClass3d_SolidClassifier solidClassifier(solid, q, 1e-9);
+                            ++checked;
+                            if (solidClassifier.State() == TopAbs_IN) {
+                                ++inverted;
+                                const auto found = info.find(face.TShape().get());
+                                std::printf("orientation check: face %lld (%s) points into the material at sample %d\n",
+                                            found == info.end() ? 0LL : found->second.first, found == info.end() ? "?" : found->second.second.c_str(), k);
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+            std::printf("orientation check: %zu samples, %zu faces flagged\n", checked, inverted);
         }
         if (const char* sw = std::getenv("XT_DEFL_SWEEP")) {
             // Research aid: how the body's own faces mesh at several relative deflections (triangles, area against the exact area).
