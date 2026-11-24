@@ -327,7 +327,23 @@ Handle(JtData_Object) JtData_Model::readSegment (std::ifstream&         theFile,
   if (theIsLSG)
     aResult = readLSGData (*aDataReaderPtr, aFirstObject);
   else
+  {
     aResult = readElement (*aDataReaderPtr, aFirstObject);
+
+    // JT 9.5 XT B-Rep segments (measured on two files written by DM 7.3.12.2): the element is followed by the End-Of-Elements
+    // marker element and six more bytes (an I32 of 1 and two zero bytes), which the single-element reader would otherwise leave
+    // over as trailing data. Both are consumed and checked; any other content still fails the segment.
+    if (aResult && (aType == 17 || aType == 30) && myMajorVersion == 9 && myMinorVersion >= 5)
+    {
+      Handle(JtData_Object) aMarker;
+      if (!readElement (*aDataReaderPtr, aMarker) || !aMarker.IsNull())
+        throw std::runtime_error("JT 9.5 XT segment lacks its end-of-elements marker");
+      Jt_I32 aCount;
+      Jt_U16 aPadding;
+      if (!aDataReaderPtr->ReadI32 (aCount) || aCount != 1 || !aDataReaderPtr->ReadU16 (aPadding) || aPadding != 0)
+        throw std::runtime_error("Unexpected JT 9.5 XT segment trailer");
+    }
+  }
 
   // Free the JtData_Inflate reader if it was used
   if(auto* inflated=dynamic_cast<JtData_Inflate*>(ownedReader.get()))

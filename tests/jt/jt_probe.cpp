@@ -58,6 +58,10 @@ int main(int argc,char** argv) {
     if(arguments.size()<1 || arguments.size()>2) parser.showHelp(2);
     try {
         Jt::Options options;options.duplicateFallbackMaterialCompatibility=!parser.isSet(publishedMaterials);
+        // Research aid: JT_PROBE_XT=1 makes every XT B-Rep payload reach a stub decoder that reports its size, so a warning "probe: XT payload"
+        // proves the XT element was read to its end (the real decoder lives in the application).
+        if(qEnvironmentVariableIntValue("JT_PROBE_XT")!=0)
+            options.exactDecoder=[](const QByteArray& bytes,double)->TopoDS_Shape{throw std::runtime_error("probe: XT payload "+std::to_string(bytes.size())+" bytes");};
         if(parser.isSet(budget)){bool ok=false;const auto mib=parser.value(budget).toULongLong(&ok);if(!ok||!mib||mib>std::numeric_limits<size_t>::max()/(1024*1024))throw std::runtime_error("Invalid allocation budget");options.decodedAllocationBudget=size_t(mib)*1024*1024;}
         if(parser.isSet(decodeThreads)){bool ok=false;const auto n=parser.value(decodeThreads).toUInt(&ok);if(!ok)throw std::runtime_error("Invalid --decode-threads");options.decodeThreads=n;}
         if(parser.isSet(detail)) {
