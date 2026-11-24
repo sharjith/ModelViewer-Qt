@@ -107,3 +107,58 @@ Each step ends at a gate: the owner builds and tests; nothing dependent starts b
 ## 7. Related clean-up folded into this work
 
 From the namespace-state audit: `AppContext::SessionId()` and the simulation load counter (small, separate commit, any time); the `GltfPostProcessor` statics become `ExportSession` state in step 1 / 2; the `BRepToAssimpConverter` and `AssImpModelLoader` load-side caches are import-side and stay a separate step after export.
+
+## 8. Step 2 design: the glTF / GLB writer
+
+Status: design for owner review (24 November 2026). No code until it is accepted. Everything marked **[Obs]** was read in the code on that date.
+
+### 8.1 What the writer consumes
+
+- **[Obs]** Geometry and hierarchy come from `SceneGraphExporter::buildExportScene()` as an `aiScene`: nodes, meshes (positions, normals, up to 4 UV sets, `COLOR_0`, bones, morph targets), animation clips (node TRS and morph weights). This stays the writer's input, so the scene builder and the 3D PDF path are untouched.
+- **[Obs]** Materials come from the live `SceneMesh` / `Material` objects: one `Material` class with 25 texture types (each a `Texture` with path, `QImage`, UV transform, wrap and filter modes), scalar factors for every extension the post-processor writes today, `ShadingModel`, `BlendMode`, two-sided, alpha threshold, normal scale and occlusion strength.
+- **[Obs]** Variants (`MeshVariantExportEntry`, per-mesh mappings and pre-built variant materials), cameras (`GltfCameraEntry`), punctual lights (`GPULight`) and pointer / visibility animation (`GltfAnimationData`) arrive in `ExportSettings`.
+- **[Obs]** `buildMeshFromSceneMesh()` writes `COLOR_0` for **every** mesh (default white) and every UV set. This, not Assimp, is where the "invented `COLOR_0`" in the baseline comes from. The writer writes `COLOR_0` only when `RenderableMesh::hasVertexColors()` is true (or a colour override is supplied).
+
+### 8.2 Components (new folder `src/Export/`, headers in `include/Export/`)
+
+| Component | Job |
+|---|---|
+| `IModelWriter`, `ExportRequest`, `ExportResult` | The interface and its input / result (success, message, warnings). `ExportRequest` bundles the `aiScene`, the ordered `SceneMesh*` list, `ExportSettings`, the output path and the format id. |
+| `ExportFormatRegistry` | Format id -> writer. Own writers first; the remaining Assimp formats are listed from Assimp's registry; the dialog is built from it. Env var `MODELVIEWER_LEGACY_GLTF_EXPORT=1` routes glb / gltf back to Assimp while the branch is open (removed before merge, owner decision 2). |
+| `ExportSession` | Everything that is per export: texture store, warnings, `ExportProfile` timings, variant / light / camera data. Replaces the `GltfPostProcessor` statics for this path; nothing process-wide. |
+| `GltfWriter` | Orchestrates one export; writes `.glb` or `.gltf` + `.bin` + texture folder from the same code. |
+| `GltfBinaryBuffer` | One growable buffer with geometric growth and 4-byte alignment; accessors record exact `min` / `max` computed from the data they write (fixes the validator's `ACCESSOR_MIN_MISMATCH`). |
+| `GltfTextureStore` | Images, samplers, textures; one entry per distinct image (content hash) and per distinct sampler; applies `KHR_texture_transform` only where a transform is not the identity. |
+| `GltfMaterialWriter` | Maps `Material` to glTF (8.3). Extensions are written only when a value differs from the spec default (no invented `ior`, `specular`, `volume`, `emissive_strength`). |
+| `GltfAnimationWriter` | Node TRS, morph weights, skins, `KHR_animation_pointer`, `KHR_node_visibility`. |
+
+### 8.3 Mapping of our model to glTF (parity list, from the baseline and the post-processor)
+
+- **Base:** albedo colour / opacity and texture -> `baseColorFactor` / `baseColorTexture`; metalness, roughness -> factors; separate metallic and roughness textures are **packed** into one metallic-roughness texture (G = roughness, B = metallic) and AO into the occlusion texture where the channel layout needs it (the existing packing code in `AssImpMeshExporter` is moved into a shared helper, not rewritten); normal (with scale), occlusion (with strength), emissive (colour, texture).
+- **State:** `BlendMode` Opaque / Masked (with alpha cutoff) / Alpha -> `alphaMode`; Additive and Multiply have no glTF equivalent (written as BLEND, with a warning in the result); two-sided -> `doubleSided`; `ShadingModel::Unlit` -> `KHR_materials_unlit`.
+- **Extensions (written when non-default):** `emissive_strength`, `ior`, `specular`, `clearcoat` (factor, roughness, normal), `sheen`, `transmission`, `volume`, `iridescence`, `anisotropy`, `diffuse_transmission`, `dispersion`, `pbrSpecularGlossiness` (our `Diffuse` and `SpecularGlossiness` texture types), `texture_transform` on every texture info that needs it, and the extension lists (`extensionsUsed`, and `extensionsRequired` only where the spec requires it).
+- **Scene features:** `KHR_lights_punctual` (with the light names), cameras (perspective and orthographic), `KHR_materials_variants` (default material plus the mappings, written straight from the per-mesh data instead of patched in), node animation, morph targets and weight animation, skins (joints, inverse bind matrices, `JOINTS_0` / `WEIGHTS_0`), pointer animation, node visibility.
+- **Geometry:** positions, normals, `TEXCOORD_0..3`, `COLOR_0` (conditional), tangents (**[Open]** D3 below), indices as 16-bit when the mesh has at most 65,535 vertices else 32-bit, primitive modes (points, lines, strips, fans as the source has them), sparse accessors not written.
+- **Nodes:** the aiScene's synthetic root is not written; the scene lists its children (**[Rec]**, removes the `SceneRoot` wrapper seen in the baseline). Names are kept; unique-name handling stays in `buildExportScene()`.
+- **Units:** glTF is metres (6.1): scale from a known import unit, none for an unknown one.
+
+### 8.4 Stages inside step 2 (each ends at an owner build + test gate)
+
+| Stage | Content | Pass criteria |
+|---|---|---|
+| 2a | Infrastructure (`IModelWriter`, registry with env-var fallback, `ExportSession`, `GltfBinaryBuffer`) and a geometry-only GLB **and** glTF writer: hierarchy, positions, normals, UVs, indices, conditional `COLOR_0`, default material | Validator: 0 errors on K01 and S-A; geometry equals the input (vertex / triangle counts, actual bounds from the buffer); S-A time recorded |
+| 2b | Core PBR materials, textures, samplers, texture transform, alpha modes, two-sided, unlit, units (known unit only) | K-set core models validate with 0 errors; `gltf_profile.py diff` against the Khronos input shows no loss; image bytes policy (D1) in effect |
+| 2c | Material extensions | The extension models of the K-set (anisotropy, clearcoat, sheen, transmission, iridescence, diffuse transmission, dispersion, emissive strength, spec / gloss, volume) validate and match the input |
+| 2d | Lights, cameras, variants | Lights / cameras / variants models match the input; round trip through our importer keeps variants |
+| 2e | Animation: node, morph, skin, pointer, visibility | Animation models match the input and play after a round trip |
+| 2f | Cleanup: remove the legacy path and the now unused post-processing for glb / gltf (before merge to `dev`), final timings | Owner acceptance; legacy env var gone |
+
+Targets (**[Hyp]**, to be measured): S-A GLB in well under a minute (the 536 s of the old path is the writer's quadratic growth; disk write of the 327 MB file is the floor), OBJ unchanged until step 3.
+
+### 8.5 Decisions needed from the owner
+
+- **D1 Texture bytes.** **[Obs]** The old exporter re-encodes every texture as a PNG (12.6 MB each for the helmet; 3.77 MB -> 63.9 MB), and the importer writes textures into a cache folder as PNG (path `...\ModelViewerCache\<id>\<model>\image_N.png`), so the original encoded bytes are no longer at hand at export time. **[Rec]** (a) the importer keeps the original encoded bytes of an embedded or file texture (file path, or the embedded blob) so the writer copies them unchanged (size = input, no quality loss); (b) where only a decoded image exists (generated, edited or packed textures), PNG when it has alpha and JPEG (quality 92) otherwise, with the choice recorded in the result. (a) touches the importer and is its own small step before 2b; if you prefer, 2b can start with (b) only.
+- **D2 Node wrapper.** Drop the synthetic root (8.3, recommended) or keep a root node named after the document.
+- **D3 Tangents.** Today they are removed on purpose. **[Rec]** keep that (viewers regenerate them; the validator reports only a warning), unless the source had authored tangents, in which case write them.
+- **D4 Instancing.** Write per-instance geometry first (parity), then share mesh / accessor data between identical definitions as a measured optimisation in 2f. Agree?
+- **D5 Where the export runs.** The export blocks the window ("Not responding", about 9 minutes for the old path on S-A). **[Rec]** keep it on the UI thread in 2a to 2e (so the writer can be compared with the old path under the same conditions) and move the write to a worker with a progress dialog and cancel in 2f, once the writer is fast enough that this is a comfort, not a necessity.
